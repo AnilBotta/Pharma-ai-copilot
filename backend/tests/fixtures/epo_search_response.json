@@ -1,0 +1,139 @@
+{
+  "ops:world-patent-data": {
+    "ops:biblio-search-result": {
+      "@total-result-count": "347",
+      "ops:search-result": {
+        "exchange-documents": [
+          {
+            "exchange-document": {
+              "@country": "EP",
+              "@doc-number": "3123456",
+              "@kind": "B1",
+              "@family-id": "55555555",
+              "bibliographic-data": {
+                "publication-reference": {
+                  "document-id": [
+                    {
+                      "@document-id-type": "docdb",
+                      "country": {"$": "EP"},
+                      "doc-number": {"$": "3123456"},
+                      "kind": {"$": "B1"},
+                      "date": {"$": "20200115"}
+                    },
+                    {
+                      "@document-id-type": "epodoc",
+                      "doc-number": {"$": "EP3123456"},
+                      "date": {"$": "20200115"}
+                    }
+                  ]
+                },
+                "application-reference": {
+                  "document-id": [
+                    {
+                      "@document-id-type": "epodoc",
+                      "doc-number": {"$": "EP20150123"},
+                      "date": {"$": "20150320"}
+                    }
+                  ]
+                },
+                "priority-claims": {
+                  "priority-claim": [
+                    {
+                      "document-id": [
+                        {"@document-id-type": "epodoc", "doc-number": {"$": "US201412345"}, "date": {"$": "20140612"}}
+                      ]
+                    },
+                    {
+                      "document-id": {"@document-id-type": "epodoc", "doc-number": {"$": "US201498765"}, "date": {"$": "20140228"}}
+                    }
+                  ]
+                },
+                "invention-title": [
+                  {"@lang": "de", "$": "Depotformulierung mit Kohlenstoffnanoroehren"},
+                  {"@lang": "en", "$": "Sustained release depot formulation using carbon nanotubes"}
+                ],
+                "parties": {
+                  "applicants": {
+                    "applicant": [
+                      {"@data-format": "original", "applicant-name": {"name": {"$": "EXAMPLE PHARMA GMBH"}}},
+                      {"@data-format": "epodoc", "applicant-name": {"name": {"$": "EXAMPLE PHARMA"}}}
+                    ]
+                  },
+                  "inventors": {
+                    "inventor": [
+                      {"@data-format": "epodoc", "inventor-name": {"name": {"$": "MUELLER ANNA"}}},
+                      {"@data-format": "original", "inventor-name": {"name": {"$": "MUELLER, Anna"}}}
+                    ]
+                  }
+                },
+                "patent-classifications": {
+                  "patent-classification": [
+                    {
+                      "classification-scheme": {"@scheme": "CPC"},
+                      "section": {"$": "A"},
+                      "class": {"$": "61"},
+                      "subclass": {"$": "K"},
+                      "main-group": {"$": "9"},
+                      "subgroup": {"$": "16"}
+                    }
+                  ]
+                },
+                "classifications-ipcr": {
+                  "classification-ipcr": {
+                    "text": {"$": "A61K  9/16   20060101A I"}
+                  }
+                }
+              },
+              "abstract": {
+                "@lang": "en",
+                "p": {"$": "A depot formulation comprising functionalised carbon nanotubes and a therapeutic peptide, providing sustained release over 28 days."}
+              }
+            }
+          },
+          {
+            "exchange-document": {
+              "@country": "WO",
+              "@doc-number": "2019123456",
+              "@kind": "A1",
+              "@family-id": "55555555",
+              "bibliographic-data": {
+                "publication-reference": {
+                  "document-id": {
+                    "@document-id-type": "epodoc",
+                    "doc-number": {"$": "WO2019123456"},
+                    "date": {"$": "20190704"}
+                  }
+                },
+                "invention-title": {"@lang": "en", "$": "Sustained release depot formulation using carbon nanotubes"}
+              }
+            }
+          },
+          {
+            "exchange-document": {
+              "@country": "US",
+              "@doc-number": "10987654",
+              "@kind": "A1",
+              "@family-id": "77777777",
+              "bibliographic-data": {
+                "publication-reference": {
+                  "document-id": {
+                    "@document-id-type": "epodoc",
+                    "doc-number": {"$": "US10987654"},
+                    "date": {"$": "20210902"}
+                  }
+                },
+                "invention-title": {"@lang": "en", "$": "Peptide conjugates for injectable depot delivery"},
+                "parties": {
+                  "applicants": {
+                    "applicant": {"@data-format": "epodoc", "applicant-name": {"name": {"$": "ANOTHER BIOTECH INC"}}}
+                  }
+                }
+              },
+              "abstract": {"@lang": "en", "p": [{"$": "First paragraph of abstract."}, {"$": "Second paragraph."}]}
+            }
+          }
+        ]
+      }
+    }
+  }
+}
