@@ -3,14 +3,13 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  FileText,
-  FlaskConical,
+  FolderGit2,
   LayoutDashboard,
-  MessageSquareText,
-  Newspaper,
-  Projector,
+  ListChecks,
+  Plug,
   Settings,
-  ShieldCheck,
+  Sparkles,
+  Upload,
   X,
 } from "lucide-react";
 import { motion } from "framer-motion";
@@ -30,33 +29,22 @@ interface NavItem {
 const navGroups: { title: string; items: NavItem[] }[] = [
   {
     title: "Workspace",
-    items: [{ href: "/dashboard", label: "Dashboard", icon: LayoutDashboard }],
-  },
-  {
-    title: "AI Agents",
     items: [
-      {
-        href: "/chat",
-        label: "Research Copilot",
-        icon: MessageSquareText,
-        badge: "4",
-      },
-      { href: "/patents", label: "Patent Intelligence", icon: ShieldCheck },
-      { href: "/literature", label: "Literature Review", icon: Newspaper },
-      {
-        href: "/strategy",
-        label: "Dev Strategy",
-        icon: FlaskConical,
-        badge: "BETA",
-      },
+      { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+      { href: "/projects", label: "Projects", icon: FolderGit2 },
     ],
   },
   {
-    title: "Deliverables",
+    title: "Research",
     items: [
-      { href: "/reports", label: "Report Generator", icon: FileText },
-      { href: "/projects", label: "Projects", icon: Projector },
+      { href: "/research/new", label: "New Research", icon: Sparkles },
+      { href: "/runs", label: "Research Runs", icon: ListChecks },
+      { href: "/documents", label: "Documents", icon: Upload },
     ],
+  },
+  {
+    title: "Configuration",
+    items: [{ href: "/integrations", label: "Integrations", icon: Plug }],
   },
 ];
 
@@ -157,15 +145,6 @@ export function Sidebar({
               Settings
             </div>
           </Link>
-          <div className="mt-2 rounded-xl border border-blue-500/20 bg-gradient-to-br from-blue-600/10 to-violet-600/10 p-3">
-            <p className="text-[13px] font-medium">Enterprise plan</p>
-            <p className="mt-0.5 text-[11px] text-muted-foreground">
-              42 of 100 agent seats used
-            </p>
-            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">
-              <div className="h-full w-[42%] rounded-full bg-gradient-to-r from-blue-600 to-violet-600" />
-            </div>
-          </div>
         </div>
       </aside>
     </>

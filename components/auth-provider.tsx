@@ -3,14 +3,28 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 
-import { currentUser, orgProfile } from "@/lib/data";
-import type { OrgProfile, UserProfile } from "@/lib/types";
+import type { UserProfile } from "@/lib/types";
+
+/**
+ * TRANSITIONAL — NOT SECURE. Replaced by Supabase Auth in stage 7.
+ *
+ * This still keeps session state in `localStorage`, which means identity is
+ * client-controlled and there is no server-side authorisation. It is retained
+ * only so the application compiles between the removal of the demo fixtures
+ * (stage 1) and the creation of the Supabase project (stage 2).
+ *
+ * Findings S1 and S2 in docs/CURRENT_SYSTEM_AUDIT.md describe the problem.
+ * Do not deploy this file. Do not put real data behind it.
+ *
+ * What changed from the original: it no longer imports a fabricated user and
+ * organisation from `lib/data.ts`, and the stored value is now shape-validated
+ * instead of being `JSON.parse`-cast to a trusted type.
+ */
 
 const AUTH_KEY = "pharma-copilot-auth";
 
 interface AuthState {
   user: UserProfile;
-  org: OrgProfile;
 }
 
 interface AuthContextValue extends AuthState {
@@ -21,14 +35,42 @@ interface AuthContextValue extends AuthState {
 
 const AuthContext = React.createContext<AuthContextValue | null>(null);
 
-function readStoredAuth(): AuthState | null {
-  if (typeof window === "undefined") return null;
+const ANONYMOUS: UserProfile = {
+  name: "",
+  email: "",
+  title: "",
+  department: "",
+  initials: "",
+  avatarColor: "bg-muted",
+};
+
+/** Validate rather than cast — a stored value is untrusted input. */
+function parseStoredAuth(raw: string): AuthState | null {
   try {
-    const raw = window.localStorage.getItem(AUTH_KEY);
-    return raw ? (JSON.parse(raw) as AuthState) : null;
+    const parsed: unknown = JSON.parse(raw);
+    if (typeof parsed !== "object" || parsed === null) return null;
+    const user = (parsed as { user?: unknown }).user;
+    if (typeof user !== "object" || user === null) return null;
+    const email = (user as { email?: unknown }).email;
+    if (typeof email !== "string" || !email.includes("@")) return null;
+    const name = (user as { name?: unknown }).name;
+    return {
+      user: {
+        ...ANONYMOUS,
+        email,
+        name: typeof name === "string" ? name : email,
+        initials: email.slice(0, 2).toUpperCase(),
+      },
+    };
   } catch {
     return null;
   }
+}
+
+function readStoredAuth(): AuthState | null {
+  if (typeof window === "undefined") return null;
+  const raw = window.localStorage.getItem(AUTH_KEY);
+  return raw ? parseStoredAuth(raw) : null;
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -41,14 +83,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const login = React.useCallback(async (email: string) => {
-    const name = currentUser.name;
-    const firstName = name.split(" ").slice(0, 2).join(" ");
-    const user: UserProfile = {
-      ...currentUser,
-      name: firstName,
-      email,
+    const next: AuthState = {
+      user: {
+        ...ANONYMOUS,
+        email,
+        name: email.split("@")[0],
+        initials: email.slice(0, 2).toUpperCase(),
+      },
     };
-    const next: AuthState = { user, org: orgProfile };
     window.localStorage.setItem(AUTH_KEY, JSON.stringify(next));
     setState(next);
   }, []);
@@ -60,8 +102,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const value = React.useMemo<AuthContextValue>(
     () => ({
-      user: state?.user ?? currentUser,
-      org: state?.org ?? orgProfile,
+      user: state?.user ?? ANONYMOUS,
       isAuthenticated: state !== null,
       login,
       logout,
@@ -79,7 +120,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               <path className="opacity-90" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
             </svg>
           </div>
-          <p className="text-sm text-muted-foreground">Securing session…</p>
+          <p className="text-sm text-muted-foreground">Loading session…</p>
         </div>
       </div>
     );
