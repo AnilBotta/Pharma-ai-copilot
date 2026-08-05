@@ -1,4 +1,4 @@
-﻿# Pharma R&D Copilot
+# Pharma R&D Copilot
 
 A research-support workspace for pharmaceutical development. A scientist submits
 a research question; a supervisor agent plans the work, specialist agents
@@ -17,7 +17,7 @@ counsel, regulatory experts, toxicologists, clinicians or statisticians.
 The central guarantee is structural rather than behavioural:
 
 1. Provider adapters write `evidence_records` rows **before** any synthesis runs.
-   Each row gets a stable marker (`E1`, `E2`, â€¦).
+   Each row gets a stable marker (`E1`, `E2`, …).
 2. Synthesis prompts receive only that marker list as citable sources.
 3. Every `[En]` marker in generated text is extracted and checked against the
    evidence table. Anything that does not resolve is **removed** and replaced
@@ -36,18 +36,18 @@ from the model's opinion of its own output.
 ## Architecture
 
 ```
-Next.js 15 frontend  â”€â”€â–¶  FastAPI  â”€â”€â–¶  Postgres (Supabase)
-   Supabase Auth            â”‚              â–²
-   middleware guard         â”‚              â”‚
-                            â–¼              â”‚
-                      run_jobs queue       â”‚
-                            â”‚              â”‚
-                            â–¼              â”‚
-                     Python worker â”€â”€â”€â”€â”€â”€â”€â”€â”˜
-                            â”‚
+Next.js 15 frontend  ──▶  FastAPI  ──▶  Postgres (Supabase)
+   Supabase Auth            │              ▲
+   middleware guard         │              │
+                            ▼              │
+                      run_jobs queue       │
+                            │              │
+                            ▼              │
+                     Python worker ────────┘
+                            │
                      LangGraph workflow
-                            â”‚
-              â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¼â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+                            │
+              ┌─────────────┼─────────────┐
          PubMed /       EPO OPS        OpenAI
         Europe PMC                  Responses API
 ```
@@ -60,10 +60,10 @@ progress event after every node.
 The graph:
 
 ```
-START â†’ intake_and_scope â†’ supervisor_planner
-      â†’ { research_agent, literature_agent, patent_agent }   (concurrent)
-      â†’ development_strategy_agent â†’ supervisor_synthesis
-      â†’ evidence_reviewer â†’ report_generation â†’ END
+START → intake_and_scope → supervisor_planner
+      → { research_agent, literature_agent, patent_agent }   (concurrent)
+      → development_strategy_agent → supervisor_synthesis
+      → evidence_reviewer → report_generation → END
 ```
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and
@@ -134,12 +134,12 @@ OPENAI_API_KEY=sk-...
 ```
 
 All four are required; the backend refuses to start without them and names
-exactly which are missing. Provider keys are optional â€” see
+exactly which are missing. Provider keys are optional — see
 [docs/DATA_SOURCES.md](docs/DATA_SOURCES.md) for what degrades without each.
 
-Find these in the Supabase dashboard under **Project Settings â†’ Database**
-(connection string â€” use the **transaction pooler**, port 6543) and
-**Project Settings â†’ API Keys** (service role key).
+Find these in the Supabase dashboard under **Project Settings → Database**
+(connection string — use the **transaction pooler**, port 6543) and
+**Project Settings → API Keys** (service role key).
 
 **No JWT secret is needed.** Current Supabase projects sign tokens with
 asymmetric ES256 keys published at `/auth/v1/.well-known/jwks.json`, which the
@@ -159,10 +159,10 @@ which scheme is active.
 cd backend && .venv/Scripts/python.exe check_setup.py
 ```
 
-This tests every credential and reports pass or fail per item â€” database
-connection, schema completeness, JWT scheme, OpenAI models, and each provider.
-It prints **no secret values**, so its output is safe to paste into a bug
-report.
+Tests every credential and reports pass or fail per item — database connection,
+schema completeness, JWT scheme, OpenAI model availability, and each provider.
+It prints **no secret values**, so its output is safe to paste when asking for
+help.
 
 ### 5. Run
 
@@ -194,7 +194,7 @@ cd backend && .venv/Scripts/python.exe -m app.seed --email you@example.com
 ```
 
 This creates the **Peptide Depot Delivery Feasibility Assessment** project with
-its research question and parameters. It seeds **no results** â€” running it
+its research question and parameters. It seeds **no results** — running it
 performs a real search and returns whatever the providers actually hold. Add
 `--start` to queue the run immediately.
 
@@ -255,4 +255,3 @@ docs/                architecture, agents, data sources, security, deployment
 **Read [KNOWN_LIMITATIONS.md](docs/KNOWN_LIMITATIONS.md) before relying on any
 output.** It states plainly which paths have been exercised against live
 services and which have only been tested against fixtures.
-
