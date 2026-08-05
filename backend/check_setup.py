@@ -24,6 +24,44 @@ def heading(text: str) -> None:
     print(f"\n{text}\n{'-' * len(text)}")
 
 
+def _database_hints(error: str, dsn: str) -> list[str]:
+    """Turn Supabase's terser connection errors into something actionable."""
+    lowered = error.lower()
+    hints: list[str] = []
+
+    if "tenant or user not found" in lowered:
+        hints += [
+            "This means the pooler does not recognise the project. Two causes:",
+            "  1. The username must be  postgres.<project-ref>  (not plain 'postgres').",
+            "  2. The pooler hostname prefix may be wrong. Regions have both",
+            "     aws-0-<region>.pooler.supabase.com and aws-1-<region>...",
+            "     Copy the exact string from the dashboard's Connect dialog.",
+        ]
+    elif "password authentication failed" in lowered:
+        hints.append(
+            "The password is wrong. Reset it under Settings -> Database -> "
+            "Database password, then update DATABASE_URL."
+        )
+    elif "network is unreachable" in lowered or "connect call failed" in lowered:
+        hints += [
+            "Host unreachable. If DATABASE_URL points at db.<ref>.supabase.co,",
+            "that host is IPv6-only and needs IPv6 connectivity. Use the",
+            "transaction pooler (port 6543) instead, which is IPv4.",
+        ]
+    elif "timeout" in lowered:
+        hints.append("Connection timed out. Check firewall rules for outbound 6543.")
+
+    if ":5432" in dsn and "pooler" not in dsn:
+        hints.append(
+            "NOTE: you are using the direct connection (port 5432). It is "
+            "IPv6-only on new projects. Prefer the pooler on port 6543."
+        )
+    if "pooler" in dsn and ":6543" not in dsn and ":5432" not in dsn:
+        hints.append("NOTE: pooler host without an explicit port. Append :6543.")
+
+    return hints
+
+
 async def main() -> int:
     print("=" * 62)
     print("Pharma R&D Copilot — setup check")
@@ -79,9 +117,9 @@ async def main() -> int:
             warnings.append("pgvector")
     except Exception as exc:
         print(f"{FAIL} cannot connect: {type(exc).__name__}")
-        print(f"       {str(exc)[:160]}")
-        print("       Check DATABASE_URL. Use the transaction pooler (port 6543)")
-        print("       and confirm the database password is correct.")
+        print(f"       {str(exc)[:200]}")
+        for hint in _database_hints(str(exc), str(settings.database_url)):
+            print(f"       {hint}")
         failures.append("database")
 
     # ------------------------------------------------------------ auth ---

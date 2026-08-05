@@ -100,8 +100,21 @@ LOG_LEVEL=INFO
 ```
 
 Use the **transaction pooler** (port 6543) on Supabase. The pool sets
-`statement_cache_size=0` accordingly; the session pooler on 5432 also works but
-holds a connection per client.
+`statement_cache_size=0` accordingly, because that pooler multiplexes
+connections and server-side prepared statements cannot be relied upon.
+
+**The direct host is IPv6-only.** On current Supabase projects
+`db.<ref>.supabase.co` publishes an AAAA record and no A record, so it is
+unreachable from any network without IPv6 — which includes most home and office
+connections, and some CI runners. Verified for this project: the direct host
+resolved to IPv6 only and was unreachable, while both regional pooler hosts
+resolved to IPv4 and connected.
+
+Copy the exact connection string from the dashboard's **Connect** button (top
+bar), not from the Settings page. Regions front two pooler hostnames
+(`aws-0-<region>` and `aws-1-<region>`); both resolve, but only the one assigned
+to your project will authenticate. Using the wrong one produces
+`Tenant or user not found`, which `check_setup.py` explains.
 
 `ENVIRONMENT=production` disables `/docs`.
 

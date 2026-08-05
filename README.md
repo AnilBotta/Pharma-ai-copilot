@@ -137,9 +137,15 @@ All four are required; the backend refuses to start without them and names
 exactly which are missing. Provider keys are optional — see
 [docs/DATA_SOURCES.md](docs/DATA_SOURCES.md) for what degrades without each.
 
-Find these in the Supabase dashboard under **Project Settings → Database**
-(connection string — use the **transaction pooler**, port 6543) and
-**Project Settings → API Keys** (service role key).
+**Where to find the connection string:** the green **Connect** button in the
+dashboard's top bar — not the Settings page. Choose the **Transaction pooler**
+(port 6543).
+
+Do not use the direct connection (`db.<ref>.supabase.co`, port 5432): on current
+projects that host is **IPv6-only**, so it is unreachable from most networks.
+The pooler is IPv4.
+
+The service role key is under **Project Settings → API Keys**.
 
 **No JWT secret is needed.** Current Supabase projects sign tokens with
 asymmetric ES256 keys published at `/auth/v1/.well-known/jwks.json`, which the
