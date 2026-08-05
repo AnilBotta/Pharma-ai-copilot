@@ -380,6 +380,96 @@ class TestHonestDegradation:
         assert any(e["is_fatal"] for e in result["errors"])
 
 
+class TestQueryRouting:
+    """Regression guards for a defect the first live run exposed.
+
+    All ten planned queries were written in PubMed syntax and sent to both
+    providers. PubMed returned six usable records; Europe PMC returned zero for
+    all ten, because `[tiab]` and `[MeSH]` mean nothing to it. An entire
+    provider contributed nothing, and it was invisible because zero results is
+    a legitimate outcome.
+    """
+
+    def test_each_query_goes_only_to_its_named_provider(self) -> None:
+        from app.graph.nodes.literature import _queries_by_provider
+        from app.models.agents import PlannedSearch, ResearchPlan
+
+        plan = ResearchPlan(
+            approach="x",
+            literature_searches=[
+                PlannedSearch(provider="pubmed", query="peptide[tiab]", rationale="r"),
+                PlannedSearch(
+                    provider="europepmc", query="TITLE_ABS:peptide", rationale="r"
+                ),
+            ],
+        )
+        providers = [FakeLiteratureProvider("pubmed"), FakeLiteratureProvider("europepmc")]
+
+        routed = _queries_by_provider(plan, providers, "fallback")
+        assert routed["pubmed"] == ["peptide[tiab]"]
+        assert routed["europepmc"] == ["TITLE_ABS:peptide"]
+
+    def test_provider_with_no_queries_falls_back_rather_than_idling(self) -> None:
+        from app.graph.nodes.literature import _queries_by_provider
+        from app.models.agents import PlannedSearch, ResearchPlan
+
+        plan = ResearchPlan(
+            approach="x",
+            literature_searches=[
+                PlannedSearch(provider="pubmed", query="peptide[tiab]", rationale="r")
+            ],
+        )
+        providers = [FakeLiteratureProvider("pubmed"), FakeLiteratureProvider("europepmc")]
+
+        routed = _queries_by_provider(plan, providers, "the original question")
+        assert routed["europepmc"] == ["the original question"]
+
+    def test_unknown_provider_name_goes_to_all_rather_than_being_dropped(self) -> None:
+        from app.graph.nodes.literature import _queries_by_provider
+        from app.models.agents import PlannedSearch, ResearchPlan
+
+        plan = ResearchPlan(
+            approach="x",
+            literature_searches=[
+                PlannedSearch(provider="scopus", query="peptide", rationale="r")
+            ],
+        )
+        providers = [FakeLiteratureProvider("pubmed"), FakeLiteratureProvider("europepmc")]
+
+        routed = _queries_by_provider(plan, providers, "fallback")
+        assert routed["pubmed"] == ["peptide"]
+        assert routed["europepmc"] == ["peptide"]
+
+    async def test_providers_receive_only_their_own_queries_end_to_end(self) -> None:
+        from app.models.agents import PlannedSearch, ResearchPlan
+
+        pubmed = FakeLiteratureProvider("pubmed")
+        epmc = FakeLiteratureProvider("europepmc", records=sample_literature(2, "europepmc"))
+
+        models = FakeModelProvider(
+            responses={
+                ResearchPlan: ResearchPlan(
+                    approach="x",
+                    literature_searches=[
+                        PlannedSearch(
+                            provider="pubmed", query="PUBMED-ONLY[tiab]", rationale="r"
+                        ),
+                        PlannedSearch(
+                            provider="europepmc",
+                            query="TITLE_ABS:EPMC-ONLY",
+                            rationale="r",
+                        ),
+                    ],
+                )
+            }
+        )
+
+        await run_workflow(make_context(models=models, literature=[pubmed, epmc]))
+
+        assert pubmed.searches == ["PUBMED-ONLY[tiab]"]
+        assert epmc.searches == ["TITLE_ABS:EPMC-ONLY"]
+
+
 class TestDeduplicationInWorkflow:
     async def test_same_paper_from_two_providers_counts_once(self) -> None:
         shared = sample_literature(2, "pubmed")

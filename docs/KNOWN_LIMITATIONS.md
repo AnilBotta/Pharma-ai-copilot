@@ -11,6 +11,38 @@ The distinction below is deliberate. "Tested" means an automated test asserts
 the behaviour. "Verified live" means it was executed against the real external
 service and the result inspected.
 
+### The full workflow has now run end-to-end against live services
+
+One complete run, 2026-08-05, on the seeded peptide-depot question:
+
+| | |
+|---|---|
+| Status | **completed** in 787 s (13 min) |
+| Model calls | 139,005 tokens, **$0.64** estimated |
+| Searches executed | 20 (10 PubMed, 10 Europe PMC) |
+| Evidence stored | 6 publications, all with resolvable DOIs |
+| Report | 21 sections |
+| Citations | 57, **0 unresolved** |
+
+Every cited DOI was independently confirmed against Crossref with matching
+titles: `10.1016/j.nano.2026.102972`, `10.3762/bjnano.6.17`,
+`10.1039/c4nr00291a`, `10.3390/ijms242316665`.
+
+Behaviour observed in that run, all as designed:
+
+- The patent agent reported *"not configured … This is not evidence that no
+  relevant patents exist"*, and the run continued on literature alone.
+- The `patent_landscape` section rendered **"No reliable evidence was retrieved
+  for this section"** with confidence `insufficient_evidence`.
+- The evidence reviewer found 2 high-severity issues and **requested one
+  revision**, which the supervisor performed.
+- No section was rated `high`. With six abstract-only sources that is the
+  correct outcome.
+- The limitations section stated the source count, that all six were
+  abstract-only, that no patent search ran, the date window, and the error count.
+
+Three bugs were found and fixed by that run; see §1.1.
+
 ### Verified against live services
 
 | Capability | Evidence |
@@ -27,6 +59,39 @@ service and the result inspected.
 | Frontend build | `next build` produces 10 routes plus middleware; `tsc --noEmit` and `eslint` clean |
 | Python suite | 256 tests passing, `ruff` clean |
 
+### 1.1 Bugs the first live run exposed
+
+None of these were reachable by the fixture-based tests. All are fixed, with
+regression tests.
+
+**1. Windows event loop.** `AsyncPostgresSaver` uses psycopg, which cannot run
+async on the `ProactorEventLoop` Python selects by default on Windows. Every run
+failed at checkpointer setup with
+`psycopg.InterfaceError: Psycopg cannot use the 'ProactorEventLoop'`. The worker
+now installs `WindowsSelectorEventLoopPolicy`.
+
+**2. Prepared statements through the pooler.**
+`AsyncPostgresSaver.from_conn_string` hardcodes `prepare_threshold=0`, which in
+psycopg means *prepare every statement*, not *never prepare* — that is `None`.
+Server-side prepared statements bind to a backend connection, and Supabase's
+transaction pooler hands out a different backend per transaction, so runs failed
+mid-execution with `prepared statement "_pg3_4" does not exist` and
+`… already exists`. The checkpointer connection is now built explicitly with
+`prepare_threshold=None`.
+
+**3. Europe PMC received PubMed syntax.** `PlannedSearch` carries a `provider`
+field that the literature agent discarded, so every query ran against every
+provider. All ten planned queries were written in PubMed syntax; PubMed returned
+six usable records and **Europe PMC returned zero for all ten**, because
+`[tiab]` and `[MeSH]` mean nothing to it. An entire provider was contributing
+nothing, and it was invisible because zero results is a legitimate outcome.
+Queries are now routed to their named provider, and the planner prompt specifies
+each provider's dialect.
+
+A fourth, found by the same script before the run: `/runs/{id}/events` was
+SSE-only while the frontend polls it for JSON, so progress would never have
+rendered. JSON is now the default; SSE moved to `/events/stream`.
+
 ### Tested only against fixtures — NOT verified live
 
 | Capability | Why | What could still be wrong |
@@ -39,17 +104,21 @@ service and the result inspected.
 | **SSE / live progress** | Needs a running backend | The endpoint exists; the frontend polls it. Neither has been exercised end-to-end. |
 | **The complete research workflow** | Needs all of the above | The graph runs end-to-end in tests against fixture providers and a fake model. It has never run against real APIs. |
 
-### The definition-of-done items that remain unmet
+### Still not exercised
 
-A user cannot yet sign in, submit a question and receive a report, because no
-run has ever executed against live services. Everything is built and wired; what
-is missing is credentials:
+- **EPO OPS** remains unconfigured, so patent retrieval and its parser have
+  never run against live OPS. This is the largest untested surface.
+- **Checkpoint resume** — no run has been interrupted mid-flight and resumed.
+  The retry path was exercised (3 attempts, honest failure) but always from the
+  start.
+- **The frontend against a live backend** — the JSON events endpoint was fixed
+  after the run, so the browser progress view has not been watched end-to-end.
+- **Cancellation** mid-run.
+
+To enable patents:
 
 ```
-DATABASE_URL=                 # Supabase → Settings → Database (pooler, 6543)
-SUPABASE_SERVICE_ROLE_KEY=    # Supabase → Settings → API Keys
-OPENAI_API_KEY=               # required; nothing runs without it
-EPO_OPS_CONSUMER_KEY=         # optional; patents degrade honestly without it
+EPO_OPS_CONSUMER_KEY=         # free at https://developers.epo.org
 EPO_OPS_CONSUMER_SECRET=
 ```
 

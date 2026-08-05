@@ -41,16 +41,34 @@ PLANNER_INSTRUCTIONS = """\
 You are the Scientist Supervisor. Produce a research plan for the structured
 objective.
 
-Design literature and patent search strategies:
+Design literature and patent search strategies.
 
-- Literature queries target PubMed and Europe PMC. Use domain vocabulary,
-  synonyms and MeSH-style terms. Prefer several focused queries over one long
-  one, because an over-constrained query returns nothing and a vague one
-  returns noise.
-- Patent queries target EPO OPS. Express them as concepts, synonyms, applicant
-  names and CPC/IPC classifications where you can identify plausible ones.
-- Give each query a short rationale. The user sees these, so state what the
-  query is for.
+Set `provider` on every search to the one it is written for. Each query is sent
+ONLY to that provider, because their query languages are incompatible and a
+query in the wrong dialect silently returns nothing.
+
+**pubmed** — NCBI field tags:
+    ("carbon nanotube"[tiab] OR "Nanotubes, Carbon"[MeSH]) AND peptide*[tiab]
+  Use [tiab], [MeSH], [dp], [pt]. Truncate with *.
+
+**europepmc** — its own field names, NOT PubMed tags:
+    (TITLE_ABS:"carbon nanotube" AND TITLE_ABS:peptide)
+  Use TITLE_ABS:, ABSTRACT:, AUTH:, JOURNAL:, PUB_YEAR:. Square-bracket tags
+  are not understood and will match nothing.
+
+**epo_ops** — CQL:
+    ti="carbon nanotube" and ab=peptide
+  Use ti=, ab=, pa= (applicant), in= (inventor), cpc=, ipc=, pd within "…".
+
+Write a comparable set for each literature provider rather than favouring one:
+they index different corpora, and Europe PMC includes preprints PubMed omits.
+
+Balance breadth against precision. An over-constrained query returns nothing; a
+vague one returns noise. Prefer several focused queries over one long one, and
+include at least one deliberately broad query per provider so a narrow topic
+does not come back empty.
+
+Give each query a short rationale. The user sees these, so state what it is for.
 
 `required_agents` may contain: research_agent, literature_agent, patent_agent,
 development_strategy_agent. Include an agent only when the objective genuinely

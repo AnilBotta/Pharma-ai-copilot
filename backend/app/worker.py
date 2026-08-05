@@ -21,10 +21,13 @@ import logging
 import os
 import signal
 import socket
+import sys
 import uuid
 from typing import Any
 
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
+from psycopg import AsyncConnection
+from psycopg.rows import dict_row
 
 from app import db
 from app.config import Settings, get_settings
@@ -42,6 +45,32 @@ from app.repository import Repository
 logger = logging.getLogger(__name__)
 
 POLL_INTERVAL_SECONDS = 2.0
+
+
+@contextlib.asynccontextmanager
+async def open_checkpointer(dsn: str):
+    """Checkpointer on a connection that works through a transaction pooler.
+
+    ``AsyncPostgresSaver.from_conn_string`` hardcodes ``prepare_threshold=0``.
+    In psycopg that means "prepare every statement on first use", not "never
+    prepare" - which is ``None``. Server-side prepared statements are bound to a
+    backend connection, and Supabase's transaction pooler hands out a different
+    backend per transaction, so the saver fails part-way through a run with
+
+        prepared statement "_pg3_4" does not exist
+        prepared statement "_pg3_0" already exists
+
+    depending on which backend it lands on. The errors look like corruption but
+    are just statement caching colliding with connection multiplexing.
+
+    The connection is therefore built here with ``prepare_threshold=None``.
+    This also matches ``statement_cache_size=0`` on the asyncpg pool in db.py,
+    which exists for the same reason.
+    """
+    async with await AsyncConnection.connect(
+        dsn, autocommit=True, prepare_threshold=None, row_factory=dict_row
+    ) as conn:
+        yield AsyncPostgresSaver(conn=conn)
 
 
 class RepositoryEventSink:
@@ -179,9 +208,7 @@ class Worker:
         )
 
         try:
-            async with AsyncPostgresSaver.from_conn_string(
-                str(self.settings.database_url)
-            ) as checkpointer:
+            async with open_checkpointer(str(self.settings.database_url)) as checkpointer:
                 await checkpointer.setup()
                 graph = build_graph(context, checkpointer)
 
@@ -310,6 +337,26 @@ async def main() -> None:
         await db.close_pool()
 
 
+def _configure_event_loop() -> None:
+    """Use a selector event loop on Windows.
+
+    LangGraph's AsyncPostgresSaver talks to Postgres through psycopg, which
+    cannot run in async mode on the ProactorEventLoop that Python selects by
+    default on Windows. Without this every run fails at checkpointer setup with
+
+        psycopg.InterfaceError: Psycopg cannot use the 'ProactorEventLoop'
+
+    which is fatal but easy to misread as a connection problem, because it only
+    surfaces once a job is actually claimed.
+
+    The selector loop caps out around 512 sockets. A worker executes one run at
+    a time against a handful of hosts, so that limit is not a constraint here.
+    """
+    if sys.platform == "win32":
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
+
 if __name__ == "__main__":
+    _configure_event_loop()
     with contextlib.suppress(KeyboardInterrupt):
         asyncio.run(main())

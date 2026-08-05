@@ -23,6 +23,7 @@ from app.api.schemas import (
     CreateProjectRequest,
     CreateRunRequest,
     DashboardResponse,
+    EventResponse,
     EvidenceResponse,
     HealthResponse,
     IntegrationStatus,
@@ -176,7 +177,31 @@ async def get_run(
         raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
 
 
-@router.get("/runs/{run_id}/events", tags=["runs"])
+@router.get("/runs/{run_id}/events", response_model=list[EventResponse], tags=["runs"])
+async def get_events(
+    run_id: str,
+    after_id: int = Query(default=0, ge=0),
+    limit: int = Query(default=500, ge=1, le=2000),
+    user: AuthenticatedUser = Depends(current_user),
+    repository: Repository = Depends(get_repository),
+):
+    """Progress events after `after_id`, as JSON.
+
+    This is what the frontend polls. It polls rather than using EventSource
+    because EventSource cannot send an Authorization header, and putting an
+    access token in a query string would place it in server logs and browser
+    history. The SSE variant below is kept for clients that prefer streaming.
+    """
+    try:
+        events = await repository.get_events(
+            user.id, run_id, after_id=after_id, limit=limit
+        )
+    except NotFound as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    return [_serialise(e) for e in events]
+
+
+@router.get("/runs/{run_id}/events/stream", tags=["runs"])
 async def stream_events(
     run_id: str,
     after_id: int = Query(default=0, ge=0),

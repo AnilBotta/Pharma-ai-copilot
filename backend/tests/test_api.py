@@ -407,6 +407,55 @@ class TestRunLifecycle:
         assert client.app.state.repository.runs[RUN_ID]["status"] == "queued"
 
 
+class TestEventsEndpoint:
+    """Regression guards for a bug the first live run exposed.
+
+    `/runs/{id}/events` was SSE-only, but the frontend polls it expecting JSON,
+    so progress would never have rendered. It now returns JSON, with SSE moved
+    to `/events/stream`.
+    """
+
+    def _create(self, client: TestClient) -> None:
+        client.post("/api/runs", json=VALID_RUN, headers=auth_headers())
+
+    def test_events_returns_json_not_a_stream(self, client: TestClient) -> None:
+        self._create(client)
+        response = client.get(f"/api/runs/{RUN_ID}/events", headers=auth_headers())
+        assert response.status_code == 200
+        assert response.headers["content-type"].startswith("application/json")
+        assert isinstance(response.json(), list)
+
+    def test_events_accepts_after_id_for_incremental_polling(
+        self, client: TestClient
+    ) -> None:
+        self._create(client)
+        response = client.get(
+            f"/api/runs/{RUN_ID}/events?after_id=42", headers=auth_headers()
+        )
+        assert response.status_code == 200
+
+    def test_events_requires_authentication(self, client: TestClient) -> None:
+        assert client.get(f"/api/runs/{RUN_ID}/events").status_code == 401
+
+    def test_events_for_another_users_run_is_404(self, client: TestClient) -> None:
+        self._create(client)
+        other = "99999999-9999-9999-9999-999999999999"
+        response = client.get(
+            f"/api/runs/{RUN_ID}/events", headers=auth_headers(other)
+        )
+        assert response.status_code == 404
+
+    def test_sse_variant_is_registered_at_a_separate_path(
+        self, client: TestClient
+    ) -> None:
+        # Asserted against the OpenAPI schema rather than by opening the
+        # stream: the SSE generator runs until the run reaches a terminal
+        # state, and a test fake never does, so consuming it would hang.
+        paths = client.get("/openapi.json").json()["paths"]
+        assert "/api/runs/{run_id}/events" in paths
+        assert "/api/runs/{run_id}/events/stream" in paths
+
+
 class TestDashboard:
     def test_returns_real_counts(self, client: TestClient) -> None:
         body = client.get("/api/dashboard", headers=auth_headers()).json()

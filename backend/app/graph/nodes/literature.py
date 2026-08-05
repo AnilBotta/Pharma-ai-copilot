@@ -62,6 +62,46 @@ Do not compensate with general knowledge.
 """
 
 
+def _queries_by_provider(
+    plan, providers, fallback_question: str
+) -> dict[str, list[str]]:
+    """Route each planned query to the provider it was written for.
+
+    PubMed and Europe PMC use incompatible query syntax. PubMed takes field tags
+    like ``[tiab]`` and ``[MeSH]``; Europe PMC takes ``TITLE_ABS:`` and its own
+    field names. Running every query against every provider therefore wastes
+    half of them.
+
+    That is not hypothetical. In the first live run all ten planned queries were
+    written in PubMed syntax and sent to both providers: PubMed returned six
+    usable records, Europe PMC returned zero for all ten. An entire provider was
+    silently contributing nothing, and the failure was invisible because zero
+    results is a legitimate outcome.
+
+    `PlannedSearch` already carries a `provider` field; it was simply being
+    discarded. A provider with no query addressed to it falls back to the raw
+    question, so it still contributes rather than being skipped.
+    """
+    routed: dict[str, list[str]] = {p.name: [] for p in providers}
+    known = set(routed)
+
+    for search in getattr(plan, "literature_searches", None) or []:
+        name = (search.provider or "").strip().lower()
+        if name in known:
+            routed[name].append(search.query)
+        else:
+            # Planner named a provider we do not have, or none at all. Give the
+            # query to every provider rather than dropping it.
+            for queries in routed.values():
+                queries.append(search.query)
+
+    for name, queries in routed.items():
+        if not queries:
+            routed[name] = [fallback_question]
+
+    return routed
+
+
 async def literature_agent(state: ResearchState, context: RunContext) -> dict:
     run_id = state["run_id"]
     plan = state.get("research_plan")
@@ -76,30 +116,33 @@ async def literature_agent(state: ResearchState, context: RunContext) -> dict:
             "warnings": ["No literature provider was configured; no literature was searched."],
         }
 
-    queries = (
-        [s.query for s in plan.literature_searches]
-        if plan and plan.literature_searches
-        else [state["original_question"]]
-    )
+    plan_by_provider = _queries_by_provider(plan, providers, state["original_question"])
+    total_queries = sum(len(q) for q in plan_by_provider.values())
 
     await context.emit(
         run_id,
         "node_started",
-        f"Searching literature: {len(queries)} queries across {len(providers)} providers",
+        f"Searching literature: {total_queries} queries across {len(providers)} providers",
         node=NODE,
         agent_id="literature_agent",
-        data={"queries": queries, "providers": [p.name for p in providers]},
+        data={
+            "providers": [p.name for p in providers],
+            "queries_per_provider": {k: len(v) for k, v in plan_by_provider.items()},
+        },
     )
 
     filters = SearchFilters(
         date_from=state.get("date_from"),
         date_to=state.get("date_to"),
-        max_results=max(1, state.get("max_results", 50) // max(1, len(queries))),
+        max_results=max(1, state.get("max_results", 50) // max(1, total_queries)),
     )
 
-    # Fan out every (provider, query) pair at once. Each provider paces itself.
+    # Each query goes only to the provider it was written for. Each provider
+    # paces itself, so fanning all of them out at once is safe.
     tasks = [
-        provider.search(query, filters) for provider in providers for query in queries
+        provider.search(query, filters)
+        for provider in providers
+        for query in plan_by_provider.get(provider.name, ())
     ]
     results = await asyncio.gather(*tasks, return_exceptions=True)
 
