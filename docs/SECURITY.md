@@ -91,9 +91,43 @@ literature; `anon` saw 0 including `provider_cache`.
 
 ---
 
+## S9 — LangGraph checkpoint tables were exposed (Critical, fixed)
+
+Found by the Supabase linter after the first live run, and confirmed by direct
+probe.
+
+`AsyncPostgresSaver.setup()` creates `checkpoints`, `checkpoint_blobs`,
+`checkpoint_writes` and `checkpoint_migrations` in `public` at runtime, with no
+RLS. Because `public` is PostgREST-exposed, those tables were readable with the
+**anon key — the same publishable key that ships in the browser bundle by
+design**.
+
+Measured before the fix:
+
+```
+role anon:  checkpoints 11 · checkpoint_writes 102 · checkpoint_blobs 45
+```
+
+Checkpoint blobs hold the serialised graph state of a research run: retrieved
+evidence, agent findings, draft report text.
+
+Fixed in migration `0010` — RLS enabled with no policy (deny-all) plus
+`REVOKE ALL` from `anon` and `authenticated`. Verified after: anon gets
+`permission denied for table checkpoints`, while `service_role` (the worker)
+still reads all 11 checkpoints, so nothing legitimate broke.
+
+**The general lesson:** the RLS applied in migration `0005` covered tables that
+migrations created. These were created by a *library at runtime* and therefore
+escaped it. Any library that auto-creates tables in `public` needs the same
+treatment, and the linter should be re-run after any component does so for the
+first time.
+
+---
+
 ## Row Level Security
 
-Enabled on all 17 tables, 16 policies.
+Enabled on all 17 research tables plus the PDP foundation tables, and on the
+four LangGraph checkpoint tables (deny-all).
 
 - Direct ownership (`profiles`, `projects`, `research_runs`, `documents`,
   `usage_records`): `user_id = auth.uid()`.
