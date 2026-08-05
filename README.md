@@ -75,6 +75,11 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and
 
 Requires **Node 20+**, **Python 3.12+**, and a **Supabase** project.
 
+> **Windows PowerShell users:** commands below are given for PowerShell, which
+> has no `&&` operator — use `;` to chain, as shown. On macOS, Linux or Git
+> Bash, replace `.venv\Scripts\python.exe` with `.venv/bin/python` and `;` with
+> `&&`.
+
 ### 1. Install dependencies
 
 ```bash
@@ -162,7 +167,7 @@ which scheme is active.
 ### 4. Check your setup
 
 ```bash
-cd backend && .venv/Scripts/python.exe check_setup.py
+cd backend; .venv\Scripts\python.exe check_setup.py
 ```
 
 Tests every credential and reports pass or fail per item — database connection,
@@ -172,21 +177,25 @@ help.
 
 ### 5. Run
 
-Three processes. In separate terminals:
+Three processes, each in its own terminal.
+
+Frontend:
 
 ```bash
 npm run dev
 ```
 
-```bash
-cd backend && .venv/Scripts/python.exe -m uvicorn app.main:app --reload --port 8000
-```
+API:
 
 ```bash
-cd backend && .venv/Scripts/python.exe -m app.worker
+cd backend; .venv\Scripts\python.exe -m uvicorn app.main:app --reload --port 8000
 ```
 
-On macOS / Linux replace `.venv/Scripts/python.exe` with `.venv/bin/python`.
+Worker:
+
+```bash
+cd backend; .venv\Scripts\python.exe -m app.worker
+```
 
 Open http://localhost:3000, create an account, and check
 http://localhost:3000/integrations to confirm which providers are live.
@@ -196,7 +205,7 @@ http://localhost:3000/integrations to confirm which providers are live.
 Sign up through the web app first, then:
 
 ```bash
-cd backend && .venv/Scripts/python.exe -m app.seed --email you@example.com
+cd backend; .venv\Scripts\python.exe -m app.seed --email you@example.com
 ```
 
 This creates the **Peptide Depot Delivery Feasibility Assessment** project with
@@ -209,11 +218,11 @@ performs a real search and returns whatever the providers actually hold. Add
 ## Tests
 
 ```bash
-cd backend && .venv/Scripts/python.exe -m pytest -q
+cd backend; .venv\Scripts\python.exe -m pytest -q
 ```
 
 ```bash
-npm run lint && npx tsc --noEmit && npm run build
+npm run lint; npx tsc --noEmit; npm run build
 ```
 
 The Python suite covers provider normalisation, deduplication, structured model
