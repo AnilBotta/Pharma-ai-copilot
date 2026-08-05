@@ -20,7 +20,11 @@ export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request });
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  // Either key name; Supabase's snippets use PUBLISHABLE_KEY, older setups
+  // use ANON_KEY. Same value.
+  const key =
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
   // Without configuration we cannot verify anyone. Fail closed: send every
   // request to /login rather than letting unauthenticated traffic through.

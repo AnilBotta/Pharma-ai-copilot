@@ -12,9 +12,15 @@ import { createServerClient } from "@supabase/ssr";
 export async function createClient() {
   const cookieStore = await cookies();
 
+  // Accept either key name; Supabase's generated snippets use PUBLISHABLE_KEY,
+  // older setups use ANON_KEY. Same value.
+  const key =
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    key!,
     {
       cookies: {
         getAll() {
