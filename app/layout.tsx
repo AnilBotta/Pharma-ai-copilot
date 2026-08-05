@@ -18,11 +18,13 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "Pharma AI Copilot — R&D Intelligence Platform",
-    template: "%s · Pharma AI Copilot",
+    default: "Pharma R&D Copilot",
+    template: "%s · Pharma R&D Copilot",
   },
   description:
-    "AI-powered pharmaceutical R&D assistant for pharma companies, biotech and CDMOs. Patent intelligence, literature review, development strategy and board-ready reports.",
+    "Research-support workspace for pharmaceutical development. Retrieves real "
+    + "literature and patent evidence, and produces reports whose every citation "
+    + "resolves to a stored source record. Decision support only.",
 };
 
 export default function RootLayout({

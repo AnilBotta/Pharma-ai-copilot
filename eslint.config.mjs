@@ -18,6 +18,10 @@ const eslintConfig = [
       "out/**",
       "build/**",
       "next-env.d.ts",
+      // The Python backend, including vendored JS inside its virtualenv.
+      // Linted by ruff instead; see backend/pyproject.toml.
+      "backend/**",
+      "supabase/**",
     ],
   },
 ];

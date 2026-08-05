@@ -1,265 +1,174 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { motion } from "framer-motion";
-import { ArrowRight, Eye, EyeOff, FlaskConical, Loader2, Lock, Mail, ShieldCheck, Sparkles } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { AlertCircle, Loader2, Mail } from "lucide-react";
 
 import { useAuth } from "@/components/auth-provider";
 import { Logo } from "@/components/shared/logo";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { GENERAL_DISCLAIMER } from "@/lib/agents";
 
-const EASE = [0.22, 1, 0.36, 1] as const;
-
-const featureHighlights = [
-  { icon: ShieldCheck, title: "Patent intelligence", text: "FTO, expiry calendars & landscape maps" },
-  { icon: FlaskConical, title: "Development strategy", text: "QbD roadmaps, CQAs & risk matrices" },
-  { icon: Sparkles, title: "Board-ready reports", text: "PDF & DOCX dossiers in minutes" },
-];
-
-export default function LoginPage() {
+function LoginForm() {
+  const { signIn, signUp } = useAuth();
   const router = useRouter();
-  const { login, isAuthenticated } = useAuth();
-  const [email, setEmail] = React.useState("anil.bhard@pharmalabs.co");
-  const [password, setPassword] = React.useState("demo-password");
-  const [remember, setRemember] = React.useState(true);
-  const [showPassword, setShowPassword] = React.useState(false);
-  const [loading, setLoading] = React.useState(false);
-  const [error, setError] = React.useState("");
+  const params = useSearchParams();
 
-  React.useEffect(() => {
-    if (isAuthenticated) router.replace("/dashboard");
-  }, [isAuthenticated, router]);
+  const [mode, setMode] = React.useState<"signin" | "signup">("signin");
+  const [email, setEmail] = React.useState("");
+  const [password, setPassword] = React.useState("");
+  const [error, setError] = React.useState<string | null>(null);
+  const [notice, setNotice] = React.useState<string | null>(null);
+  const [busy, setBusy] = React.useState(false);
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setError("");
-    if (!email.trim() || password.length < 4) {
-      setError("Enter a valid email and password (min 4 characters).");
-      return;
+  async function handleSubmit(event: React.FormEvent) {
+    event.preventDefault();
+    setError(null);
+    setNotice(null);
+    setBusy(true);
+
+    try {
+      if (mode === "signup") {
+        const { needsConfirmation } = await signUp(email, password);
+        if (needsConfirmation) {
+          setNotice(
+            "Account created. Check your email for a confirmation link, then sign in."
+          );
+          setMode("signin");
+          return;
+        }
+      } else {
+        await signIn(email, password);
+      }
+      router.push(params.get("next") ?? "/dashboard");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Sign-in failed.");
+    } finally {
+      setBusy(false);
     }
-    setLoading(true);
-    await new Promise((r) => setTimeout(r, 1100));
-    await login(email.trim());
-    router.replace("/dashboard");
   }
 
   return (
-    <div className="relative flex min-h-screen">
-      {/* Ambient background */}
-      <div className="bg-glow pointer-events-none fixed inset-0 -z-10" />
-      <div className="pointer-events-none fixed inset-0 -z-10 bg-grid opacity-[0.4] dark:opacity-[0.12]" />
+    <div className="flex min-h-screen items-center justify-center px-4 py-12">
+      <div className="w-full max-w-md">
+        <div className="mb-8 flex justify-center">
+          <Logo />
+        </div>
 
-      {/* Left showcase panel */}
-      <div className="relative hidden flex-1 flex-col justify-between overflow-hidden p-10 lg:flex xl:p-14">
-        <motion.div
-          initial={{ opacity: 0, y: -12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, ease: EASE }}
-        >
-          <Logo size="lg" />
-        </motion.div>
-
-        <div className="relative z-10 max-w-lg">
-          <motion.div
-            initial={{ opacity: 0, y: 24 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.7, delay: 0.1, ease: EASE }}
-          >
-            <p className="mb-4 inline-flex items-center gap-2 rounded-full border border-blue-500/25 bg-blue-500/10 px-3 py-1 text-xs font-medium text-blue-600 dark:text-blue-400">
-              <span className="relative flex size-2">
-                <span className="absolute size-full animate-ping rounded-full bg-blue-500 opacity-60" />
-                <span className="relative size-2 rounded-full bg-blue-600" />
-              </span>
-              AI-native R&D intelligence
-            </p>
-            <h1 className="text-4xl font-semibold leading-[1.1] tracking-tight xl:text-5xl">
-              The AI copilot for{" "}
-              <span className="text-gradient">pharmaceutical R&D</span>
+        <Card>
+          <CardContent className="pt-6">
+            <h1 className="text-xl font-semibold">
+              {mode === "signin" ? "Sign in" : "Create an account"}
             </h1>
-            <p className="mt-4 text-base leading-relaxed text-muted-foreground">
-              One platform for patent landscapes, literature synthesis, development
-              strategy and board-ready reporting — built for pharma, biotech and CDMOs.
+            <p className="mt-1 text-sm text-muted-foreground">
+              Pharma R&amp;D Copilot research workspace.
             </p>
-          </motion.div>
 
-          <motion.div
-            initial={{ opacity: 0, y: 24 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.7, delay: 0.25, ease: EASE }}
-            className="mt-8 space-y-3"
-          >
-            {featureHighlights.map((f) => (
-              <div
-                key={f.title}
-                className="glass flex items-center gap-3.5 rounded-xl p-3.5 transition-transform hover:translate-x-1"
-              >
-                <div className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-blue-500/20 bg-gradient-to-br from-blue-600/10 to-violet-600/10 text-blue-600 dark:text-blue-400">
-                  <f.icon className="size-[18px]" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium">{f.title}</p>
-                  <p className="text-xs text-muted-foreground">{f.text}</p>
-                </div>
-              </div>
-            ))}
-          </motion.div>
-        </div>
-
-        {/* Floating molecules */}
-        <div className="pointer-events-none absolute inset-0 overflow-hidden">
-          <div className="animate-float-slow absolute top-[22%] right-[10%] size-16 rounded-2xl border border-blue-500/20 bg-blue-500/5 backdrop-blur-sm" />
-          <div className="animate-float-slow absolute top-[30%] right-[4%] size-8 rounded-full border border-violet-500/30 bg-violet-500/10 backdrop-blur-sm [animation-delay:1.2s]" />
-          <div className="animate-float-slow absolute bottom-[30%] right-[16%] size-5 rounded-full bg-cyan-400/30 blur-[1px] [animation-delay:2.1s]" />
-        </div>
-
-        <motion.p
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.6 }}
-          className="relative z-10 text-xs text-muted-foreground"
-        >
-          © 2026 Pharma AI Copilot · SOC 2 Type II · GxP-ready deployment options
-        </motion.p>
-      </div>
-
-      {/* Right auth panel */}
-      <div className="flex w-full items-center justify-center px-4 py-10 lg:w-[520px] lg:shrink-0">
-        <motion.div
-          initial={{ opacity: 0, y: 24 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, ease: EASE }}
-          className="w-full max-w-sm"
-        >
-          <div className="mb-8 lg:hidden">
-            <Logo size="lg" />
-          </div>
-
-          <h2 className="text-2xl font-semibold tracking-tight">Welcome back</h2>
-          <p className="mt-1.5 text-sm text-muted-foreground">
-            Sign in to your R&D workspace
-          </p>
-
-          <form onSubmit={handleSubmit} className="mt-8 space-y-5">
-            <div className="space-y-2">
-              <Label htmlFor="email">Work email</Label>
-              <div className="relative">
-                <Mail className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+            <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
                 <Input
                   id="email"
                   type="email"
-                  placeholder="you@pharmalabs.com"
+                  autoComplete="email"
+                  required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="h-11 pl-9"
-                  autoComplete="email"
+                  placeholder="scientist@example.com"
                 />
               </div>
-            </div>
 
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
+              <div className="space-y-2">
                 <Label htmlFor="password">Password</Label>
-                <Link
-                  href="#"
-                  onClick={(e) => e.preventDefault()}
-                  className="text-xs font-medium text-primary hover:underline"
-                >
-                  Forgot password?
-                </Link>
-              </div>
-              <div className="relative">
-                <Lock className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   id="password"
-                  type={showPassword ? "text" : "password"}
-                  placeholder="••••••••"
+                  type="password"
+                  autoComplete={
+                    mode === "signin" ? "current-password" : "new-password"
+                  }
+                  required
+                  minLength={8}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="h-11 pl-9 pr-10"
-                  autoComplete="current-password"
+                  placeholder="At least 8 characters"
                 />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((v) => !v)}
-                  className="absolute top-1/2 right-3 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
-                  aria-label={showPassword ? "Hide password" : "Show password"}
-                >
-                  {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-                </button>
               </div>
-            </div>
 
-            <div className="flex items-center gap-2">
-              <Checkbox
-                id="remember"
-                checked={remember}
-                onCheckedChange={(v) => setRemember(v === true)}
-              />
-              <Label htmlFor="remember" className="font-normal text-muted-foreground">
-                Remember me for 30 days
-              </Label>
-            </div>
+              {error && (
+                <div
+                  role="alert"
+                  className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive"
+                >
+                  <AlertCircle className="mt-0.5 size-4 shrink-0" />
+                  <span>{error}</span>
+                </div>
+              )}
 
-            {error && (
-              <motion.p
-                initial={{ opacity: 0, y: -4 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="rounded-lg border border-rose-500/25 bg-rose-500/10 px-3 py-2 text-xs text-rose-600 dark:text-rose-400"
-              >
-                {error}
-              </motion.p>
-            )}
+              {notice && (
+                <div
+                  role="status"
+                  className="flex items-start gap-2 rounded-lg border border-blue-500/30 bg-blue-500/10 p-3 text-sm"
+                >
+                  <Mail className="mt-0.5 size-4 shrink-0" />
+                  <span>{notice}</span>
+                </div>
+              )}
 
-            <Button type="submit" size="lg" className="w-full" disabled={loading}>
-              {loading ? (
+              <Button type="submit" className="w-full gap-2" disabled={busy}>
+                {busy && <Loader2 className="size-4 animate-spin" />}
+                {mode === "signin" ? "Sign in" : "Create account"}
+              </Button>
+            </form>
+
+            <p className="mt-4 text-center text-sm text-muted-foreground">
+              {mode === "signin" ? (
                 <>
-                  <Loader2 className="size-4 animate-spin" />
-                  Securing session…
+                  No account?{" "}
+                  <button
+                    type="button"
+                    className="font-medium text-primary hover:underline"
+                    onClick={() => {
+                      setMode("signup");
+                      setError(null);
+                    }}
+                  >
+                    Create one
+                  </button>
                 </>
               ) : (
                 <>
-                  Sign in to workspace
-                  <ArrowRight className="size-4" />
+                  Already have an account?{" "}
+                  <button
+                    type="button"
+                    className="font-medium text-primary hover:underline"
+                    onClick={() => {
+                      setMode("signin");
+                      setError(null);
+                    }}
+                  >
+                    Sign in
+                  </button>
                 </>
               )}
-            </Button>
-          </form>
+            </p>
+          </CardContent>
+        </Card>
 
-          <div className="mt-8">
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t" />
-              </div>
-              <div className="relative flex justify-center">
-                <span className="bg-background px-3 text-xs text-muted-foreground">
-                  Demo access
-                </span>
-              </div>
-            </div>
-            <button
-              onClick={() => {
-                setEmail("anil.bhard@pharmalabs.co");
-                setPassword("demo-password");
-              }}
-              className="mt-4 w-full rounded-lg border border-dashed border-blue-500/30 bg-blue-500/5 px-4 py-3 text-left text-xs text-muted-foreground transition-colors hover:border-blue-500/50 hover:bg-blue-500/10"
-            >
-              <span className="font-medium text-blue-600 dark:text-blue-400">
-                One-click demo credentials
-              </span>{" "}
-              — any email & password works in this prototype.
-            </button>
-          </div>
-
-          <p className="mt-8 text-center text-xs text-muted-foreground lg:hidden">
-            © 2026 Pharma AI Copilot · R&D Intelligence Platform
-          </p>
-        </motion.div>
+        <p className="mt-6 text-center text-xs leading-relaxed text-muted-foreground">
+          {GENERAL_DISCLAIMER}
+        </p>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <React.Suspense fallback={null}>
+      <LoginForm />
+    </React.Suspense>
   );
 }

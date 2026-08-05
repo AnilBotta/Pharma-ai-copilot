@@ -28,6 +28,11 @@ export function formatRelative(input: string | Date) {
   return formatDate(date);
 }
 
+/** Render a graph node name for display: "literature_agent" -> "Literature agent". */
+export function humanNode(node: string) {
+  return node.replace(/_/g, " ").replace(/^\w/, (c) => c.toUpperCase());
+}
+
 export function maskApiKey(key: string) {
   if (key.length <= 10) return key;
   return `${key.slice(0, 7)}${"•".repeat(12)}${key.slice(-4)}`;
