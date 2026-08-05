@@ -34,10 +34,10 @@ export function Logo({
       {!iconOnly && (
         <div className="leading-tight">
           <p className={cn("font-semibold tracking-tight", size === "lg" ? "text-lg" : "text-[15px]")}>
-            Pharma <span className="text-gradient">AI</span> Copilot
+            Pharma <span className="text-gradient">R&amp;D</span> Copilot
           </p>
           {size === "lg" && (
-            <p className="text-[11px] text-muted-foreground">R&D Intelligence Platform</p>
+            <p className="text-[11px] text-muted-foreground">Research support workspace</p>
           )}
         </div>
       )}
