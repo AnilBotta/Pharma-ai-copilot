@@ -34,7 +34,7 @@ service and the result inspected.
 | **EPO OPS patent retrieval** | Needs `EPO_OPS_CONSUMER_KEY` / `_SECRET`, which are not configured | The OAuth2 endpoint and flow were confirmed correct (invalid credentials return 401, not 404), but the response **parser has never seen a real OPS payload**. Field paths, the single-vs-list collapsing, party de-duplication and classification parsing are all written against documented shapes and fixture data. Expect to fix parsing on first live use. |
 | **All OpenAI model calls** | Needs `OPENAI_API_KEY` | The client is faked at the transport boundary in tests. Model IDs in `.env.example` (`gpt-5`, `gpt-5-mini`) have not been checked against the account's model list. `ModelProvider.health_check()` validates them at startup, so a wrong name fails fast rather than mid-run. |
 | **Every SQL statement in `repository.py`** | Needs `DATABASE_URL` | The schema is verified live, and the API tests fake the repository, but the SQL itself has not executed. Column-name and type mismatches are plausible. |
-| **JWT verification against a real Supabase token** | Needs `SUPABASE_JWT_SECRET` | Tested with locally signed HS256 tokens. Supabase's actual claim set may differ; the `audience="authenticated"` assumption in particular is untested against a real token. |
+| **JWT verification end-to-end** | Needs a signed-in user | The JWKS fetch and key resolution are now **verified against the live project** (1 ES256 key, `kid=f8d9b951…`, correct caching, unknown `kid` rejected). Signature verification is tested with locally generated ES256 tokens through a mocked JWKS. What remains untested is a token minted by Supabase itself — the `audience="authenticated"` assumption in particular. |
 | **Checkpoint resume** | Needs a database | `AsyncPostgresSaver` is wired and `setup()` is called, but no run has been interrupted and resumed. |
 | **SSE / live progress** | Needs a running backend | The endpoint exists; the frontend polls it. Neither has been exercised end-to-end. |
 | **The complete research workflow** | Needs all of the above | The graph runs end-to-end in tests against fixture providers and a fake model. It has never run against real APIs. |
@@ -46,13 +46,15 @@ run has ever executed against live services. Everything is built and wired; what
 is missing is credentials:
 
 ```
-DATABASE_URL=                 # Supabase → Project Settings → Database
-SUPABASE_SERVICE_ROLE_KEY=    # Supabase → Project Settings → API
-SUPABASE_JWT_SECRET=          # Supabase → Project Settings → API
+DATABASE_URL=                 # Supabase → Settings → Database (pooler, 6543)
+SUPABASE_SERVICE_ROLE_KEY=    # Supabase → Settings → API Keys
 OPENAI_API_KEY=               # required; nothing runs without it
 EPO_OPS_CONSUMER_KEY=         # optional; patents degrade honestly without it
 EPO_OPS_CONSUMER_SECRET=
 ```
+
+`SUPABASE_JWT_SECRET` is **not** needed — this project signs with asymmetric
+ES256 keys, verified against its JWKS endpoint.
 
 ---
 

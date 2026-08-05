@@ -49,8 +49,31 @@ signature-verified JWT on every backend call.
 `/auth`.
 
 **Backend.** Every data route depends on `current_user`, which verifies the
-JWT's **signature** against `SUPABASE_JWT_SECRET` — not merely decodes it — and
-requires `exp` and `sub` claims and an `authenticated` audience.
+JWT's **signature** — not merely decodes it — and requires `exp` and `sub`
+claims and an `authenticated` audience.
+
+Two signing schemes are supported and the active one is **detected, not
+configured**:
+
+- **Asymmetric ES256/RS256** (current Supabase projects). Public keys are
+  fetched from `/auth/v1/.well-known/jwks.json`. **No shared secret exists**,
+  so there is no symmetric key to leak, and rotation is handled by refetching
+  on an unknown `kid`.
+- **HS256 shared secret** (legacy). Used only when `SUPABASE_JWT_SECRET` is set
+  *and* JWKS is unreachable.
+
+Accepted algorithms are listed explicitly per scheme. Without that, an attacker
+could present an HS256 token and have the verifier use the EC **public** key as
+an HMAC secret — the classic algorithm-confusion attack. A test asserts this is
+rejected, as is `alg: none`.
+
+The JWKS client is hand-rolled on `httpx` rather than using `jwt.PyJWKClient`,
+which fetches with blocking `urllib` and would stall the event loop inside an
+async request handler.
+
+`GET /api/health` reports the active scheme, because a project using asymmetric
+keys with only a shared secret configured would reject every real token and the
+only symptom would be a blanket 401.
 
 Rejection messages never explain which part of a token failed. Detail beyond
 "Invalid authentication token." tells an attacker which part to fix next.

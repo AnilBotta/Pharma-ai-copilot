@@ -130,17 +130,28 @@ NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
 DATABASE_URL=postgresql://postgres.<ref>:<password>@<host>:6543/postgres
 SUPABASE_URL=https://<project-ref>.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=<service role key>
-SUPABASE_JWT_SECRET=<JWT secret>
 OPENAI_API_KEY=sk-...
 ```
 
-All five are required; the backend refuses to start without them and names
+All four are required; the backend refuses to start without them and names
 exactly which are missing. Provider keys are optional — see
 [docs/DATA_SOURCES.md](docs/DATA_SOURCES.md) for what degrades without each.
 
 Find these in the Supabase dashboard under **Project Settings → Database**
-(connection string, use the transaction pooler on port 6543) and
-**Project Settings → API** (service role key, JWT secret).
+(connection string — use the **transaction pooler**, port 6543) and
+**Project Settings → API Keys** (service role key).
+
+**No JWT secret is needed.** Current Supabase projects sign tokens with
+asymmetric ES256 keys published at `/auth/v1/.well-known/jwks.json`, which the
+backend fetches automatically. Confirm yours does too:
+
+```bash
+curl https://<project-ref>.supabase.co/auth/v1/.well-known/jwks.json
+```
+
+A non-empty `keys` array means you can leave `SUPABASE_JWT_SECRET` blank. Only
+legacy projects with an HS256 shared secret need it. `GET /api/health` reports
+which scheme is active.
 
 ### 4. Run
 

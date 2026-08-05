@@ -62,16 +62,19 @@ async def health(request: Request, settings: Settings = Depends(get_settings)):
     glance why a run might degrade. It exposes no secret values.
     """
     from app import db
+    from app.auth import describe_jwt_verification
 
     db_ok, db_detail = (
         await db.health_check()
         if getattr(request.app.state, "repository", None)
         else (False, "Not initialised.")
     )
+    auth_ok, auth_detail = await describe_jwt_verification(settings)
 
     return HealthResponse(
-        status="ok" if db_ok else "degraded",
+        status="ok" if (db_ok and auth_ok) else "degraded",
         database=db_detail,
+        auth=auth_detail,
         integrations=[
             IntegrationStatus(
                 name=name,

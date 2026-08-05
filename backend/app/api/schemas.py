@@ -207,6 +207,10 @@ class IntegrationStatus(BaseModel):
 class HealthResponse(BaseModel):
     status: str
     database: str
+    #: Which JWT verification scheme is active. Surfaced because a project using
+    #: asymmetric keys with only a shared secret configured would reject every
+    #: real token, with no obvious cause.
+    auth: str = "unknown"
     integrations: list[IntegrationStatus]
 
 

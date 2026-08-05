@@ -50,7 +50,10 @@ class Settings(BaseSettings):
     # ----------------------------------------------------------- supabase ---
     supabase_url: str
     supabase_service_role_key: SecretStr
-    supabase_jwt_secret: SecretStr
+    #: Only needed by legacy projects that sign JWTs with a shared HS256 secret.
+    #: Current Supabase projects publish asymmetric public keys via JWKS, which
+    #: app/auth.py uses by preference, so this stays unset for most deployments.
+    supabase_jwt_secret: SecretStr | None = None
 
     # ------------------------------------------------------------- openai ---
     openai_api_key: SecretStr
@@ -87,6 +90,35 @@ class Settings(BaseSettings):
     @classmethod
     def _strip_origins(cls, v: str) -> str:
         return ",".join(part.strip() for part in v.split(",") if part.strip())
+
+    @field_validator(
+        "supabase_jwt_secret",
+        "ncbi_api_key",
+        "openalex_api_key",
+        "epo_ops_consumer_key",
+        "epo_ops_consumer_secret",
+        "uspto_api_key",
+        mode="before",
+    )
+    @classmethod
+    def _blank_optional_secret_is_absent(cls, v: object) -> object:
+        """Treat `KEY=` in a .env file as unset rather than as an empty secret.
+
+        A blank line is how people leave an optional credential unconfigured.
+        Without this, `SecretStr('')` reads as "configured" everywhere: the
+        integrations page would claim a provider is ready, and JWT fallback
+        would attempt HMAC verification with an empty key.
+        """
+        if isinstance(v, str) and not v.strip():
+            return None
+        return v
+
+    @field_validator("ncbi_email", "crossref_mailto", mode="before")
+    @classmethod
+    def _blank_optional_string_is_absent(cls, v: object) -> object:
+        if isinstance(v, str) and not v.strip():
+            return None
+        return v
 
     # ---------------------------------------------------------- accessors ---
     @property
