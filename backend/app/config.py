@@ -78,6 +78,30 @@ class Settings(BaseSettings):
     epo_ops_consumer_secret: SecretStr | None = None
     uspto_api_key: SecretStr | None = None
 
+    # ------------------------------------------------------------- worker ---
+    #: Shared secret for POST /api/worker/tick. The endpoint executes paid work,
+    #: so it is not left open; the scheduler presents this header. Absent, the
+    #: endpoint refuses every request rather than defaulting to open.
+    worker_trigger_secret: SecretStr | None = None
+
+    #: Elapsed seconds after which a slice stops taking on ANOTHER node.
+    #:
+    #: This is a gate on starting work, not a wall to stop at mid-node: a node
+    #: already running is allowed to finish. Worst case is therefore
+    #: `budget + longest_node`, which is what must fit inside the host's
+    #: function timeout.
+    #:
+    #: Measured on a real run: the longest single node visit is ~120 s
+    #: (supervisor_synthesis). At 150 s the worst case is ~280 s, inside
+    #: Vercel Hobby's unraisable 300 s cap. On Pro (800 s) set this to 600.
+    #: Zero disables slicing entirely, which is what a long-lived process wants.
+    worker_slice_budget_seconds: int = Field(default=0, ge=0, le=3_600)
+
+    #: Absolute origin this deployment answers on, e.g. https://app.vercel.app.
+    #: Needed because a slice triggers its own successor over HTTP and a
+    #: serverless invocation cannot otherwise know its own public URL.
+    public_base_url: str | None = None
+
     # ------------------------------------------------------------- limits ---
     max_literature_results: int = Field(default=50, ge=1, le=200)
     max_patent_results: int = Field(default=30, ge=1, le=200)
@@ -98,6 +122,7 @@ class Settings(BaseSettings):
         "epo_ops_consumer_key",
         "epo_ops_consumer_secret",
         "uspto_api_key",
+        "worker_trigger_secret",
         mode="before",
     )
     @classmethod
@@ -113,12 +138,20 @@ class Settings(BaseSettings):
             return None
         return v
 
-    @field_validator("ncbi_email", "crossref_mailto", mode="before")
+    @field_validator(
+        "ncbi_email", "crossref_mailto", "public_base_url", mode="before"
+    )
     @classmethod
     def _blank_optional_string_is_absent(cls, v: object) -> object:
         if isinstance(v, str) and not v.strip():
             return None
         return v
+
+    @field_validator("public_base_url")
+    @classmethod
+    def _no_trailing_slash(cls, v: str | None) -> str | None:
+        """Normalise so callers can concatenate a path without doubling '/'."""
+        return v.rstrip("/") if v else v
 
     # ---------------------------------------------------------- accessors ---
     @property

@@ -12,11 +12,13 @@ client renders what the worker actually recorded.
 from __future__ import annotations
 
 import asyncio
+import contextlib
+import hmac
 import json
 import logging
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
 from fastapi.responses import StreamingResponse
 
 from app.api.schemas import (
@@ -147,6 +149,14 @@ async def create_run(
         )
     except NotFound as exc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+
+    # Nudge the worker so the run starts in seconds rather than waiting for the
+    # next scheduled sweep. Best-effort by design: if it fails, the sweep picks
+    # the job up within a minute, so it must never fail run creation.
+    from app.worker import trigger_tick
+
+    with contextlib.suppress(Exception):
+        await trigger_tick(get_settings())
 
     return RunCreatedResponse(
         run_id=str(run["id"]),
@@ -347,6 +357,59 @@ async def get_errors(
         return [_serialise(e) for e in await repository.get_run_errors(user.id, run_id)]
     except NotFound as exc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+
+
+# --------------------------------------------------------------------------- #
+# Worker
+# --------------------------------------------------------------------------- #
+
+
+@router.post("/worker/tick", tags=["worker"])
+async def worker_tick(
+    request: Request,
+    x_worker_secret: str | None = Header(default=None),
+    settings: Settings = Depends(get_settings),
+    repository: Repository = Depends(get_repository),
+):
+    """Execute one slice of queued research work.
+
+    Deliberately NOT behind :func:`current_user`. The callers are the database's
+    scheduler and the deployment itself, neither of which holds a user session;
+    a shared secret is the right shape of credential for machine-to-machine
+    work. It is compared with :func:`hmac.compare_digest` so the comparison does
+    not leak the secret's prefix through timing.
+
+    With no secret configured the endpoint refuses everything. Failing closed
+    matters here more than usual: this route spends money on model calls, so an
+    unset variable must not leave it open to the internet.
+    """
+    configured = settings.worker_trigger_secret
+    if configured is None:
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            "The worker endpoint is disabled because WORKER_TRIGGER_SECRET is not set.",
+        )
+
+    presented = x_worker_secret or ""
+    if not hmac.compare_digest(presented, configured.get_secret_value()):
+        logger.warning(
+            "Rejected a worker tick from %s",
+            request.client.host if request.client else "unknown",
+        )
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid worker secret.")
+
+    from app import db
+    from app.worker import run_one_slice, trigger_tick
+
+    result = await run_one_slice(settings, repository, db.get_pool())
+
+    # Chain straight into the next slice rather than waiting for the next
+    # scheduled sweep, so a multi-slice run progresses continuously.
+    if result.get("continues"):
+        with contextlib.suppress(Exception):
+            await trigger_tick(settings)
+
+    return result
 
 
 # --------------------------------------------------------------------------- #

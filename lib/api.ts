@@ -9,7 +9,21 @@ import { createClient } from "@/lib/supabase/client";
  * signature, so the browser cannot assert an identity it does not hold.
  */
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
+/**
+ * Where the API lives.
+ *
+ * Empty means same-origin, which is how the deployment runs: the Python
+ * function serves `/api/*` on this very domain, so requests are relative and
+ * there is no CORS at all.
+ *
+ * The default is deliberately the *deployed* shape rather than the local one.
+ * It used to default to `http://localhost:8000`, which meant forgetting the
+ * variable in production produced a site that silently asked the visitor's own
+ * machine for data. Failing that way is much worse than the reverse: local
+ * development sets the value explicitly in `.env.local`, and if you forget it
+ * there you get an obvious 404 against the Next.js dev server.
+ */
+const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "";
 
 export class ApiError extends Error {
   constructor(
