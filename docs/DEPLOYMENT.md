@@ -140,6 +140,32 @@ npm ci && npm run build
 Only `NEXT_PUBLIC_*` variables are available to the browser. Never add a server
 secret with that prefix.
 
+**Set all three before the first deploy, and tick every environment** —
+Production, Preview and Development. `NEXT_PUBLIC_*` values are inlined into the
+bundle by static substitution *when it is built*, not read when it runs. A value
+added after a build has no effect on that build: the strings were already baked
+in as `undefined`. Changing one requires a redeploy, and on Vercel a redeploy
+**with the build cache cleared**, since a cached build will not be recompiled.
+
+The symptom of getting this wrong used to be a build failure on `/_not-found` —
+a page that needs no authentication at all — reporting
+
+```
+Error: Supabase is not configured. Copy .env.example to .env.local ...
+Export encountered an error on /_not-found/page: /_not-found, exiting the build.
+```
+
+because the auth provider wraps every page, including the ones Next.js
+prerenders. The provider no longer throws when the values are absent; the build
+now succeeds and the running application says plainly on its sign-in page that
+it is unconfigured. That is a better failure, but it is still a failure — the
+app cannot authenticate anyone until the values are set.
+
+`NEXT_PUBLIC_API_BASE_URL` must point at the deployed FastAPI service, not
+`localhost`. **The backend cannot run on Vercel**: the worker is a long-lived
+process that polls a job queue and executes multi-minute graphs, which no
+serverless function can host. See §2 for Railway or Render.
+
 ---
 
 ## 4. Post-deployment checks

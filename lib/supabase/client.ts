@@ -12,14 +12,29 @@ export function createClient() {
   const key = publishableKey();
 
   if (!url || !key) {
-    throw new Error(
-      "Supabase is not configured. Copy .env.example to .env.local and set " +
-        "NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY."
-    );
+    throw new Error(SUPABASE_NOT_CONFIGURED);
   }
 
   return createBrowserClient(url, key);
 }
+
+/**
+ * Whether the public Supabase values were present at build time.
+ *
+ * `NEXT_PUBLIC_*` values are inlined by static substitution when the bundle is
+ * compiled, so this is decided by the *build* environment. Setting them only as
+ * runtime variables on a host has no effect — the strings were already baked in
+ * as `undefined`.
+ */
+export function isSupabaseConfigured(): boolean {
+  return Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && publishableKey());
+}
+
+export const SUPABASE_NOT_CONFIGURED =
+  "Supabase is not configured. Locally, copy .env.example to .env.local. On a " +
+  "host such as Vercel, set NEXT_PUBLIC_SUPABASE_URL and " +
+  "NEXT_PUBLIC_SUPABASE_ANON_KEY as environment variables and redeploy — they " +
+  "are read when the bundle is built, not when it runs.";
 
 /**
  * The public key, under either name.
