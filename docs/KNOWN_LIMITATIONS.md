@@ -59,6 +59,43 @@ Three bugs were found and fixed by that run; see §1.1.
 | Frontend build | `next build` produces 10 routes plus middleware; `tsc --noEmit` and `eslint` clean |
 | Python suite | 256 tests passing, `ruff` clean |
 
+### 1.0 EPO OPS, verified live — and the two defects that surfaced
+
+Credentials were added and the adapter run against the real service. Both
+defects had been predicted in this document as the risk of fixture-only testing;
+both were real.
+
+**1. Wrong envelope key — the serious one.** The live service returns
+`ops:biblio-search`. The documented shape, which the adapter and its fixture
+were written against, says `ops:biblio-search-result`. A search returning
+**15,159 hits parsed as zero records**.
+
+It failed *silently*. `ok=True` with no records is a legitimate outcome — a
+search that found nothing — so nothing raised, nothing logged, and a run would
+simply have reported "no patents found" while stating honestly that patents had
+been searched. That is a worse failure than a crash: the report would have been
+confidently wrong in the one direction this system exists to prevent.
+
+Both spellings are now accepted, with a regression test.
+
+**2. IPC codes truncated.** OPS pads classifications to fixed width:
+`"H10K  30/    15            A I"`. Tokenising and taking the first two fields
+gave `H10K 30/`, dropping the subgroup and making every IPC code wrong but
+plausible-looking. Now parsed as `H10K 30/15`, with a parametrised test over
+four real padded forms.
+
+Verified after fixing — `ti="carbon nanotube"` returns real records:
+
+```
+WO2026160546A1  fam=100684570  KOREA INST OF MATERIALS SCIENCE [KR]   priority 2025-01-23
+WO2026154647A1  fam=100620759  DR GOO CO LTD [JP]                     priority 2025-01-17
+US20260208867A1 fam=100577943  GOODRICH CORP [US]                     priority 2025-01-21
+```
+
+**Still unverified for EPO:** the family-lookup endpoint, legal-status
+retrieval (deliberately not implemented — it costs extra quota and would invite
+legal inference), and behaviour at the 4 GB monthly quota ceiling.
+
 ### 1.1 Bugs the first live run exposed
 
 None of these were reachable by the fixture-based tests. All are fixed, with
@@ -96,7 +133,7 @@ rendered. JSON is now the default; SSE moved to `/events/stream`.
 
 | Capability | Why | What could still be wrong |
 |---|---|---|
-| **EPO OPS patent retrieval** | Needs `EPO_OPS_CONSUMER_KEY` / `_SECRET`, which are not configured | The OAuth2 endpoint and flow were confirmed correct (invalid credentials return 401, not 404), but the response **parser has never seen a real OPS payload**. Field paths, the single-vs-list collapsing, party de-duplication and classification parsing are all written against documented shapes and fixture data. Expect to fix parsing on first live use. |
+| ~~EPO OPS patent retrieval~~ | **Now verified live — see below** | Two parsing defects found and fixed on first real use. |
 | **All OpenAI model calls** | Needs `OPENAI_API_KEY` | The client is faked at the transport boundary in tests. Model IDs in `.env.example` (`gpt-5`, `gpt-5-mini`) have not been checked against the account's model list. `ModelProvider.health_check()` validates them at startup, so a wrong name fails fast rather than mid-run. |
 | **Every SQL statement in `repository.py`** | Needs `DATABASE_URL` | The schema is verified live, and the API tests fake the repository, but the SQL itself has not executed. Column-name and type mismatches are plausible. |
 | **JWT verification end-to-end** | Needs a signed-in user | The JWKS fetch and key resolution are now **verified against the live project** (1 ES256 key, `kid=f8d9b951…`, correct caching, unknown `kid` rejected). Signature verification is tested with locally generated ES256 tokens through a mocked JWKS. What remains untested is a token minted by Supabase itself — the `audience="authenticated"` assumption in particular. |

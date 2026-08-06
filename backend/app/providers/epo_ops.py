@@ -264,9 +264,20 @@ class EPOOPSProvider(PatentProvider):
         OPS wraps everything in ops:world-patent-data and collapses
         single-element lists into bare objects, so every level needs the
         `_as_list` treatment.
+
+        The container key is `ops:biblio-search` in the live service. This code
+        originally looked for `ops:biblio-search-result`, taken from the
+        documented shape, and consequently parsed a search returning 15,159 hits
+        as zero records. It failed silently because ok=True with no records is a
+        legitimate outcome, which is precisely why the adapter now checks both
+        spellings rather than trusting either.
         """
         root = _get(payload, "ops:world-patent-data") or {}
-        search_result = _get(root, "ops:biblio-search-result") or {}
+        search_result = (
+            _get(root, "ops:biblio-search")
+            or _get(root, "ops:biblio-search-result")
+            or {}
+        )
         total = _int(_get(search_result, "@total-result-count"))
 
         documents = _as_list(
@@ -463,12 +474,29 @@ def _parse_cpc(biblio: Any) -> list[str]:
 
 
 def _parse_ipc(biblio: Any) -> list[str]:
+    """Extract IPC codes from OPS's fixed-width padded form.
+
+    Live examples, where the padding is significant:
+
+        "H10K  30/    15            A I"   -> H10K 30/15
+        "A61K   9/    16   20060101A I"    -> A61K 9/16
+
+    Tokenising and taking the first two fields yields "H10K 30/", losing the
+    subgroup. The section-class-subclass, main group and subgroup are three
+    separate whitespace-delimited tokens, so the last two are rejoined.
+    """
     codes = []
     for item in _as_list(_get(biblio, "classifications-ipcr", "classification-ipcr")):
         text = _text(_get(item, "text"))
-        if text:
-            # OPS pads IPC codes to a fixed width, e.g. "A61K  9/16   20060101A I".
-            codes.append(" ".join(text.split()[:2]) if " " in text else text)
+        if not text:
+            continue
+        parts = text.split()
+        if len(parts) >= 3 and parts[1].endswith("/"):
+            codes.append(f"{parts[0]} {parts[1]}{parts[2]}")
+        elif len(parts) >= 2:
+            codes.append(f"{parts[0]} {parts[1]}")
+        else:
+            codes.append(text)
     return list(dict.fromkeys(codes))
 
 

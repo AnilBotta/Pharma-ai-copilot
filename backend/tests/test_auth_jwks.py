@@ -49,8 +49,16 @@ def es256_token(private_key, **overrides) -> str:
 
 
 @pytest.fixture(autouse=True)
-def _settings(monkeypatch: pytest.MonkeyPatch):
-    """Configure with NO shared secret, as a modern project would be."""
+def _settings(monkeypatch: pytest.MonkeyPatch, tmp_path):
+    """Configure with NO shared secret, as a modern project would be.
+
+    env_file is pointed at a path that does not exist so the developer's own
+    backend/.env cannot leak values into the test.
+    """
+    from app.config import Settings
+
+    monkeypatch.setitem(Settings.model_config, "env_file", tmp_path / "absent.env")
+
     for key, value in {
         "DATABASE_URL": "postgresql://u:p@localhost:5432/db",
         "SUPABASE_URL": SUPABASE_URL,

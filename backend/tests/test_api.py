@@ -22,8 +22,22 @@ JWT_SECRET = "test-jwt-secret-padded-to-32-bytes-minimum"
 
 
 @pytest.fixture(autouse=True)
-def _settings_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Minimal valid configuration, and a cleared settings cache."""
+def _settings_env(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+    """Minimal valid configuration, isolated from the developer's own .env.
+
+    pydantic-settings reads backend/.env in addition to the environment, so
+    without this the suite's result depends on whoever runs it: adding real EPO
+    credentials locally made
+    test_unconfigured_integration_is_reported_honestly fail, because the
+    provider it asserts is unconfigured had quietly become configured.
+
+    Pointing env_file at a path that does not exist makes the monkeypatched
+    values the only source of configuration.
+    """
+    from app.config import Settings, get_settings
+
+    monkeypatch.setitem(Settings.model_config, "env_file", tmp_path / "absent.env")
+
     for key, value in {
         "DATABASE_URL": "postgresql://u:p@localhost:5432/db",
         "SUPABASE_URL": "https://x.supabase.co",
@@ -34,7 +48,14 @@ def _settings_env(monkeypatch: pytest.MonkeyPatch) -> None:
     }.items():
         monkeypatch.setenv(key, value)
 
-    from app.config import get_settings
+    # Optional provider credentials must be absent for these tests, whatever the
+    # local .env happens to hold.
+    for key in (
+        "EPO_OPS_CONSUMER_KEY", "EPO_OPS_CONSUMER_SECRET",
+        "NCBI_API_KEY", "NCBI_EMAIL", "CROSSREF_MAILTO",
+        "OPENALEX_API_KEY", "USPTO_API_KEY",
+    ):
+        monkeypatch.delenv(key, raising=False)
 
     get_settings.cache_clear()
     yield

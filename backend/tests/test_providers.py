@@ -418,6 +418,46 @@ class TestEPOParsing:
         assert ep.inventors == ["MUELLER ANNA"]
 
     @respx.mock
+    async def test_legacy_envelope_key_is_still_accepted(self) -> None:
+        """The live service returns `ops:biblio-search`; the documented shape
+        said `ops:biblio-search-result`.
+
+        Regression guard. The adapter originally read only the documented key,
+        so a live search returning 15,159 hits parsed as ZERO records — and it
+        failed silently, because ok=True with no records is a legitimate
+        outcome. Both spellings are now accepted.
+        """
+        payload = epo_fixture()
+        wpd = payload["ops:world-patent-data"]
+        wpd["ops:biblio-search-result"] = wpd.pop("ops:biblio-search")
+
+        respx.post(OPS_AUTH).mock(
+            httpx.Response(200, json={"access_token": "tok", "expires_in": 1200})
+        )
+        respx.get(OPS_SEARCH).mock(httpx.Response(200, json=payload))
+
+        provider = EPOOPSProvider("k", "s")
+        result = await provider.search("x", SearchFilters())
+        await provider.aclose()
+
+        assert len(result.records) == 3
+        assert result.total_available == 347
+
+    @respx.mock
+    async def test_total_result_count_is_reported(self) -> None:
+        # Nonzero hits with zero parsed records is the signature of a parsing
+        # failure, so the count must survive parsing to make that detectable.
+        respx.post(OPS_AUTH).mock(
+            httpx.Response(200, json={"access_token": "tok", "expires_in": 1200})
+        )
+        respx.get(OPS_SEARCH).mock(httpx.Response(200, json=epo_fixture()))
+        provider = EPOOPSProvider("k", "s")
+        result = await provider.search("x", SearchFilters())
+        await provider.aclose()
+        assert result.total_available == 347
+        assert result.count == 3
+
+    @respx.mock
     async def test_classifications_are_parsed(self) -> None:
         respx.post(OPS_AUTH).mock(
             httpx.Response(200, json={"access_token": "tok", "expires_in": 1200})
@@ -429,7 +469,24 @@ class TestEPOParsing:
 
         ep = next(r for r in records if r.publication_number == "EP3123456B1")
         assert ep.cpc_classifications == ["A61K9/16"]
+        # OPS pads IPC to fixed width: "A61K   9/    16   20060101A I".
+        # Naive tokenising gave "A61K 9/", silently losing the subgroup.
         assert ep.ipc_classifications == ["A61K 9/16"]
+
+    @pytest.mark.parametrize(
+        ("raw", "expected"),
+        [
+            ("H10K  30/    15            A I", "H10K 30/15"),
+            ("A61K   9/    16   20060101A I", "A61K 9/16"),
+            ("C07K  19/    00            A I", "C07K 19/00"),
+            ("A61K  31/  7048   20060101A I", "A61K 31/7048"),
+        ],
+    )
+    def test_ipc_padding_is_parsed(self, raw: str, expected: str) -> None:
+        from app.providers.epo_ops import _parse_ipc
+
+        biblio = {"classifications-ipcr": {"classification-ipcr": {"text": {"$": raw}}}}
+        assert _parse_ipc(biblio) == [expected]
 
     @respx.mock
     async def test_multi_paragraph_abstract_is_joined(self) -> None:

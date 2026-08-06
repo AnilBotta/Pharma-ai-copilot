@@ -1,6 +1,6 @@
 {
   "ops:world-patent-data": {
-    "ops:biblio-search-result": {
+    "ops:biblio-search": {
       "@total-result-count": "347",
       "ops:search-result": {
         "exchange-documents": [
@@ -80,7 +80,7 @@
                 },
                 "classifications-ipcr": {
                   "classification-ipcr": {
-                    "text": {"$": "A61K  9/16   20060101A I"}
+                    "text": {"$": "A61K   9/    16   20060101A I"}
                   }
                 }
               },
