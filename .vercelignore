@@ -14,9 +14,18 @@ backend/.venv
 **/*.pyc
 
 # Not part of the running application.
-backend/tests
-backend/apply_migration.py
-backend/check_setup.py
-docs
-supabase
-.claude
+#
+# LEADING SLASHES MATTER. These use .gitignore semantics, where a bare name
+# matches a directory of that name at ANY depth. `supabase` therefore excluded
+# `lib/supabase/` - the frontend's Supabase client - and the build failed with
+#
+#   Module not found: Can't resolve '@/lib/supabase/client'
+#
+# which reads like a broken import rather than a deployment file being deleted
+# out from under the bundler. Anchor every one of these to the repository root.
+/backend/tests
+/backend/apply_migration.py
+/backend/check_setup.py
+/docs
+/supabase
+/.claude

@@ -105,6 +105,81 @@ def test_vercel_config_routes_the_api_to_the_python_function():
     )
 
 
+def test_vercelignore_cannot_swallow_application_source():
+    """A bare name in .vercelignore matches that name at ANY depth.
+
+    This is not hypothetical. The line `supabase`, meant for the top-level
+    migrations directory, also matched `lib/supabase/` and deleted the
+    frontend's Supabase client from the deployment bundle. The build failed
+    with `Module not found: Can't resolve '@/lib/supabase/client'`, which reads
+    like a broken import rather than a file that had been removed.
+
+    Anything excluding a directory must therefore be anchored with a leading
+    slash. Bare patterns are only allowed for extensions and dot-files, where
+    matching at any depth is the intent.
+    """
+    ignore = REPO / ".vercelignore"
+    assert ignore.exists(), "Without .vercelignore, a CLI deploy uploads backend/.env."
+
+    offenders = []
+    for raw in ignore.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or line.startswith("!"):
+            continue
+
+        # Anchored either by a leading slash or, per gitignore rules, by
+        # containing a slash anywhere but the end.
+        if line.startswith("/") or "/" in line.rstrip("/"):
+            continue
+        # `*.pyc` and friends are meant to match at any depth.
+        if line.startswith("*") or line.startswith("."):
+            continue
+
+        offenders.append(line)
+
+    assert not offenders, (
+        "These .vercelignore entries are bare names, so they match a directory "
+        f"of that name at ANY depth and can delete application source: "
+        f"{offenders}. Prefix each with '/' to anchor it to the repo root."
+    )
+
+
+def test_vercelignore_still_excludes_env_files():
+    """The reason the file exists at all."""
+    lines = {
+        line.strip()
+        for line in (REPO / ".vercelignore").read_text(encoding="utf-8").splitlines()
+    }
+    assert "**/.env" in lines, (
+        "A `vercel --prod` from a laptop uploads the working directory, which "
+        "contains backend/.env with the service role and OpenAI keys."
+    )
+
+
+def test_the_frontend_supabase_client_is_not_excluded():
+    """Guard the exact file the bad pattern removed."""
+    client = REPO / "lib" / "supabase" / "client.ts"
+    assert client.exists(), "lib/supabase/client.ts moved; update this guard."
+
+    for raw in (REPO / ".vercelignore").read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or line.startswith("!"):
+            continue
+
+        # An anchored entry cannot reach lib/supabase; `/supabase` is fine and
+        # is in fact the correction for the bug this guards.
+        if line.startswith("/"):
+            assert line.rstrip("/") not in {"/lib", "/lib/supabase"}, (
+                f"'{line}' excludes the frontend Supabase client."
+            )
+            continue
+
+        assert line.rstrip("/") not in {"lib", "supabase", "lib/supabase"}, (
+            f"'{line}' is unanchored and matches lib/supabase/, which removes "
+            "the frontend Supabase client from the bundle. Anchor it: '/{line}'."
+        )
+
+
 def test_entrypoint_exposes_the_same_app_the_tests_use():
     source = ENTRYPOINT.read_text(encoding="utf-8")
     assert "from app.main import app" in source, (
