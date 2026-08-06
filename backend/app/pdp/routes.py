@@ -1,0 +1,384 @@
+"""HTTP API for the PDP Operations & Stage-Gate Guardian module.
+
+Note what has no endpoint. There is no `PATCH /requirements/{id}` accepting a
+status, no `POST /requirements/{id}/complete`, and no way to write a readiness
+percentage. Progress is expressed by attaching evidence, confirming acceptance
+and obtaining an approval from someone else; everything else is derived. When
+the PDP Operations Agent arrives in Phase G it calls exactly these endpoints,
+which is why the authority limit is enforced here rather than in a prompt.
+"""
+
+from __future__ import annotations
+
+import logging
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+
+from app.api.serialise import serialise
+from app.auth import AuthenticatedUser, current_user
+from app.pdp import schemas as s
+from app.pdp.repository import Conflict, Forbidden, NotFound, PdpRepository
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter(prefix="/pdp", tags=["pdp"])
+
+
+def get_pdp_repository(request: Request) -> PdpRepository:
+    repository = getattr(request.app.state, "pdp_repository", None)
+    if repository is None:
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE, "Database is not available."
+        )
+    return repository
+
+
+def _translate(exc: Exception) -> HTTPException:
+    """Map repository failures onto status codes.
+
+    Forbidden is distinct from NotFound on purpose: the caller can already see
+    the project, so 403 leaks nothing, and 'you may not approve this' is the
+    only message that tells them what to do about it.
+    """
+    if isinstance(exc, NotFound):
+        return HTTPException(status.HTTP_404_NOT_FOUND, str(exc))
+    if isinstance(exc, Forbidden):
+        return HTTPException(status.HTTP_403_FORBIDDEN, str(exc))
+    if isinstance(exc, Conflict):
+        return HTTPException(status.HTTP_409_CONFLICT, str(exc))
+    raise exc
+
+
+# --------------------------------------------------------------- templates ---
+
+
+@router.get("/templates", response_model=list[s.TemplateResponse])
+async def list_templates(
+    user: AuthenticatedUser = Depends(current_user),
+    repository: PdpRepository = Depends(get_pdp_repository),
+):
+    """Stage-gate templates available to instantiate.
+
+    Draft templates are listed so an administrator can see what exists, but only
+    an active - meaning organisationally approved - template can be instantiated.
+    """
+    return [serialise(t) for t in await repository.list_templates()]
+
+
+# --------------------------------------------------------------- programmes ---
+
+
+@router.get("/programmes", response_model=list[s.ProgrammeSummary])
+async def list_programmes(
+    user: AuthenticatedUser = Depends(current_user),
+    repository: PdpRepository = Depends(get_pdp_repository),
+):
+    return [serialise(p) for p in await repository.list_programmes(user.id)]
+
+
+@router.post(
+    "/projects/{project_id}/instantiate",
+    response_model=s.InstantiateResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def instantiate(
+    project_id: str,
+    payload: s.InstantiateRequest,
+    user: AuthenticatedUser = Depends(current_user),
+    repository: PdpRepository = Depends(get_pdp_repository),
+):
+    """Copy an approved template version into this project.
+
+    The copy is what makes later template edits safe: this project's
+    requirements are its own from now on.
+    """
+    try:
+        return await repository.instantiate(
+            user.id,
+            project_id,
+            template_id=payload.template_id,
+            start_date=payload.start_date,
+        )
+    except (NotFound, Forbidden, Conflict) as exc:
+        raise _translate(exc) from exc
+
+
+@router.get("/projects/{project_id}", response_model=s.ProgrammeDetail)
+async def get_programme(
+    project_id: str,
+    user: AuthenticatedUser = Depends(current_user),
+    repository: PdpRepository = Depends(get_pdp_repository),
+):
+    try:
+        result = await repository.get_programme(user.id, project_id)
+    except NotFound as exc:
+        raise _translate(exc) from exc
+
+    return {
+        "project": serialise(result["project"]),
+        "stages": [serialise(st) for st in result["stages"]],
+        "capabilities": result["capabilities"],
+    }
+
+
+@router.get("/projects/{project_id}/attachable-runs", response_model=list[s.AttachableRun])
+async def attachable_runs(
+    project_id: str,
+    user: AuthenticatedUser = Depends(current_user),
+    repository: PdpRepository = Depends(get_pdp_repository),
+):
+    """Completed research runs on this project that may be cited as evidence."""
+    try:
+        return [serialise(r) for r in await repository.list_attachable_runs(user.id, project_id)]
+    except NotFound as exc:
+        raise _translate(exc) from exc
+
+
+@router.get("/projects/{project_id}/audit", response_model=list[s.AuditEntry])
+async def project_audit(
+    project_id: str,
+    limit: int = Query(default=100, ge=1, le=500),
+    user: AuthenticatedUser = Depends(current_user),
+    repository: PdpRepository = Depends(get_pdp_repository),
+):
+    try:
+        return [serialise(e) for e in await repository.project_audit(user.id, project_id, limit)]
+    except NotFound as exc:
+        raise _translate(exc) from exc
+
+
+# --------------------------------------------------------------- the gate ---
+
+
+@router.get("/stages/{stage_id}", response_model=s.GateWorkspace)
+async def get_gate(
+    stage_id: str,
+    user: AuthenticatedUser = Depends(current_user),
+    repository: PdpRepository = Depends(get_pdp_repository),
+):
+    """The gate workspace.
+
+    Readiness and blockers ship together in one payload, so a client cannot
+    obtain the percentage without also receiving the reasons it is not 100.
+    """
+    try:
+        result = await repository.get_gate(user.id, stage_id)
+    except NotFound as exc:
+        raise _translate(exc) from exc
+
+    return {
+        "project_id": result["project_id"],
+        "stage": serialise(result["stage"]),
+        "readiness": serialise(result["readiness"]),
+        "blockers": [serialise(b) for b in result["blockers"]],
+        "requirements": [_serialise_requirement(r) for r in result["requirements"]],
+        "capabilities": result["capabilities"],
+    }
+
+
+@router.post("/stages/{stage_id}/gate-decision", response_model=s.StageSummary)
+async def decide_gate(
+    stage_id: str,
+    payload: s.GateDecisionRequest,
+    user: AuthenticatedUser = Depends(current_user),
+    repository: PdpRepository = Depends(get_pdp_repository),
+):
+    """Record a human gate decision.
+
+    Approval is refused while any mandatory requirement is unsatisfied, and the
+    refusal names the blockers. Conditional approval stays available and writes
+    the outstanding blocker list into the audit record.
+    """
+    try:
+        row = await repository.decide_gate(
+            user.id,
+            stage_id,
+            decision=payload.decision,
+            note=payload.note,
+            conditions=payload.conditions,
+        )
+    except (NotFound, Forbidden, Conflict) as exc:
+        raise _translate(exc) from exc
+    return serialise(row)
+
+
+# ------------------------------------------------------------ requirements ---
+
+
+@router.post(
+    "/requirements/{requirement_id}/evidence",
+    response_model=s.EvidenceLink,
+    status_code=status.HTTP_201_CREATED,
+)
+async def attach_evidence(
+    requirement_id: str,
+    payload: s.AttachEvidenceRequest,
+    user: AuthenticatedUser = Depends(current_user),
+    repository: PdpRepository = Depends(get_pdp_repository),
+):
+    """Attach evidence. Any existing approval is superseded by this change."""
+    try:
+        row = await repository.attach_evidence(
+            user.id,
+            requirement_id,
+            evidence_type=payload.evidence_type,
+            research_run_id=payload.research_run_id,
+            external_url=payload.external_url,
+            note=payload.note,
+            title=payload.title,
+            description=payload.description,
+        )
+    except (NotFound, Forbidden, Conflict) as exc:
+        raise _translate(exc) from exc
+    return serialise(row)
+
+
+@router.delete("/evidence/{evidence_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def detach_evidence(
+    evidence_id: str,
+    user: AuthenticatedUser = Depends(current_user),
+    repository: PdpRepository = Depends(get_pdp_repository),
+):
+    try:
+        await repository.detach_evidence(user.id, evidence_id)
+    except (NotFound, Forbidden, Conflict) as exc:
+        raise _translate(exc) from exc
+
+
+@router.post("/requirements/{requirement_id}/acceptance", response_model=s.RequirementDetail)
+async def set_acceptance(
+    requirement_id: str,
+    payload: s.AcceptanceRequest,
+    user: AuthenticatedUser = Depends(current_user),
+    repository: PdpRepository = Depends(get_pdp_repository),
+):
+    """Confirm or withdraw that the acceptance criteria are met.
+
+    Confirming is not approving. It records that the person doing the work
+    states the criteria are satisfied; a different person must then agree.
+    """
+    try:
+        row = await repository.set_acceptance(
+            user.id, requirement_id, confirmed=payload.confirmed
+        )
+    except (NotFound, Forbidden, Conflict) as exc:
+        raise _translate(exc) from exc
+    return _serialise_requirement(row)
+
+
+@router.post("/requirements/{requirement_id}/decision", response_model=s.Approval)
+async def decide_requirement(
+    requirement_id: str,
+    payload: s.DecisionRequest,
+    user: AuthenticatedUser = Depends(current_user),
+    repository: PdpRepository = Depends(get_pdp_repository),
+):
+    """Approve or reject a requirement.
+
+    Refused for the owner and for whoever confirmed the acceptance criteria -
+    by a database trigger, so no code path here or in a future agent can route
+    around it.
+    """
+    try:
+        row = await repository.decide_requirement(
+            user.id, requirement_id, decision=payload.decision, comments=payload.comments
+        )
+    except (NotFound, Forbidden, Conflict) as exc:
+        raise _translate(exc) from exc
+    return serialise(row)
+
+
+@router.post("/requirements/{requirement_id}/review", status_code=status.HTTP_201_CREATED)
+async def record_review(
+    requirement_id: str,
+    payload: s.ReviewRequest,
+    user: AuthenticatedUser = Depends(current_user),
+    repository: PdpRepository = Depends(get_pdp_repository),
+):
+    """Record an independent review. A recommendation, never an approval."""
+    try:
+        row = await repository.record_review(
+            user.id, requirement_id, outcome=payload.outcome, comments=payload.comments
+        )
+    except (NotFound, Forbidden, Conflict) as exc:
+        raise _translate(exc) from exc
+    return serialise(row)
+
+
+@router.post("/requirements/{requirement_id}/assignment", response_model=s.RequirementDetail)
+async def set_assignment(
+    requirement_id: str,
+    payload: s.AssignmentRequest,
+    user: AuthenticatedUser = Depends(current_user),
+    repository: PdpRepository = Depends(get_pdp_repository),
+):
+    try:
+        row = await repository.set_assignment(
+            user.id,
+            requirement_id,
+            owner_user_id=payload.owner_user_id,
+            reviewer_user_id=payload.reviewer_user_id,
+            due_date=payload.due_date,
+            priority=payload.priority,
+            clear_owner=payload.clear_owner,
+            clear_due_date=payload.clear_due_date,
+        )
+    except (NotFound, Forbidden, Conflict) as exc:
+        raise _translate(exc) from exc
+    return _serialise_requirement(row)
+
+
+@router.post("/requirements/{requirement_id}/block", response_model=s.RequirementDetail)
+async def set_blocked(
+    requirement_id: str,
+    payload: s.BlockRequest,
+    user: AuthenticatedUser = Depends(current_user),
+    repository: PdpRepository = Depends(get_pdp_repository),
+):
+    try:
+        row = await repository.set_blocked(
+            user.id, requirement_id, blocked=payload.blocked, reason=payload.reason
+        )
+    except (NotFound, Forbidden, Conflict) as exc:
+        raise _translate(exc) from exc
+    return _serialise_requirement(row)
+
+
+@router.post("/requirements/{requirement_id}/not-applicable", response_model=s.RequirementDetail)
+async def set_not_applicable(
+    requirement_id: str,
+    payload: s.NotApplicableRequest,
+    user: AuthenticatedUser = Depends(current_user),
+    repository: PdpRepository = Depends(get_pdp_repository),
+):
+    """Scope a requirement out with a justification.
+
+    A mandatory requirement cannot be scoped out; the database refuses it.
+    """
+    try:
+        row = await repository.set_not_applicable(
+            user.id,
+            requirement_id,
+            not_applicable=payload.not_applicable,
+            reason=payload.reason,
+        )
+    except (NotFound, Forbidden, Conflict) as exc:
+        raise _translate(exc) from exc
+    return _serialise_requirement(row)
+
+
+# ------------------------------------------------------------ serialisation ---
+
+
+def _serialise_requirement(row: dict) -> dict:
+    """Flatten a requirement and its nested evidence and approvals."""
+    item = serialise(row)
+    item["evidence"] = [serialise(e) for e in row.get("evidence", [])]
+    item["approvals"] = [serialise(a) for a in row.get("approvals", [])]
+    current = row.get("current_approval")
+    item["current_approval"] = serialise(current) if current else None
+    return item
+
+
+#: The mutating endpoints return `repository`'s recomputed view of the
+#: requirement, not the row they wrote. See PdpRepository._requirement_view.

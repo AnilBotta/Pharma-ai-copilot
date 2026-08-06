@@ -12,6 +12,31 @@ counsel, regulatory experts, toxicologists, clinicians or statisticians.
 
 ---
 
+## Two modules, one idea
+
+**Research** answers a question once: retrieve, synthesise, cite, done.
+
+**PDP Operations & Stage-Gate Guardian** tracks a development programme across
+Gate 0–7 for as long as it runs — requirements, evidence, owners, approvals, and
+whether a gate may actually be reviewed. See
+[docs/PDP_MODULE.md](docs/PDP_MODULE.md).
+
+They share one `projects` table, which is what lets a completed research run be
+attached as evidence against a gate requirement rather than the two being
+separate applications behind one login.
+
+Both enforce their central guarantee **structurally**:
+
+| Module | Guarantee | Why it holds |
+|---|---|---|
+| Research | A citation cannot exist unless the source was retrieved | Evidence rows are written before synthesis; unresolvable markers are stripped |
+| PDP | A requirement cannot be green because someone ticked a box | There is no box — no completion column exists, so nothing can set one |
+
+A rule enforced by structure survives contact with people in a hurry. A rule
+enforced by convention does not.
+
+---
+
 ## What makes a citation trustworthy here
 
 The central guarantee is structural rather than behavioural:
@@ -111,7 +136,8 @@ the Supabase SQL editor or the Supabase CLI:
 supabase db push
 ```
 
-This creates 17 tables, 16 RLS policies and the `private` schema helpers.
+This creates 35 tables, 30 RLS policies and 22 `private` schema helpers, across
+both modules.
 
 ### 3. Configure environment
 
@@ -225,6 +251,20 @@ cd backend; .venv\Scripts\python.exe -m pytest -q
 npm run lint; npx tsc --noEmit; npm run build
 ```
 
+The stage-gate suites need a real database, so they are scripts rather than
+pytest modules and run separately:
+
+```bash
+cd backend; .venv\Scripts\python.exe tests\db\test_readiness_engine.py
+```
+
+```bash
+cd backend; .venv\Scripts\python.exe tests\db\test_phase_c_workflow.py
+```
+
+Both create everything they need inside a transaction and roll it back, so the
+database is unchanged afterwards.
+
 The Python suite covers provider normalisation, deduplication, structured model
 outputs, citation validation, failed external APIs, missing optional keys, graph
 routing, and one end-to-end workflow that runs the real compiled graph against
@@ -260,6 +300,7 @@ docs/                architecture, agents, data sources, security, deployment
 | Document | Contents |
 |---|---|
 | [CURRENT_SYSTEM_AUDIT.md](docs/CURRENT_SYSTEM_AUDIT.md) | Audit of the prototype this replaced |
+| [PDP_MODULE.md](docs/PDP_MODULE.md) | Stage gates: the no-false-green rule, roles, endpoints |
 | [ARCHITECTURE.md](docs/ARCHITECTURE.md) | System design and data model |
 | [AGENT_WORKFLOW.md](docs/AGENT_WORKFLOW.md) | Each agent, the graph, routing |
 | [DATA_SOURCES.md](docs/DATA_SOURCES.md) | Providers, credentials, rate limits |

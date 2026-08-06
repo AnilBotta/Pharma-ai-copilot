@@ -35,6 +35,7 @@ from app.api.schemas import (
     RunSummary,
     SearchQueryResponse,
 )
+from app.api.serialise import serialise
 from app.auth import AuthenticatedUser, current_user, get_repository
 from app.config import Settings, get_settings
 from app.repository import NotFound, Repository
@@ -367,28 +368,10 @@ async def dashboard(
 # --------------------------------------------------------------------------- #
 
 
-def _serialise(row: Any) -> dict:
-    """Convert asyncpg row types into JSON-friendly Python values."""
-    import uuid
-    from decimal import Decimal
-
-    result = {}
-    for key, value in dict(row).items():
-        if isinstance(value, uuid.UUID):
-            result[key] = str(value)
-        elif isinstance(value, Decimal):
-            result[key] = float(value)
-        elif isinstance(value, str) and key in {
-            "structured_objective", "research_plan", "contradictions",
-            "evidence_gaps", "warnings", "section_confidence", "data",
-        }:
-            try:
-                result[key] = json.loads(value)
-            except (ValueError, TypeError):
-                result[key] = value
-        else:
-            result[key] = value
-    return result
+#: Shared with the PDP router. Kept as a module-level alias rather than
+#: rewriting every call site, and so that a reader of either router finds the
+#: same conversion rules in one file.
+_serialise = serialise
 
 
 def _numeric(value: Any) -> Any:

@@ -129,6 +129,67 @@ A fourth, found by the same script before the run: `/runs/{id}/events` was
 SSE-only while the frontend polls it for JSON, so progress would never have
 rendered. JSON is now the default; SSE moved to `/events/stream`.
 
+### 1.2 PDP Phase C, verified against the live database — and the engine bug it exposed
+
+`backend/tests/db/test_phase_c_workflow.py` drives `PdpRepository` — the code an
+HTTP request, and later an agent tool, actually reaches — against the real
+database inside a rolled-back transaction. **75 assertions, all passing**,
+alongside the 22 of `test_readiness_engine.py`.
+
+The headline case, constructed and confirmed:
+
+```
+readiness_pct = 93.1    is_ready = FALSE    blockers = 1
+gate approval REFUSED, and the refusal names R-004
+```
+
+Also confirmed live: a draft template cannot be instantiated; instantiating twice
+is refused; an unfinished or foreign research run is refused as evidence;
+acceptance cannot be confirmed with nothing attached; the requirement owner and
+the acceptance confirmer are both refused approval by database trigger; attaching
+evidence *or* withdrawing acceptance supersedes an existing approval; a
+prerequisite going unsatisfied cascades to its dependants; a mandatory
+requirement cannot be scoped out; and the person who approved a requirement
+cannot subsequently be made its owner.
+
+**A latent defect in the readiness engine surfaced during this work, and it was
+serious.** `requirement_is_satisfied()` recursed until the stack ran out, on a
+requirement with *no prerequisites at all*. Migration 0014 had written the
+prerequisite check as one query with the recursive call in the `WHERE` clause:
+
+```sql
+where d.requirement_id = req_id
+  and dep.is_mandatory
+  and not private.requirement_is_satisfied(dep.id)   -- planner may run this first
+```
+
+SQL is declarative; the planner may apply quals in any order. Given the row
+counts it chose to scan `gate_requirements` and evaluate the function *before*
+the join restriction, calling it on every requirement in the table including the
+one already being evaluated. The comment above the query claimed recursion
+terminates because the dependency graph is acyclic — true, and irrelevant: the
+recursion was not following the dependency graph.
+
+Nothing was wrong with the data or the cycle trigger. The bug shipped with 0014
+and only appeared when the planner's estimates changed, which is the worst
+property a defect in a gate decision can have — the engine's behaviour depended
+on table statistics rather than on the record. Migration 0017 moves the recursion
+into a `plpgsql` loop, where it runs once per real dependency edge and cannot be
+reordered.
+
+Migration 0016 additionally replaced `constraint reviewer_is_not_owner check
+(true)` — a constraint named for a rule it did not enforce, since a `CHECK`
+cannot reference another table — with a trigger that does enforce it.
+
+#### What Phase C has NOT been verified against
+
+| Gap | Why it matters |
+|---|---|
+| **The browser UI end-to-end** | The three pages build, are served, and are protected by middleware (`/programmes` redirects to sign-in). Nothing beyond the auth wall has been exercised in a browser, because doing so requires signing in as a real user. Every rule above is verified at the layer below it. |
+| **A two-person workflow in the UI** | Segregation of duties means one account cannot complete a requirement: whoever confirms acceptance is refused approval. A pilot needs a second account. This is the design working, not a bug, but it makes a solo demo dead-end at the approval step. |
+| **`gate_blockers()` at scale** | It filters with `not private.requirement_is_satisfied(r.id)` in a `WHERE` clause. Unlike the 0017 case this cannot recurse, but the planner may still evaluate it on more rows than the stage contains. Correct, potentially slow on a large portfolio; not yet measured. |
+| **Concurrent approval of the same requirement** | The `approvals_one_current` partial unique index makes a double approval fail rather than duplicate, but the losing request's error message has not been checked. |
+
 ### Tested only against fixtures — NOT verified live
 
 | Capability | Why | What could still be wrong |

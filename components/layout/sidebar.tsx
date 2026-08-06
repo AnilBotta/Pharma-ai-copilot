@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   FolderGit2,
+  GitBranch,
   LayoutDashboard,
   ListChecks,
   Plug,
@@ -41,6 +42,10 @@ const navGroups: { title: string; items: NavItem[] }[] = [
       { href: "/runs", label: "Research Runs", icon: ListChecks },
       { href: "/documents", label: "Documents", icon: Upload },
     ],
+  },
+  {
+    title: "Development",
+    items: [{ href: "/programmes", label: "Stage Gates", icon: GitBranch }],
   },
   {
     title: "Configuration",

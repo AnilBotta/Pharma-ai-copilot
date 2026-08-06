@@ -252,6 +252,237 @@ export interface CreateRunPayload {
   additional_instructions?: string;
 }
 
+/* ------------------------------------------------------- PDP stage gates -- */
+
+/**
+ * Gate readiness.
+ *
+ * `readiness_pct` and `is_ready` answer different questions and the second is
+ * the dispositive one: 93% with a single unsatisfied mandatory requirement is
+ * not ready. `blocker_count` is required rather than optional so that having
+ * the percentage always means having the count of reasons it is not 100.
+ *
+ * Render these through <GateReadiness>, which will not display the number
+ * without its blockers.
+ */
+export interface Readiness {
+  readiness_pct: number;
+  is_ready: boolean;
+  blocker_count: number;
+  applicable_count: number;
+  satisfied_count: number;
+  mandatory_count: number;
+  mandatory_satisfied: number;
+}
+
+export interface Blocker {
+  requirement_id: string;
+  ref_code: string;
+  title: string;
+  status: string;
+  reason: string;
+  owner_user_id: string | null;
+  due_date: string | null;
+}
+
+export interface PdpCapabilities {
+  can_access: boolean;
+  can_approve: boolean;
+  can_gate: boolean;
+  can_administer: boolean;
+  is_portfolio_wide: boolean;
+  is_project_owner: boolean;
+  role_keys: string[];
+}
+
+export type GateStatus =
+  | "not_started"
+  | "in_progress"
+  | "at_risk"
+  | "ready_for_human_review"
+  | "approved"
+  | "conditionally_approved"
+  | "rejected"
+  | "on_hold";
+
+/** Derived on every read. There is no stored counterpart to any of these. */
+export type RequirementStatus =
+  | "not_started"
+  | "in_progress"
+  | "overdue"
+  | "awaiting_acceptance"
+  | "awaiting_approval"
+  | "awaiting_dependency"
+  | "changes_requested"
+  | "blocked"
+  | "wrong_evidence_type"
+  | "not_applicable"
+  | "approved";
+
+export interface PdpTemplate {
+  id: string;
+  template_key: string;
+  version: number;
+  name: string;
+  description: string | null;
+  product_type: string;
+  status: "draft" | "active" | "archived";
+  is_default: boolean;
+  stage_count: number;
+  requirement_count: number;
+  approved_at: string | null;
+}
+
+export interface ProgrammeSummary {
+  id: string;
+  name: string;
+  code: string | null;
+  description: string | null;
+  product_type: string | null;
+  health: string | null;
+  stage_count: number;
+  current_stage_pk: string | null;
+  current_stage_key: string | null;
+  current_stage_name: string | null;
+  current_gate_status: GateStatus | null;
+  readiness_pct: number | null;
+  is_ready: boolean | null;
+  blocker_count: number | null;
+  planned_start_date: string | null;
+  planned_end_date: string | null;
+}
+
+export interface StageSummary {
+  id: string;
+  project_id: string;
+  position: number;
+  key: string;
+  name: string;
+  description: string | null;
+  gate_question: string | null;
+  exit_criteria: string | null;
+  gate_status: GateStatus;
+  gate_decision_at: string | null;
+  gate_decision_note: string | null;
+  gate_conditions: string | null;
+  readiness_pct: number;
+  is_ready: boolean;
+  blocker_count: number;
+  applicable_count: number;
+  satisfied_count: number;
+  mandatory_count: number;
+  mandatory_satisfied: number;
+  requirement_count: number;
+  overdue_count: number;
+}
+
+export interface ProgrammeDetail {
+  project: Record<string, unknown> & { id: string; name: string };
+  stages: StageSummary[];
+  capabilities: PdpCapabilities;
+}
+
+export interface EvidenceLink {
+  id: string;
+  requirement_id: string;
+  evidence_type: "document" | "research_run" | "data" | "url" | "note";
+  research_run_id: string | null;
+  research_run_status: string | null;
+  research_run_question: string | null;
+  external_url: string | null;
+  note: string | null;
+  title: string | null;
+  description: string | null;
+  added_by_name: string | null;
+  created_at: string;
+}
+
+export interface RequirementApproval {
+  id: string;
+  requirement_id: string;
+  approver_id: string;
+  approver_name: string | null;
+  approver_role: string;
+  decision: "approved" | "rejected";
+  comments: string | null;
+  approved_at: string;
+  superseded_at: string | null;
+  superseded_reason: string | null;
+}
+
+export interface Requirement {
+  id: string;
+  project_stage_id: string;
+  position: number;
+  ref_code: string;
+  title: string;
+  description: string | null;
+  guidance: string | null;
+  discipline: string | null;
+  is_mandatory: boolean;
+  weight: number;
+  required_evidence_type: string;
+  acceptance_criteria: string | null;
+  status: RequirementStatus;
+  is_satisfied: boolean;
+  evidence_count: number;
+  acceptance_confirmed_by: string | null;
+  acceptance_confirmed_by_name: string | null;
+  acceptance_confirmed_at: string | null;
+  owner_user_id: string | null;
+  owner_name: string | null;
+  approver_role_key: string | null;
+  due_date: string | null;
+  priority: "low" | "medium" | "high" | "critical";
+  is_blocked: boolean;
+  blocked_reason: string | null;
+  is_not_applicable: boolean;
+  not_applicable_reason: string | null;
+  depends_on: Array<{
+    id: string;
+    ref_code: string;
+    title: string;
+    is_mandatory: boolean;
+    is_satisfied: boolean;
+  }> | null;
+  evidence: EvidenceLink[];
+  approvals: RequirementApproval[];
+  current_approval: RequirementApproval | null;
+}
+
+export interface GateWorkspace {
+  project_id: string;
+  stage: StageSummary;
+  readiness: Readiness;
+  blockers: Blocker[];
+  requirements: Requirement[];
+  capabilities: PdpCapabilities;
+}
+
+export interface AttachableRun {
+  id: string;
+  original_question: string;
+  status: string;
+  completed_at: string | null;
+  evidence_count: number;
+}
+
+export interface AuditEntry {
+  id: number;
+  occurred_at: string;
+  actor_user_id: string | null;
+  actor_name: string | null;
+  actor_role: string | null;
+  actor_agent: string | null;
+  action: string;
+  entity_type: string;
+  entity_id: string;
+  previous_value: unknown;
+  new_value: unknown;
+  reason: string | null;
+  source_channel: string;
+}
+
 /* -------------------------------------------------------------- endpoints -- */
 
 export const api = {
@@ -294,6 +525,115 @@ export const api = {
   getReport: (runId: string) => request<ReportSection[]>(`/runs/${runId}/report`),
   getQueries: (runId: string) => request<SearchQuery[]>(`/runs/${runId}/queries`),
   getErrors: (runId: string) => request<RunError[]>(`/runs/${runId}/errors`),
+};
+
+/**
+ * Stage-gate endpoints.
+ *
+ * Note what is missing: nothing here marks a requirement complete or writes a
+ * readiness figure, because the backend exposes no such route and the database
+ * has no such column. Progress is made by attaching evidence, confirming
+ * acceptance, and obtaining an approval from somebody else.
+ */
+export const pdp = {
+  listTemplates: () => request<PdpTemplate[]>("/pdp/templates"),
+
+  listProgrammes: () => request<ProgrammeSummary[]>("/pdp/programmes"),
+
+  getProgramme: (projectId: string) =>
+    request<ProgrammeDetail>(`/pdp/projects/${projectId}`),
+
+  instantiate: (projectId: string, body: { template_id: string; start_date?: string }) =>
+    request<{
+      project_id: string;
+      template_name: string;
+      stages_created: number;
+      requirements_created: number;
+    }>(`/pdp/projects/${projectId}/instantiate`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
+  attachableRuns: (projectId: string) =>
+    request<AttachableRun[]>(`/pdp/projects/${projectId}/attachable-runs`),
+
+  audit: (projectId: string, limit = 100) =>
+    request<AuditEntry[]>(`/pdp/projects/${projectId}/audit?limit=${limit}`),
+
+  getGate: (stageId: string) => request<GateWorkspace>(`/pdp/stages/${stageId}`),
+
+  decideGate: (
+    stageId: string,
+    body: {
+      decision: "approved" | "conditionally_approved" | "rejected" | "on_hold";
+      note?: string;
+      conditions?: string;
+    }
+  ) =>
+    request<StageSummary>(`/pdp/stages/${stageId}/gate-decision`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
+  attachEvidence: (
+    requirementId: string,
+    body: {
+      evidence_type: "research_run" | "url" | "note" | "data";
+      research_run_id?: string;
+      external_url?: string;
+      note?: string;
+      title?: string;
+    }
+  ) =>
+    request<EvidenceLink>(`/pdp/requirements/${requirementId}/evidence`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
+  detachEvidence: (evidenceId: string) =>
+    request<void>(`/pdp/evidence/${evidenceId}`, { method: "DELETE" }),
+
+  setAcceptance: (requirementId: string, confirmed: boolean) =>
+    request<Requirement>(`/pdp/requirements/${requirementId}/acceptance`, {
+      method: "POST",
+      body: JSON.stringify({ confirmed }),
+    }),
+
+  decideRequirement: (
+    requirementId: string,
+    body: { decision: "approved" | "rejected"; comments?: string }
+  ) =>
+    request<RequirementApproval>(`/pdp/requirements/${requirementId}/decision`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
+  setAssignment: (
+    requirementId: string,
+    body: {
+      owner_user_id?: string;
+      due_date?: string;
+      priority?: "low" | "medium" | "high" | "critical";
+      clear_owner?: boolean;
+      clear_due_date?: boolean;
+    }
+  ) =>
+    request<Requirement>(`/pdp/requirements/${requirementId}/assignment`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
+  setBlocked: (requirementId: string, blocked: boolean, reason?: string) =>
+    request<Requirement>(`/pdp/requirements/${requirementId}/block`, {
+      method: "POST",
+      body: JSON.stringify({ blocked, reason }),
+    }),
+
+  setNotApplicable: (requirementId: string, notApplicable: boolean, reason?: string) =>
+    request<Requirement>(`/pdp/requirements/${requirementId}/not-applicable`, {
+      method: "POST",
+      body: JSON.stringify({ not_applicable: notApplicable, reason }),
+    }),
 };
 
 /**
