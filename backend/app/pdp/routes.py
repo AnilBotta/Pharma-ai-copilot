@@ -147,6 +147,124 @@ async def project_audit(
         raise _translate(exc) from exc
 
 
+# --------------------------------------------------- controlled documents ---
+
+
+@router.get("/projects/{project_id}/documents", response_model=list[s.DocumentSummary])
+async def list_documents(
+    project_id: str,
+    user: AuthenticatedUser = Depends(current_user),
+    repository: PdpRepository = Depends(get_pdp_repository),
+):
+    """The register for this project, plus organisation-wide documents.
+
+    Files live wherever the organisation already controls them; each version
+    carries a link, not a copy.
+    """
+    try:
+        return [serialise(d) for d in await repository.list_documents(user.id, project_id)]
+    except NotFound as exc:
+        raise _translate(exc) from exc
+
+
+@router.post(
+    "/projects/{project_id}/documents",
+    response_model=s.DocumentSummary,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_document(
+    project_id: str,
+    payload: s.CreateDocumentRequest,
+    user: AuthenticatedUser = Depends(current_user),
+    repository: PdpRepository = Depends(get_pdp_repository),
+):
+    try:
+        row = await repository.create_document(
+            user.id,
+            project_id,
+            document_number=payload.document_number,
+            title=payload.title,
+            document_type=payload.document_type,
+            discipline=payload.discipline,
+            description=payload.description,
+            owner_user_id=payload.owner_user_id,
+        )
+    except (NotFound, Forbidden, Conflict) as exc:
+        raise _translate(exc) from exc
+    return serialise(row)
+
+
+@router.get("/documents/{document_id}", response_model=s.DocumentDetail)
+async def get_document(
+    document_id: str,
+    user: AuthenticatedUser = Depends(current_user),
+    repository: PdpRepository = Depends(get_pdp_repository),
+):
+    try:
+        result = await repository.get_document(user.id, document_id)
+    except NotFound as exc:
+        raise _translate(exc) from exc
+
+    item = serialise(result)
+    item["versions"] = [serialise(v) for v in result.get("versions", [])]
+    return item
+
+
+@router.post(
+    "/documents/{document_id}/versions",
+    response_model=s.DocumentVersion,
+    status_code=status.HTTP_201_CREATED,
+)
+async def add_document_version(
+    document_id: str,
+    payload: s.AddDocumentVersionRequest,
+    user: AuthenticatedUser = Depends(current_user),
+    repository: PdpRepository = Depends(get_pdp_repository),
+):
+    """Record a new version, optionally superseding the one it replaces.
+
+    Superseding happens in the same call so the register never briefly shows
+    two effective versions of one document. Any approval resting on the
+    superseded version is invalidated by a database trigger.
+    """
+    try:
+        row = await repository.add_document_version(
+            user.id,
+            document_id,
+            version_label=payload.version_label,
+            storage_url=payload.storage_url,
+            status=payload.status,
+            checksum=payload.checksum,
+            effective_date=payload.effective_date,
+            expiry_date=payload.expiry_date,
+            supersedes_version_id=payload.supersedes_version_id,
+        )
+    except (NotFound, Forbidden, Conflict) as exc:
+        raise _translate(exc) from exc
+    return serialise(row)
+
+
+@router.post("/document-versions/{version_id}/status", response_model=s.DocumentVersion)
+async def set_document_version_status(
+    version_id: str,
+    payload: s.SetVersionStatusRequest,
+    user: AuthenticatedUser = Depends(current_user),
+    repository: PdpRepository = Depends(get_pdp_repository),
+):
+    """Move a version through its lifecycle.
+
+    `approved` and `effective` require approval authority: they assert that
+    review happened.
+    """
+    try:
+        row = await repository.set_document_version_status(
+            user.id, version_id, status=payload.status, reason=payload.reason
+        )
+    except (NotFound, Forbidden, Conflict) as exc:
+        raise _translate(exc) from exc
+    return serialise(row)
+
+
 # --------------------------------------------------------------- the gate ---
 
 
@@ -223,6 +341,7 @@ async def attach_evidence(
             requirement_id,
             evidence_type=payload.evidence_type,
             research_run_id=payload.research_run_id,
+            document_version_id=payload.document_version_id,
             external_url=payload.external_url,
             note=payload.note,
             title=payload.title,
