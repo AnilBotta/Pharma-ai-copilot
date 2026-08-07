@@ -221,6 +221,20 @@ condition 3 had never been reachable.
 | **No document review workflow** | A version moves between statuses by API call. There is no reviewer assignment, no circulation, no e-signature. Phase I territory. |
 | **Expiry is not proactive** | An expired version stops satisfying requirements the day it expires, silently. Nothing warns beforehand — that needs the Phase F notification engine. |
 
+### 1.4 Phase E gaps
+
+The frozen baseline is verified (25 live assertions, including that editing a
+baseline date is refused while the forecast moves and the slip is computed). What
+is **not** built:
+
+| Gap | Consequence |
+|---|---|
+| **No formal change-request workflow** | Re-baselining requires approval authority and a stated reason, but it is one call, not a proposal somebody else reviews. The plan's `schedule_change_requests` table was not built — approval authority plus an audited reason covers the pilot case. |
+| **No Gantt visualisation** | The schedule page is a table showing baseline against forecast with variance. Deliberate: a chart library was not worth the dependency when the number that matters is the slip, and a bar chart hides it more often than it shows it. |
+| **Critical path assumes finish-to-start** | `SS`, `FF` and `SF` dependency types are stored and honoured for lag, but the backward pass treats every edge as finish-to-start. On a schedule using them heavily the float will be wrong. |
+| **No resource levelling or capacity** | Effort is recorded per task; nothing checks whether one person is on six critical tasks at once. |
+| **The schedule UI is unexercised in a browser** | It builds and typechecks; the layer beneath it has 25 live assertions. |
+
 ### Tested only against fixtures — NOT verified live
 
 | Capability | Why | What could still be wrong |

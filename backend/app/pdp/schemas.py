@@ -498,6 +498,163 @@ class SetVersionStatusRequest(StrictRequest):
     reason: str | None = Field(default=None, max_length=MAX_REASON_LENGTH)
 
 
+# ---------------------------------------------------- tasks and schedule ---
+
+
+TASK_STATUSES = Literal[
+    "not_started", "waiting_on_predecessor", "late_to_start", "in_progress",
+    "overdue", "blocked", "complete", "unknown",
+]
+
+
+class TaskSummary(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    id: str
+    project_id: str
+    project_stage_id: str | None = None
+    stage_name: str | None = None
+    requirement_id: str | None = None
+    requirement_ref: str | None = None
+    wbs_code: str | None = None
+    title: str
+    description: str | None = None
+    owner_user_id: str | None = None
+    owner_name: str | None = None
+
+    #: The commitment. Frozen once a baseline is approved — there is no request
+    #: model anywhere that can change these.
+    baseline_start: date | None = None
+    baseline_end: date | None = None
+    #: The current plan. Moves freely.
+    forecast_start: date | None = None
+    forecast_end: date | None = None
+    actual_start: date | None = None
+    actual_end: date | None = None
+
+    #: All three computed on read, none stored.
+    status: TASK_STATUSES
+    variance_days: int | None = None
+    float_days: int | None = None
+    is_critical: bool = False
+
+    effort_days: float | None = None
+    priority: str
+    is_blocked: bool
+    blocked_reason: str | None = None
+    depends_on: list[dict[str, Any]] = Field(default_factory=list)
+    created_at: datetime
+
+
+class MilestoneSummary(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    id: str
+    project_id: str
+    project_stage_id: str | None = None
+    name: str
+    description: str | None = None
+    baseline_date: date | None = None
+    forecast_date: date | None = None
+    actual_date: date | None = None
+    variance_days: int | None = None
+    is_contractual: bool = False
+
+
+class BaselineSummary(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    id: str
+    version: int
+    name: str
+    reason: str | None = None
+    approved_by_name: str | None = None
+    approved_at: datetime
+    superseded_at: datetime | None = None
+
+
+class ScheduleResponse(BaseModel):
+    tasks: list[TaskSummary]
+    milestones: list[MilestoneSummary]
+    baselines: list[BaselineSummary]
+    capabilities: Capabilities
+
+
+class CreateTaskRequest(StrictRequest):
+    title: str = Field(min_length=1, max_length=300)
+    description: str | None = Field(default=None, max_length=MAX_REASON_LENGTH)
+    requirement_id: str | None = None
+    project_stage_id: str | None = None
+    owner_user_id: str | None = None
+    forecast_start: date | None = None
+    forecast_end: date | None = None
+    effort_days: float | None = Field(default=None, ge=0, le=10_000)
+    priority: Literal["low", "medium", "high", "critical"] = "medium"
+    wbs_code: str | None = Field(default=None, max_length=50)
+
+    @model_validator(mode="after")
+    def _dates_ordered(self) -> CreateTaskRequest:
+        if (
+            self.forecast_start
+            and self.forecast_end
+            and self.forecast_end < self.forecast_start
+        ):
+            raise ValueError("forecast_end cannot precede forecast_start.")
+        return self
+
+
+class UpdateTaskRequest(StrictRequest):
+    """Note what is missing: baseline_start and baseline_end.
+
+    There is no field for them here and no endpoint that accepts one. Once a
+    baseline is approved the database refuses the write as well, so the rule is
+    enforced twice — but the API not offering it at all is the more useful half,
+    because it means nobody has to discover the rule by being refused.
+    """
+
+    forecast_start: date | None = None
+    forecast_end: date | None = None
+    actual_start: date | None = None
+    actual_end: date | None = None
+    owner_user_id: str | None = None
+    priority: Literal["low", "medium", "high", "critical"] | None = None
+    is_blocked: bool | None = None
+    blocked_reason: str | None = Field(default=None, max_length=MAX_REASON_LENGTH)
+    reason: str | None = Field(default=None, max_length=MAX_REASON_LENGTH)
+
+    @model_validator(mode="after")
+    def _block_has_reason(self) -> UpdateTaskRequest:
+        if self.is_blocked:
+            _required_text(self.blocked_reason, "A reason for blocking")
+        return self
+
+
+class AddTaskDependencyRequest(StrictRequest):
+    predecessor_id: str
+    dependency_type: Literal["FS", "SS", "FF", "SF"] = "FS"
+    lag_days: int = Field(default=0, ge=-365, le=365)
+
+
+class CreateMilestoneRequest(StrictRequest):
+    name: str = Field(min_length=1, max_length=200)
+    description: str | None = Field(default=None, max_length=MAX_REASON_LENGTH)
+    forecast_date: date | None = None
+    project_stage_id: str | None = None
+    is_contractual: bool = False
+
+
+class RebaselineRequest(StrictRequest):
+    name: str = Field(min_length=1, max_length=200)
+    #: Mandatory. A commitment that changes without a stated reason is how a
+    #: schedule quietly becomes fiction.
+    reason: str = Field(min_length=1, max_length=MAX_REASON_LENGTH)
+
+    @field_validator("reason")
+    @classmethod
+    def _substantive(cls, v: str) -> str:
+        return _required_text(v, "A reason for the change")
+
+
 class AuditEntry(BaseModel):
     model_config = ConfigDict(extra="allow")
 

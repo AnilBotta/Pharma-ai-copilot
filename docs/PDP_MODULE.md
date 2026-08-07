@@ -155,6 +155,49 @@ behind an approval.
 
 ---
 
+## The schedule: a date that cannot be quietly moved
+
+A project tool's characteristic lie is not a wrong date. It is a **moved** date.
+A task slips, someone edits the plan, and the programme reports on schedule
+right up until it finishes a year late. Every individual edit looked reasonable,
+and the record of what was originally promised is gone.
+
+That is this module's false green wearing a different hat, so it gets the same
+treatment.
+
+| | |
+|---|---|
+| **Baseline** | The commitment. **Immutable** once approved — the trigger refuses the `UPDATE`, and no request model has a field for it |
+| **Forecast** | The current plan. Moves freely; that is what it is for |
+| **Actual** | What happened |
+| **Variance** | `forecast − baseline`, computed. Not stored, so not editable |
+
+Re-baselining is a separate act requiring **approval authority and a stated
+reason**. Every previous baseline is kept with a snapshot of the dates it
+replaced, so *"what did we commit to in March"* stays answerable after the plan
+has moved three times.
+
+### No percent complete, and no status column
+
+`project_tasks` has neither — for the same reason `gate_requirements` has no
+completion column. A percentage anyone can type is the notorious task that is
+90% done for eight months. State is derived from three facts that are either
+true or not: has it started, has it finished, is it past its forecast.
+
+```
+not_started · waiting_on_predecessor · late_to_start
+in_progress · overdue · blocked · complete
+```
+
+### Float and the critical path
+
+Float is how much a task can slip before the project end moves; zero float means
+it is on the critical path. Computed backwards from the latest forecast finish
+through the dependency graph, which the cycle trigger keeps acyclic — a cycle
+would make the calculation non-terminating.
+
+---
+
 ## Approvals expire when what they described changes
 
 An approval is a statement about one specific evidence set and one specific
@@ -191,6 +234,12 @@ status, no `/complete`, no way to write a percentage.
 | `GET /documents/{id}` | One document and its full version history |
 | `POST /documents/{id}/versions` | Add a version, optionally superseding its predecessor |
 | `POST /document-versions/{id}/status` | Move a version through its lifecycle |
+| `GET /projects/{id}/schedule` | Tasks, milestones, baselines, with status/variance/float derived |
+| `POST /projects/{id}/tasks` | Add a task |
+| `POST /tasks/{id}` | Move forecast and actual dates — **no baseline field exists** |
+| `POST /tasks/{id}/dependencies` | Add a predecessor; cycles refused |
+| `POST /projects/{id}/milestones` | Add a milestone |
+| `POST /projects/{id}/baseline` | Re-baseline; `can_approve` and a reason required |
 | `GET /stages/{id}` | Gate workspace: readiness, blockers, requirements, evidence |
 | `POST /stages/{id}/gate-decision` | Human gate decision; `can_gate` required |
 | `POST /requirements/{id}/evidence` | Attach; supersedes any approval |
@@ -268,10 +317,17 @@ cd backend; .venv\Scripts\python.exe tests\db\test_phase_c_workflow.py
 cd backend; .venv\Scripts\python.exe tests\db\test_document_register.py
 ```
 
-22, 75 and 25 assertions respectively, against the live database inside a
-transaction that is rolled back. The document suite's centre is the one that
-matters: a satisfied requirement whose document is then superseded goes
-**unsatisfied**, its approval is invalidated, and the gate says why. They are excluded from `pytest -q` — they are scripts
+```bash
+cd backend; .venv\Scripts\python.exe tests\db\test_schedule.py
+```
+
+22, 75, 25 and 25 assertions, against the live database inside a transaction
+that is rolled back. Each suite has one assertion the rest exists to support:
+
+- **documents** — a satisfied requirement whose document is superseded goes
+  **unsatisfied**, its approval is invalidated, and the gate says why;
+- **schedule** — *"EDITING A BASELINE DATE IS REFUSED"*, while the forecast
+  moves freely and the slip is computed rather than hidden. They are excluded from `pytest -q` — they are scripts
 needing a real database, and letting a database outage abort the unit suite was
 its own small disaster.
 
