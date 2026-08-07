@@ -14,6 +14,7 @@ from that, all of them load-bearing:
 
 from __future__ import annotations
 
+import typing
 from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -317,6 +318,76 @@ class ReportSectionDraft(Strict):
     section_key: str
     title: str
     body_markdown: str
+
+
+# --------------------------------------------------------------------------- #
+# PDP agents (Phase G)
+#
+# Every field here is advisory. Nothing downstream reads any of it as a
+# decision, and migration 0022 makes the decisions themselves unreachable while
+# an agent is acting - so the shape of these models is a convenience, not a
+# safety boundary.
+# --------------------------------------------------------------------------- #
+
+
+class BlockerAnalysis(Strict):
+    """One outstanding requirement, and what is really behind it."""
+
+    ref_code: str
+    #: The distinction worth having: eight blockers usually have two causes.
+    is_root_cause: bool = Field(
+        description=(
+            "True when this is a cause rather than a consequence of another "
+            "blocker on the same gate."
+        )
+    )
+    why_it_is_stuck: str
+    #: Names the case where chasing the obvious person would not help - an
+    #: approval outstanding on a requirement whose document has lapsed.
+    obvious_action_would_not_help: bool = False
+
+
+class RecommendedAction(Strict):
+    """Something a named person could do next.
+
+    Deliberately has no `approve` shape. An action this agent proposes is
+    always something a person then decides to do.
+    """
+
+    ref_code: str | None = None
+    action: str
+    who: str = Field(description="Role or person who has to act.")
+    urgency: typing.Literal["now", "this_week", "when_convenient"] = "this_week"
+
+
+class GateAssessment(Strict):
+    """PDP Operations Agent output for one gate."""
+
+    summary: str = Field(description="Two sentences at most.")
+    blocker_analysis: list[BlockerAnalysis] = Field(default_factory=list)
+    recommended_actions: list[RecommendedAction] = Field(default_factory=list)
+    #: Where the outstanding question is scientific, it is handed to the
+    #: Scientist Agent rather than answered here.
+    handoff_question: str | None = Field(
+        default=None,
+        description=(
+            "A scientific question for the Scientist Agent. Null when the "
+            "outstanding work is purely procedural."
+        ),
+    )
+
+
+class PortfolioItem(Strict):
+    programme: str
+    state: str = Field(description="One line. Never a percentage on its own.")
+    needs_a_decision: bool = False
+
+
+class PortfolioSummary(Strict):
+    """Manager Agent output."""
+
+    headline: str
+    items: list[PortfolioItem] = Field(default_factory=list)
 
 
 class ReportDraft(Strict):

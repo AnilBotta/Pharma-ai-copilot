@@ -250,6 +250,28 @@ refuses a duplicate). What is **not** done:
 | **No in-app or Slack channel** | The `channel` column allows `in_app`, and the UI reads events directly, but nothing writes in-app deliveries. |
 | **Recipients are role-based only** | The rule names roles; there is no per-user subscription or mute. Someone holding `project_manager` on six programmes gets everything for all six. |
 
+### 1.6 Phase G gaps
+
+The authority limit is verified against the live database (21 assertions,
+including that an agent holding a user id with **every** approving role is still
+refused, at 100% readiness with zero blockers — so it is the agent rule firing,
+not the readiness check standing in for it).
+
+Writing that suite caught two defects in the suite itself, both of which would
+have produced a false pass: the gate test originally ran on an unready gate and
+"passed" on the readiness refusal, proving nothing; and the confirmation test
+ran raw SQL on an unmarked connection, so no agent rule could have applied.
+
+**What is not verified:**
+
+| Gap | Consequence |
+|---|---|
+| **Neither agent has ever run against a real model** | `assess_gate` and `summarise_portfolio` are wired to `ModelProvider` and their structured schemas are defined, but no live call has been made. The prompt quality, the usefulness of the blocker analysis, and the token cost are all unmeasured. |
+| **No LangGraph graph** | The plan called for these as graphs with checkpointing. They are single structured calls — enough for one gate, but there is no multi-step planning, no tool loop, and no resumability. |
+| **The handoff is a string, not a call** | `handoff_question` is recorded for a human to act on. Nothing invokes the Scientist Agent with it. |
+| **No agent UI** | Both endpoints exist and are typed; nothing in the frontend calls them. |
+| **The verdict-vocabulary check is four words** | It catches the obvious cases. An agent determined to imply a decision could write "meets every criterion listed" and the constraint would allow it. The prompt forbids it; the database only catches the flagrant version. |
+
 ### Tested only against fixtures — NOT verified live
 
 | Capability | Why | What could still be wrong |
