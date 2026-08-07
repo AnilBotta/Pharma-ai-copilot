@@ -17,7 +17,14 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field, PostgresDsn, SecretStr, ValidationError, field_validator
+from pydantic import (
+    AliasChoices,
+    Field,
+    PostgresDsn,
+    SecretStr,
+    ValidationError,
+    field_validator,
+)
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent
@@ -48,7 +55,21 @@ class Settings(BaseSettings):
     database_url: PostgresDsn
 
     # ----------------------------------------------------------- supabase ---
-    supabase_url: str
+    #: Accepts NEXT_PUBLIC_SUPABASE_URL as a fallback.
+    #:
+    #: It is the same value under two names - the project URL, which is public
+    #: either way - and requiring both to be set separately is a trap rather
+    #: than a safeguard. It caught us on the first real deployment: the frontend
+    #: variable was set, the backend one was not, and because this field is
+    #: required the whole API failed at import with a validation error rather
+    #: than anything that pointed at a missing environment variable.
+    #:
+    #: Only the URL is aliased. The service role key deliberately has no such
+    #: fallback: a NEXT_PUBLIC_ variable is compiled into the browser bundle,
+    #: so accepting one there would invite someone to publish it.
+    supabase_url: str = Field(
+        validation_alias=AliasChoices("supabase_url", "next_public_supabase_url")
+    )
     supabase_service_role_key: SecretStr
     #: Only needed by legacy projects that sign JWTs with a shared HS256 secret.
     #: Current Supabase projects publish asymmetric public keys via JWKS, which
