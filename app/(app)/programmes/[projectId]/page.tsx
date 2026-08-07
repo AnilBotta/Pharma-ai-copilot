@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 import {
   AlertTriangle,
   ArrowLeft,
+  CalendarClock,
   ChevronRight,
   ClipboardList,
   FileText,
@@ -91,11 +92,18 @@ export default function ProgrammePage() {
           description="Each gate shows how much is done and, separately, whether it may be reviewed."
           icon={GitBranch}
           actions={
-            <Button asChild variant="outline">
-              <Link href={`/programmes/${projectId}/documents`}>
-                <FileText className="size-4" /> Document register
-              </Link>
-            </Button>
+            <div className="flex gap-2">
+              <Button asChild variant="outline">
+                <Link href={`/programmes/${projectId}/schedule`}>
+                  <CalendarClock className="size-4" /> Schedule
+                </Link>
+              </Button>
+              <Button asChild variant="outline">
+                <Link href={`/programmes/${projectId}/documents`}>
+                  <FileText className="size-4" /> Document register
+                </Link>
+              </Button>
+            </div>
           }
         />
       </div>

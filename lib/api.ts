@@ -534,6 +534,82 @@ export interface GateWorkspace {
   capabilities: PdpCapabilities;
 }
 
+export type TaskStatus =
+  | "not_started"
+  | "waiting_on_predecessor"
+  | "late_to_start"
+  | "in_progress"
+  | "overdue"
+  | "blocked"
+  | "complete"
+  | "unknown";
+
+export interface Task {
+  id: string;
+  project_id: string;
+  stage_name: string | null;
+  requirement_id: string | null;
+  requirement_ref: string | null;
+  wbs_code: string | null;
+  title: string;
+  description: string | null;
+  owner_name: string | null;
+  /** The commitment. Frozen once a baseline is approved — no endpoint can change it. */
+  baseline_start: string | null;
+  baseline_end: string | null;
+  /** The current plan. Moves freely. */
+  forecast_start: string | null;
+  forecast_end: string | null;
+  actual_start: string | null;
+  actual_end: string | null;
+  /** All derived on read; none stored, so none can be edited. */
+  status: TaskStatus;
+  variance_days: number | null;
+  float_days: number | null;
+  is_critical: boolean;
+  effort_days: number | null;
+  priority: "low" | "medium" | "high" | "critical";
+  is_blocked: boolean;
+  blocked_reason: string | null;
+  depends_on: Array<{
+    predecessor_id: string;
+    title: string;
+    dependency_type: string;
+    lag_days: number;
+    complete: boolean;
+  }>;
+  created_at: string;
+}
+
+export interface Milestone {
+  id: string;
+  project_id: string;
+  name: string;
+  description: string | null;
+  baseline_date: string | null;
+  forecast_date: string | null;
+  actual_date: string | null;
+  variance_days: number | null;
+  is_contractual: boolean;
+}
+
+export interface ScheduleBaseline {
+  id: string;
+  version: number;
+  name: string;
+  reason: string | null;
+  approved_by_name: string | null;
+  approved_at: string;
+  superseded_at: string | null;
+}
+
+export interface Schedule {
+  tasks: Task[];
+  milestones: Milestone[];
+  baselines: ScheduleBaseline[];
+  capabilities: PdpCapabilities;
+}
+
 export interface AttachableRun {
   id: string;
   original_question: string;
@@ -646,6 +722,83 @@ export const pdp = {
     }
   ) =>
     request<StageSummary>(`/pdp/stages/${stageId}/gate-decision`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
+  getSchedule: (projectId: string) =>
+    request<Schedule>(`/pdp/projects/${projectId}/schedule`),
+
+  createTask: (
+    projectId: string,
+    body: {
+      title: string;
+      description?: string;
+      requirement_id?: string;
+      owner_user_id?: string;
+      forecast_start?: string;
+      forecast_end?: string;
+      effort_days?: number;
+      priority?: "low" | "medium" | "high" | "critical";
+      wbs_code?: string;
+    }
+  ) =>
+    request<Task>(`/pdp/projects/${projectId}/tasks`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
+  /**
+   * Move forecast and actual dates.
+   *
+   * There is deliberately no baseline field. Baselines are commitments; they
+   * change only through `rebaseline`, which needs approval authority and a
+   * stated reason.
+   */
+  updateTask: (
+    taskId: string,
+    body: {
+      forecast_start?: string;
+      forecast_end?: string;
+      actual_start?: string;
+      actual_end?: string;
+      owner_user_id?: string;
+      priority?: "low" | "medium" | "high" | "critical";
+      is_blocked?: boolean;
+      blocked_reason?: string;
+      reason?: string;
+    }
+  ) =>
+    request<Task>(`/pdp/tasks/${taskId}`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
+  addTaskDependency: (
+    taskId: string,
+    body: { predecessor_id: string; dependency_type?: string; lag_days?: number }
+  ) =>
+    request<void>(`/pdp/tasks/${taskId}/dependencies`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
+  createMilestone: (
+    projectId: string,
+    body: {
+      name: string;
+      description?: string;
+      forecast_date?: string;
+      is_contractual?: boolean;
+    }
+  ) =>
+    request<Milestone>(`/pdp/projects/${projectId}/milestones`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
+  rebaseline: (projectId: string, body: { name: string; reason: string }) =>
+    request<ScheduleBaseline>(`/pdp/projects/${projectId}/baseline`, {
       method: "POST",
       body: JSON.stringify(body),
     }),

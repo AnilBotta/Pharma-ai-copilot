@@ -992,6 +992,335 @@ class PdpRepository:
             )
         return dict(row)
 
+    # -------------------------------------------------- tasks and schedule ---
+
+    async def get_schedule(self, user_id: str, project_id: str) -> dict:
+        """Tasks, milestones and the current baseline, with derived state.
+
+        Status, variance and float are computed on read. None of them is stored,
+        so none of them can be edited into saying something more comfortable.
+        """
+        async with self._pool.acquire() as conn:
+            caps = await self._capabilities(conn, user_id, project_id)
+
+            tasks = await conn.fetch(
+                """
+                select t.*,
+                       private.task_status(t.id)         as status,
+                       private.task_variance_days(t.id)  as variance_days,
+                       f.float_days,
+                       coalesce(f.is_critical, false)    as is_critical,
+                       coalesce(o.full_name, o.email)    as owner_name,
+                       r.ref_code                        as requirement_ref,
+                       s.name                            as stage_name,
+                       (select coalesce(json_agg(json_build_object(
+                                 'predecessor_id', d.predecessor_id,
+                                 'title', p.title,
+                                 'dependency_type', d.dependency_type,
+                                 'lag_days', d.lag_days,
+                                 'complete', p.actual_end is not null)), '[]'::json)
+                          from public.task_dependencies d
+                          join public.project_tasks p on p.id = d.predecessor_id
+                         where d.successor_id = t.id) as depends_on
+                  from public.project_tasks t
+             left join lateral private.task_float_days(t.project_id) f
+                    on f.task_id = t.id
+             left join public.profiles o on o.id = t.owner_user_id
+             left join public.gate_requirements r on r.id = t.requirement_id
+             left join public.project_stages s on s.id = t.project_stage_id
+                 where t.project_id = $1
+              order by coalesce(t.forecast_start, t.baseline_start), t.created_at
+                """,
+                project_id,
+            )
+
+            milestones = await conn.fetch(
+                """
+                select m.*,
+                       case when m.baseline_date is null then null
+                            else coalesce(m.actual_date, m.forecast_date) - m.baseline_date
+                       end as variance_days
+                  from public.project_milestones m
+                 where m.project_id = $1
+              order by coalesce(m.forecast_date, m.baseline_date)
+                """,
+                project_id,
+            )
+
+            baselines = await conn.fetch(
+                """
+                select b.id, b.version, b.name, b.reason, b.approved_at,
+                       b.superseded_at,
+                       coalesce(p.full_name, p.email) as approved_by_name
+                  from public.schedule_baselines b
+             left join public.profiles p on p.id = b.approved_by
+                 where b.project_id = $1
+              order by b.version desc
+                """,
+                project_id,
+            )
+
+        return {
+            "tasks": [dict(t) for t in tasks],
+            "milestones": [dict(m) for m in milestones],
+            "baselines": [dict(b) for b in baselines],
+            "capabilities": caps.as_dict(),
+        }
+
+    async def create_task(
+        self,
+        user_id: str,
+        project_id: str,
+        *,
+        title: str,
+        description: str | None = None,
+        requirement_id: str | None = None,
+        project_stage_id: str | None = None,
+        owner_user_id: str | None = None,
+        forecast_start: date | None = None,
+        forecast_end: date | None = None,
+        effort_days: float | None = None,
+        priority: str = "medium",
+        wbs_code: str | None = None,
+    ) -> dict:
+        async with self._pool.acquire() as conn, conn.transaction():
+            await self._capabilities(conn, user_id, project_id)
+            row = await conn.fetchrow(
+                """
+                insert into public.project_tasks
+                  (project_id, project_stage_id, requirement_id, wbs_code, title,
+                   description, owner_user_id, forecast_start, forecast_end,
+                   effort_days, priority, created_by)
+                values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+                returning *
+                """,
+                project_id, project_stage_id, requirement_id, wbs_code, title.strip(),
+                description, owner_user_id, forecast_start, forecast_end,
+                effort_days, priority, user_id,
+            )
+            await self._audit(
+                conn,
+                actor=user_id,
+                action="pdp.task.created",
+                entity_type="project_task",
+                entity_id=str(row["id"]),
+                project_id=project_id,
+                new=dict(row),
+            )
+        return dict(row)
+
+    async def update_task(
+        self,
+        user_id: str,
+        task_id: str,
+        *,
+        forecast_start: date | None = None,
+        forecast_end: date | None = None,
+        actual_start: date | None = None,
+        actual_end: date | None = None,
+        owner_user_id: str | None = None,
+        priority: str | None = None,
+        is_blocked: bool | None = None,
+        blocked_reason: str | None = None,
+        reason: str | None = None,
+    ) -> dict:
+        """Move forecast and actual dates. Baseline dates are not touchable here.
+
+        There is no parameter for them, and the database would refuse anyway
+        once a baseline is approved. Both, deliberately: the API should not
+        offer what the schema forbids.
+        """
+        async with self._pool.acquire() as conn, conn.transaction():
+            task = await conn.fetchrow(
+                "select * from public.project_tasks where id = $1", task_id
+            )
+            if task is None:
+                raise NotFound(f"Task {task_id} not found.")
+            project_id = str(task["project_id"])
+            await self._capabilities(conn, user_id, project_id)
+
+            if is_blocked and not (blocked_reason or "").strip():
+                raise Conflict("Blocking a task requires a stated reason.")
+
+            try:
+                row = await conn.fetchrow(
+                    """
+                    update public.project_tasks
+                       set forecast_start = coalesce($2::date, forecast_start),
+                           forecast_end   = coalesce($3::date, forecast_end),
+                           actual_start   = coalesce($4::date, actual_start),
+                           actual_end     = coalesce($5::date, actual_end),
+                           owner_user_id  = coalesce($6::uuid, owner_user_id),
+                           priority       = coalesce($7::text, priority),
+                           is_blocked     = coalesce($8::boolean, is_blocked),
+                           blocked_reason = case
+                             when $8::boolean is true then $9::text
+                             when $8::boolean is false then null
+                             else blocked_reason end
+                     where id = $1
+                    returning *
+                    """,
+                    task_id, forecast_start, forecast_end, actual_start, actual_end,
+                    owner_user_id, priority, is_blocked, blocked_reason,
+                )
+            except asyncpg.PostgresError as exc:
+                if getattr(exc, "sqlstate", None) == INSUFFICIENT_PRIVILEGE:
+                    raise Forbidden(str(exc)) from exc
+                if getattr(exc, "sqlstate", None) == "23514":
+                    raise Conflict(
+                        "Those dates are not consistent: an end cannot precede a "
+                        "start, and a task cannot finish without starting."
+                    ) from exc
+                raise
+
+            # Only record a schedule change when a date actually moved. An
+            # audit trail full of no-op edits is one nobody reads.
+            moved = {
+                field: [task[field], row[field]]
+                for field in (
+                    "forecast_start", "forecast_end", "actual_start", "actual_end"
+                )
+                if task[field] != row[field]
+            }
+            await self._audit(
+                conn,
+                actor=user_id,
+                action="pdp.task.rescheduled" if moved else "pdp.task.updated",
+                entity_type="project_task",
+                entity_id=task_id,
+                project_id=project_id,
+                previous={k: v[0] for k, v in moved.items()} or None,
+                new={k: v[1] for k, v in moved.items()} or None,
+                reason=reason,
+            )
+        return dict(row)
+
+    async def add_task_dependency(
+        self,
+        user_id: str,
+        successor_id: str,
+        *,
+        predecessor_id: str,
+        dependency_type: str = "FS",
+        lag_days: int = 0,
+    ) -> None:
+        async with self._pool.acquire() as conn, conn.transaction():
+            rows = await conn.fetch(
+                "select id, project_id from public.project_tasks where id = any($1::uuid[])",
+                [successor_id, predecessor_id],
+            )
+            if len(rows) != 2:
+                raise NotFound("One of those tasks does not exist.")
+            projects = {str(r["project_id"]) for r in rows}
+            if len(projects) != 1:
+                raise Conflict("Tasks in different projects cannot depend on each other.")
+            project_id = projects.pop()
+            await self._capabilities(conn, user_id, project_id)
+
+            try:
+                await conn.execute(
+                    """
+                    insert into public.task_dependencies
+                        (predecessor_id, successor_id, dependency_type, lag_days)
+                    values ($1,$2,$3,$4)
+                    """,
+                    predecessor_id, successor_id, dependency_type, lag_days,
+                )
+            except asyncpg.PostgresError as exc:
+                if getattr(exc, "sqlstate", None) == "23514":
+                    raise Conflict(
+                        "That would create a circular dependency, which would "
+                        "make the critical path uncomputable."
+                    ) from exc
+                if isinstance(exc, asyncpg.UniqueViolationError):
+                    raise Conflict("That dependency already exists.") from exc
+                raise
+
+            await self._audit(
+                conn,
+                actor=user_id,
+                action="pdp.task.dependency_added",
+                entity_type="project_task",
+                entity_id=successor_id,
+                project_id=project_id,
+                new={"predecessor_id": predecessor_id, "type": dependency_type},
+            )
+
+    async def create_milestone(
+        self,
+        user_id: str,
+        project_id: str,
+        *,
+        name: str,
+        forecast_date: date | None = None,
+        project_stage_id: str | None = None,
+        is_contractual: bool = False,
+        description: str | None = None,
+    ) -> dict:
+        async with self._pool.acquire() as conn, conn.transaction():
+            await self._capabilities(conn, user_id, project_id)
+            row = await conn.fetchrow(
+                """
+                insert into public.project_milestones
+                  (project_id, project_stage_id, name, description, forecast_date,
+                   is_contractual, created_by)
+                values ($1,$2,$3,$4,$5,$6,$7)
+                returning *
+                """,
+                project_id, project_stage_id, name.strip(), description,
+                forecast_date, is_contractual, user_id,
+            )
+            await self._audit(
+                conn,
+                actor=user_id,
+                action="pdp.milestone.created",
+                entity_type="project_milestone",
+                entity_id=str(row["id"]),
+                project_id=project_id,
+                new=dict(row),
+            )
+        return dict(row)
+
+    async def rebaseline(
+        self, user_id: str, project_id: str, *, name: str, reason: str
+    ) -> dict:
+        """Freeze the current forecast as the new commitment.
+
+        Requires approval authority, because that is what a baseline is: a
+        commitment somebody is accountable for. Every previous baseline is kept
+        with its snapshot, so "what did we promise in March" stays answerable
+        after the dates have moved three times.
+        """
+        if not (reason or "").strip():
+            raise Conflict("A re-baseline must state why the commitment changed.")
+
+        async with self._pool.acquire() as conn, conn.transaction():
+            caps = await self._capabilities(conn, user_id, project_id)
+            if not caps.can_approve:
+                raise Forbidden(
+                    "Setting a baseline requires a role with approval authority. "
+                    "A baseline is a commitment, not a preference."
+                )
+
+            baseline_id = await conn.fetchval(
+                "select private.rebaseline($1,$2,$3,$4)",
+                project_id, user_id, name.strip(), reason.strip(),
+            )
+            row = await conn.fetchrow(
+                "select * from public.schedule_baselines where id = $1", baseline_id
+            )
+            await self._audit(
+                conn,
+                actor=user_id,
+                action="pdp.schedule.rebaselined",
+                entity_type="schedule_baseline",
+                entity_id=str(baseline_id),
+                project_id=project_id,
+                new={"version": row["version"], "name": row["name"]},
+                reason=reason,
+            )
+        return dict(row)
+
     async def project_audit(self, user_id: str, project_id: str, limit: int = 100) -> list[dict]:
         async with self._pool.acquire() as conn:
             await self._capabilities(conn, user_id, project_id)

@@ -147,6 +147,141 @@ async def project_audit(
         raise _translate(exc) from exc
 
 
+# ----------------------------------------------------- tasks and schedule ---
+
+
+@router.get("/projects/{project_id}/schedule", response_model=s.ScheduleResponse)
+async def get_schedule(
+    project_id: str,
+    user: AuthenticatedUser = Depends(current_user),
+    repository: PdpRepository = Depends(get_pdp_repository),
+):
+    """Tasks, milestones and baselines, with status, variance and float derived.
+
+    Variance is returned alongside every task rather than on request, for the
+    same reason gate readiness ships with its blockers: a plan shown without its
+    slip against the commitment is the comfortable half of the picture.
+    """
+    try:
+        result = await repository.get_schedule(user.id, project_id)
+    except NotFound as exc:
+        raise _translate(exc) from exc
+
+    return {
+        "tasks": [serialise(t) for t in result["tasks"]],
+        "milestones": [serialise(m) for m in result["milestones"]],
+        "baselines": [serialise(b) for b in result["baselines"]],
+        "capabilities": result["capabilities"],
+    }
+
+
+@router.post(
+    "/projects/{project_id}/tasks",
+    response_model=s.TaskSummary,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_task(
+    project_id: str,
+    payload: s.CreateTaskRequest,
+    user: AuthenticatedUser = Depends(current_user),
+    repository: PdpRepository = Depends(get_pdp_repository),
+):
+    try:
+        row = await repository.create_task(
+            user.id, project_id, **payload.model_dump()
+        )
+    except (NotFound, Forbidden, Conflict) as exc:
+        raise _translate(exc) from exc
+    return serialise({**row, "status": "not_started", "is_critical": False})
+
+
+@router.post("/tasks/{task_id}", response_model=s.TaskSummary)
+async def update_task(
+    task_id: str,
+    payload: s.UpdateTaskRequest,
+    user: AuthenticatedUser = Depends(current_user),
+    repository: PdpRepository = Depends(get_pdp_repository),
+):
+    """Move forecast and actual dates.
+
+    Baseline dates are absent from the request model on purpose, and the
+    database refuses them once a baseline exists. Re-baselining is a separate,
+    approved act.
+    """
+    try:
+        row = await repository.update_task(user.id, task_id, **payload.model_dump())
+    except (NotFound, Forbidden, Conflict) as exc:
+        raise _translate(exc) from exc
+    return serialise({**row, "status": "unknown", "is_critical": False})
+
+
+@router.post(
+    "/tasks/{task_id}/dependencies", status_code=status.HTTP_204_NO_CONTENT
+)
+async def add_task_dependency(
+    task_id: str,
+    payload: s.AddTaskDependencyRequest,
+    user: AuthenticatedUser = Depends(current_user),
+    repository: PdpRepository = Depends(get_pdp_repository),
+):
+    """Make this task depend on another. Cycles are refused."""
+    try:
+        await repository.add_task_dependency(
+            user.id,
+            task_id,
+            predecessor_id=payload.predecessor_id,
+            dependency_type=payload.dependency_type,
+            lag_days=payload.lag_days,
+        )
+    except (NotFound, Forbidden, Conflict) as exc:
+        raise _translate(exc) from exc
+
+
+@router.post(
+    "/projects/{project_id}/milestones",
+    response_model=s.MilestoneSummary,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_milestone(
+    project_id: str,
+    payload: s.CreateMilestoneRequest,
+    user: AuthenticatedUser = Depends(current_user),
+    repository: PdpRepository = Depends(get_pdp_repository),
+):
+    try:
+        row = await repository.create_milestone(
+            user.id, project_id, **payload.model_dump()
+        )
+    except (NotFound, Forbidden, Conflict) as exc:
+        raise _translate(exc) from exc
+    return serialise(row)
+
+
+@router.post(
+    "/projects/{project_id}/baseline",
+    response_model=s.BaselineSummary,
+    status_code=status.HTTP_201_CREATED,
+)
+async def rebaseline(
+    project_id: str,
+    payload: s.RebaselineRequest,
+    user: AuthenticatedUser = Depends(current_user),
+    repository: PdpRepository = Depends(get_pdp_repository),
+):
+    """Freeze the current forecast as the new commitment.
+
+    Requires approval authority and a stated reason. Every previous baseline is
+    kept with a snapshot of the dates it replaced.
+    """
+    try:
+        row = await repository.rebaseline(
+            user.id, project_id, name=payload.name, reason=payload.reason
+        )
+    except (NotFound, Forbidden, Conflict) as exc:
+        raise _translate(exc) from exc
+    return serialise(row)
+
+
 # --------------------------------------------------- controlled documents ---
 
 
