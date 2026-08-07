@@ -655,6 +655,30 @@ class RebaselineRequest(StrictRequest):
         return _required_text(v, "A reason for the change")
 
 
+class Notification(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    id: str
+    rule_key: str
+    rule_name: str
+    project_id: str | None = None
+    subject_type: str
+    subject_id: str
+    severity: Literal["info", "warning", "critical"]
+    title: str
+    detail: str | None = None
+    raised_at: datetime
+    #: Set only when the underlying condition stopped being true. Acknowledging
+    #: does not resolve — that would be a way to clear a problem from the list
+    #: without fixing it.
+    resolved_at: datetime | None = None
+    resolved_reason: str | None = None
+    acknowledged_by: str | None = None
+    acknowledged_by_name: str | None = None
+    acknowledged_at: datetime | None = None
+    escalation_level: int = 0
+
+
 class AuditEntry(BaseModel):
     model_config = ConfigDict(extra="allow")
 

@@ -123,6 +123,14 @@ class Settings(BaseSettings):
     #: serverless invocation cannot otherwise know its own public URL.
     public_base_url: str | None = None
 
+    # ------------------------------------------------------ notifications ---
+    #: Absent means notifications are computed and recorded but nothing is
+    #: emailed. Deliveries are then marked `skipped` with a reason rather than
+    #: silently doing nothing, so nobody believes mail is going out when it is
+    #: not.
+    resend_api_key: SecretStr | None = None
+    notification_from_email: str | None = None
+
     # ------------------------------------------------------------- limits ---
     max_literature_results: int = Field(default=50, ge=1, le=200)
     max_patent_results: int = Field(default=30, ge=1, le=200)
@@ -144,6 +152,7 @@ class Settings(BaseSettings):
         "epo_ops_consumer_secret",
         "uspto_api_key",
         "worker_trigger_secret",
+        "resend_api_key",
         mode="before",
     )
     @classmethod
@@ -160,7 +169,8 @@ class Settings(BaseSettings):
         return v
 
     @field_validator(
-        "ncbi_email", "crossref_mailto", "public_base_url", mode="before"
+        "ncbi_email", "crossref_mailto", "public_base_url",
+        "notification_from_email", mode="before",
     )
     @classmethod
     def _blank_optional_string_is_absent(cls, v: object) -> object:

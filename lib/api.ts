@@ -610,6 +610,25 @@ export interface Schedule {
   capabilities: PdpCapabilities;
 }
 
+export interface Notification {
+  id: string;
+  rule_key: string;
+  rule_name: string;
+  project_id: string | null;
+  subject_type: string;
+  subject_id: string;
+  severity: "info" | "warning" | "critical";
+  title: string;
+  detail: string | null;
+  raised_at: string;
+  /** Set only when the condition stopped being true — acknowledging does not resolve. */
+  resolved_at: string | null;
+  resolved_reason: string | null;
+  acknowledged_by_name: string | null;
+  acknowledged_at: string | null;
+  escalation_level: number;
+}
+
 export interface AttachableRun {
   id: string;
   original_question: string;
@@ -724,6 +743,23 @@ export const pdp = {
     request<StageSummary>(`/pdp/stages/${stageId}/gate-decision`, {
       method: "POST",
       body: JSON.stringify(body),
+    }),
+
+  listNotifications: (projectId: string, includeResolved = false) =>
+    request<Notification[]>(
+      `/pdp/projects/${projectId}/notifications?include_resolved=${includeResolved}`
+    ),
+
+  /**
+   * Take ownership of an alert, stopping it escalating.
+   *
+   * It does not close the alert. Only the condition ceasing to be true does
+   * that — otherwise acknowledging would clear a problem from the list without
+   * fixing it.
+   */
+  acknowledgeNotification: (eventId: string) =>
+    request<Notification>(`/pdp/notifications/${eventId}/acknowledge`, {
+      method: "POST",
     }),
 
   getSchedule: (projectId: string) =>

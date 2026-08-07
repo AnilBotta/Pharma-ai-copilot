@@ -403,6 +403,24 @@ async def worker_tick(
 
     result = await run_one_slice(settings, repository, db.get_pool())
 
+    # The notification sweep rides along on the tick that already runs every
+    # minute, rather than needing a scheduler of its own. It is a handful of
+    # queries over current state and idempotent, so a tick that finds no
+    # research work still keeps alerts current.
+    #
+    # Failures here must never fail the tick: research execution is the
+    # endpoint's job, and an alert delayed by a minute costs nothing because
+    # the condition is recomputed from the record next time.
+    try:
+        from app.notifications import build_notifier, dispatch_pending, sweep_all_projects
+
+        pool = db.get_pool()
+        result["notifications"] = await sweep_all_projects(pool)
+        result["deliveries"] = await dispatch_pending(pool, build_notifier(settings))
+    except Exception:
+        logger.exception("The notification sweep failed; the tick continues")
+        result["notifications"] = {"error": "sweep failed; see server logs"}
+
     # Chain straight into the next slice rather than waiting for the next
     # scheduled sweep, so a multi-slice run progresses continuously.
     if result.get("continues"):

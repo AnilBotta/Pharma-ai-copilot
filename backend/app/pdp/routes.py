@@ -147,6 +147,49 @@ async def project_audit(
         raise _translate(exc) from exc
 
 
+# ---------------------------------------------------------- notifications ---
+
+
+@router.get("/projects/{project_id}/notifications", response_model=list[s.Notification])
+async def list_notifications(
+    project_id: str,
+    include_resolved: bool = Query(default=False),
+    user: AuthenticatedUser = Depends(current_user),
+    repository: PdpRepository = Depends(get_pdp_repository),
+):
+    """Open alerts for this project, most severe first.
+
+    Recomputed from the record on every sweep, so this list reflects what is
+    currently wrong rather than a log of things that once were.
+    """
+    try:
+        rows = await repository.list_notifications(
+            user.id, project_id, include_resolved=include_resolved
+        )
+    except NotFound as exc:
+        raise _translate(exc) from exc
+    return [serialise(r) for r in rows]
+
+
+@router.post("/notifications/{event_id}/acknowledge", response_model=s.Notification)
+async def acknowledge_notification(
+    event_id: str,
+    user: AuthenticatedUser = Depends(current_user),
+    repository: PdpRepository = Depends(get_pdp_repository),
+):
+    """Take ownership of an alert, stopping it escalating.
+
+    It does not close the alert. Only the condition ceasing to be true does
+    that — otherwise acknowledging would be a way to clear a problem from the
+    list without fixing it.
+    """
+    try:
+        row = await repository.acknowledge_notification(user.id, event_id)
+    except (NotFound, Forbidden, Conflict) as exc:
+        raise _translate(exc) from exc
+    return serialise(row)
+
+
 # ----------------------------------------------------- tasks and schedule ---
 
 

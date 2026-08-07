@@ -235,6 +235,21 @@ is **not** built:
 | **No resource levelling or capacity** | Effort is recorded per task; nothing checks whether one person is on six critical tasks at once. |
 | **The schedule UI is unexercised in a browser** | It builds and typechecks; the layer beneath it has 25 live assertions. |
 
+### 1.5 Phase F gaps
+
+Deduplication, auto-resolution and escalation are verified (22 live assertions,
+including that three sweeps produce one event and that the database itself
+refuses a duplicate). What is **not** done:
+
+| Gap | Consequence |
+|---|---|
+| **No email has ever been sent** | With no `RESEND_API_KEY` the notifier is `LoggingNotifier` and every delivery is recorded `skipped` with a reason. The Resend path is written but has never run against the real API — the request shape is unverified. |
+| **No digests** | Each event produces its own message. The plan called for daily digests to senior management; the dedup index makes the volume survivable but a busy programme will still generate several mails a day. |
+| **Escalation is one rung** | `escalate_to_roles` fires once. There is no three-tier ladder, and no reminder cadence after that. |
+| **Sweep is per-tick, not per-event** | Conditions are found by a sweep every minute rather than fired by a trigger the instant they become true, so an alert can be up to a minute late. Deliberate — a query over current state cannot leave a permanent hole the way a missed trigger can. |
+| **No in-app or Slack channel** | The `channel` column allows `in_app`, and the UI reads events directly, but nothing writes in-app deliveries. |
+| **Recipients are role-based only** | The rule names roles; there is no per-user subscription or mute. Someone holding `project_manager` on six programmes gets everything for all six. |
+
 ### Tested only against fixtures — NOT verified live
 
 | Capability | Why | What could still be wrong |
