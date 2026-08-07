@@ -1321,6 +1321,92 @@ class PdpRepository:
             )
         return dict(row)
 
+    # -------------------------------------------------------- agent sessions ---
+
+    async def capabilities_for_stage(self, user_id: str, stage_id: str):
+        """Public wrapper, so a route can check access before spending money."""
+        async with self._pool.acquire() as conn:
+            return await self._capabilities_for_stage(conn, user_id, stage_id)
+
+    async def start_agent_session(
+        self, user_id: str, *, agent: str, project_id: str | None, objective: str
+    ) -> str:
+        """Open an agent run.
+
+        `requested_by` is NOT NULL: an agent always acts on somebody's behalf,
+        and an action with no accountable person behind it is not something
+        this system should be able to represent.
+        """
+        async with self._pool.acquire() as conn:
+            return str(
+                await conn.fetchval(
+                    """
+                    insert into public.pdp_agent_sessions
+                        (agent, project_id, requested_by, objective)
+                    values ($1,$2,$3,$4)
+                    returning id
+                    """,
+                    agent, project_id, user_id, objective,
+                )
+            )
+
+    async def finish_agent_session(
+        self,
+        session_id: str,
+        *,
+        findings: dict | None = None,
+        recommendations: list | None = None,
+        handoff_question: str | None = None,
+        usage: Any = None,
+        error: str | None = None,
+    ) -> None:
+        async with self._pool.acquire() as conn:
+            await conn.execute(
+                """
+                update public.pdp_agent_sessions
+                   set status = case when $5::text is null then 'completed' else 'failed' end,
+                       findings = $2,
+                       recommendations = $3,
+                       handoff_question = $4,
+                       error = $5,
+                       total_input_tokens = coalesce($6, 0),
+                       total_output_tokens = coalesce($7, 0),
+                       estimated_cost_usd = $8,
+                       completed_at = now()
+                 where id = $1
+                """,
+                session_id,
+                jsonable(findings) if findings is not None else None,
+                jsonable(recommendations) if recommendations is not None else None,
+                handoff_question,
+                error,
+                getattr(usage, "input_tokens", None),
+                getattr(usage, "output_tokens", None),
+                (
+                    float(usage.estimated_cost_usd)
+                    if usage is not None and getattr(usage, "estimated_cost_usd", None)
+                    else None
+                ),
+            )
+
+    async def list_agent_sessions(
+        self, user_id: str, project_id: str, limit: int = 20
+    ) -> list[dict]:
+        async with self._pool.acquire() as conn:
+            await self._capabilities(conn, user_id, project_id)
+            rows = await conn.fetch(
+                """
+                select s.*, coalesce(p.full_name, p.email) as requested_by_name
+                  from public.pdp_agent_sessions s
+             left join public.profiles p on p.id = s.requested_by
+                 where s.project_id = $1
+              order by s.started_at desc
+                 limit $2
+                """,
+                project_id, limit,
+            )
+        return [dict(r) for r in rows]
+
     # ------------------------------------------------------- notifications ---
 
     async def list_notifications(

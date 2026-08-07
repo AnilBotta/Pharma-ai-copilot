@@ -10,12 +10,14 @@ which is why the authority limit is enforced here rather than in a prompt.
 
 from __future__ import annotations
 
+import contextlib
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 
 from app.api.serialise import serialise
 from app.auth import AuthenticatedUser, current_user
+from app.config import Settings, get_settings
 from app.pdp import schemas as s
 from app.pdp.repository import Conflict, Forbidden, NotFound, PdpRepository
 
@@ -145,6 +147,126 @@ async def project_audit(
         return [serialise(e) for e in await repository.project_audit(user.id, project_id, limit)]
     except NotFound as exc:
         raise _translate(exc) from exc
+
+
+# --------------------------------------------------------------- agents ---
+
+
+@router.post("/stages/{stage_id}/assess", response_model=s.GateAssessmentResponse)
+async def assess_gate(
+    stage_id: str,
+    user: AuthenticatedUser = Depends(current_user),
+    settings: Settings = Depends(get_settings),
+    repository: PdpRepository = Depends(get_pdp_repository),
+):
+    """Ask the PDP Operations Agent what is actually holding this gate up.
+
+    Advisory only, and not by convention: while the agent is acting, the
+    database refuses to approve a requirement, decide a gate or set a baseline
+    even if the agent is holding a fully authorised user's session. See
+    migration 0022 and tests/db/test_agent_authority.py.
+
+    It runs with the caller's identity, so it can never read a project the
+    caller could not.
+    """
+    from app import db
+    from app.llm.provider import ModelProvider
+    from app.pdp.agent import assess_gate as run_assessment
+
+    # Access is checked before anything is spent on a model call.
+    try:
+        project_id, _caps = await repository.capabilities_for_stage(user.id, stage_id)
+    except NotFound as exc:
+        raise _translate(exc) from exc
+
+    pool = db.get_pool()
+    session_id = await repository.start_agent_session(
+        user.id,
+        agent="pdp_operations",
+        project_id=project_id,
+        objective=f"Assess gate {stage_id}",
+    )
+
+    models = ModelProvider(settings)
+    try:
+        result = await run_assessment(
+            pool=pool, models=models, user_id=user.id, stage_id=stage_id
+        )
+    except Exception as exc:
+        await repository.finish_agent_session(session_id, error=str(exc)[:1000])
+        logger.exception("Gate assessment failed for stage %s", stage_id)
+        raise HTTPException(
+            status.HTTP_502_BAD_GATEWAY,
+            "The assessment could not be produced. The gate's own readiness and "
+            "blocker list are unaffected and remain authoritative.",
+        ) from exc
+    finally:
+        with contextlib.suppress(Exception):
+            await models.aclose()
+
+    await repository.finish_agent_session(
+        session_id,
+        findings={"blocker_analysis": result["blocker_analysis"]},
+        recommendations=result["recommended_actions"],
+        handoff_question=result["handoff_question"],
+        usage=result.get("usage"),
+    )
+
+    return {
+        "session_id": session_id,
+        "summary": result["summary"],
+        "blocker_analysis": result["blocker_analysis"],
+        "recommended_actions": result["recommended_actions"],
+        "handoff_question": result["handoff_question"],
+    }
+
+
+@router.post("/portfolio/summary", response_model=s.PortfolioSummaryResponse)
+async def portfolio_summary(
+    user: AuthenticatedUser = Depends(current_user),
+    settings: Settings = Depends(get_settings),
+    repository: PdpRepository = Depends(get_pdp_repository),
+):
+    """Manager Agent: what across the portfolio needs a decision.
+
+    Scoped to programmes the caller can already see.
+    """
+    from app import db
+    from app.llm.provider import ModelProvider
+    from app.pdp.agent import summarise_portfolio
+
+    session_id = await repository.start_agent_session(
+        user.id, agent="manager", project_id=None, objective="Portfolio summary"
+    )
+
+    models = ModelProvider(settings)
+    try:
+        result = await summarise_portfolio(
+            pool=db.get_pool(), models=models, user_id=user.id
+        )
+    except Exception as exc:
+        await repository.finish_agent_session(session_id, error=str(exc)[:1000])
+        logger.exception("Portfolio summary failed")
+        raise HTTPException(
+            status.HTTP_502_BAD_GATEWAY,
+            "The summary could not be produced. Each programme's own readiness "
+            "remains authoritative.",
+        ) from exc
+    finally:
+        with contextlib.suppress(Exception):
+            await models.aclose()
+
+    await repository.finish_agent_session(
+        session_id,
+        findings={"items": result["items"]},
+        usage=result.get("usage"),
+    )
+
+    return {
+        "session_id": session_id,
+        "headline": result["headline"],
+        "items": result["items"],
+    }
 
 
 # ---------------------------------------------------------- notifications ---

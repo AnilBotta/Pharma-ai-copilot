@@ -679,6 +679,55 @@ class Notification(BaseModel):
     escalation_level: int = 0
 
 
+# ---------------------------------------------------------------- agents ---
+#
+# Everything here is advisory. Nothing downstream reads it as a decision, and
+# migration 0022 makes the decisions themselves unreachable while an agent is
+# acting — so these shapes are a convenience, not the safety boundary.
+
+
+class BlockerAnalysisOut(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    ref_code: str
+    is_root_cause: bool = False
+    why_it_is_stuck: str
+    obvious_action_would_not_help: bool = False
+
+
+class RecommendedActionOut(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    ref_code: str | None = None
+    action: str
+    who: str
+    urgency: str = "this_week"
+
+
+class GateAssessmentResponse(BaseModel):
+    session_id: str
+    summary: str
+    blocker_analysis: list[BlockerAnalysisOut] = Field(default_factory=list)
+    recommended_actions: list[RecommendedActionOut] = Field(default_factory=list)
+    #: Where the outstanding question is scientific, it is handed on rather than
+    #: answered — the two agents hold different evidence standards.
+    handoff_question: str | None = None
+
+
+class PortfolioItemOut(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    programme: str
+    state: str
+    needs_a_decision: bool = False
+
+
+class PortfolioSummaryResponse(BaseModel):
+    session_id: str
+    headline: str
+    items: list[PortfolioItemOut] = Field(default_factory=list)
+
+
 class AuditEntry(BaseModel):
     model_config = ConfigDict(extra="allow")
 

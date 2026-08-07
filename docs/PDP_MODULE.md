@@ -198,6 +198,57 @@ would make the calculation non-terminating.
 
 ---
 
+## The agents, and why they are safe
+
+The PDP Operations Agent reads a gate and says what is actually holding it up.
+The Manager Agent reports across the portfolio. Neither can approve anything.
+
+**The guarantee does not live in the tool schema.** That would be a promise
+about one file, lasting until somebody adds a convenience wrapper, or a model
+composes two permitted calls into a forbidden one, or an agent is handed a
+user's session so it can "just finish the paperwork".
+
+It lives in the database. An agent marks itself for the life of its transaction,
+and migration 0022 refuses three things while that mark is set:
+
+- **approving a requirement** — the act the whole module is built around
+- **deciding a gate** — even when readiness is 100% and no blockers remain
+- **setting a baseline** — a machine committing an organisation to a date
+
+Plus: an agent may not confirm its own `ai_assessment`, which is the human step
+that assessment exists to prompt.
+
+`AgentRepository` subclasses `PdpRepository` rather than wrapping it, so every
+method the human path has, the agent path has too — with identical behaviour up
+to the point where the database says no. There is no second implementation to
+drift and no list of "agent-safe methods" to add to by mistake.
+
+### An assessment may describe and doubt, not decide
+
+`evidence_links.ai_assessment` has existed since Phase C precisely so a
+machine's view has somewhere to live that is structurally not an approval. A
+`CHECK` constraint now refuses four words — *approved, compliant, certified,
+authorised* — which have no innocent reading in a gate pack.
+
+Negative and hedged findings are deliberately unrestricted. An earlier draft
+also banned "satisfies the requirement", and testing showed it refused *"does
+not satisfy the requirement"* — the most useful kind of finding. A regex cannot
+tell those apart, so phrase bans push the agent toward vaguer language.
+
+### Handoff, not overreach
+
+Scientific judgement is not this agent's job. When the outstanding question is
+*"is this stability data adequate for a depot formulation"*, it records a
+`handoff_question` for the Scientist Agent instead of answering. The two hold
+different evidence standards, and conflating them would let a project-management
+model make a formulation claim.
+
+Every session records `requested_by` **NOT NULL**: an agent always acts on
+somebody's behalf, and an action with no accountable person behind it is not
+representable here.
+
+---
+
 ## Notifications: the failure here is noise
 
 Every earlier phase guards against a state that looks better than it is. This
@@ -293,6 +344,8 @@ status, no `/complete`, no way to write a percentage.
 | `POST /projects/{id}/baseline` | Re-baseline; `can_approve` and a reason required |
 | `GET /projects/{id}/notifications` | Open alerts, most severe first |
 | `POST /notifications/{id}/acknowledge` | Stop escalation — does **not** close the alert |
+| `POST /stages/{id}/assess` | PDP Operations Agent: what is really blocking this gate |
+| `POST /portfolio/summary` | Manager Agent: what across the portfolio needs a decision |
 | `GET /stages/{id}` | Gate workspace: readiness, blockers, requirements, evidence |
 | `POST /stages/{id}/gate-decision` | Human gate decision; `can_gate` required |
 | `POST /requirements/{id}/evidence` | Attach; supersedes any approval |
