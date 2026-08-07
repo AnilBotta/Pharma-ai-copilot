@@ -9,6 +9,7 @@ import {
   Check,
   ChevronDown,
   ExternalLink,
+  FileText,
   FlaskConical,
   Gavel,
   Link2,
@@ -46,6 +47,7 @@ import {
   ApiError,
   pdp,
   type AttachableRun,
+  type ControlledDocument,
   type GateWorkspace,
   type Requirement,
 } from "@/lib/api";
@@ -57,6 +59,7 @@ export default function GatePage() {
 
   const [gate, setGate] = React.useState<GateWorkspace | null>(null);
   const [runs, setRuns] = React.useState<AttachableRun[]>([]);
+  const [docs, setDocs] = React.useState<ControlledDocument[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [busy, setBusy] = React.useState<string | null>(null);
@@ -65,12 +68,14 @@ export default function GatePage() {
     // Always re-read the whole gate after a write. A change to one requirement
     // moves the gate's readiness and can supersede an approval elsewhere, so
     // patching a single row locally would drift from what the engine says.
-    const [workspace, attachable] = await Promise.all([
+    const [workspace, attachable, documents] = await Promise.all([
       pdp.getGate(stageId),
       pdp.attachableRuns(projectId),
+      pdp.listDocuments(projectId),
     ]);
     setGate(workspace);
     setRuns(attachable);
+    setDocs(documents);
   }, [stageId, projectId]);
 
   React.useEffect(() => {
@@ -175,6 +180,8 @@ export default function GatePage() {
             key={req.id}
             requirement={req}
             runs={runs}
+            docs={docs}
+            projectId={projectId}
             capabilities={capabilities}
             busy={busy}
             act={act}
@@ -375,12 +382,16 @@ function GateDecisionCard({
 function RequirementCard({
   requirement: req,
   runs,
+  docs,
+  projectId,
   capabilities,
   busy,
   act,
 }: {
   requirement: Requirement;
   runs: AttachableRun[];
+  docs: ControlledDocument[];
+  projectId: string;
   capabilities: GateWorkspace["capabilities"];
   busy: string | null;
   act: (key: string, fn: () => Promise<unknown>) => Promise<void>;
@@ -517,6 +528,8 @@ function RequirementCard({
         onOpenChange={setAttachOpen}
         requirement={req}
         runs={runs}
+        docs={docs}
+        projectId={projectId}
         onAttach={(body) =>
           act(`${req.id}:attach`, () => pdp.attachEvidence(req.id, body))
         }
@@ -551,7 +564,9 @@ function EvidenceList({
           key={e.id}
           className="flex items-start gap-2 rounded-lg border px-3 py-2 text-xs"
         >
-          {e.evidence_type === "research_run" ? (
+          {e.evidence_type === "document" ? (
+            <FileText className="mt-0.5 size-3.5 shrink-0 text-primary" />
+          ) : e.evidence_type === "research_run" ? (
             <FlaskConical className="mt-0.5 size-3.5 shrink-0 text-primary" />
           ) : e.evidence_type === "url" ? (
             <Link2 className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
@@ -560,13 +575,40 @@ function EvidenceList({
           )}
           <div className="min-w-0 flex-1">
             <p className="font-medium">
-              {e.title ?? e.research_run_question ?? e.external_url ?? e.note}
+              {e.title ??
+                (e.document_number
+                  ? `${e.document_number} — ${e.document_title}`
+                  : null) ??
+                e.research_run_question ??
+                e.external_url ??
+                e.note}
             </p>
             <p className="text-muted-foreground">
               {e.evidence_type}
+              {e.document_version_label && ` · ${e.document_version_label}`}
               {e.added_by_name && ` · ${e.added_by_name}`} ·{" "}
               {formatRelative(e.created_at)}
             </p>
+
+            {/* A superseded document is the quiet way a gate goes stale. Say it
+                where the evidence is, not only in the blocker list. */}
+            {e.document_is_usable === false && (
+              <p className="mt-1 rounded border border-destructive/30 bg-destructive/5 px-2 py-1 text-destructive">
+                This version is {e.document_version_status} and no longer
+                satisfies the requirement. Attach the current version.
+              </p>
+            )}
+
+            {e.document_storage_url && (
+              <a
+                href={e.document_storage_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-1 inline-flex items-center gap-1 text-primary hover:underline"
+              >
+                Open the document <ExternalLink className="size-3" />
+              </a>
+            )}
             {e.research_run_id && (
               <Link
                 href={`/runs/${e.research_run_id}`}
@@ -752,43 +794,63 @@ function RequirementActions({
   );
 }
 
+type EvidenceKind = "document" | "research_run" | "url" | "note";
+
 function AttachEvidenceDialog({
   open,
   onOpenChange,
   requirement: req,
   runs,
+  docs,
+  projectId,
   onAttach,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   requirement: Requirement;
   runs: AttachableRun[];
+  docs: ControlledDocument[];
+  projectId: string;
   onAttach: (body: {
-    evidence_type: "research_run" | "url" | "note";
+    evidence_type: EvidenceKind;
     research_run_id?: string;
+    document_version_id?: string;
     external_url?: string;
     note?: string;
     title?: string;
   }) => void;
 }) {
-  const [kind, setKind] = React.useState<"research_run" | "url" | "note">(
-    "research_run"
+  // Default to whatever this requirement actually demands, so the common case
+  // needs no thought and the wrong type is not the path of least resistance.
+  const [kind, setKind] = React.useState<EvidenceKind>(
+    req.required_evidence_type === "any"
+      ? "research_run"
+      : (req.required_evidence_type as EvidenceKind)
   );
   const [runId, setRunId] = React.useState("");
+  const [versionId, setVersionId] = React.useState("");
   const [url, setUrl] = React.useState("");
   const [note, setNote] = React.useState("");
   const [title, setTitle] = React.useState("");
+
+  // Only versions the engine would accept. Offering a superseded one and
+  // rejecting it on submit would be a worse way to learn the same thing.
+  const usableVersions = docs
+    .filter((d) => d.current_version?.is_usable)
+    .map((d) => ({ doc: d, version: d.current_version! }));
 
   const submit = () => {
     onAttach({
       evidence_type: kind,
       research_run_id: kind === "research_run" ? runId : undefined,
+      document_version_id: kind === "document" ? versionId : undefined,
       external_url: kind === "url" ? url.trim() : undefined,
       note: kind === "note" ? note.trim() : undefined,
       title: title.trim() || undefined,
     });
     onOpenChange(false);
     setRunId("");
+    setVersionId("");
     setUrl("");
     setNote("");
     setTitle("");
@@ -796,6 +858,7 @@ function AttachEvidenceDialog({
 
   const valid =
     (kind === "research_run" && runId) ||
+    (kind === "document" && versionId) ||
     (kind === "url" && url.trim()) ||
     (kind === "note" && note.trim());
 
@@ -817,13 +880,57 @@ function AttachEvidenceDialog({
               id="evidence-kind"
               className="h-9 w-full rounded-md border bg-transparent px-3 text-sm"
               value={kind}
-              onChange={(e) => setKind(e.target.value as typeof kind)}
+              onChange={(e) => setKind(e.target.value as EvidenceKind)}
             >
+              <option value="document">Controlled document</option>
               <option value="research_run">Completed research run</option>
               <option value="url">Link</option>
               <option value="note">Note</option>
             </select>
+            {req.required_evidence_type !== "any" &&
+              kind !== req.required_evidence_type && (
+                <p className="text-xs text-amber-700 dark:text-amber-400">
+                  This requirement asks for{" "}
+                  <code className="font-mono">{req.required_evidence_type}</code>{" "}
+                  evidence. Anything else can be attached, but it will not
+                  satisfy the requirement.
+                </p>
+              )}
           </div>
+
+          {kind === "document" && (
+            <div className="space-y-2">
+              <Label htmlFor="evidence-doc">Document version</Label>
+              <select
+                id="evidence-doc"
+                className="h-9 w-full rounded-md border bg-transparent px-3 text-sm"
+                value={versionId}
+                onChange={(e) => setVersionId(e.target.value)}
+              >
+                <option value="">Select a document…</option>
+                {usableVersions.map(({ doc, version }) => (
+                  <option key={version.id} value={version.id}>
+                    {doc.document_number} — {doc.title} ({version.version_label},{" "}
+                    {version.status})
+                  </option>
+                ))}
+              </select>
+              {usableVersions.length === 0 && (
+                <p className="text-xs text-muted-foreground">
+                  No approved or effective document versions are registered for
+                  this project yet. Only a version that is approved or
+                  effective, and still in date, can satisfy a requirement —{" "}
+                  <Link
+                    href={`/programmes/${projectId}/documents`}
+                    className="text-primary hover:underline"
+                  >
+                    open the document register
+                  </Link>
+                  .
+                </p>
+              )}
+            </div>
+          )}
 
           {kind === "research_run" && (
             <div className="space-y-2">

@@ -396,6 +396,59 @@ export interface ProgrammeDetail {
   capabilities: PdpCapabilities;
 }
 
+export type DocumentVersionStatus =
+  | "draft"
+  | "in_review"
+  | "approved"
+  | "effective"
+  | "superseded"
+  | "obsolete";
+
+export interface DocumentVersion {
+  id: string;
+  document_id: string;
+  version_label: string;
+  status: DocumentVersionStatus;
+  storage_url: string;
+  checksum: string | null;
+  effective_date: string | null;
+  expiry_date: string | null;
+  /** Computed. Only an approved/effective version that is in date may support a requirement. */
+  is_usable: boolean | null;
+  approved_by_name: string | null;
+  approved_at: string | null;
+  superseded_at: string | null;
+  cited_by_count: number;
+  created_at: string;
+}
+
+export interface ControlledDocument {
+  id: string;
+  project_id: string | null;
+  document_number: string;
+  title: string;
+  document_type: string;
+  discipline: string | null;
+  description: string | null;
+  owner_name: string | null;
+  is_controlled: boolean;
+  version_count: number;
+  current_version: {
+    id: string;
+    version_label: string;
+    status: DocumentVersionStatus;
+    storage_url: string;
+    effective_date: string | null;
+    expiry_date: string | null;
+    is_usable: boolean;
+  } | null;
+  created_at: string;
+}
+
+export interface ControlledDocumentDetail extends ControlledDocument {
+  versions: DocumentVersion[];
+}
+
 export interface EvidenceLink {
   id: string;
   requirement_id: string;
@@ -403,6 +456,14 @@ export interface EvidenceLink {
   research_run_id: string | null;
   research_run_status: string | null;
   research_run_question: string | null;
+  document_version_id: string | null;
+  document_number: string | null;
+  document_title: string | null;
+  document_version_label: string | null;
+  document_version_status: DocumentVersionStatus | null;
+  document_storage_url: string | null;
+  /** False means this link no longer satisfies anything — superseded, obsolete or expired. */
+  document_is_usable: boolean | null;
   external_url: string | null;
   note: string | null;
   title: string | null;
@@ -589,11 +650,59 @@ export const pdp = {
       body: JSON.stringify(body),
     }),
 
+  listDocuments: (projectId: string) =>
+    request<ControlledDocument[]>(`/pdp/projects/${projectId}/documents`),
+
+  getDocument: (documentId: string) =>
+    request<ControlledDocumentDetail>(`/pdp/documents/${documentId}`),
+
+  createDocument: (
+    projectId: string,
+    body: {
+      document_number: string;
+      title: string;
+      document_type: string;
+      discipline?: string;
+      description?: string;
+    }
+  ) =>
+    request<ControlledDocument>(`/pdp/projects/${projectId}/documents`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
+  addDocumentVersion: (
+    documentId: string,
+    body: {
+      version_label: string;
+      storage_url: string;
+      status?: DocumentVersionStatus;
+      checksum?: string;
+      effective_date?: string;
+      expiry_date?: string;
+      supersedes_version_id?: string;
+    }
+  ) =>
+    request<DocumentVersion>(`/pdp/documents/${documentId}/versions`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
+  setVersionStatus: (
+    versionId: string,
+    body: { status: DocumentVersionStatus; reason?: string }
+  ) =>
+    request<DocumentVersion>(`/pdp/document-versions/${versionId}/status`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
   attachEvidence: (
     requirementId: string,
     body: {
-      evidence_type: "research_run" | "url" | "note" | "data";
+      evidence_type: "research_run" | "url" | "note" | "data" | "document";
       research_run_id?: string;
+      document_version_id?: string;
       external_url?: string;
       note?: string;
       title?: string;

@@ -185,10 +185,41 @@ cannot reference another table — with a trigger that does enforce it.
 
 | Gap | Why it matters |
 |---|---|
-| **The browser UI end-to-end** | The three pages build, are served, and are protected by middleware (`/programmes` redirects to sign-in). Nothing beyond the auth wall has been exercised in a browser, because doing so requires signing in as a real user. Every rule above is verified at the layer below it. |
+| **The browser UI end-to-end** | Since resolved for Phase C — the gate workspace was driven in a browser against the real database, including both refusals. The Phase D document register pages build and typecheck but have **not** been exercised in a browser. |
 | **A two-person workflow in the UI** | Segregation of duties means one account cannot complete a requirement: whoever confirms acceptance is refused approval. A pilot needs a second account. This is the design working, not a bug, but it makes a solo demo dead-end at the approval step. |
 | **`gate_blockers()` at scale** | It filters with `not private.requirement_is_satisfied(r.id)` in a `WHERE` clause. Unlike the 0017 case this cannot recurse, but the planner may still evaluate it on more rows than the stage contains. Correct, potentially slow on a large portfolio; not yet measured. |
 | **Concurrent approval of the same requirement** | The `approvals_one_current` partial unique index makes a double approval fail rather than duplicate, but the losing request's error message has not been checked. |
+
+### 1.3 Phase D closed a hole that had been open since Phase C
+
+The readiness engine advertises seven conditions. The third — *"document
+evidence is on a current, non-superseded version"* — was **not enforced**. There
+was no register to check against, so it was a comment describing an intention
+while the code did nothing.
+
+The consequence was the module's own failure mode: a requirement satisfied by a
+document stayed satisfied forever, including after that document was replaced.
+A gate could report ready on a superseded specification and nothing anywhere
+would say so.
+
+Migration 0019 makes it code, and `test_document_register.py` (25 assertions,
+live database) pins it: superseding a document leaves the requirement
+**unsatisfied**, invalidates the approval that rested on it, and produces a
+blocker naming the fix. An approved-but-**expired** version also fails, which a
+status label alone would have hidden.
+
+Worth noting how it was found: not by testing, but by counting. 43 of the 50
+seeded requirements demand document evidence, which is what made it obvious that
+condition 3 had never been reachable.
+
+#### Phase D gaps
+
+| Gap | Why it matters |
+|---|---|
+| **No SharePoint Graph API** | Links are recorded and trusted. Nothing verifies the URL resolves, that the file behind it is the one approved, or that its permissions match. The `checksum` column exists for this and nothing populates it automatically. |
+| **The register UI is unexercised in a browser** | It builds and typechecks; the underlying repository is covered by 25 live assertions. |
+| **No document review workflow** | A version moves between statuses by API call. There is no reviewer assignment, no circulation, no e-signature. Phase I territory. |
+| **Expiry is not proactive** | An expired version stops satisfying requirements the day it expires, silently. Nothing warns beforehand — that needs the Phase F notification engine. |
 
 ### Tested only against fixtures — NOT verified live
 

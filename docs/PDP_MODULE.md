@@ -24,11 +24,16 @@ to write to. Satisfaction is computed on every read by
 
 1. at least one evidence link exists
 2. the evidence is of the required type
-3. document evidence is on a current, non-superseded version *(Phase D)*
+3. document evidence is on an approved or effective version that is still in date
 4. the acceptance criteria were explicitly confirmed by a person
 5. a current, non-superseded approval exists
 6. the approver was neither the owner nor the acceptance confirmer
 7. every mandatory prerequisite is itself satisfied
+
+Condition 3 was a comment describing an intention until Phase D. There was no
+register to check against, so a requirement stayed satisfied indefinitely after
+the document behind it was replaced — the exact false green this module exists to
+prevent, live in the system for three phases. Migration 0019 made it code.
 
 This is the same shape as the research module's guarantee — a citation cannot
 exist unless the source was retrieved — and holds for the same reason. **The
@@ -98,13 +103,67 @@ since it would leave the record showing a requirement approved by its own owner.
 
 ---
 
+---
+
+## The controlled document register
+
+37 of the 50 seeded mandatory requirements demand document evidence, so until
+this existed no gate could reach `is_ready` at all.
+
+**Files are not stored here.** Each version records a **link** to the file of
+record — SharePoint, or wherever the organisation already controls it — plus the
+metadata a gate decision depends on: version label, status, effective and expiry
+dates, who approved it, and an optional checksum. Copying the bytes would create
+a second authoritative copy, and the day two authoritative copies disagree,
+nobody can say which one the gate was approved against.
+
+It is deliberately **not** the existing `documents` table, which holds uploads
+for retrieval — mime types, byte counts, embeddings. Different object, different
+name.
+
+### The lifecycle
+
+```
+draft → in_review → approved → effective → superseded → obsolete
+```
+
+Only **approved** and **effective** may support a requirement, and only while
+still within any expiry date. An approved-but-expired version fails, which is
+the case a status label alone would hide. At most one version per document may
+be effective at a time, enforced by a partial unique index.
+
+Marking a version `approved` or `effective` requires approval authority — those
+words assert that review happened.
+
+### Superseding is the whole point
+
+Recording a new version and superseding its predecessor happens in one call, so
+the register is never briefly showing two effective versions or none. When it
+does:
+
+- the old version stops being usable, so **every requirement citing it stops
+  being satisfied**;
+- the approvals that rested on it are **invalidated by trigger** — otherwise the
+  requirement would spring back green the moment the new version was attached,
+  approved on paper by someone who never saw it;
+- the gate lists it as a blocker reading *"The document version cited is not
+  approved, effective and in date. Attach the current version."*
+
+Evidence links use `ON DELETE RESTRICT`, not cascade: deleting a version a gate
+decision was based on fails loudly rather than quietly erasing the evidence
+behind an approval.
+
+---
+
 ## Approvals expire when what they described changes
 
 An approval is a statement about one specific evidence set and one specific
-claim. Two triggers keep it honest:
+claim. Three triggers keep it honest:
 
 - **evidence changes** → approval superseded *(migration 0014)*
 - **acceptance confirmation changes** → approval superseded *(migration 0016)*
+- **the document version behind it is superseded or made obsolete** → approval
+  superseded *(migration 0019)*
 
 Without the first, a requirement could be approved and the document swapped
 underneath it. Without the second, withdrawing acceptance left the approval live,
@@ -127,6 +186,11 @@ status, no `/complete`, no way to write a percentage.
 | `GET /projects/{id}` | Stage ladder with per-gate readiness |
 | `GET /projects/{id}/attachable-runs` | **Completed** research runs, citable as evidence |
 | `GET /projects/{id}/audit` | Append-only trail |
+| `GET /projects/{id}/documents` | The register, plus organisation-wide documents |
+| `POST /projects/{id}/documents` | Register a document; the number must be unique |
+| `GET /documents/{id}` | One document and its full version history |
+| `POST /documents/{id}/versions` | Add a version, optionally superseding its predecessor |
+| `POST /document-versions/{id}/status` | Move a version through its lifecycle |
 | `GET /stages/{id}` | Gate workspace: readiness, blockers, requirements, evidence |
 | `POST /stages/{id}/gate-decision` | Human gate decision; `can_gate` required |
 | `POST /requirements/{id}/evidence` | Attach; supersedes any approval |
@@ -200,8 +264,14 @@ cd backend; .venv\Scripts\python.exe tests\db\test_readiness_engine.py
 cd backend; .venv\Scripts\python.exe tests\db\test_phase_c_workflow.py
 ```
 
-22 and 75 assertions respectively, against the live database inside a transaction
-that is rolled back. They are excluded from `pytest -q` — they are scripts
+```bash
+cd backend; .venv\Scripts\python.exe tests\db\test_document_register.py
+```
+
+22, 75 and 25 assertions respectively, against the live database inside a
+transaction that is rolled back. The document suite's centre is the one that
+matters: a satisfied requirement whose document is then superseded goes
+**unsatisfied**, its approval is invalidated, and the gate says why. They are excluded from `pytest -q` — they are scripts
 needing a real database, and letting a database outage abort the unit suite was
 its own small disaster.
 

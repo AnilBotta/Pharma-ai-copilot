@@ -518,10 +518,21 @@ class PdpRepository:
                 select e.*,
                        run.status            as research_run_status,
                        run.original_question as research_run_question,
+                       cd.document_number    as document_number,
+                       cd.title              as document_title,
+                       cdv.version_label     as document_version_label,
+                       cdv.status            as document_version_status,
+                       cdv.storage_url       as document_storage_url,
+                       case when e.document_version_id is null then null
+                            else private.document_version_is_usable(e.document_version_id)
+                       end                   as document_is_usable,
                        coalesce(p.full_name, p.email) as added_by_name
                   from public.evidence_links e
                   join public.gate_requirements r on r.id = e.requirement_id
              left join public.research_runs run on run.id = e.research_run_id
+             left join public.controlled_document_versions cdv
+                    on cdv.id = e.document_version_id
+             left join public.controlled_documents cd on cd.id = cdv.document_id
              left join public.profiles p on p.id = e.added_by
                  where r.project_stage_id = $1
               order by e.created_at
@@ -606,9 +617,20 @@ class PdpRepository:
             """
             select e.*, run.status as research_run_status,
                    run.original_question as research_run_question,
+                   cd.document_number as document_number,
+                   cd.title           as document_title,
+                   cdv.version_label  as document_version_label,
+                   cdv.status         as document_version_status,
+                   cdv.storage_url    as document_storage_url,
+                   case when e.document_version_id is null then null
+                        else private.document_version_is_usable(e.document_version_id)
+                   end                as document_is_usable,
                    coalesce(p.full_name, p.email) as added_by_name
               from public.evidence_links e
          left join public.research_runs run on run.id = e.research_run_id
+         left join public.controlled_document_versions cdv
+                on cdv.id = e.document_version_id
+         left join public.controlled_documents cd on cd.id = cdv.document_id
          left join public.profiles p on p.id = e.added_by
              where e.requirement_id = $1
           order by e.created_at
@@ -662,6 +684,314 @@ class PdpRepository:
             )
         return [dict(r) for r in rows]
 
+    # ------------------------------------------------ controlled documents ---
+
+    async def list_documents(self, user_id: str, project_id: str) -> list[dict]:
+        """The register for one project, plus organisation-wide documents.
+
+        Organisation-wide entries (``project_id is null``) are SOPs and policies
+        that any programme may cite, so they appear in every register rather
+        than having to be duplicated per project.
+        """
+        async with self._pool.acquire() as conn:
+            await self._capabilities(conn, user_id, project_id)
+            rows = await conn.fetch(
+                """
+                select d.*,
+                       coalesce(o.full_name, o.email) as owner_name,
+                       (select count(*) from public.controlled_document_versions v
+                         where v.document_id = d.id) as version_count,
+                       (
+                         select json_build_object(
+                           'id', v.id, 'version_label', v.version_label,
+                           'status', v.status, 'storage_url', v.storage_url,
+                           'effective_date', v.effective_date,
+                           'expiry_date', v.expiry_date,
+                           'is_usable', private.document_version_is_usable(v.id))
+                           from public.controlled_document_versions v
+                          where v.document_id = d.id
+                       order by case v.status when 'effective' then 0
+                                              when 'approved'  then 1
+                                              else 2 end,
+                                v.created_at desc
+                          limit 1
+                       ) as current_version
+                  from public.controlled_documents d
+             left join public.profiles o on o.id = d.owner_user_id
+                 where d.project_id = $1 or d.project_id is null
+              order by d.project_id nulls last, d.document_number
+                """,
+                project_id,
+            )
+        return [dict(r) for r in rows]
+
+    async def get_document(self, user_id: str, document_id: str) -> dict:
+        async with self._pool.acquire() as conn:
+            doc = await conn.fetchrow(
+                "select * from public.controlled_documents where id = $1", document_id
+            )
+            if doc is None:
+                raise NotFound(f"Document {document_id} not found.")
+            if doc["project_id"] is not None:
+                await self._capabilities(conn, user_id, str(doc["project_id"]))
+
+            versions = await conn.fetch(
+                """
+                select v.*,
+                       private.document_version_is_usable(v.id) as is_usable,
+                       coalesce(a.full_name, a.email) as approved_by_name,
+                       (select count(*) from public.evidence_links e
+                         where e.document_version_id = v.id) as cited_by_count
+                  from public.controlled_document_versions v
+             left join public.profiles a on a.id = v.approved_by
+                 where v.document_id = $1
+              order by v.created_at desc
+                """,
+                document_id,
+            )
+        item = dict(doc)
+        item["versions"] = [dict(v) for v in versions]
+        return item
+
+    async def create_document(
+        self,
+        user_id: str,
+        project_id: str,
+        *,
+        document_number: str,
+        title: str,
+        document_type: str,
+        discipline: str | None = None,
+        description: str | None = None,
+        owner_user_id: str | None = None,
+    ) -> dict:
+        async with self._pool.acquire() as conn, conn.transaction():
+            await self._capabilities(conn, user_id, project_id)
+            try:
+                row = await conn.fetchrow(
+                    """
+                    insert into public.controlled_documents
+                        (project_id, document_number, title, document_type,
+                         discipline, description, owner_user_id, created_by)
+                    values ($1,$2,$3,$4,$5,$6,$7,$8)
+                    returning *
+                    """,
+                    project_id, document_number.strip(), title.strip(),
+                    document_type, discipline, description,
+                    owner_user_id or user_id, user_id,
+                )
+            except asyncpg.UniqueViolationError as exc:
+                raise Conflict(
+                    f"Document number '{document_number}' is already in the "
+                    "register. Two documents sharing a number is how the wrong "
+                    "file gets approved."
+                ) from exc
+
+            await self._audit(
+                conn,
+                actor=user_id,
+                action="pdp.document.registered",
+                entity_type="controlled_document",
+                entity_id=str(row["id"]),
+                project_id=project_id,
+                new=dict(row),
+            )
+        return dict(row)
+
+    async def add_document_version(
+        self,
+        user_id: str,
+        document_id: str,
+        *,
+        version_label: str,
+        storage_url: str,
+        status: str = "draft",
+        checksum: str | None = None,
+        effective_date: date | None = None,
+        expiry_date: date | None = None,
+        supersedes_version_id: str | None = None,
+    ) -> dict:
+        """Record a new version. Optionally supersede the one it replaces.
+
+        Superseding is done here rather than left to a second call because a
+        register that briefly shows two effective versions of one document is
+        worse than one that shows none.
+        """
+        async with self._pool.acquire() as conn, conn.transaction():
+            doc = await conn.fetchrow(
+                "select * from public.controlled_documents where id = $1", document_id
+            )
+            if doc is None:
+                raise NotFound(f"Document {document_id} not found.")
+
+            caps = None
+            if doc["project_id"] is not None:
+                caps = await self._capabilities(conn, user_id, str(doc["project_id"]))
+
+            # 'approved' and 'effective' are assertions about review having
+            # happened, so they need the authority that goes with that.
+            if status in ("approved", "effective"):
+                if caps is None or not caps.can_approve:
+                    raise Forbidden(
+                        f"Recording a version as '{status}' requires a role with "
+                        "approval authority. Record it as 'draft' or "
+                        "'in_review' instead."
+                    )
+
+            approved_by = user_id if status in ("approved", "effective") else None
+
+            if supersedes_version_id:
+                previous = await conn.fetchrow(
+                    """
+                    select id, document_id, status
+                      from public.controlled_document_versions where id = $1
+                    """,
+                    supersedes_version_id,
+                )
+                if previous is None or str(previous["document_id"]) != str(document_id):
+                    raise Conflict(
+                        "The version being superseded belongs to a different "
+                        "document."
+                    )
+
+                # RETIRE THE OLD ONE FIRST.
+                #
+                # `controlled_document_versions_one_effective` allows a single
+                # effective version per document, so inserting the replacement
+                # while the incumbent still holds that status fails on the
+                # index - reported, unhelpfully, as "version already exists".
+                #
+                # Both statements are in one transaction, so no reader ever
+                # observes the document with two effective versions or none.
+                # The back-reference is filled in after the insert, once there
+                # is something to point at.
+                await conn.execute(
+                    """
+                    update public.controlled_document_versions
+                       set status = 'superseded',
+                           superseded_at = now()
+                     where id = $1
+                    """,
+                    supersedes_version_id,
+                )
+
+            try:
+                row = await conn.fetchrow(
+                    """
+                    insert into public.controlled_document_versions
+                        (document_id, version_label, status, storage_url, checksum,
+                         effective_date, expiry_date, approved_by, approved_at,
+                         created_by)
+                    values ($1,$2,$3,$4,$5,$6,$7,$8,
+                            case when $8::uuid is null then null else now() end, $9)
+                    returning *
+                    """,
+                    document_id, version_label.strip(), status, storage_url.strip(),
+                    checksum, effective_date, expiry_date, approved_by, user_id,
+                )
+            except asyncpg.UniqueViolationError as exc:
+                raise Conflict(
+                    f"Version '{version_label}' already exists for this document, "
+                    "or another version is already effective."
+                ) from exc
+
+            if supersedes_version_id:
+                # Now that the replacement exists, record what replaced it.
+                # The status change above already fired the trigger that
+                # invalidated approvals resting on the old version.
+                await conn.execute(
+                    """
+                    update public.controlled_document_versions
+                       set superseded_by_version_id = $2
+                     where id = $1
+                    """,
+                    supersedes_version_id, row["id"],
+                )
+
+            await self._audit(
+                conn,
+                actor=user_id,
+                action="pdp.document.version_added",
+                entity_type="controlled_document",
+                entity_id=str(document_id),
+                project_id=str(doc["project_id"]) if doc["project_id"] else None,
+                new={
+                    "version_label": row["version_label"],
+                    "status": row["status"],
+                    "storage_url": row["storage_url"],
+                    "supersedes": supersedes_version_id,
+                },
+                reason=(
+                    "Superseded the previous version; approvals resting on it "
+                    "were invalidated."
+                    if supersedes_version_id else None
+                ),
+            )
+        return dict(row)
+
+    async def set_document_version_status(
+        self, user_id: str, version_id: str, *, status: str, reason: str | None = None
+    ) -> dict:
+        async with self._pool.acquire() as conn, conn.transaction():
+            version = await conn.fetchrow(
+                """
+                select v.*, d.project_id
+                  from public.controlled_document_versions v
+                  join public.controlled_documents d on d.id = v.document_id
+                 where v.id = $1
+                """,
+                version_id,
+            )
+            if version is None:
+                raise NotFound(f"Document version {version_id} not found.")
+
+            caps = None
+            if version["project_id"] is not None:
+                caps = await self._capabilities(conn, user_id, str(version["project_id"]))
+
+            if status in ("approved", "effective") and (caps is None or not caps.can_approve):
+                raise Forbidden(
+                    f"Marking a version '{status}' requires approval authority."
+                )
+
+            try:
+                row = await conn.fetchrow(
+                    """
+                    update public.controlled_document_versions
+                       set status = $2,
+                           approved_by = case
+                             when $2 in ('approved','effective')
+                               then coalesce(approved_by, $3::uuid) else approved_by end,
+                           approved_at = case
+                             when $2 in ('approved','effective')
+                               then coalesce(approved_at, now()) else approved_at end,
+                           superseded_at = case
+                             when $2 = 'superseded' then coalesce(superseded_at, now())
+                             else superseded_at end
+                     where id = $1
+                    returning *
+                    """,
+                    version_id, status, user_id,
+                )
+            except asyncpg.UniqueViolationError as exc:
+                raise Conflict(
+                    "Another version of this document is already effective. "
+                    "Supersede it first."
+                ) from exc
+
+            await self._audit(
+                conn,
+                actor=user_id,
+                action=f"pdp.document.version_{status}",
+                entity_type="controlled_document_version",
+                entity_id=version_id,
+                project_id=str(version["project_id"]) if version["project_id"] else None,
+                previous={"status": version["status"]},
+                new={"status": row["status"]},
+                reason=reason,
+            )
+        return dict(row)
+
     async def project_audit(self, user_id: str, project_id: str, limit: int = 100) -> list[dict]:
         async with self._pool.acquire() as conn:
             await self._capabilities(conn, user_id, project_id)
@@ -687,6 +1017,7 @@ class PdpRepository:
         *,
         evidence_type: str,
         research_run_id: str | None = None,
+        document_version_id: str | None = None,
         external_url: str | None = None,
         note: str | None = None,
         title: str | None = None,
@@ -697,10 +1028,45 @@ class PdpRepository:
             project_id = str(req["project_id"])
 
             if evidence_type == "document":
-                raise Conflict(
-                    "Document evidence arrives with the controlled document "
-                    "register in Phase D. Attach a URL or a research run for now."
+                version = await conn.fetchrow(
+                    """
+                    select v.id, v.status, v.version_label, v.expiry_date,
+                           d.project_id, d.document_number,
+                           private.document_version_is_usable(v.id) as is_usable
+                      from public.controlled_document_versions v
+                      join public.controlled_documents d on d.id = v.document_id
+                     where v.id = $1
+                    """,
+                    document_version_id,
                 )
+                if version is None:
+                    raise NotFound("That document version is not in the register.")
+
+                # An organisation-wide document (null project) may be cited by
+                # any programme; a project's own document may not be borrowed.
+                if (
+                    version["project_id"] is not None
+                    and str(version["project_id"]) != project_id
+                ):
+                    raise Conflict(
+                        f"Document {version['document_number']} belongs to a "
+                        "different project."
+                    )
+
+                if not version["is_usable"]:
+                    # Refused at attach time as well as in the engine. The
+                    # engine would catch it either way, but discovering it now
+                    # is far better than discovering it in a gate review.
+                    raise Conflict(
+                        f"Version '{version['version_label']}' is "
+                        f"{version['status']}"
+                        + (
+                            " and past its expiry date"
+                            if version["expiry_date"] else ""
+                        )
+                        + ". Only an approved or effective version that is still "
+                        "in date can support a requirement."
+                    )
 
             if evidence_type == "research_run":
                 run = await conn.fetchrow(
@@ -725,12 +1091,14 @@ class PdpRepository:
                 """
                 insert into public.evidence_links (
                     requirement_id, project_id, evidence_type, research_run_id,
-                    external_url, note, title, description, added_by
-                ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+                    document_version_id, external_url, note, title, description,
+                    added_by
+                ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
                 returning *
                 """,
                 requirement_id, project_id, evidence_type, research_run_id,
-                external_url, note, title, description, user_id,
+                document_version_id, external_url, note, title, description,
+                user_id,
             )
 
             # The evidence_change_supersedes_approval trigger has now

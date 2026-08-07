@@ -183,6 +183,15 @@ class EvidenceLink(BaseModel):
     research_run_id: str | None = None
     research_run_status: str | None = None
     research_run_question: str | None = None
+    document_version_id: str | None = None
+    document_number: str | None = None
+    document_title: str | None = None
+    document_version_label: str | None = None
+    document_version_status: str | None = None
+    document_storage_url: str | None = None
+    #: Computed on read. False means this link no longer satisfies anything —
+    #: the version was superseded, went obsolete, or passed its expiry.
+    document_is_usable: bool | None = None
     external_url: str | None = None
     note: str | None = None
     title: str | None = None
@@ -265,6 +274,7 @@ class GateWorkspace(BaseModel):
 class AttachEvidenceRequest(StrictRequest):
     evidence_type: Literal["research_run", "url", "note", "data", "document"]
     research_run_id: str | None = None
+    document_version_id: str | None = None
     external_url: str | None = Field(default=None, max_length=2000)
     note: str | None = Field(default=None, max_length=MAX_REASON_LENGTH)
     title: str | None = Field(default=None, max_length=300)
@@ -279,6 +289,7 @@ class AttachEvidenceRequest(StrictRequest):
         """
         required = {
             "research_run": "research_run_id",
+            "document": "document_version_id",
             "url": "external_url",
             "note": "note",
         }.get(self.evidence_type)
@@ -374,6 +385,117 @@ class AttachableRun(BaseModel):
     status: str
     completed_at: datetime | None = None
     evidence_count: int = 0
+
+
+# ------------------------------------------------- controlled documents ---
+
+
+DOCUMENT_TYPES = Literal[
+    "protocol", "report", "specification", "method", "sop", "batch_record",
+    "risk_assessment", "plan", "summary", "certificate", "drawing", "other",
+]
+
+#: Only these two may support a requirement. `draft` and `in_review` are not
+#: reviewed work; `superseded` and `obsolete` no longer describe reality.
+USABLE_STATUSES = ("approved", "effective")
+
+VERSION_STATUSES = Literal[
+    "draft", "in_review", "approved", "effective", "superseded", "obsolete"
+]
+
+
+class DocumentVersion(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    id: str
+    document_id: str
+    version_label: str
+    status: VERSION_STATUSES
+    storage_url: str
+    checksum: str | None = None
+    effective_date: date | None = None
+    expiry_date: date | None = None
+    #: Computed. Whether this version may currently support a requirement.
+    is_usable: bool | None = None
+    approved_by: str | None = None
+    approved_by_name: str | None = None
+    approved_at: datetime | None = None
+    superseded_at: datetime | None = None
+    superseded_by_version_id: str | None = None
+    cited_by_count: int = 0
+    created_at: datetime
+
+
+class DocumentSummary(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    id: str
+    project_id: str | None = None
+    document_number: str
+    title: str
+    document_type: str
+    discipline: str | None = None
+    description: str | None = None
+    owner_user_id: str | None = None
+    owner_name: str | None = None
+    is_controlled: bool = True
+    version_count: int = 0
+    current_version: dict[str, Any] | None = None
+    created_at: datetime
+
+
+class DocumentDetail(DocumentSummary):
+    versions: list[DocumentVersion] = Field(default_factory=list)
+
+
+class CreateDocumentRequest(StrictRequest):
+    document_number: str = Field(min_length=1, max_length=100)
+    title: str = Field(min_length=1, max_length=300)
+    document_type: DOCUMENT_TYPES = "other"
+    discipline: str | None = Field(default=None, max_length=100)
+    description: str | None = Field(default=None, max_length=MAX_REASON_LENGTH)
+    owner_user_id: str | None = None
+
+    @field_validator("document_number", "title")
+    @classmethod
+    def _not_blank(cls, v: str) -> str:
+        return _required_text(v, "This field")
+
+
+class AddDocumentVersionRequest(StrictRequest):
+    version_label: str = Field(min_length=1, max_length=50)
+    #: A link to the file of record, not an upload. See migration 0019.
+    storage_url: str = Field(min_length=1, max_length=2000)
+    status: VERSION_STATUSES = "draft"
+    checksum: str | None = Field(default=None, max_length=200)
+    effective_date: date | None = None
+    expiry_date: date | None = None
+    supersedes_version_id: str | None = None
+
+    @field_validator("storage_url")
+    @classmethod
+    def _must_be_a_link(cls, v: str) -> str:
+        if not v.strip().startswith(("http://", "https://")):
+            raise ValueError(
+                "storage_url must be a link to the file of record "
+                "(http:// or https://). Files are not uploaded here."
+            )
+        return v.strip()
+
+    @model_validator(mode="after")
+    def _dates_ordered(self) -> AddDocumentVersionRequest:
+        if (
+            self.effective_date
+            and self.expiry_date
+            and self.expiry_date < self.effective_date
+        ):
+            raise ValueError("expiry_date cannot precede effective_date.")
+        return self
+
+
+class SetVersionStatusRequest(StrictRequest):
+    status: VERSION_STATUSES
+    reason: str | None = Field(default=None, max_length=MAX_REASON_LENGTH)
 
 
 class AuditEntry(BaseModel):

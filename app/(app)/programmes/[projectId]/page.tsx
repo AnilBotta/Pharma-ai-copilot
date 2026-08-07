@@ -8,6 +8,7 @@ import {
   ArrowLeft,
   ChevronRight,
   ClipboardList,
+  FileText,
   GitBranch,
   History,
 } from "lucide-react";
@@ -89,6 +90,13 @@ export default function ProgrammePage() {
           title={projectName}
           description="Each gate shows how much is done and, separately, whether it may be reviewed."
           icon={GitBranch}
+          actions={
+            <Button asChild variant="outline">
+              <Link href={`/programmes/${projectId}/documents`}>
+                <FileText className="size-4" /> Document register
+              </Link>
+            </Button>
+          }
         />
       </div>
 
