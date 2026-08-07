@@ -180,6 +180,33 @@ def test_the_frontend_supabase_client_is_not_excluded():
         )
 
 
+def test_middleware_does_not_intercept_the_api():
+    """Next.js middleware must not run on /api/*.
+
+    On the deployment `/api/*` is a Python function, not a Next.js route. When
+    the middleware matcher covered it, Next intercepted `/api/health`, found no
+    Supabase cookie, and redirected to `/login` — so every API call returned
+    200 with the sign-in page's HTML. The frontend then reported "Cannot reach
+    the API", which sends you looking at the backend when the request never
+    left the frontend.
+
+    Cookie-based route protection and bearer-token API auth guard two different
+    surfaces. Layering the first over the second breaks it without adding
+    anything.
+    """
+    middleware = (REPO / "middleware.ts").read_text(encoding="utf-8")
+
+    match = re.search(r'matcher:\s*\[(.*?)\]', middleware, re.DOTALL)
+    assert match, "Could not find the middleware matcher; this guard needs updating."
+
+    patterns = match.group(1)
+    assert "?!api|" in patterns or "?!api/" in patterns, (
+        "The middleware matcher does not exclude /api. Next.js will intercept "
+        "requests meant for the Python function and answer them with HTML. "
+        f"Found: {patterns.strip()[:200]}"
+    )
+
+
 def test_entrypoint_exposes_the_same_app_the_tests_use():
     source = ENTRYPOINT.read_text(encoding="utf-8")
     assert "from app.main import app" in source, (
