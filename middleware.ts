@@ -80,9 +80,21 @@ function isPublic(path: string): boolean {
 export const config = {
   matcher: [
     /*
-     * Every path except static assets and image files. Auth checks on those
-     * would cost latency without protecting anything.
+     * Every path except static assets, image files, and the API.
+     *
+     * `api` is excluded because it is not served by Next.js at all: on the
+     * deployment it is a Python function holding the whole FastAPI app, which
+     * authenticates each request itself with a signature-verified bearer
+     * token. Matching it here meant Next intercepted `/api/health`, found no
+     * Supabase cookie, and redirected to `/login` — so every API call answered
+     * 200 with the sign-in page's HTML instead of JSON. The frontend reported
+     * "Cannot reach the API", which points at the backend being down rather
+     * than at the request never having left the frontend.
+     *
+     * Cookie-based route protection and bearer-token API auth are two separate
+     * mechanisms guarding two separate surfaces. Running the first over the
+     * second does not add security; it only breaks it.
      */
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!api|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };

@@ -17,7 +17,14 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field, PostgresDsn, SecretStr, ValidationError, field_validator
+from pydantic import (
+    AliasChoices,
+    Field,
+    PostgresDsn,
+    SecretStr,
+    ValidationError,
+    field_validator,
+)
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent
@@ -48,7 +55,21 @@ class Settings(BaseSettings):
     database_url: PostgresDsn
 
     # ----------------------------------------------------------- supabase ---
-    supabase_url: str
+    #: Accepts NEXT_PUBLIC_SUPABASE_URL as a fallback.
+    #:
+    #: It is the same value under two names - the project URL, which is public
+    #: either way - and requiring both to be set separately is a trap rather
+    #: than a safeguard. It caught us on the first real deployment: the frontend
+    #: variable was set, the backend one was not, and because this field is
+    #: required the whole API failed at import with a validation error rather
+    #: than anything that pointed at a missing environment variable.
+    #:
+    #: Only the URL is aliased. The service role key deliberately has no such
+    #: fallback: a NEXT_PUBLIC_ variable is compiled into the browser bundle,
+    #: so accepting one there would invite someone to publish it.
+    supabase_url: str = Field(
+        validation_alias=AliasChoices("supabase_url", "next_public_supabase_url")
+    )
     supabase_service_role_key: SecretStr
     #: Only needed by legacy projects that sign JWTs with a shared HS256 secret.
     #: Current Supabase projects publish asymmetric public keys via JWKS, which
@@ -78,6 +99,30 @@ class Settings(BaseSettings):
     epo_ops_consumer_secret: SecretStr | None = None
     uspto_api_key: SecretStr | None = None
 
+    # ------------------------------------------------------------- worker ---
+    #: Shared secret for POST /api/worker/tick. The endpoint executes paid work,
+    #: so it is not left open; the scheduler presents this header. Absent, the
+    #: endpoint refuses every request rather than defaulting to open.
+    worker_trigger_secret: SecretStr | None = None
+
+    #: Elapsed seconds after which a slice stops taking on ANOTHER node.
+    #:
+    #: This is a gate on starting work, not a wall to stop at mid-node: a node
+    #: already running is allowed to finish. Worst case is therefore
+    #: `budget + longest_node`, which is what must fit inside the host's
+    #: function timeout.
+    #:
+    #: Measured on a real run: the longest single node visit is ~120 s
+    #: (supervisor_synthesis). At 150 s the worst case is ~280 s, inside
+    #: Vercel Hobby's unraisable 300 s cap. On Pro (800 s) set this to 600.
+    #: Zero disables slicing entirely, which is what a long-lived process wants.
+    worker_slice_budget_seconds: int = Field(default=0, ge=0, le=3_600)
+
+    #: Absolute origin this deployment answers on, e.g. https://app.vercel.app.
+    #: Needed because a slice triggers its own successor over HTTP and a
+    #: serverless invocation cannot otherwise know its own public URL.
+    public_base_url: str | None = None
+
     # ------------------------------------------------------------- limits ---
     max_literature_results: int = Field(default=50, ge=1, le=200)
     max_patent_results: int = Field(default=30, ge=1, le=200)
@@ -98,6 +143,7 @@ class Settings(BaseSettings):
         "epo_ops_consumer_key",
         "epo_ops_consumer_secret",
         "uspto_api_key",
+        "worker_trigger_secret",
         mode="before",
     )
     @classmethod
@@ -113,12 +159,20 @@ class Settings(BaseSettings):
             return None
         return v
 
-    @field_validator("ncbi_email", "crossref_mailto", mode="before")
+    @field_validator(
+        "ncbi_email", "crossref_mailto", "public_base_url", mode="before"
+    )
     @classmethod
     def _blank_optional_string_is_absent(cls, v: object) -> object:
         if isinstance(v, str) and not v.strip():
             return None
         return v
+
+    @field_validator("public_base_url")
+    @classmethod
+    def _no_trailing_slash(cls, v: str | None) -> str | None:
+        """Normalise so callers can concatenate a path without doubling '/'."""
+        return v.rstrip("/") if v else v
 
     # ---------------------------------------------------------- accessors ---
     @property

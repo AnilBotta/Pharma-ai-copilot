@@ -12,6 +12,8 @@ from fastapi.responses import JSONResponse
 from app import db
 from app.api.routes import router
 from app.config import get_settings
+from app.pdp.repository import PdpRepository
+from app.pdp.routes import router as pdp_router
 from app.repository import Repository
 
 logger = logging.getLogger(__name__)
@@ -37,11 +39,13 @@ async def lifespan(app: FastAPI):
     try:
         pool = await db.create_pool(settings)
         app.state.repository = Repository(pool)
+        app.state.pdp_repository = PdpRepository(pool)
     except Exception:
         # Start anyway so /health can report the problem rather than the whole
         # service being unreachable.
         logger.exception("Database unavailable at startup; API starts degraded")
         app.state.repository = None
+        app.state.pdp_repository = None
 
     yield
 
@@ -73,6 +77,7 @@ def create_app() -> FastAPI:
     )
 
     app.include_router(router, prefix="/api")
+    app.include_router(pdp_router, prefix="/api")
 
     @app.exception_handler(Exception)
     async def unhandled_exception(request: Request, exc: Exception):

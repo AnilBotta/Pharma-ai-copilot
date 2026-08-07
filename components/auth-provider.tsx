@@ -4,7 +4,11 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import type { Session, User } from "@supabase/supabase-js";
 
-import { createClient } from "@/lib/supabase/client";
+import {
+  createClient,
+  isSupabaseConfigured,
+  SUPABASE_NOT_CONFIGURED,
+} from "@/lib/supabase/client";
 
 /**
  * Authentication backed by Supabase Auth.
@@ -20,6 +24,8 @@ interface AuthContextValue {
   user: User | null;
   session: Session | null;
   loading: boolean;
+  /** Set when the public Supabase values were missing at build time. */
+  configError: string | null;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string) => Promise<{ needsConfirmation: boolean }>;
   signOut: () => Promise<void>;
@@ -33,9 +39,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = React.useState<Session | null>(null);
   const [loading, setLoading] = React.useState(true);
   const router = useRouter();
-  const supabase = React.useMemo(() => createClient(), []);
+
+  /**
+   * Null when Supabase is unconfigured, rather than throwing.
+   *
+   * This provider wraps the whole application including the 404 page, and
+   * Next.js prerenders those at build time. Throwing here therefore failed the
+   * *build* — on a page that needs no authentication at all — with a message
+   * about `.env.local` that is misleading on a host like Vercel. A missing
+   * public config is a deployment mistake to report at runtime, not a reason
+   * for the build to collapse.
+   */
+  const configured = isSupabaseConfigured();
+  const supabase = React.useMemo(
+    () => (configured ? createClient() : null),
+    [configured]
+  );
+  const configError = configured ? null : SUPABASE_NOT_CONFIGURED;
 
   React.useEffect(() => {
+    if (!supabase) {
+      // Nothing to wait for; resolve so the UI can render its error state.
+      setLoading(false);
+      return;
+    }
+
     let active = true;
 
     supabase.auth.getSession().then(({ data }) => {
@@ -59,6 +87,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signIn = React.useCallback(
     async (email: string, password: string) => {
+      if (!supabase) throw new Error(SUPABASE_NOT_CONFIGURED);
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw new Error(error.message);
       router.refresh();
@@ -68,6 +97,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signUp = React.useCallback(
     async (email: string, password: string) => {
+      if (!supabase) throw new Error(SUPABASE_NOT_CONFIGURED);
       const { data, error } = await supabase.auth.signUp({ email, password });
       if (error) throw new Error(error.message);
       // When email confirmation is enabled the user exists but has no session.
@@ -77,6 +107,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   const signOut = React.useCallback(async () => {
+    if (!supabase) throw new Error(SUPABASE_NOT_CONFIGURED);
     await supabase.auth.signOut();
     router.push("/login");
     router.refresh();
@@ -93,13 +124,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       user,
       session,
       loading,
+      configError,
       signIn,
       signUp,
       signOut,
       displayName,
       initials: (displayName || email || "?").slice(0, 2).toUpperCase(),
     }),
-    [user, session, loading, signIn, signUp, signOut, displayName, email]
+    [user, session, loading, configError, signIn, signUp, signOut, displayName, email]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

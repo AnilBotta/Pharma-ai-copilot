@@ -1,0 +1,106 @@
+"""Configuration loading, and the one alias that exists.
+
+Required settings must fail loudly when absent - a service that starts without
+its database URL and discovers the problem on the first user request is worse
+than one that refuses to start. The tests here pin that behaviour, plus the
+single deliberate exception to it.
+"""
+
+from __future__ import annotations
+
+import pathlib
+
+import pytest
+from pydantic import ValidationError
+
+MINIMAL = {
+    "DATABASE_URL": "postgresql://u:p@localhost:5432/db",
+    "SUPABASE_SERVICE_ROLE_KEY": "service-role",
+    "OPENAI_API_KEY": "sk-test",
+}
+
+SUPABASE_KEYS = (
+    "SUPABASE_URL",
+    "NEXT_PUBLIC_SUPABASE_URL",
+    "SUPABASE_SERVICE_ROLE_KEY",
+    "SUPABASE_JWT_SECRET",
+    "DATABASE_URL",
+    "OPENAI_API_KEY",
+)
+
+
+@pytest.fixture
+def build(monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path):
+    """Construct Settings from an explicit environment only.
+
+    pydantic-settings also reads backend/.env, so without pointing env_file at
+    a path that does not exist these tests would pass or fail depending on
+    whose machine they ran on.
+    """
+    from app.config import Settings
+
+    def _build(**env: str):
+        for key in SUPABASE_KEYS:
+            monkeypatch.delenv(key, raising=False)
+        for key, value in env.items():
+            monkeypatch.setenv(key, value)
+        return Settings(_env_file=tmp_path / "absent.env")
+
+    return _build
+
+
+class TestSupabaseUrlAlias:
+    """SUPABASE_URL accepts NEXT_PUBLIC_SUPABASE_URL as a fallback.
+
+    The same value under two names. Requiring both to be set separately is a
+    trap, and it sprang on the first real deployment: the frontend variable was
+    configured, the backend one was not, and the API failed at import with a
+    validation error that named a field rather than a missing variable.
+    """
+
+    def test_explicit_value_is_used(self, build) -> None:
+        settings = build(**MINIMAL, SUPABASE_URL="https://explicit.supabase.co")
+        assert settings.supabase_url == "https://explicit.supabase.co"
+
+    def test_next_public_is_accepted_as_a_fallback(self, build) -> None:
+        settings = build(
+            **MINIMAL, NEXT_PUBLIC_SUPABASE_URL="https://fallback.supabase.co"
+        )
+        assert settings.supabase_url == "https://fallback.supabase.co"
+
+    def test_explicit_wins_over_the_fallback(self, build) -> None:
+        settings = build(
+            **MINIMAL,
+            SUPABASE_URL="https://wins.supabase.co",
+            NEXT_PUBLIC_SUPABASE_URL="https://loses.supabase.co",
+        )
+        assert settings.supabase_url == "https://wins.supabase.co"
+
+    def test_absent_entirely_still_fails(self, build) -> None:
+        """The alias is a convenience, not a way to start unconfigured."""
+        with pytest.raises(ValidationError):
+            build(**MINIMAL)
+
+    def test_the_service_role_key_has_no_such_fallback(self, build) -> None:
+        """Deliberate asymmetry, and the reason the alias is URL-only.
+
+        A NEXT_PUBLIC_ variable is compiled into the browser bundle. Accepting
+        one for the service role key would invite somebody to set it there, and
+        that key bypasses every row-level security policy in the database.
+        """
+        with pytest.raises(ValidationError):
+            build(
+                DATABASE_URL=MINIMAL["DATABASE_URL"],
+                OPENAI_API_KEY=MINIMAL["OPENAI_API_KEY"],
+                SUPABASE_URL="https://x.supabase.co",
+                NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY="should-not-be-honoured",
+            )
+
+
+class TestRequiredSettingsFailLoudly:
+    @pytest.mark.parametrize("missing", ["DATABASE_URL", "OPENAI_API_KEY"])
+    def test_a_missing_required_value_refuses_to_start(self, build, missing) -> None:
+        env = {**MINIMAL, "SUPABASE_URL": "https://x.supabase.co"}
+        env.pop(missing)
+        with pytest.raises(ValidationError):
+            build(**env)

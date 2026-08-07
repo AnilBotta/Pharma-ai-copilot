@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label";
 import { GENERAL_DISCLAIMER } from "@/lib/agents";
 
 function LoginForm() {
-  const { signIn, signUp } = useAuth();
+  const { signIn, signUp, configError } = useAuth();
   const router = useRouter();
   const params = useSearchParams();
 
@@ -96,6 +96,19 @@ function LoginForm() {
                   placeholder="At least 8 characters"
                 />
               </div>
+
+              {/* A deployment missing its public Supabase values would
+                  otherwise show a generic failure only after someone tried to
+                  sign in. Say so up front, and say what to do about it. */}
+              {configError && (
+                <div
+                  role="alert"
+                  className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-800 dark:text-amber-300"
+                >
+                  <AlertCircle className="mt-0.5 size-4 shrink-0" />
+                  <span>{configError}</span>
+                </div>
+              )}
 
               {error && (
                 <div

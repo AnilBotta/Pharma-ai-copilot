@@ -1,0 +1,31 @@
+# Belt and braces. A git-based deploy already excludes anything .gitignore
+# covers, but `vercel --prod` from a laptop uploads the working directory, and
+# that directory contains backend/.env with the service role key and the OpenAI
+# key in it. Being explicit costs nothing and the failure it prevents is
+# shipping live credentials inside a deployment bundle.
+**/.env
+**/.env.*
+!**/.env.example
+
+# Virtualenvs are large and useless in the bundle; dependencies are installed
+# from api/requirements.txt during the build.
+backend/.venv
+**/__pycache__
+**/*.pyc
+
+# Not part of the running application.
+#
+# LEADING SLASHES MATTER. These use .gitignore semantics, where a bare name
+# matches a directory of that name at ANY depth. `supabase` therefore excluded
+# `lib/supabase/` - the frontend's Supabase client - and the build failed with
+#
+#   Module not found: Can't resolve '@/lib/supabase/client'
+#
+# which reads like a broken import rather than a deployment file being deleted
+# out from under the bundler. Anchor every one of these to the repository root.
+/backend/tests
+/backend/apply_migration.py
+/backend/check_setup.py
+/docs
+/supabase
+/.claude

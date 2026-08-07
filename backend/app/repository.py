@@ -672,6 +672,33 @@ class Repository:
                 "update public.run_jobs set status = 'done' where id = $1", job_id
             )
 
+    async def release_job(self, job_id: str) -> None:
+        """Return a partially executed job to the queue for its next slice.
+
+        Distinct from :meth:`fail_job` in one way that matters: the attempt
+        counter is decremented back, because ``claim_job`` incremented it and a
+        deliberate pause is not a failed attempt. Without this a run needing
+        more slices than ``max_attempts`` would be marked failed for making
+        normal progress -- the retry budget exists to stop a *broken* run
+        looping, not to cap how long a working one may take.
+
+        The run's own status is left as ``running``: from a user's point of view
+        nothing has stopped.
+        """
+        async with self._pool.acquire() as conn:
+            await conn.execute(
+                """
+                update public.run_jobs
+                   set status = 'queued',
+                       claimed_by = null,
+                       claimed_at = null,
+                       attempts = greatest(attempts - 1, 0),
+                       available_at = now()
+                 where id = $1
+                """,
+                job_id,
+            )
+
     async def fail_job(self, job_id: str, error: str, *, retry_in_seconds: int = 60) -> bool:
         """Mark a job failed. Returns True if it will be retried."""
         async with self._pool.acquire() as conn:
