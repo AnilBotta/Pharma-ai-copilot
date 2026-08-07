@@ -1321,6 +1321,71 @@ class PdpRepository:
             )
         return dict(row)
 
+    # ------------------------------------------------------- notifications ---
+
+    async def list_notifications(
+        self, user_id: str, project_id: str, *, include_resolved: bool = False
+    ) -> list[dict]:
+        async with self._pool.acquire() as conn:
+            await self._capabilities(conn, user_id, project_id)
+            rows = await conn.fetch(
+                """
+                select e.*, r.key as rule_key, r.name as rule_name,
+                       coalesce(a.full_name, a.email) as acknowledged_by_name
+                  from public.notification_events e
+                  join public.notification_rules r on r.id = e.rule_id
+             left join public.profiles a on a.id = e.acknowledged_by
+                 where e.project_id = $1
+                   and ($2 or e.resolved_at is null)
+              order by e.resolved_at nulls first,
+                       case e.severity when 'critical' then 0
+                                       when 'warning'  then 1 else 2 end,
+                       e.raised_at desc
+                 limit 200
+                """,
+                project_id, include_resolved,
+            )
+        return [dict(r) for r in rows]
+
+    async def acknowledge_notification(self, user_id: str, event_id: str) -> dict:
+        """Take ownership of an alert. Stops it escalating; does not close it.
+
+        Acknowledgement and resolution are different acts and must not be
+        conflated. Only the condition ceasing to be true resolves an event -
+        otherwise acknowledging would be a way to make a problem disappear from
+        the list without fixing it, which is the false green again.
+        """
+        async with self._pool.acquire() as conn, conn.transaction():
+            event = await conn.fetchrow(
+                "select * from public.notification_events where id = $1", event_id
+            )
+            if event is None:
+                raise NotFound(f"Notification {event_id} not found.")
+            if event["project_id"] is not None:
+                await self._capabilities(conn, user_id, str(event["project_id"]))
+            if event["resolved_at"] is not None:
+                raise Conflict("That notification has already been resolved.")
+
+            row = await conn.fetchrow(
+                """
+                update public.notification_events
+                   set acknowledged_by = $2, acknowledged_at = now()
+                 where id = $1
+                returning *
+                """,
+                event_id, user_id,
+            )
+            await self._audit(
+                conn,
+                actor=user_id,
+                action="pdp.notification.acknowledged",
+                entity_type="notification_event",
+                entity_id=event_id,
+                project_id=str(event["project_id"]) if event["project_id"] else None,
+                new={"title": event["title"]},
+            )
+        return dict(row)
+
     async def project_audit(self, user_id: str, project_id: str, limit: int = 100) -> list[dict]:
         async with self._pool.acquire() as conn:
             await self._capabilities(conn, user_id, project_id)

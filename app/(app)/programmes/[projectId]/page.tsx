@@ -6,7 +6,9 @@ import { useParams } from "next/navigation";
 import {
   AlertTriangle,
   ArrowLeft,
+  Bell,
   CalendarClock,
+  CheckCircle2,
   ChevronRight,
   ClipboardList,
   FileText,
@@ -26,10 +28,11 @@ import {
   ApiError,
   pdp,
   type AuditEntry,
+  type Notification,
   type ProgrammeDetail,
   type StageSummary,
 } from "@/lib/api";
-import { formatRelative } from "@/lib/utils";
+import { cn, formatRelative } from "@/lib/utils";
 
 export default function ProgrammePage() {
   const params = useParams<{ projectId: string }>();
@@ -37,16 +40,27 @@ export default function ProgrammePage() {
 
   const [detail, setDetail] = React.useState<ProgrammeDetail | null>(null);
   const [audit, setAudit] = React.useState<AuditEntry[]>([]);
+  const [notifications, setNotifications] = React.useState<Notification[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
 
+  const openAlerts = notifications.filter((n) => !n.resolved_at).length;
+  const hasCritical = notifications.some(
+    (n) => !n.resolved_at && n.severity === "critical"
+  );
+
   React.useEffect(() => {
     let active = true;
-    Promise.all([pdp.getProgramme(projectId), pdp.audit(projectId, 60)])
-      .then(([programme, events]) => {
+    Promise.all([
+      pdp.getProgramme(projectId),
+      pdp.audit(projectId, 60),
+      pdp.listNotifications(projectId),
+    ])
+      .then(([programme, events, alerts]) => {
         if (!active) return;
         setDetail(programme);
         setAudit(events);
+        setNotifications(alerts);
       })
       .catch(
         (err) => active && setError(err instanceof ApiError ? err.message : String(err))
@@ -113,6 +127,17 @@ export default function ProgrammePage() {
           <TabsTrigger value="gates">
             <ClipboardList className="size-4" /> Gates
           </TabsTrigger>
+          <TabsTrigger value="alerts">
+            <Bell className="size-4" /> Alerts
+            {openAlerts > 0 && (
+              <Badge
+                variant={hasCritical ? "destructive" : "warning"}
+                className="ml-1 px-1.5 py-0 text-[10px]"
+              >
+                {openAlerts}
+              </Badge>
+            )}
+          </TabsTrigger>
           <TabsTrigger value="audit">
             <History className="size-4" /> Audit trail
           </TabsTrigger>
@@ -122,6 +147,16 @@ export default function ProgrammePage() {
           {detail.stages.map((stage) => (
             <StageRow key={stage.id} stage={stage} projectId={projectId} />
           ))}
+        </TabsContent>
+
+        <TabsContent value="alerts" className="mt-6">
+          <Alerts
+            notifications={notifications}
+            onAcknowledge={async (id) => {
+              await pdp.acknowledgeNotification(id);
+              setNotifications(await pdp.listNotifications(projectId));
+            }}
+          />
         </TabsContent>
 
         <TabsContent value="audit" className="mt-6">
@@ -180,6 +215,97 @@ function StageRow({ stage, projectId }: { stage: StageSummary; projectId: string
         </Link>
       </CardContent>
     </Card>
+  );
+}
+
+/**
+ * Open alerts, most severe first.
+ *
+ * Every entry is recomputed from the record on each sweep, so this is what is
+ * currently wrong rather than a log of what once was. That is also why there is
+ * no dismiss button: an alert leaves this list when its condition stops being
+ * true, and not before. Acknowledging says "I have this" — it stops the
+ * escalation ladder without pretending the problem is gone.
+ */
+function Alerts({
+  notifications,
+  onAcknowledge,
+}: {
+  notifications: Notification[];
+  onAcknowledge: (id: string) => Promise<void>;
+}) {
+  const open = notifications.filter((n) => !n.resolved_at);
+
+  if (open.length === 0) {
+    return (
+      <div className="flex flex-col items-center gap-2 py-10 text-center">
+        <CheckCircle2 className="size-8 text-emerald-600" />
+        <p className="text-sm font-medium">Nothing needs attention</p>
+        <p className="max-w-sm text-xs text-muted-foreground">
+          No overdue requirements, lapsing documents or slipping critical tasks.
+          Conditions are re-checked every minute.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      {open.map((n) => (
+        <Card
+          key={n.id}
+          className={cn(
+            n.severity === "critical" && "border-destructive/40 bg-destructive/5",
+            n.severity === "warning" && "border-amber-500/40 bg-amber-500/5"
+          )}
+        >
+          <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:items-start">
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge
+                  variant={
+                    n.severity === "critical"
+                      ? "destructive"
+                      : n.severity === "warning"
+                        ? "warning"
+                        : "info"
+                  }
+                >
+                  {n.severity}
+                </Badge>
+                <span className="text-sm font-medium">{n.title}</span>
+                {n.escalation_level > 0 && (
+                  <Badge variant="destructive">Escalated</Badge>
+                )}
+              </div>
+              {n.detail && (
+                <p className="mt-1 text-xs text-muted-foreground">{n.detail}</p>
+              )}
+              <p className="mt-1 text-xs text-muted-foreground">
+                {n.rule_name} · raised {formatRelative(n.raised_at)}
+                {n.acknowledged_by_name &&
+                  ` · acknowledged by ${n.acknowledged_by_name}`}
+              </p>
+            </div>
+
+            {!n.acknowledged_at && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => void onAcknowledge(n.id)}
+              >
+                Acknowledge
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+      ))}
+
+      <p className="pt-2 text-xs text-muted-foreground">
+        Acknowledging stops an alert escalating. It does not close it — an alert
+        clears only when the condition behind it stops being true.
+      </p>
+    </div>
   );
 }
 

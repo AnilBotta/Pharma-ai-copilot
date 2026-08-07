@@ -198,6 +198,57 @@ would make the calculation non-terminating.
 
 ---
 
+## Notifications: the failure here is noise
+
+Every earlier phase guards against a state that looks better than it is. This
+one guards against something subtler — a system that reports everything, which
+produces the same outcome as a system that reports nothing while **looking like
+coverage**. People stop reading, and the one alert that mattered arrives in a
+stream of forty that did not.
+
+So the restraint is structural:
+
+| | |
+|---|---|
+| **Deduplication** | A partial unique index on `dedup_key`. One open event per condition — a requirement overdue for six weeks raises one alert, not forty-two |
+| **Auto-resolution** | An event closes when its condition stops being true. An alert that outlives its problem teaches people that alerts mean nothing |
+| **Escalation** | Requires elapsed time since the previous rung and climbs exactly one. A ladder that climbs itself puts everyone on every notification |
+| **Acknowledging ≠ resolving** | Acknowledging stops escalation. Only the condition ceasing to be true closes an alert — otherwise it would be a way to clear a problem from the list without fixing it |
+
+### Detection is a query, not a trigger
+
+Conditions are recomputed from the record on every sweep. Nothing accumulates in
+a queue, so a missed trigger cannot leave a permanent hole, and running the
+sweep five more times changes nothing.
+
+**A notification is a pointer to state, never the state itself.** If mail is
+down for a week nothing is lost: the gate still knows it is blocked. That is
+also why a failed send marks one delivery row `failed` and moves on.
+
+With no email provider configured, deliveries are recorded as `skipped` **with
+the reason on the row** — the alternative would let an operator believe mail was
+going out for months.
+
+### What is detected
+
+`requirement_overdue` · `requirement_awaiting_approval` · `document_expiring` ·
+`document_expired_in_use` · `task_overdue` · `critical_task_slipping` ·
+`gate_ready_for_review`
+
+The two document rules close a hole Phase D left open: expiry was *enforced* but
+silent, so a version could lapse and three requirements quietly stop being
+satisfied with nobody told. `document_expiring` warns beforehand and says what
+will happen.
+
+`gate_ready_for_review` exists because not everything worth saying is bad news —
+a gate that has become reviewable is exactly the thing that sits unnoticed for a
+fortnight.
+
+The sweep rides on the worker tick that already runs every minute, so it needs
+no scheduler of its own.
+
+---
+
 ## Approvals expire when what they described changes
 
 An approval is a statement about one specific evidence set and one specific
@@ -240,6 +291,8 @@ status, no `/complete`, no way to write a percentage.
 | `POST /tasks/{id}/dependencies` | Add a predecessor; cycles refused |
 | `POST /projects/{id}/milestones` | Add a milestone |
 | `POST /projects/{id}/baseline` | Re-baseline; `can_approve` and a reason required |
+| `GET /projects/{id}/notifications` | Open alerts, most severe first |
+| `POST /notifications/{id}/acknowledge` | Stop escalation — does **not** close the alert |
 | `GET /stages/{id}` | Gate workspace: readiness, blockers, requirements, evidence |
 | `POST /stages/{id}/gate-decision` | Human gate decision; `can_gate` required |
 | `POST /requirements/{id}/evidence` | Attach; supersedes any approval |
