@@ -156,18 +156,31 @@ you get a run killed mid-node.
 
 ## A4. Supabase scheduling
 
-Set the two values the migration reads, then apply it:
+The migration reads two values from **Supabase Vault**. Add them in the
+dashboard under **Project Settings → Vault → Add new secret**, which keeps the
+value out of SQL editor history:
+
+| Name | Value |
+|---|---|
+| `worker_tick_url` | `https://<your-app>.vercel.app/api/worker/tick` |
+| `worker_tick_secret` | the same value as `WORKER_TRIGGER_SECRET` in Vercel |
+
+Then apply `0018_worker_schedule.sql`.
+
+> **Not `alter database postgres set`.** An earlier version of this document
+> told you to put these in database-level settings. Supabase refuses that with
+> `ERROR 42501: permission denied to set parameter` — its `postgres` role is
+> deliberately not a superuser, and setting a custom parameter at database
+> scope requires one. Vault is the correct home anyway: it encrypts at rest,
+> and `vault.decrypted_secrets` is readable only by privileged roles, whereas
+> a database setting is readable by anyone who can call `current_setting()`.
+
+If the secrets are missing the migration still applies; the tick logs a notice
+and does nothing. Verify it is actually configured rather than assuming:
 
 ```sql
-alter database postgres set app.worker_tick_url = 'https://<your-app>.vercel.app/api/worker/tick';
+select private.worker_config('worker_tick_url') is not null as url_set, private.worker_config('worker_tick_secret') is not null as secret_set;
 ```
-
-```sql
-alter database postgres set app.worker_tick_secret = '<the same WORKER_TRIGGER_SECRET>';
-```
-
-Reconnect — database settings apply to new sessions — then apply
-`0018_worker_schedule.sql`.
 
 That schedules three jobs: a minute-by-minute tick, a ten-minute sweep that
 reclaims jobs abandoned by a killed invocation, and a nightly prune of

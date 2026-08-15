@@ -24,18 +24,54 @@
 -- a minute is ample for that, and it is deliberately cheap - it does nothing at
 -- all when the queue is empty.
 --
--- BEFORE APPLYING
+-- WHERE THE CONFIGURATION LIVES, AND WHY IT MOVED
 --
--- Set the two settings this reads. They are NOT in this file, because a
--- migration is committed to git and a shared secret must not be:
+-- The first version of this file read `current_setting('app.worker_tick_url')`,
+-- set by `alter database postgres set ...`. On Supabase that is refused:
 --
---   alter database postgres set app.worker_tick_url    = 'https://<app>/api/worker/tick';
---   alter database postgres set app.worker_tick_secret = '<the same value as WORKER_TRIGGER_SECRET>';
+--     ERROR 42501: permission denied to set parameter "app.worker_tick_url"
 --
--- Then reconnect, because database-level settings apply to new sessions.
+-- The `postgres` role there is deliberately NOT a superuser, and setting a
+-- custom parameter at database scope requires one. So both values live in
+-- Supabase Vault instead - which is a better home regardless, because Vault
+-- encrypts at rest and `vault.decrypted_secrets` is readable only by
+-- privileged roles, whereas a database setting is visible to anyone who can
+-- call current_setting().
+--
+-- BEFORE APPLYING, create the two secrets (Dashboard -> Project Settings ->
+-- Vault, so the value never enters SQL editor history):
+--
+--     worker_tick_url      https://<your-app>.vercel.app/api/worker/tick
+--     worker_tick_secret   the same value as WORKER_TRIGGER_SECRET in Vercel
+--
+-- If they are absent this migration still applies cleanly; the tick simply
+-- does nothing and says so. That is intentional - a scheduler that fails
+-- closed is safe, one that fails silently is not.
 
 create extension if not exists pg_cron;
 create extension if not exists pg_net;
+
+-- --------------------------------------------------------- reading the vault ---
+--
+-- Wrapped in its own function so the two callers below share one definition of
+-- "configured", and so a missing secret is a null rather than an exception.
+
+create or replace function private.worker_config(p_name text)
+returns text
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select s.decrypted_secret
+    from vault.decrypted_secrets s
+   where s.name = p_name
+   limit 1;
+$$;
+
+comment on function private.worker_config(text) is
+  'Reads a worker setting from Supabase Vault. Returns null when unset, which '
+  'callers must treat as "not configured" rather than as an error.';
 
 -- ------------------------------------------------------------------ the tick ---
 
@@ -46,13 +82,13 @@ security definer
 set search_path = ''
 as $$
 declare
-  tick_url    text := current_setting('app.worker_tick_url', true);
-  tick_secret text := current_setting('app.worker_tick_secret', true);
+  tick_url    text := private.worker_config('worker_tick_url');
+  tick_secret text := private.worker_config('worker_tick_secret');
   waiting     integer;
 begin
   if tick_url is null or tick_secret is null then
     raise notice
-      'Worker tick skipped: app.worker_tick_url / app.worker_tick_secret are not set.';
+      'Worker tick skipped: vault secrets worker_tick_url / worker_tick_secret are not set.';
     return;
   end if;
 
