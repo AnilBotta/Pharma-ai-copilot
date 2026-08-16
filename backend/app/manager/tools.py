@@ -237,6 +237,37 @@ async def _get_gate(ctx: ToolContext, stage_id: str) -> Any:
     }
 
 
+async def _get_blockers(ctx: ToolContext, project_id: str) -> Any:
+    """Every blocker across every gate in a programme, in one call.
+
+    Added after watching a live turn: asked "which gates cannot open and why",
+    the agent read the programme and then called `get_gate` eight separate
+    times - once per gate - pulling back every requirement of each in order to
+    use only the blockers. 38,687 tokens for a question this answers in a
+    fraction of that.
+
+    The per-gate tool is still right when the subject is one gate. This one is
+    right when the subject is the programme, and having both is what stops the
+    model choosing between accuracy and cost.
+    """
+    detail = await ctx.pdp.get_programme(ctx.user_id, project_id)
+    out = []
+    for stage in detail.get("stages", []):
+        gate = await ctx.pdp.get_gate(ctx.user_id, str(stage["id"]))
+        readiness = gate["readiness"]
+        out.append(
+            {
+                "stage_id": str(stage["id"]),
+                "gate": stage.get("name"),
+                "gate_status": stage.get("gate_status"),
+                "readiness_pct": readiness.get("readiness_pct"),
+                "is_ready": readiness.get("is_ready"),
+                "blockers": [_blocker(b) for b in gate.get("blockers", [])],
+            }
+        )
+    return {"project_id": project_id, "gates": out}
+
+
 async def _get_requirement(ctx: ToolContext, requirement_id: str) -> Any:
     r = await ctx.pdp.get_requirement(ctx.user_id, requirement_id)
     out = _requirement(r)
@@ -435,6 +466,15 @@ READ_TOOLS: list[Tool] = [
             ["stage_id"],
         ),
         _get_gate,
+    ),
+    Tool(
+        "get_blockers",
+        "Every outstanding blocker across ALL gates of one programme, in a "
+        "single call. Use this for 'which gates cannot open and why' rather "
+        "than calling get_gate once per gate - it returns the same blockers "
+        "without each gate's full requirement list.",
+        _params(dict(_PROJECT), ["project_id"]),
+        _get_blockers,
     ),
     Tool(
         "get_requirement",
