@@ -5,6 +5,7 @@ import Link from "next/link";
 import { AlertTriangle, GitBranch, Loader2, Plus } from "lucide-react";
 
 import { GateStatusBadge, ReadyVerdict } from "@/components/pdp/gate-readiness";
+import { PortfolioBriefing } from "@/components/pdp/portfolio-briefing";
 import { EmptyState } from "@/components/shared/empty-state";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
@@ -129,11 +130,14 @@ export default function ProgrammesPage() {
           onAction={available.length > 0 ? () => setOpen(true) : undefined}
         />
       ) : (
-        <div className="grid gap-4 lg:grid-cols-2">
-          {programmes.map((programme) => (
-            <ProgrammeCard key={programme.id} programme={programme} />
-          ))}
-        </div>
+        <>
+          <PortfolioBriefing programmeCount={programmes.length} />
+          <div className="grid gap-4 lg:grid-cols-2">
+            {programmes.map((programme) => (
+              <ProgrammeCard key={programme.id} programme={programme} />
+            ))}
+          </div>
+        </>
       )}
 
       <Dialog open={open} onOpenChange={setOpen}>

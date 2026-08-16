@@ -100,6 +100,24 @@ checkpoint. Proven in `backend/tests/db/test_slice_resume.py` and end-to-end
 against the live database: **a run split across 7 slices executes each node
 exactly once and makes 8 model calls — the same as an unsliced run.**
 
+**Verified on the deployment itself.** Run `8083f2af` was queued with no local
+worker running and left to pg_cron. It completed in **525 seconds across 4
+slices** — three recorded pauses, each followed by *"Resuming from the last
+completed step."* from a different invocation:
+
+| | |
+|---|---|
+| Wall clock | 525 s, against a 300 s per-invocation ceiling |
+| Slices | 4 (paused after 2, 4 and 2 steps) |
+| Node visits | 9 nodes, **each visited once** |
+| Model calls | 8 · 112,823 tokens · $0.52 |
+| Output | 12 evidence records, 21 report sections |
+
+The token figure is the one that matters. Re-execution is the failure this
+design most needs to catch, and a broken resume would still *finish* the run —
+just having paid for every node twice. A count at or below the single-process
+reference is what says resume held.
+
 ## A2. Files
 
 Already in the repository:
@@ -156,18 +174,31 @@ you get a run killed mid-node.
 
 ## A4. Supabase scheduling
 
-Set the two values the migration reads, then apply it:
+The migration reads two values from **Supabase Vault**. Add them in the
+dashboard under **Project Settings → Vault → Add new secret**, which keeps the
+value out of SQL editor history:
+
+| Name | Value |
+|---|---|
+| `worker_tick_url` | `https://<your-app>.vercel.app/api/worker/tick` |
+| `worker_tick_secret` | the same value as `WORKER_TRIGGER_SECRET` in Vercel |
+
+Then apply `0018_worker_schedule.sql`.
+
+> **Not `alter database postgres set`.** An earlier version of this document
+> told you to put these in database-level settings. Supabase refuses that with
+> `ERROR 42501: permission denied to set parameter` — its `postgres` role is
+> deliberately not a superuser, and setting a custom parameter at database
+> scope requires one. Vault is the correct home anyway: it encrypts at rest,
+> and `vault.decrypted_secrets` is readable only by privileged roles, whereas
+> a database setting is readable by anyone who can call `current_setting()`.
+
+If the secrets are missing the migration still applies; the tick logs a notice
+and does nothing. Verify it is actually configured rather than assuming:
 
 ```sql
-alter database postgres set app.worker_tick_url = 'https://<your-app>.vercel.app/api/worker/tick';
+select private.worker_config('worker_tick_url') is not null as url_set, private.worker_config('worker_tick_secret') is not null as secret_set;
 ```
-
-```sql
-alter database postgres set app.worker_tick_secret = '<the same WORKER_TRIGGER_SECRET>';
-```
-
-Reconnect — database settings apply to new sessions — then apply
-`0018_worker_schedule.sql`.
 
 That schedules three jobs: a minute-by-minute tick, a ten-minute sweep that
 reclaims jobs abandoned by a killed invocation, and a nightly prune of

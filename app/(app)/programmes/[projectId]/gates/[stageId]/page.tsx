@@ -22,6 +22,7 @@ import {
   X,
 } from "lucide-react";
 
+import { AgentAssessment } from "@/components/pdp/agent-assessment";
 import {
   GateReadiness,
   GateStatusBadge,
@@ -170,6 +171,13 @@ export default function GatePage() {
           </CardContent>
         </Card>
       )}
+
+      {/* Below the readiness card by design. The engine's verdict is read
+          first; the agent's opinion is a second, weaker thing. */}
+      <AgentAssessment
+        stageId={stageId}
+        blockerCount={readiness.blocker_count}
+      />
 
       <div className="space-y-3">
         <h2 className="text-sm font-semibold">
