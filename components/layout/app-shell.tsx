@@ -5,6 +5,8 @@ import * as React from "react";
 import { useAuth } from "@/components/auth-provider";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Topbar } from "@/components/layout/topbar";
+import { ManagerPanel } from "@/components/manager/manager-panel";
+import { ManagerProvider } from "@/components/manager/manager-provider";
 
 /**
  * Authenticated application shell.
@@ -46,16 +48,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="relative min-h-screen">
-      <div className="bg-glow pointer-events-none fixed inset-0 -z-10" />
-      <div className="pointer-events-none fixed inset-0 -z-10 bg-grid opacity-[0.35] dark:opacity-[0.12]" />
-      <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-      <div className="flex min-h-screen flex-col lg:pl-[264px]">
-        <Topbar onMenuClick={() => setSidebarOpen(true)} />
-        <main className="print-area mx-auto w-full max-w-[1440px] flex-1 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
-          {children}
-        </main>
+    // The Manager Agent is mounted here, above the router outlet, so a
+    // conversation survives navigating to the gate it is about.
+    <ManagerProvider>
+      <div className="relative min-h-screen">
+        <div className="bg-glow pointer-events-none fixed inset-0 -z-10" />
+        <div className="pointer-events-none fixed inset-0 -z-10 bg-grid opacity-[0.35] dark:opacity-[0.12]" />
+        <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+        <div className="flex min-h-screen flex-col lg:pl-[264px]">
+          <Topbar onMenuClick={() => setSidebarOpen(true)} />
+          <main className="print-area mx-auto w-full max-w-[1440px] flex-1 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+            {children}
+          </main>
+        </div>
+        <ManagerPanel />
       </div>
-    </div>
+    </ManagerProvider>
   );
 }

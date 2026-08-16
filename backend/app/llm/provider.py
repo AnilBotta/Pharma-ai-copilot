@@ -12,6 +12,7 @@ a strong one behind synthesis without touching code.
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import time
 from collections.abc import Awaitable, Callable
@@ -82,6 +83,69 @@ class StructuredResult[T: BaseModel]:
     #: Populated when the model was asked to repair malformed output.
     repaired: bool = False
     warnings: list[str] = field(default_factory=list)
+
+
+# --------------------------------------------------------------------------- #
+# Tool-loop events
+#
+# The loop is an async generator so an SSE endpoint can forward these straight
+# to the browser. They are plain dataclasses rather than dicts so that adding a
+# field is a type error at every consumer instead of a silently missing key.
+# --------------------------------------------------------------------------- #
+
+
+@dataclass
+class TextDelta:
+    """A fragment of the model's prose, as it arrives."""
+
+    text: str
+
+
+@dataclass
+class ToolStarted:
+    name: str
+    arguments: dict
+
+
+@dataclass
+class ToolFinished:
+    name: str
+    #: False when the tool raised. The failure was handed back to the model,
+    #: not swallowed - see the loop.
+    ok: bool
+    result: Any
+
+
+@dataclass
+class LoopFinished:
+    """The model stopped calling tools and produced an answer."""
+
+    text: str
+    usage: Usage
+
+
+@dataclass
+class LoopTruncated:
+    """A limit was reached first. Never dressed up as an answer."""
+
+    reason: str
+    detail: str
+
+
+def _add_usage(total: Usage, one: Usage) -> Usage:
+    """Accumulate across tool-loop iterations."""
+    cost = total.estimated_cost_usd
+    if one.estimated_cost_usd is not None:
+        cost = (cost or Decimal(0)) + one.estimated_cost_usd
+    return Usage(
+        model=total.model,
+        input_tokens=total.input_tokens + one.input_tokens,
+        output_tokens=total.output_tokens + one.output_tokens,
+        reasoning_tokens=total.reasoning_tokens + one.reasoning_tokens,
+        cached_tokens=total.cached_tokens + one.cached_tokens,
+        duration_ms=total.duration_ms + one.duration_ms,
+        estimated_cost_usd=cost,
+    )
 
 
 class ModelProvider:
@@ -276,6 +340,162 @@ class ModelProvider:
             model, usage.input_tokens, usage.output_tokens, usage.cached_tokens
         )
         return usage
+
+    # -------------------------------------------------------------- tool loop ---
+
+    async def complete_with_tools(
+        self,
+        *,
+        role: ModelRole,
+        instructions: str,
+        conversation: list[dict],
+        tools: list[dict],
+        execute: Callable[[str, dict], Awaitable[Any]],
+        max_iterations: int = 8,
+        deadline: float | None = None,
+        max_total_tokens: int | None = None,
+        purpose: str | None = None,
+    ) -> Any:
+        """Run a streaming tool-calling conversation, yielding events as it goes.
+
+        An async generator rather than a coroutine returning a result, because
+        the caller is an SSE endpoint: a chat turn that reads six tables before
+        it can answer should say so while it happens, not go silent for forty
+        seconds and then produce a paragraph.
+
+        BOUNDED THREE WAYS, DELIBERATELY
+
+        ``max_iterations`` caps tool round-trips, ``deadline`` caps wall clock,
+        and ``max_total_tokens`` caps spend. A tool loop is the one place in
+        this codebase where a prompt bug costs money on every cycle rather than
+        once, and where the model itself decides how many cycles there are. All
+        three limits are hit rarely and all three are cheap; the absence of any
+        one of them is the expensive kind of oversight.
+
+        Reaching a limit yields ``LoopTruncated`` and stops. It never fabricates
+        a conclusion the model did not reach, because a truncated answer
+        presented as a complete one is worse than an obvious refusal.
+        """
+        model = self.model_for(role)
+        # Copied: the caller's transcript is theirs, and the loop appends the
+        # model's own function calls and their results to this working list.
+        working: list[dict] = list(conversation)
+        totals = Usage(model=model)
+
+        for _iteration in range(max_iterations):
+            if deadline is not None and time.monotonic() >= deadline:
+                yield LoopTruncated(
+                    reason="time",
+                    detail=(
+                        "This turn ran out of time before the answer was "
+                        "finished. Nothing above is a conclusion."
+                    ),
+                )
+                return
+            if max_total_tokens is not None and totals.total_tokens >= max_total_tokens:
+                yield LoopTruncated(
+                    reason="tokens",
+                    detail=(
+                        f"This turn reached its {max_total_tokens:,} token budget "
+                        "before the answer was finished."
+                    ),
+                )
+                return
+
+            started = time.monotonic()
+            text_parts: list[str] = []
+            calls: list[dict] = []
+            raw_response: Any = None
+
+            stream = await self._client.responses.create(
+                model=model,
+                instructions=instructions,
+                input=working,
+                tools=tools,
+                stream=True,
+            )
+
+            async for event in stream:
+                kind = getattr(event, "type", "")
+
+                if kind == "response.output_text.delta":
+                    delta = getattr(event, "delta", "") or ""
+                    if delta:
+                        text_parts.append(delta)
+                        yield TextDelta(text=delta)
+
+                elif kind == "response.output_item.done":
+                    item = getattr(event, "item", None)
+                    if getattr(item, "type", None) == "function_call":
+                        calls.append(
+                            {
+                                "type": "function_call",
+                                "call_id": getattr(item, "call_id", ""),
+                                "name": getattr(item, "name", ""),
+                                "arguments": getattr(item, "arguments", "") or "{}",
+                            }
+                        )
+
+                elif kind == "response.completed":
+                    raw_response = getattr(event, "response", None)
+
+                elif kind in ("response.failed", "error"):
+                    raise LLMError(
+                        f"{model} failed mid-stream: "
+                        f"{getattr(event, 'message', None) or kind}."
+                    )
+
+            usage = self._extract_usage(model, raw_response, started)
+            totals = _add_usage(totals, usage)
+            if self._usage_sink:
+                await self._usage_sink(usage, "manager_agent", purpose)
+
+            # No tool calls means the model considers itself finished.
+            if not calls:
+                yield LoopFinished(text="".join(text_parts), usage=totals)
+                return
+
+            working.extend(calls)
+
+            for call in calls:
+                try:
+                    arguments = json.loads(call["arguments"] or "{}")
+                except json.JSONDecodeError:
+                    arguments = {}
+
+                yield ToolStarted(name=call["name"], arguments=arguments)
+
+                # A failing tool is reported BACK TO THE MODEL rather than
+                # raised. A gate id that does not exist, or a project the
+                # caller cannot see, is information the model can act on -
+                # it can apologise, or try the right id. Killing the turn
+                # would turn a recoverable mistake into a dead end.
+                try:
+                    result = await execute(call["name"], arguments)
+                    ok, payload = True, result
+                except Exception as exc:
+                    logger.warning(
+                        "Manager tool %s failed: %s", call["name"], exc, exc_info=True
+                    )
+                    ok, payload = False, {"error": str(exc)[:500]}
+
+                yield ToolFinished(name=call["name"], ok=ok, result=payload)
+
+                working.append(
+                    {
+                        "type": "function_call_output",
+                        "call_id": call["call_id"],
+                        "output": json.dumps(payload, default=str)[:60_000],
+                    }
+                )
+
+        yield LoopTruncated(
+            reason="iterations",
+            detail=(
+                f"This turn used all {max_iterations} of its tool steps without "
+                "reaching an answer."
+            ),
+        )
 
     # -------------------------------------------------------------- embeddings ---
 

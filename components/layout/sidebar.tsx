@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  Bot,
   FolderGit2,
   GitBranch,
   LayoutDashboard,
@@ -15,6 +16,7 @@ import {
 } from "lucide-react";
 import { motion } from "framer-motion";
 
+import { useManager } from "@/components/manager/manager-provider";
 import { Logo } from "@/components/shared/logo";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -52,6 +54,27 @@ const navGroups: { title: string; items: NavItem[] }[] = [
     items: [{ href: "/integrations", label: "Integrations", icon: Plug }],
   },
 ];
+
+function ManagerNavButton({ onNavigate }: { onNavigate: () => void }) {
+  const { openManager } = useManager();
+
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        openManager();
+        onNavigate();
+      }}
+      className="group flex w-full items-center gap-3 rounded-lg border border-primary/25 bg-primary/[0.06] px-3 py-2.5 text-sm font-medium text-primary transition-colors hover:bg-primary/10"
+    >
+      <Bot className="size-[18px]" />
+      <span className="flex-1 text-left">Manager Agent</span>
+      <span className="text-[10px] font-normal text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100">
+        Ask
+      </span>
+    </button>
+  );
+}
 
 export function Sidebar({
   open,
@@ -92,6 +115,11 @@ export function Sidebar({
         </div>
 
         <nav className="flex-1 space-y-6 overflow-y-auto px-3 pb-4 pt-2">
+          {/* Above the groups rather than inside one. It is not a destination -
+              it opens over whatever you are already looking at, which is the
+              whole point of it. */}
+          <ManagerNavButton onNavigate={onClose} />
+
           {navGroups.map((group) => (
             <div key={group.title}>
               <p className="px-3 pb-2 text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">
@@ -144,7 +172,7 @@ export function Sidebar({
         </nav>
 
         <div className="border-t p-3">
-          <Link href="/settings">
+          <Link href="/settings" onClick={onClose}>
             <div className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
               <Settings className="size-[18px]" />
               Settings
