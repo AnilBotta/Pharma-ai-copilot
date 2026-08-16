@@ -88,6 +88,74 @@ async function request<T>(
   return body as T;
 }
 
+/**
+ * The Manager Agent's chat, streamed.
+ *
+ * `EventSource` cannot be used here: it only issues GET requests and has no way
+ * to attach an Authorization header, and this turn is a POST carrying the
+ * message. So the SSE frames are parsed off a `fetch` body reader instead,
+ * which is a few more lines and removes the need for a token in the query
+ * string - where it would end up in logs.
+ */
+export async function* streamManagerTurn(
+  conversationId: string,
+  content: string,
+  signal?: AbortSignal
+): AsyncGenerator<ManagerEvent> {
+  const response = await fetch(
+    `${BASE_URL}/api/manager/conversations/${conversationId}/messages`,
+    {
+      method: "POST",
+      headers: await authHeaders(),
+      body: JSON.stringify({ content }),
+      signal,
+    }
+  );
+
+  if (!response.ok || !response.body) {
+    const body = await response.json().catch(() => null);
+    throw new ApiError(
+      extractDetail(body) ?? `The Manager Agent could not be reached (${response.status}).`,
+      response.status,
+      body
+    );
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+
+    // Frames are separated by a blank line. Anything after the last one is a
+    // partial frame and stays in the buffer until the rest arrives.
+    const frames = buffer.split("\n\n");
+    buffer = frames.pop() ?? "";
+
+    for (const frame of frames) {
+      let event = "message";
+      let data = "";
+      for (const line of frame.split("\n")) {
+        if (line.startsWith("event: ")) event = line.slice(7).trim();
+        else if (line.startsWith("data: ")) data += line.slice(6);
+        // A line starting with ':' is a keepalive comment; ignore it.
+      }
+      if (!data) continue;
+
+      try {
+        yield { type: event, ...JSON.parse(data) } as ManagerEvent;
+      } catch {
+        // A malformed frame is not worth killing the turn over; the stream
+        // carries many and the next one will very likely parse.
+      }
+    }
+  }
+}
+
 function extractDetail(body: unknown): string | null {
   if (!body || typeof body !== "object") return null;
   const detail = (body as { detail?: unknown }).detail;
@@ -534,6 +602,43 @@ export interface GateWorkspace {
   capabilities: PdpCapabilities;
 }
 
+/* -------------------------------------------------------- manager agent --- */
+
+export interface ManagerConversation {
+  id: string;
+  title: string;
+  message_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ManagerMessage {
+  id: number;
+  role: "user" | "assistant" | "tool";
+  content: string | null;
+  tool_name: string | null;
+  tool_arguments: Record<string, unknown> | null;
+  /** A limit stopped the turn. Stored, so it is still said on a reload. */
+  truncated: boolean;
+  truncated_reason: string | null;
+  created_at: string;
+}
+
+export interface ManagerConversationDetail {
+  id: string;
+  title: string;
+  messages: ManagerMessage[];
+}
+
+/** One frame of a streamed turn. */
+export type ManagerEvent =
+  | { type: "token"; text: string }
+  | { type: "tool_started"; name: string; arguments: Record<string, unknown> }
+  | { type: "tool_finished"; name: string; ok: boolean }
+  | { type: "truncated"; reason: string; detail: string }
+  | { type: "done"; tokens: number; cost_usd: string }
+  | { type: "error"; message: string };
+
 /* --------------------------------------------------------------- agents --- */
 
 export interface BlockerAnalysis {
@@ -790,6 +895,23 @@ export const pdp = {
   /** Manager Agent, scoped to programmes the caller can already see. */
   portfolioSummary: () =>
     request<PortfolioSummary>("/pdp/portfolio/summary", { method: "POST" }),
+
+  // The conversational Manager Agent. The turn itself is not here because it
+  // streams - see `streamManagerTurn`.
+  listConversations: () =>
+    request<ManagerConversation[]>("/manager/conversations"),
+
+  createConversation: (title?: string) =>
+    request<ManagerConversation>("/manager/conversations", {
+      method: "POST",
+      body: JSON.stringify({ title: title ?? null }),
+    }),
+
+  getConversation: (id: string) =>
+    request<ManagerConversationDetail>(`/manager/conversations/${id}`),
+
+  archiveConversation: (id: string) =>
+    request<void>(`/manager/conversations/${id}`, { method: "DELETE" }),
 
   decideGate: (
     stageId: string,
