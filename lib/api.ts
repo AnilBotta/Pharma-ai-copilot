@@ -534,6 +534,53 @@ export interface GateWorkspace {
   capabilities: PdpCapabilities;
 }
 
+/* --------------------------------------------------------------- agents --- */
+
+export interface BlockerAnalysis {
+  ref_code: string;
+  /** Eight blockers usually have two causes. This marks the causes. */
+  is_root_cause: boolean;
+  why_it_is_stuck: string;
+  /**
+   * True where chasing the obvious person would achieve nothing — an approval
+   * outstanding on a requirement whose document has lapsed is not fixed by
+   * reminding the approver.
+   */
+  obvious_action_would_not_help: boolean;
+}
+
+export interface RecommendedAction {
+  ref_code: string | null;
+  action: string;
+  who: string;
+  urgency: "now" | "this_week" | "when_convenient";
+}
+
+export interface GateAssessment {
+  session_id: string;
+  summary: string;
+  blocker_analysis: BlockerAnalysis[];
+  recommended_actions: RecommendedAction[];
+  /**
+   * Scientific judgement is not the operations agent's job. Where the
+   * outstanding question is one of evidence adequacy it is handed to the
+   * Scientist Agent rather than answered.
+   */
+  handoff_question: string | null;
+}
+
+export interface PortfolioItem {
+  programme: string;
+  state: string;
+  needs_a_decision: boolean;
+}
+
+export interface PortfolioSummary {
+  session_id: string;
+  headline: string;
+  items: PortfolioItem[];
+}
+
 export type TaskStatus =
   | "not_started"
   | "waiting_on_predecessor"
@@ -731,6 +778,18 @@ export const pdp = {
     request<AuditEntry[]>(`/pdp/projects/${projectId}/audit?limit=${limit}`),
 
   getGate: (stageId: string) => request<GateWorkspace>(`/pdp/stages/${stageId}`),
+
+  /**
+   * PDP Operations Agent. Advisory: the readiness engine remains the
+   * authority on whether this gate can open, and the database refuses the
+   * agent an approval even when it holds a fully authorised session.
+   */
+  assessGate: (stageId: string) =>
+    request<GateAssessment>(`/pdp/stages/${stageId}/assess`, { method: "POST" }),
+
+  /** Manager Agent, scoped to programmes the caller can already see. */
+  portfolioSummary: () =>
+    request<PortfolioSummary>("/pdp/portfolio/summary", { method: "POST" }),
 
   decideGate: (
     stageId: string,

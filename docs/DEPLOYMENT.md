@@ -100,6 +100,24 @@ checkpoint. Proven in `backend/tests/db/test_slice_resume.py` and end-to-end
 against the live database: **a run split across 7 slices executes each node
 exactly once and makes 8 model calls — the same as an unsliced run.**
 
+**Verified on the deployment itself.** Run `8083f2af` was queued with no local
+worker running and left to pg_cron. It completed in **525 seconds across 4
+slices** — three recorded pauses, each followed by *"Resuming from the last
+completed step."* from a different invocation:
+
+| | |
+|---|---|
+| Wall clock | 525 s, against a 300 s per-invocation ceiling |
+| Slices | 4 (paused after 2, 4 and 2 steps) |
+| Node visits | 9 nodes, **each visited once** |
+| Model calls | 8 · 112,823 tokens · $0.52 |
+| Output | 12 evidence records, 21 report sections |
+
+The token figure is the one that matters. Re-execution is the failure this
+design most needs to catch, and a broken resume would still *finish* the run —
+just having paid for every node twice. A count at or below the single-process
+reference is what says resume held.
+
 ## A2. Files
 
 Already in the repository:

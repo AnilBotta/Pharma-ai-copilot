@@ -266,10 +266,10 @@ ran raw SQL on an unmarked connection, so no agent rule could have applied.
 
 | Gap | Consequence |
 |---|---|
-| **Neither agent has ever run against a real model** | `assess_gate` and `summarise_portfolio` are wired to `ModelProvider` and their structured schemas are defined, but no live call has been made. The prompt quality, the usefulness of the blocker analysis, and the token cost are all unmeasured. |
+| ~~Neither agent has ever run against a real model~~ | **Now verified.** Both ran against the live model: 993/3,715 tokens for the gate assessment (59.3 s) and 329/702 for the portfolio summary, **$0.046 for the pair**. The blocker analysis named root causes rather than restating the list, assigned each action to a role, and referred the scientific question onward instead of answering it. It also exposed a prompt defect — the agent suggested re-baselining overdue dates "to current realities", which is the Phase E failure arriving by a longer route. The prompt now forbids that framing. |
 | **No LangGraph graph** | The plan called for these as graphs with checkpointing. They are single structured calls — enough for one gate, but there is no multi-step planning, no tool loop, and no resumability. |
 | **The handoff is a string, not a call** | `handoff_question` is recorded for a human to act on. Nothing invokes the Scientist Agent with it. |
-| **No agent UI** | Both endpoints exist and are typed; nothing in the frontend calls them. |
+| ~~No agent UI~~ | **Now built.** `AgentAssessment` on the gate page and `PortfolioBriefing` on the programmes index. Both render below the readiness engine's own figures and are labelled advisory; neither persists, so a stale assessment cannot be mistaken for current fact. Not yet exercised by a human against the deployment. |
 | **The verdict-vocabulary check is four words** | It catches the obvious cases. An agent determined to imply a decision could write "meets every criterion listed" and the constraint would allow it. The prompt forbids it; the database only catches the flagrant version. |
 
 ### Tested only against fixtures — NOT verified live
