@@ -32,6 +32,10 @@ _REPO = pathlib.Path(__file__).resolve().parents[3]
 
 SOURCES = {
     "PDP_MODULE.md": "How the stage-gate module works: roles, gates, readiness.",
+    # The agent's own rules. Without this it can describe the gate process in
+    # detail and say nothing accurate about itself - which is the question a
+    # first-time user is most likely to ask it.
+    "MANAGER_AGENT.md": "What this agent may do, may not do, and why.",
     "KNOWN_LIMITATIONS.md": "What is not built, not verified, or deliberately absent.",
     "DEPLOYMENT.md": "How the system is deployed, scheduled and configured.",
     "CURRENT_SYSTEM_AUDIT.md": "The state of the system before the rebuild.",

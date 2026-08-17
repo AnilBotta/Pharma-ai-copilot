@@ -491,6 +491,38 @@ def test_docs_search_distinguishes_the_two_readiness_numbers():
     assert any("two numbers" in h["heading"].lower() for h in hits)
 
 
+def test_the_agent_can_answer_questions_about_itself():
+    """The questions a first-time user actually asks must reach MANAGER_AGENT.md.
+
+    Without this the agent describes the gate process fluently and says nothing
+    accurate about its own rules - the one subject on which being wrong is
+    worst, because a user has no other source to check it against.
+
+    The queries below are phrased as somebody would type them, not as the
+    headings are written. Two of them failed on the first run: "can you approve
+    a requirement for me" returned only the stage-gate module, because that
+    document says "approve" far more often. The headings now carry the words
+    people use, which is better writing regardless of the search.
+    """
+    expected = {
+        "can you approve a requirement for me": "cannot do",
+        "can you start a research run": "dispatch",
+        "what happens if I confirm a proposal": "proposal",
+        "why was my proposal refused": "proposal",
+        "does acknowledging an alert resolve it": "changing the record",
+        "what is the difference between readiness_pct and is_ready": "numbers",
+    }
+
+    for query, fragment in expected.items():
+        hits = docs.search(query, limit=2)
+        own = [h for h in hits if h["document"] == "MANAGER_AGENT.md"]
+        assert own, f"{query!r} did not reach the agent's own documentation"
+        assert any(fragment in h["heading"].lower() for h in own), (
+            f"{query!r} reached MANAGER_AGENT.md but the wrong section: "
+            f"{[h['heading'] for h in own]}"
+        )
+
+
 def test_docs_search_returns_nothing_rather_than_a_bad_match():
     # The agent is instructed to say the documentation does not cover it. That
     # only works if an unrelated query genuinely returns empty.
