@@ -330,7 +330,7 @@ segregation of duties still refusing the confirming person.
 
 | Gap | Consequence |
 |---|---|
-| **Steps 2–4 have not run on the deployment** | Everything above was against `localhost`. Vercel's serverless SSE buffering is the one thing local cannot exercise |
+| ~~Steps 2–4 have not run on the deployment~~ | **Now verified on `pharma-ai-copilot.vercel.app`.** Vercel does **not** buffer the SSE body: sampling the panel every 200 ms, tool activity appeared at 10.0 s and 16.6 s and the prose grew across three separate samples from 20.0 s to 20.6 s. A buffered body would have delivered all of it in one step at the end. Five tools in one turn, answer complete and correct |
 | **A successful approval-by-confirmation** | Not a defect: the only account on the demo project confirmed the acceptance itself and is correctly barred from approving. Proving the happy path needs a second user with gate authority |
 | **`search_docs` is keyword-scored** | Good enough for one repository's prose, and tested against the questions users actually ask. It will miss a question phrased entirely in synonyms |
 | **No LangGraph graph for the chat** | A bounded tool loop, not a planner. No resumability: a turn killed mid-flight is lost, though the question and any partial answer are recorded |
