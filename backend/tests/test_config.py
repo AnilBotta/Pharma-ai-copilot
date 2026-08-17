@@ -19,6 +19,10 @@ MINIMAL = {
     "OPENAI_API_KEY": "sk-test",
 }
 
+#: Cleared before every case. Anything a test asserts the ABSENCE of has to be
+#: here, or the result depends on what happens to be exported on the machine
+#: running it - which is the same reason the fixture points env_file at a path
+#: that does not exist.
 SUPABASE_KEYS = (
     "SUPABASE_URL",
     "NEXT_PUBLIC_SUPABASE_URL",
@@ -26,6 +30,9 @@ SUPABASE_KEYS = (
     "SUPABASE_JWT_SECRET",
     "DATABASE_URL",
     "OPENAI_API_KEY",
+    "RESEND_API_KEY",
+    "NOTIFICATION_FROM_EMAIL",
+    "RESEND_FROM_EMAIL",
 )
 
 
@@ -92,6 +99,34 @@ class TestEmailProviderIsReportable:
         # And it must name WHICH half is missing, or the operator checks the
         # wrong variable half the time.
         assert "NOTIFICATION_FROM_EMAIL" in str(status["detail"])
+
+    def test_resend_from_email_is_accepted_as_the_sender(self, build) -> None:
+        """RESEND_FROM_EMAIL is what somebody setting RESEND_API_KEY reaches for.
+
+        A real deployment had both correctly set under that pairing and still
+        delivered nothing, because the field only bound NOTIFICATION_FROM_EMAIL.
+        `build_notifier` needs both, so a near-miss on one name disables alerts
+        entirely and reports nothing about why.
+        """
+        status = self._resend(
+            build(
+                **MINIMAL,
+                SUPABASE_URL="https://x.supabase.co",
+                RESEND_API_KEY="re_test",
+                RESEND_FROM_EMAIL="alerts@example.test",
+            )
+        )
+        assert status["state"] == "configured"
+        assert "alerts@example.test" in str(status["detail"])
+
+    def test_the_explicit_name_still_wins(self, build) -> None:
+        settings = build(
+            **MINIMAL,
+            SUPABASE_URL="https://x.supabase.co",
+            NOTIFICATION_FROM_EMAIL="explicit@example.test",
+            RESEND_FROM_EMAIL="alias@example.test",
+        )
+        assert settings.notification_from_email == "explicit@example.test"
 
     def test_a_sender_without_a_key_is_not_configured(self, build) -> None:
         status = self._resend(

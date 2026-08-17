@@ -152,7 +152,25 @@ class Settings(BaseSettings):
     #: silently doing nothing, so nobody believes mail is going out when it is
     #: not.
     resend_api_key: SecretStr | None = None
-    notification_from_email: str | None = None
+    #: Also accepted as RESEND_FROM_EMAIL, which is what an operator setting
+    #: RESEND_API_KEY naturally reaches for - the two look like a pair.
+    #:
+    #: This is not politeness. `build_notifier` needs BOTH values and falls
+    #: back to sending nothing if either is missing, so a near-miss on the name
+    #: disables alerts entirely and says nothing about why. It happened: a
+    #: deployment with RESEND_API_KEY and RESEND_FROM_EMAIL both correctly set
+    #: still delivered nothing, and the only symptom was 44 rows quietly
+    #: marked `skipped`.
+    #:
+    #: Same reasoning as the SUPABASE_URL alias above. Where two names for one
+    #: value are both reasonable, accepting both is a safeguard; insisting on
+    #: one is a trap.
+    notification_from_email: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices(
+            "notification_from_email", "resend_from_email"
+        ),
+    )
 
     # ------------------------------------------------------------- limits ---
     max_literature_results: int = Field(default=50, ge=1, le=200)
