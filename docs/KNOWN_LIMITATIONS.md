@@ -305,6 +305,36 @@ EPO_OPS_CONSUMER_SECRET=
 `SUPABASE_JWT_SECRET` is **not** needed — this project signs with asymmetric
 ES256 keys, verified against its JWKS endpoint.
 
+### 1.7 The conversational Manager Agent
+
+Built in four steps and driven in a browser against the real model at each one.
+See `MANAGER_AGENT.md` for what it may and may not do.
+
+**Verified live:** the streaming tool loop against the real Responses API; 28
+tools across reading, dispatch, writes and proposing; dispatching the PDP
+Operations Agent from inside a turn (nested agent marks, no conflict);
+`actor_agent` distinguishing an agent's edit from a person's; the premise check
+refusing a confirmation after a colleague withdrew an acceptance; and
+segregation of duties still refusing the confirming person.
+
+**Bugs the live runs exposed**, none of which a green unit suite had caught:
+
+| | |
+|---|---|
+| `usage_records` was empty for the chat | The loop called the usage sink; the route built `ModelProvider` without one. Six turns spent money and recorded none of it. **No unit test can see a constructor argument that was never passed** |
+| `actor_agent` was never set | Latent since Phase A. `audit_events` has had the column since 0007, described as making accountability unambiguous, and nothing populated it — so every agent action looked like a person's |
+| jsonb double-encoding | The pool's codec encodes with `json.dumps`; passing an already-serialised string stored JSON inside JSON. Surfaced far away as a response-validation error |
+| `get_blockers` did not exist | The first live run answered a portfolio question with eight `get_gate` calls, 38,687 tokens. One tool shaped like the question: 11,176 |
+
+**What is not verified:**
+
+| Gap | Consequence |
+|---|---|
+| **Steps 2–4 have not run on the deployment** | Everything above was against `localhost`. Vercel's serverless SSE buffering is the one thing local cannot exercise |
+| **A successful approval-by-confirmation** | Not a defect: the only account on the demo project confirmed the acceptance itself and is correctly barred from approving. Proving the happy path needs a second user with gate authority |
+| **`search_docs` is keyword-scored** | Good enough for one repository's prose, and tested against the questions users actually ask. It will miss a question phrased entirely in synonyms |
+| **No LangGraph graph for the chat** | A bounded tool loop, not a planner. No resumability: a turn killed mid-flight is lost, though the question and any partial answer are recorded |
+
 ---
 
 ## 2. Not implemented
