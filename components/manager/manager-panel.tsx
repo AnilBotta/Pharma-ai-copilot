@@ -23,6 +23,7 @@ import {
   Bot,
   Check,
   Loader2,
+  Play,
   Plus,
   Search,
   SendHorizonal,
@@ -52,6 +53,7 @@ const TOOL_LABEL: Record<string, string> = {
   list_programmes: "Reading the portfolio",
   get_programme: "Opening the programme",
   get_gate: "Reading the gate",
+  get_blockers: "Finding what is blocking each gate",
   get_requirement: "Reading a requirement",
   get_schedule: "Checking the schedule",
   list_documents: "Checking the document register",
@@ -62,7 +64,18 @@ const TOOL_LABEL: Record<string, string> = {
   list_runs: "Listing research runs",
   get_run_report: "Reading a research report",
   search_docs: "Consulting the documentation",
+  // Dispatch. Worded so a reader can tell work was STARTED, not just read.
+  assess_gate: "Asking the Operations Agent to analyse the gate",
+  start_research_run: "Starting a research run",
+  sweep_notifications: "Recomputing alerts",
 };
+
+/** Tools that set work in motion rather than reading. Marked in the trail. */
+const DISPATCH_TOOLS = new Set([
+  "assess_gate",
+  "start_research_run",
+  "sweep_notifications",
+]);
 
 interface Activity {
   name: string;
@@ -70,11 +83,23 @@ interface Activity {
   ok: boolean;
 }
 
+/**
+ * A message plus the reading that produced it.
+ *
+ * The trail belongs to its turn, not to the panel. Held separately it renders
+ * after the answer and lingers there once the turn is over - which reverses the
+ * order of events and, worse, leaves the previous question's reading sitting
+ * under the current answer as though it were evidence for it.
+ */
+interface PanelMessage extends ManagerMessage {
+  activity?: Activity[];
+}
+
 export function ManagerPanel() {
   const { open, closeManager, seed, clearSeed } = useManager();
 
   const [conversationId, setConversationId] = React.useState<string | null>(null);
-  const [messages, setMessages] = React.useState<ManagerMessage[]>([]);
+  const [messages, setMessages] = React.useState<PanelMessage[]>([]);
   const [draft, setDraft] = React.useState("");
   const [streaming, setStreaming] = React.useState(false);
   const [partial, setPartial] = React.useState("");
@@ -135,6 +160,9 @@ export function ManagerPanel() {
       abortRef.current = controller;
       let answer = "";
       let truncatedReason: string | null = null;
+      // Collected here as well as in state: the committed message needs the
+      // final list, and reading it out of a setState closure would race.
+      const trail: Activity[] = [];
 
       try {
         const id = await ensureConversation();
@@ -143,18 +171,15 @@ export function ManagerPanel() {
             answer += event.text;
             setPartial(answer);
           } else if (event.type === "tool_started") {
-            setActivity((prev) => [
-              ...prev,
-              { name: event.name, done: false, ok: true },
-            ]);
+            trail.push({ name: event.name, done: false, ok: true });
+            setActivity([...trail]);
           } else if (event.type === "tool_finished") {
-            setActivity((prev) =>
-              prev.map((a) =>
-                a.name === event.name && !a.done
-                  ? { ...a, done: true, ok: event.ok }
-                  : a
-              )
-            );
+            const pending = trail.find((a) => a.name === event.name && !a.done);
+            if (pending) {
+              pending.done = true;
+              pending.ok = event.ok;
+            }
+            setActivity([...trail]);
           } else if (event.type === "truncated") {
             truncatedReason = event.detail;
           } else if (event.type === "error") {
@@ -178,10 +203,14 @@ export function ManagerPanel() {
               truncated: truncatedReason !== null,
               truncated_reason: truncatedReason,
               created_at: new Date().toISOString(),
+              activity: trail.length ? [...trail] : undefined,
             },
           ]);
         }
         setPartial("");
+        // The trail moves onto the message it produced; leaving a copy here
+        // would show it twice, and once in the wrong place.
+        setActivity([]);
         setStreaming(false);
         abortRef.current = null;
       }
@@ -250,7 +279,11 @@ export function ManagerPanel() {
             <MessageBubble key={m.id} message={m} />
           ))}
 
-          {activity.length > 0 && <ActivityTrail activity={activity} />}
+          {/* Only while the turn is running. Once it finishes the trail is
+              carried by the message it produced, above that answer. */}
+          {streaming && activity.length > 0 && (
+            <ActivityTrail activity={activity} />
+          )}
 
           {partial && (
             <div className="text-sm whitespace-pre-wrap">{partial}</div>
@@ -307,7 +340,7 @@ export function ManagerPanel() {
   );
 }
 
-function MessageBubble({ message }: { message: ManagerMessage }) {
+function MessageBubble({ message }: { message: PanelMessage }) {
   if (message.role === "user") {
     return (
       <div className="flex justify-end">
@@ -320,6 +353,11 @@ function MessageBubble({ message }: { message: ManagerMessage }) {
 
   return (
     <div className="space-y-2">
+      {/* What it read, above what it concluded - the order it happened in,
+          and the order you need them in to judge the second by the first. */}
+      {message.activity && message.activity.length > 0 && (
+        <ActivityTrail activity={message.activity} />
+      )}
       {message.content && (
         <div className="text-sm whitespace-pre-wrap">{message.content}</div>
       )}
@@ -336,27 +374,38 @@ function MessageBubble({ message }: { message: ManagerMessage }) {
 function ActivityTrail({ activity }: { activity: Activity[] }) {
   return (
     <div className="space-y-1 rounded-lg border bg-muted/30 px-3 py-2">
-      {activity.map((a, i) => (
-        <p
-          key={`${a.name}-${i}`}
-          className={cn(
-            "flex items-center gap-2 text-xs",
-            a.done ? "text-muted-foreground" : "text-foreground"
-          )}
-        >
-          {a.done ? (
-            a.ok ? (
-              <Check className="size-3 text-emerald-600" />
+      {activity.map((a, i) => {
+        const dispatched = DISPATCH_TOOLS.has(a.name);
+        return (
+          <p
+            key={`${a.name}-${i}`}
+            className={cn(
+              "flex items-center gap-2 text-xs",
+              a.done ? "text-muted-foreground" : "text-foreground",
+              // Reading and starting work are different kinds of event, and a
+              // reader scanning the trail should be able to see which happened
+              // without reading every line.
+              dispatched && "font-medium text-foreground"
+            )}
+          >
+            {a.done ? (
+              a.ok ? (
+                dispatched ? (
+                  <Play className="size-3 text-primary" />
+                ) : (
+                  <Check className="size-3 text-emerald-600" />
+                )
+              ) : (
+                <AlertTriangle className="size-3 text-amber-600" />
+              )
             ) : (
-              <AlertTriangle className="size-3 text-amber-600" />
-            )
-          ) : (
-            <Loader2 className="size-3 animate-spin" />
-          )}
-          {TOOL_LABEL[a.name] ?? a.name}
-          {a.done && !a.ok && " — could not be read"}
-        </p>
-      ))}
+              <Loader2 className="size-3 animate-spin" />
+            )}
+            {TOOL_LABEL[a.name] ?? a.name}
+            {a.done && !a.ok && " — could not be completed"}
+          </p>
+        );
+      })}
     </div>
   );
 }

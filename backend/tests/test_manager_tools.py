@@ -24,7 +24,7 @@ from app.llm.provider import (
     ToolFinished,
     ToolStarted,
 )
-from app.manager import docs
+from app.manager import docs, tools
 from tests.test_llm import make_settings
 
 # --------------------------------------------------------------------------- #
@@ -304,6 +304,141 @@ async def test_truncation_is_never_dressed_up_as_an_answer():
     )
 
     assert not any(isinstance(e, LoopFinished) for e in events)
+
+
+@pytest.mark.asyncio
+async def test_usage_is_reported_once_per_model_call():
+    """Every iteration of the loop must reach the usage sink.
+
+    This was wrong once in a way nothing caught: the loop called the sink
+    correctly, but the route constructed ModelProvider without one, so six
+    chat turns spent money and recorded none of it. The provider half is
+    locked here; the wiring is asserted by reading usage_records after a live
+    turn, because a unit test cannot see a constructor argument that was never
+    passed.
+    """
+    recorded: list[tuple[str, str | None, str | None]] = []
+
+    async def sink(usage: Any, node: str | None, purpose: str | None) -> None:
+        recorded.append((usage.model, node, purpose))
+
+    provider = ModelProvider(
+        make_settings(),
+        usage_sink=sink,
+        client=FakeClient([_tool_turn("list_programmes"), _text_turn("done")]),
+    )
+
+    async def execute(name: str, arguments: dict) -> Any:
+        return {}
+
+    await _drain(
+        provider.complete_with_tools(
+            role=ModelRole.SUPERVISOR,
+            instructions="x",
+            conversation=[],
+            tools=[],
+            execute=execute,
+            purpose="manager_chat",
+        )
+    )
+
+    # Two model calls: the one that asked for a tool, and the one that answered.
+    assert len(recorded) == 2
+    assert {r[1] for r in recorded} == {"manager_agent"}
+    assert {r[2] for r in recorded} == {"manager_chat"}
+
+
+# ------------------------------------------------------------------ dispatch ---
+#
+# Two limits here are enforced in code rather than in the prompt, because they
+# are the two that cost money. An instruction not to spend is exactly the kind
+# a long enough conversation talks its way past.
+
+
+def _ctx(**overrides: Any) -> tools.ToolContext:
+    base = dict(
+        user_id="u1",
+        pdp=None,
+        core=None,
+        pool=None,
+        settings=None,
+        models=None,
+    )
+    base.update(overrides)
+    return tools.ToolContext(**base)  # type: ignore[arg-type]
+
+
+@pytest.mark.asyncio
+async def test_a_gate_assessment_is_refused_late_in_a_turn():
+    # Started far enough in the past that a minute-long assessment would risk
+    # being killed with the work half done and paid for.
+    ctx = _ctx(started=time.monotonic() - (tools.ASSESS_LATEST_START_SECONDS + 30))
+
+    result = await tools._assess_gate(ctx, stage_id="whatever")
+
+    assert result["started"] is False
+    assert "on its own" in result["reason"]
+
+
+@pytest.mark.asyncio
+async def test_only_one_research_run_may_be_started_per_turn():
+    created: list[dict] = []
+
+    class Core:
+        async def create_run(self, user_id: str, project_id: str, payload: dict) -> dict:
+            created.append(payload)
+            return {"id": f"run-{len(created)}"}
+
+    ctx = _ctx(core=Core(), settings=make_settings())
+
+    first = await tools._start_research_run(
+        ctx, project_id="p1", question="What are the stability risks?"
+    )
+    second = await tools._start_research_run(
+        ctx, project_id="p1", question="And the manufacturing ones?"
+    )
+
+    assert first["queued"] is True
+    assert second["queued"] is False
+    assert "already been started" in second["reason"]
+    assert len(created) == 1, "the second call must not reach the database"
+
+
+@pytest.mark.asyncio
+async def test_max_results_is_clamped_rather_than_trusted():
+    captured: list[dict] = []
+
+    class Core:
+        async def create_run(self, user_id: str, project_id: str, payload: dict) -> dict:
+            captured.append(payload)
+            return {"id": "run-1"}
+
+    ctx = _ctx(core=Core(), settings=make_settings())
+    await tools._start_research_run(
+        ctx, project_id="p1", question="q", max_results=5000
+    )
+
+    assert captured[0]["max_results"] == 25
+
+
+def test_dispatch_tools_are_registered_and_distinguishable():
+    names = {t.name for t in tools.DISPATCH_TOOLS}
+    assert names == {"assess_gate", "start_research_run", "sweep_notifications"}
+    # Every dispatch tool is callable through the same registry as the reads.
+    assert names <= set(tools.registry())
+    assert len(tools.schemas()) == len(tools.READ_TOOLS) + len(tools.DISPATCH_TOOLS)
+
+
+def test_every_tool_schema_is_well_formed():
+    for tool in tools.ALL_TOOLS:
+        schema = tool.schema()
+        assert schema["type"] == "function"
+        assert schema["name"] and schema["description"]
+        params = schema["parameters"]
+        assert params["type"] == "object"
+        # Required names must actually be declared, or the model is being told
+        # to send a field the schema does not describe.
+        assert set(params["required"]) <= set(params["properties"])
 
 
 # --------------------------------------------------------------- docs search ---
