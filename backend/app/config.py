@@ -38,6 +38,29 @@ class IntegrationState(StrEnum):
     KEYLESS = "keyless"  # usable without credentials, possibly rate-limited
 
 
+def _resend_detail(has_key: bool, from_email: str | None) -> str:
+    """Say which half of the email configuration is missing, not just that one is.
+
+    "Not configured" sends an operator to look at the wrong variable half the
+    time. Both are needed and either can be the one that was forgotten.
+    """
+    if has_key and from_email:
+        return f"Alert email via Resend, from {from_email}."
+    if has_key:
+        return (
+            "RESEND_API_KEY is set but NOTIFICATION_FROM_EMAIL is not, so "
+            "nothing can be sent. Alerts are raised and recorded only."
+        )
+    if from_email:
+        return (
+            "NOTIFICATION_FROM_EMAIL is set but RESEND_API_KEY is not, so "
+            "nothing can be sent. Alerts are raised and recorded only."
+        )
+    return (
+        "No email provider. Alerts are raised and recorded, and nobody is told."
+    )
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=(BACKEND_DIR / ".env"),
@@ -269,6 +292,26 @@ class Settings(BaseSettings):
                 ),
                 "required": False,
                 "detail": "Optional secondary patent source.",
+            },
+            # Listed because its absence is the one that fails quietly. Every
+            # other integration here announces itself when missing - a run
+            # without patents says so in its own output. Notifications do not:
+            # alerts are still raised and still recorded, the deliveries table
+            # still fills up, and nobody is told. Production had 44 of those
+            # before anyone thought to look.
+            "resend": {
+                # Half-configured counts as not configured. A key with no from
+                # address cannot send, and reporting that as CONFIGURED would
+                # be this system telling its own operator a comfortable lie.
+                "state": (
+                    IntegrationState.CONFIGURED
+                    if (self.resend_api_key and self.notification_from_email)
+                    else IntegrationState.NOT_CONFIGURED
+                ),
+                "required": False,
+                "detail": _resend_detail(
+                    bool(self.resend_api_key), self.notification_from_email
+                ),
             },
         }
 

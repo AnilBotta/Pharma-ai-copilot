@@ -49,6 +49,62 @@ def build(monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path):
     return _build
 
 
+class TestEmailProviderIsReportable:
+    """The one integration whose absence fails quietly must be visible.
+
+    Every other provider announces itself when missing - a run without patents
+    says so in its own output. Notifications do not: alerts are raised,
+    deliveries are recorded, and nobody is told. Production accumulated 44 of
+    those before anyone looked, and /api/health did not mention email at all.
+    """
+
+    def _resend(self, settings):
+        return settings.integration_status()["resend"]
+
+    def test_absent_is_reported_with_the_consequence(self, build) -> None:
+        status = self._resend(build(**MINIMAL, SUPABASE_URL="https://x.supabase.co"))
+        assert status["state"] == "not_configured"
+        assert "nobody is told" in str(status["detail"])
+
+    def test_fully_configured_names_the_sender(self, build) -> None:
+        status = self._resend(
+            build(
+                **MINIMAL,
+                SUPABASE_URL="https://x.supabase.co",
+                RESEND_API_KEY="re_test",
+                NOTIFICATION_FROM_EMAIL="alerts@example.test",
+            )
+        )
+        assert status["state"] == "configured"
+        assert "alerts@example.test" in str(status["detail"])
+
+    def test_a_key_without_a_sender_is_not_configured(self, build) -> None:
+        """Half-configured cannot send, so reporting it as configured would be
+        the system telling its own operator a comfortable lie."""
+        status = self._resend(
+            build(
+                **MINIMAL,
+                SUPABASE_URL="https://x.supabase.co",
+                RESEND_API_KEY="re_test",
+            )
+        )
+        assert status["state"] == "not_configured"
+        # And it must name WHICH half is missing, or the operator checks the
+        # wrong variable half the time.
+        assert "NOTIFICATION_FROM_EMAIL" in str(status["detail"])
+
+    def test_a_sender_without_a_key_is_not_configured(self, build) -> None:
+        status = self._resend(
+            build(
+                **MINIMAL,
+                SUPABASE_URL="https://x.supabase.co",
+                NOTIFICATION_FROM_EMAIL="alerts@example.test",
+            )
+        )
+        assert status["state"] == "not_configured"
+        assert "RESEND_API_KEY" in str(status["detail"])
+
+
 class TestSupabaseUrlAlias:
     """SUPABASE_URL accepts NEXT_PUBLIC_SUPABASE_URL as a fallback.
 
