@@ -39,11 +39,13 @@ import {
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { ProposalCard } from "@/components/manager/proposal-card";
 import { useManager } from "@/components/manager/manager-provider";
 import {
   ApiError,
   pdp,
   streamManagerTurn,
+  type AgentProposal,
   type ManagerMessage,
 } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -80,6 +82,7 @@ const TOOL_LABEL: Record<string, string> = {
   set_blocked: "Changed a blocked state",
   acknowledge_notification: "Acknowledged an alert",
   create_document: "Registered a document",
+  propose: "Prepared something for you to confirm",
 };
 
 /** Tools that set work in motion rather than reading. Marked in the trail. */
@@ -136,6 +139,19 @@ export function ManagerPanel() {
   const [activity, setActivity] = React.useState<Activity[]>([]);
   const [error, setError] = React.useState<string | null>(null);
   const [loading, setLoading] = React.useState(false);
+  const [proposals, setProposals] = React.useState<AgentProposal[]>([]);
+
+  // Refetched rather than pushed down the stream. A proposal outlives the turn
+  // that made it — it is still waiting after a reload, and the panel showing
+  // it only in the session that produced it would be a way to lose one.
+  const refreshProposals = React.useCallback(async () => {
+    try {
+      setProposals(await pdp.listProposals());
+    } catch {
+      // Not worth surfacing: the answer is the thing being read, and a failed
+      // proposal fetch does not make it wrong.
+    }
+  }, []);
 
   const bottomRef = React.useRef<HTMLDivElement>(null);
   const abortRef = React.useRef<AbortController | null>(null);
@@ -243,10 +259,15 @@ export function ManagerPanel() {
         setActivity([]);
         setStreaming(false);
         abortRef.current = null;
+        void refreshProposals();
       }
     },
-    [ensureConversation, streaming]
+    [ensureConversation, streaming, refreshProposals]
   );
+
+  React.useEffect(() => {
+    if (open) void refreshProposals();
+  }, [open, refreshProposals]);
 
   // A page can hand over a starting question. Fired once, then cleared.
   React.useEffect(() => {
@@ -331,6 +352,13 @@ export function ManagerPanel() {
               <p>{error}</p>
             </div>
           )}
+
+          {/* Below the answer, because it is the consequence of it — and
+              because a decision control should never be the first thing the
+              eye lands on. */}
+          {proposals.map((p) => (
+            <ProposalCard key={p.id} proposal={p} onSettled={refreshProposals} />
+          ))}
 
           <div ref={bottomRef} />
         </div>

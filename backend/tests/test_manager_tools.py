@@ -421,21 +421,46 @@ async def test_max_results_is_clamped_rather_than_trusted():
     assert captured[0]["max_results"] == 25
 
 
-def test_the_three_kinds_of_tool_stay_distinguishable():
-    """Reads, dispatch and writes are three lists, and nothing is in two.
+def test_the_four_kinds_of_tool_stay_distinguishable():
+    """Reads, dispatch, writes and propose are four lists, nothing in two.
 
     The lists are what the panel styles from and what a reader of this module
     uses to answer "what can this thing change". A tool drifting between them,
-    or appearing in none, is how a write ends up presented as a read.
+    or appearing in none, is how a write ends up presented as a read - or, now,
+    how an accountable act ends up looking like an ordinary one.
     """
+    reads = {t.name for t in tools.READ_TOOLS}
     dispatch = {t.name for t in tools.DISPATCH_TOOLS}
     writes = {t.name for t in tools.WRITE_TOOLS}
-    reads = {t.name for t in tools.READ_TOOLS}
+    propose = {t.name for t in tools.PROPOSE_TOOLS}
+    groups = [reads, dispatch, writes, propose]
 
     assert dispatch == {"assess_gate", "start_research_run", "sweep_notifications"}
-    assert not (reads & dispatch) and not (reads & writes) and not (dispatch & writes)
-    assert reads | dispatch | writes == set(tools.registry())
-    assert len(tools.schemas()) == len(reads) + len(dispatch) + len(writes)
+    assert propose == {"propose"}
+
+    for i, a in enumerate(groups):
+        for b in groups[i + 1 :]:
+            assert not (a & b), f"a tool is in two groups: {a & b}"
+
+    assert set().union(*groups) == set(tools.registry())
+    assert len(tools.schemas()) == sum(len(g) for g in groups)
+
+
+def test_the_accountable_acts_have_no_direct_tool():
+    """The six acts behind `propose` must not also be callable outright.
+
+    This is the assertion that would catch somebody adding an approve_requirement
+    tool "for convenience" in a year. The database would still refuse it - 0022
+    does not care what the tool list says - but the failure would surface as a
+    confusing error to a user rather than as a red test here.
+    """
+    from app.manager import proposals
+
+    names = set(tools.registry())
+    for action in proposals.ACTIONS:
+        assert action not in names, (
+            f"{action} is directly callable; it must go through `propose`"
+        )
 
 
 def test_every_tool_schema_is_well_formed():

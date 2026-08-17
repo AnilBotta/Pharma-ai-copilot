@@ -623,6 +623,31 @@ async def decide_gate(
 # ------------------------------------------------------------ requirements ---
 
 
+@router.get("/requirements/{requirement_id}", response_model=s.RequirementDetail)
+async def get_requirement(
+    requirement_id: str,
+    user: AuthenticatedUser = Depends(current_user),
+    repository: PdpRepository = Depends(get_pdp_repository),
+):
+    """One requirement in full.
+
+    The repository has had this since Phase C; nothing exposed it, because the
+    gate workspace always arrived as a whole. The proposal confirmation card
+    needs one requirement on its own - it must read the current record itself
+    rather than trust what an agent said about it - so it gets a route.
+
+    `_serialise_requirement`, not `serialise`: the latter is shallow, and a
+    requirement carries nested evidence and approvals whose UUIDs would reach
+    the response model unconverted. Every other requirement-returning route
+    already uses this helper; writing the route without it was the omission.
+    """
+    try:
+        row = await repository.get_requirement(user.id, requirement_id)
+    except (NotFound, Forbidden) as exc:
+        raise _translate(exc) from exc
+    return _serialise_requirement(row)
+
+
 @router.post(
     "/requirements/{requirement_id}/evidence",
     response_model=s.EvidenceLink,

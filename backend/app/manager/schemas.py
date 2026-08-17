@@ -45,3 +45,28 @@ class ConversationDetail(BaseModel):
 
 class SendMessageRequest(BaseModel):
     content: str = Field(min_length=1, max_length=8000)
+
+
+class ProposalOut(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    id: str
+    action_type: str
+    params: dict
+    rationale: str
+    #: Returned so the card can say what has moved, not so it can render the
+    #: state. Current state is fetched fresh by the card itself.
+    premise: dict
+    status: str
+    project_id: str | None = None
+    expires_at: datetime
+    created_at: datetime
+
+
+class RejectProposalRequest(BaseModel):
+    reason: str | None = Field(default=None, max_length=1000)
+
+
+class ProposalOutcome(BaseModel):
+    status: str
+    proposal_id: str

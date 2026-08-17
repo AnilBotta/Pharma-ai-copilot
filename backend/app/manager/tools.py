@@ -53,6 +53,11 @@ class ToolContext:
     #: When the turn began, for tools that need to know how much of it is left.
     started: float = field(default_factory=time.monotonic)
 
+    #: Set only inside a conversation; `propose` needs both to attach a
+    #: proposal to the exchange that produced it.
+    manager: Any = None
+    conversation_id: str | None = None
+
     #: Research runs started by this turn. A run costs roughly $0.50 and nine
     #: minutes of compute, and the cap is here rather than only in the prompt
     #: because an instruction not to spend money is exactly the kind a
@@ -808,6 +813,76 @@ async def _create_document(
 
 
 # --------------------------------------------------------------------------- #
+# Proposing an accountable act
+#
+# ONE TOOL, NOT SIX
+#
+# `propose` takes an action name and its parameters rather than there being an
+# approve_requirement tool, a decide_gate tool and so on. Three reasons, and the
+# third is the real one:
+#
+#   * one confirmation surface in the UI instead of six that drift apart;
+#   * one place where the premise is captured, so no action can be added later
+#     that forgets to record what it was reasoned from;
+#   * and it keeps the shape of the thing honest. These are not six
+#     capabilities the agent has. They are one capability - asking - applied to
+#     six acts it cannot perform.
+# --------------------------------------------------------------------------- #
+
+
+async def _propose(
+    ctx: ToolContext, action_type: str, params: dict, rationale: str
+) -> Any:
+    from app.manager import proposals as P
+
+    if ctx.manager is None or ctx.conversation_id is None:
+        raise ValueError("Proposals can only be made inside a conversation.")
+
+    action = P.validate(action_type, params)
+
+    # Captured through the agent's own repository, so the premise is exactly
+    # what the agent could see when it decided to propose - not a privileged
+    # view somebody would have to reconcile later.
+    premise = await P.capture_premise(ctx.pdp, ctx.user_id, action, params)
+
+    project_id = params.get("project_id")
+    if not project_id:
+        # Every subject resolves to a project; the card needs it to check access.
+        if "requirement_id" in params:
+            req = await ctx.pdp.get_requirement(ctx.user_id, params["requirement_id"])
+            project_id = str(req["project_id"])
+        elif "stage_id" in params:
+            project_id, _caps = await ctx.pdp.capabilities_for_stage(
+                ctx.user_id, params["stage_id"]
+            )
+        elif "document_id" in params:
+            doc = await ctx.pdp.get_document(ctx.user_id, params["document_id"])
+            project_id = str(doc["project_id"])
+
+    row = await ctx.manager.create_proposal(
+        conversation_id=ctx.conversation_id,
+        requested_by=ctx.user_id,
+        project_id=str(project_id) if project_id else None,
+        action_type=action_type,
+        params=params,
+        rationale=rationale,
+        premise=premise,
+    )
+    return {
+        "proposed": True,
+        "proposal_id": str(row["id"]),
+        "action": action.summary,
+        "expires_at": str(row["expires_at"]),
+        "note": (
+            "This is NOT done. It is waiting for the person you are talking to "
+            "to confirm it, and they will see the current state of the record "
+            "rather than your description of it. Tell them what you have "
+            "prepared and why, and that it needs their confirmation."
+        ),
+    }
+
+
+# --------------------------------------------------------------------------- #
 # Registry
 # --------------------------------------------------------------------------- #
 
@@ -1171,7 +1246,54 @@ WRITE_TOOLS: list[Tool] = [
     ),
 ]
 
-ALL_TOOLS: list[Tool] = [*READ_TOOLS, *DISPATCH_TOOLS, *WRITE_TOOLS]
+#: Asking a person to take an act the agent cannot. One tool; see the block
+#: comment above `_propose` for why it is not six.
+PROPOSE_TOOLS: list[Tool] = [
+    Tool(
+        "propose",
+        "Prepare an act you cannot perform, for the person you are talking to "
+        "to confirm. Use this when asked to approve a requirement, decide a "
+        "gate, attach evidence, add a document version, confirm acceptance "
+        "criteria, or re-baseline a schedule.\n\n"
+        "action_type is one of: approve_requirement (requirement_id, "
+        "optional comments), decide_gate (stage_id, decision, optional note "
+        "and conditions), attach_evidence (requirement_id, evidence_type, and "
+        "one of research_run_id / document_version_id / external_url / note), "
+        "add_document_version (document_id, version_label, storage_url), "
+        "set_acceptance (requirement_id, confirmed), rebaseline (project_id, "
+        "name, reason).\n\n"
+        "It does NOT perform the act. Say clearly that it is waiting for them.",
+        _params(
+            {
+                "action_type": {
+                    "type": "string",
+                    "description": "One of the six named above.",
+                },
+                "params": {
+                    "type": "object",
+                    "description": "Parameters for that action.",
+                    "additionalProperties": True,
+                },
+                "rationale": {
+                    "type": "string",
+                    "description": (
+                        "Why you are proposing it. Shown to the reviewer "
+                        "beneath the evidence, not as grounds for approving."
+                    ),
+                },
+            },
+            ["action_type", "params", "rationale"],
+        ),
+        _propose,
+    ),
+]
+
+ALL_TOOLS: list[Tool] = [
+    *READ_TOOLS,
+    *DISPATCH_TOOLS,
+    *WRITE_TOOLS,
+    *PROPOSE_TOOLS,
+]
 
 
 def registry() -> dict[str, Tool]:

@@ -158,6 +158,8 @@ def build_context(
     settings: Any,
     models: Any,
     deadline: float,
+    manager: Any = None,
+    conversation_id: str | None = None,
 ) -> tool_module.ToolContext:
     """Assemble the per-turn tool context.
 
@@ -176,6 +178,8 @@ def build_context(
         settings=settings,
         models=models,
         deadline=deadline,
+        manager=manager,
+        conversation_id=conversation_id,
     )
 
 
@@ -186,6 +190,8 @@ async def run_turn(
     pool: Any,
     settings: Any,
     models: Any,
+    manager: Any = None,
+    conversation_id: str | None = None,
 ):
     """Run one turn, yielding provider events as they happen.
 
@@ -195,7 +201,13 @@ async def run_turn(
     """
     deadline = time.monotonic() + TURN_BUDGET_SECONDS
     ctx = build_context(
-        user_id=user_id, pool=pool, settings=settings, models=models, deadline=deadline
+        user_id=user_id,
+        pool=pool,
+        settings=settings,
+        models=models,
+        deadline=deadline,
+        manager=manager,
+        conversation_id=conversation_id,
     )
 
     async def execute(name: str, arguments: dict) -> Any:
