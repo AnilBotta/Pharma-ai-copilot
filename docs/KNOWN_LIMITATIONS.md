@@ -305,6 +305,25 @@ EPO_OPS_CONSUMER_SECRET=
 `SUPABASE_JWT_SECRET` is **not** needed — this project signs with asymmetric
 ES256 keys, verified against its JWKS endpoint.
 
+### 1.6b Notifications: raised, recorded, and not sent
+
+Production has **44 open `requirement_overdue` alerts** and 44 delivery rows,
+every one `skipped` with the reason *"No email provider configured; nothing was
+sent."* The audience resolved correctly — the project manager, by email — so
+the engine did its job and said plainly that nothing left the building.
+
+**`RESEND_API_KEY` is not set in Vercel.** Until it is, alerts accumulate in the
+database and nobody is told. Set it, plus `NOTIFICATION_FROM_EMAIL`, and the
+backlog goes out on the next sweep.
+
+That last clause is only true since the fix below. Previously a `skipped`
+delivery permanently consumed its slot in the `(event_id, recipient,
+escalation_level)` unique constraint, so configuring email later would have
+delivered **nothing** — the 44 would have stayed unsent forever while the table
+showed 44 deliveries. Found by reading production, not by a test: the dispatch
+path had no database coverage at all, which is how it survived. It has six
+assertions now.
+
 ### 1.7 The conversational Manager Agent
 
 Built in four steps and driven in a browser against the real model at each one.
@@ -330,7 +349,7 @@ segregation of duties still refusing the confirming person.
 
 | Gap | Consequence |
 |---|---|
-| **Steps 2–4 have not run on the deployment** | Everything above was against `localhost`. Vercel's serverless SSE buffering is the one thing local cannot exercise |
+| ~~Steps 2–4 have not run on the deployment~~ | **Now verified on `pharma-ai-copilot.vercel.app`.** Vercel does **not** buffer the SSE body: sampling the panel every 200 ms, tool activity appeared at 10.0 s and 16.6 s and the prose grew across three separate samples from 20.0 s to 20.6 s. A buffered body would have delivered all of it in one step at the end. Five tools in one turn, answer complete and correct |
 | **A successful approval-by-confirmation** | Not a defect: the only account on the demo project confirmed the acceptance itself and is correctly barred from approving. Proving the happy path needs a second user with gate authority |
 | **`search_docs` is keyword-scored** | Good enough for one repository's prose, and tested against the questions users actually ask. It will miss a question phrased entirely in synonyms |
 | **No LangGraph graph for the chat** | A bounded tool loop, not a planner. No resumability: a turn killed mid-flight is lost, though the question and any partial answer are recorded |

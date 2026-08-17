@@ -151,6 +151,18 @@ async def dispatch_pending(pool: Any, notifier: Notifier, *, limit: int = 200) -
                 where d.event_id = a.event_id
                   and d.recipient_user_id = a.recipient_user_id
                   and d.escalation_level = a.escalation_level
+                  -- `skipped` means nothing left the building, so it must not
+                  -- count as delivered. Excluding only real attempts is what
+                  -- lets a backlog raised before any email provider existed be
+                  -- sent once one does.
+                  --
+                  -- Without this the constraint that makes re-running safe also
+                  -- makes those alerts permanently undeliverable: 44 rows in
+                  -- production, every one `skipped`, every one silently
+                  -- unsendable forever. A table full of deliveries that never
+                  -- happened is exactly the kind of thing that reads as
+                  -- coverage.
+                  and d.status <> 'skipped'
              )
              limit $1
             """,
@@ -193,7 +205,16 @@ async def dispatch_pending(pool: Any, notifier: Notifier, *, limit: int = 200) -
                 values ($1,$2,$3,'email',$4,$5,$6,
                         case when $4 = 'sent' then now() else null end)
                 on conflict (event_id, recipient_user_id, escalation_level)
-                do nothing
+                -- Only a `skipped` row may be overwritten, and only by an
+                -- attempt that actually happened. Everything else stays
+                -- do-nothing, so the constraint still guarantees a person is
+                -- told once per event per rung.
+                do update set status     = excluded.status,
+                              error      = excluded.error,
+                              sent_at    = excluded.sent_at,
+                              created_at = now()
+                 where public.notification_deliveries.status = 'skipped'
+                   and excluded.status <> 'skipped'
                 """,
                 row["event_id"], row["recipient_user_id"], row["recipient_email"],
                 status, error, row["escalation_level"],
