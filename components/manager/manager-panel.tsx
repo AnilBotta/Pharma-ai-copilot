@@ -52,6 +52,7 @@ const TOOL_LABEL: Record<string, string> = {
   list_programmes: "Reading the portfolio",
   get_programme: "Opening the programme",
   get_gate: "Reading the gate",
+  get_blockers: "Finding what is blocking each gate",
   get_requirement: "Reading a requirement",
   get_schedule: "Checking the schedule",
   list_documents: "Checking the document register",
@@ -70,11 +71,23 @@ interface Activity {
   ok: boolean;
 }
 
+/**
+ * A message plus the reading that produced it.
+ *
+ * The trail belongs to its turn, not to the panel. Held separately it renders
+ * after the answer and lingers there once the turn is over - which reverses the
+ * order of events and, worse, leaves the previous question's reading sitting
+ * under the current answer as though it were evidence for it.
+ */
+interface PanelMessage extends ManagerMessage {
+  activity?: Activity[];
+}
+
 export function ManagerPanel() {
   const { open, closeManager, seed, clearSeed } = useManager();
 
   const [conversationId, setConversationId] = React.useState<string | null>(null);
-  const [messages, setMessages] = React.useState<ManagerMessage[]>([]);
+  const [messages, setMessages] = React.useState<PanelMessage[]>([]);
   const [draft, setDraft] = React.useState("");
   const [streaming, setStreaming] = React.useState(false);
   const [partial, setPartial] = React.useState("");
@@ -135,6 +148,9 @@ export function ManagerPanel() {
       abortRef.current = controller;
       let answer = "";
       let truncatedReason: string | null = null;
+      // Collected here as well as in state: the committed message needs the
+      // final list, and reading it out of a setState closure would race.
+      const trail: Activity[] = [];
 
       try {
         const id = await ensureConversation();
@@ -143,18 +159,15 @@ export function ManagerPanel() {
             answer += event.text;
             setPartial(answer);
           } else if (event.type === "tool_started") {
-            setActivity((prev) => [
-              ...prev,
-              { name: event.name, done: false, ok: true },
-            ]);
+            trail.push({ name: event.name, done: false, ok: true });
+            setActivity([...trail]);
           } else if (event.type === "tool_finished") {
-            setActivity((prev) =>
-              prev.map((a) =>
-                a.name === event.name && !a.done
-                  ? { ...a, done: true, ok: event.ok }
-                  : a
-              )
-            );
+            const pending = trail.find((a) => a.name === event.name && !a.done);
+            if (pending) {
+              pending.done = true;
+              pending.ok = event.ok;
+            }
+            setActivity([...trail]);
           } else if (event.type === "truncated") {
             truncatedReason = event.detail;
           } else if (event.type === "error") {
@@ -178,10 +191,14 @@ export function ManagerPanel() {
               truncated: truncatedReason !== null,
               truncated_reason: truncatedReason,
               created_at: new Date().toISOString(),
+              activity: trail.length ? [...trail] : undefined,
             },
           ]);
         }
         setPartial("");
+        // The trail moves onto the message it produced; leaving a copy here
+        // would show it twice, and once in the wrong place.
+        setActivity([]);
         setStreaming(false);
         abortRef.current = null;
       }
@@ -250,7 +267,11 @@ export function ManagerPanel() {
             <MessageBubble key={m.id} message={m} />
           ))}
 
-          {activity.length > 0 && <ActivityTrail activity={activity} />}
+          {/* Only while the turn is running. Once it finishes the trail is
+              carried by the message it produced, above that answer. */}
+          {streaming && activity.length > 0 && (
+            <ActivityTrail activity={activity} />
+          )}
 
           {partial && (
             <div className="text-sm whitespace-pre-wrap">{partial}</div>
@@ -307,7 +328,7 @@ export function ManagerPanel() {
   );
 }
 
-function MessageBubble({ message }: { message: ManagerMessage }) {
+function MessageBubble({ message }: { message: PanelMessage }) {
   if (message.role === "user") {
     return (
       <div className="flex justify-end">
@@ -320,6 +341,11 @@ function MessageBubble({ message }: { message: ManagerMessage }) {
 
   return (
     <div className="space-y-2">
+      {/* What it read, above what it concluded - the order it happened in,
+          and the order you need them in to judge the second by the first. */}
+      {message.activity && message.activity.length > 0 && (
+        <ActivityTrail activity={message.activity} />
+      )}
       {message.content && (
         <div className="text-sm whitespace-pre-wrap">{message.content}</div>
       )}
