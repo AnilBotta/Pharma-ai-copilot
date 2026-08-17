@@ -305,12 +305,19 @@ EPO_OPS_CONSUMER_SECRET=
 `SUPABASE_JWT_SECRET` is **not** needed — this project signs with asymmetric
 ES256 keys, verified against its JWKS endpoint.
 
-### 1.6b Notifications: raised, recorded, and not sent
+### 1.6b Notifications: now sending, after two failures that looked identical
 
-Production has **44 open `requirement_overdue` alerts** and 44 delivery rows,
-every one `skipped` with the reason *"No email provider configured; nothing was
-sent."* The audience resolved correctly — the project manager, by email — so
-the engine did its job and said plainly that nothing left the building.
+**Verified in production.** `/api/health` reports
+`resend: configured — "Alert email via Resend, from SyncAI <hello@mail.syncai.tech>"`,
+and a sweep delivered the entire backlog:
+
+```
+{"sent":44,"failed":0,"skipped":0,"considered":44}
+```
+
+Getting there took two fixes, and the instructive part is that **both failed the
+same way from the outside** — 44 rows marked `skipped`, no error anywhere, and a
+system that looked configured. Neither was visible without reading the database.
 
 **Email needs two variables and sends nothing without both:**
 
