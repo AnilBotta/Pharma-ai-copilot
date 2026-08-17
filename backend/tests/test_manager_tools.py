@@ -421,12 +421,21 @@ async def test_max_results_is_clamped_rather_than_trusted():
     assert captured[0]["max_results"] == 25
 
 
-def test_dispatch_tools_are_registered_and_distinguishable():
-    names = {t.name for t in tools.DISPATCH_TOOLS}
-    assert names == {"assess_gate", "start_research_run", "sweep_notifications"}
-    # Every dispatch tool is callable through the same registry as the reads.
-    assert names <= set(tools.registry())
-    assert len(tools.schemas()) == len(tools.READ_TOOLS) + len(tools.DISPATCH_TOOLS)
+def test_the_three_kinds_of_tool_stay_distinguishable():
+    """Reads, dispatch and writes are three lists, and nothing is in two.
+
+    The lists are what the panel styles from and what a reader of this module
+    uses to answer "what can this thing change". A tool drifting between them,
+    or appearing in none, is how a write ends up presented as a read.
+    """
+    dispatch = {t.name for t in tools.DISPATCH_TOOLS}
+    writes = {t.name for t in tools.WRITE_TOOLS}
+    reads = {t.name for t in tools.READ_TOOLS}
+
+    assert dispatch == {"assess_gate", "start_research_run", "sweep_notifications"}
+    assert not (reads & dispatch) and not (reads & writes) and not (dispatch & writes)
+    assert reads | dispatch | writes == set(tools.registry())
+    assert len(tools.schemas()) == len(reads) + len(dispatch) + len(writes)
 
 
 def test_every_tool_schema_is_well_formed():

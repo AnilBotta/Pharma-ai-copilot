@@ -23,6 +23,7 @@ import {
   Bot,
   Check,
   Loader2,
+  PencilLine,
   Play,
   Plus,
   Search,
@@ -65,9 +66,20 @@ const TOOL_LABEL: Record<string, string> = {
   get_run_report: "Reading a research report",
   search_docs: "Consulting the documentation",
   // Dispatch. Worded so a reader can tell work was STARTED, not just read.
+  list_people: "Looking up who is on the programme",
   assess_gate: "Asking the Operations Agent to analyse the gate",
   start_research_run: "Starting a research run",
   sweep_notifications: "Recomputing alerts",
+  // Writes. Worded in the past tense: by the time the trail settles these have
+  // already happened, and a reader must not mistake them for intentions.
+  create_task: "Created a task",
+  update_task: "Updated a task",
+  add_task_dependency: "Linked two tasks",
+  create_milestone: "Added a milestone",
+  set_assignment: "Changed an assignment",
+  set_blocked: "Changed a blocked state",
+  acknowledge_notification: "Acknowledged an alert",
+  create_document: "Registered a document",
 };
 
 /** Tools that set work in motion rather than reading. Marked in the trail. */
@@ -75,6 +87,24 @@ const DISPATCH_TOOLS = new Set([
   "assess_gate",
   "start_research_run",
   "sweep_notifications",
+]);
+
+/**
+ * Tools that changed the record.
+ *
+ * Called out more strongly than dispatch: starting a job is something you can
+ * wait out, but an edit to somebody's plan has already happened by the time
+ * you read the line, and the reader's next question is "what did it touch".
+ */
+const WRITE_TOOLS = new Set([
+  "create_task",
+  "update_task",
+  "add_task_dependency",
+  "create_milestone",
+  "set_assignment",
+  "set_blocked",
+  "acknowledge_notification",
+  "create_document",
 ]);
 
 interface Activity {
@@ -376,21 +406,24 @@ function ActivityTrail({ activity }: { activity: Activity[] }) {
     <div className="space-y-1 rounded-lg border bg-muted/30 px-3 py-2">
       {activity.map((a, i) => {
         const dispatched = DISPATCH_TOOLS.has(a.name);
+        const wrote = WRITE_TOOLS.has(a.name);
         return (
           <p
             key={`${a.name}-${i}`}
             className={cn(
               "flex items-center gap-2 text-xs",
               a.done ? "text-muted-foreground" : "text-foreground",
-              // Reading and starting work are different kinds of event, and a
-              // reader scanning the trail should be able to see which happened
-              // without reading every line.
-              dispatched && "font-medium text-foreground"
+              // Reading, starting work and changing the record are three
+              // different kinds of event. A reader scanning the trail should
+              // see which happened without reading every line.
+              (dispatched || wrote) && "font-medium text-foreground"
             )}
           >
             {a.done ? (
               a.ok ? (
-                dispatched ? (
+                wrote ? (
+                  <PencilLine className="size-3 text-amber-600" />
+                ) : dispatched ? (
                   <Play className="size-3 text-primary" />
                 ) : (
                   <Check className="size-3 text-emerald-600" />
