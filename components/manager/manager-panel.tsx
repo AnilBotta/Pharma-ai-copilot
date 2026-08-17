@@ -23,6 +23,7 @@ import {
   Bot,
   Check,
   Loader2,
+  Play,
   Plus,
   Search,
   SendHorizonal,
@@ -63,7 +64,18 @@ const TOOL_LABEL: Record<string, string> = {
   list_runs: "Listing research runs",
   get_run_report: "Reading a research report",
   search_docs: "Consulting the documentation",
+  // Dispatch. Worded so a reader can tell work was STARTED, not just read.
+  assess_gate: "Asking the Operations Agent to analyse the gate",
+  start_research_run: "Starting a research run",
+  sweep_notifications: "Recomputing alerts",
 };
+
+/** Tools that set work in motion rather than reading. Marked in the trail. */
+const DISPATCH_TOOLS = new Set([
+  "assess_gate",
+  "start_research_run",
+  "sweep_notifications",
+]);
 
 interface Activity {
   name: string;
@@ -362,27 +374,38 @@ function MessageBubble({ message }: { message: PanelMessage }) {
 function ActivityTrail({ activity }: { activity: Activity[] }) {
   return (
     <div className="space-y-1 rounded-lg border bg-muted/30 px-3 py-2">
-      {activity.map((a, i) => (
-        <p
-          key={`${a.name}-${i}`}
-          className={cn(
-            "flex items-center gap-2 text-xs",
-            a.done ? "text-muted-foreground" : "text-foreground"
-          )}
-        >
-          {a.done ? (
-            a.ok ? (
-              <Check className="size-3 text-emerald-600" />
+      {activity.map((a, i) => {
+        const dispatched = DISPATCH_TOOLS.has(a.name);
+        return (
+          <p
+            key={`${a.name}-${i}`}
+            className={cn(
+              "flex items-center gap-2 text-xs",
+              a.done ? "text-muted-foreground" : "text-foreground",
+              // Reading and starting work are different kinds of event, and a
+              // reader scanning the trail should be able to see which happened
+              // without reading every line.
+              dispatched && "font-medium text-foreground"
+            )}
+          >
+            {a.done ? (
+              a.ok ? (
+                dispatched ? (
+                  <Play className="size-3 text-primary" />
+                ) : (
+                  <Check className="size-3 text-emerald-600" />
+                )
+              ) : (
+                <AlertTriangle className="size-3 text-amber-600" />
+              )
             ) : (
-              <AlertTriangle className="size-3 text-amber-600" />
-            )
-          ) : (
-            <Loader2 className="size-3 animate-spin" />
-          )}
-          {TOOL_LABEL[a.name] ?? a.name}
-          {a.done && !a.ok && " — could not be read"}
-        </p>
-      ))}
+              <Loader2 className="size-3 animate-spin" />
+            )}
+            {TOOL_LABEL[a.name] ?? a.name}
+            {a.done && !a.ok && " — could not be completed"}
+          </p>
+        );
+      })}
     </div>
   );
 }

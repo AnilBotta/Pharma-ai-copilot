@@ -116,7 +116,8 @@ async def send_message(
     `error`.
     """
     from app import db
-    from app.llm.provider import ModelProvider
+    from app.llm.provider import ModelProvider, Usage
+    from app.repository import Repository
 
     try:
         conversation = await repository.get_conversation(user.id, conversation_id)
@@ -134,7 +135,34 @@ async def send_message(
 
     transcript = await repository.transcript_for_model(conversation_id)
     pool = db.get_pool()
-    models = ModelProvider(settings)
+    core = Repository(pool)
+
+    async def usage_sink(usage: Usage, node: str | None, purpose: str | None) -> None:
+        """Persist what this turn cost.
+
+        Without this the chat is the one part of the system that spends money
+        invisibly. `run_id` is null - a conversation is not a research run -
+        which is why 0004 left that column nullable.
+        """
+        await core.record_usage(
+            run_id=None,
+            user_id=user.id,
+            model=usage.model,
+            input_tokens=usage.input_tokens,
+            output_tokens=usage.output_tokens,
+            reasoning_tokens=usage.reasoning_tokens,
+            cached_tokens=usage.cached_tokens,
+            estimated_cost_usd=(
+                float(usage.estimated_cost_usd)
+                if usage.estimated_cost_usd is not None
+                else None
+            ),
+            duration_ms=usage.duration_ms,
+            node=node,
+            purpose=purpose,
+        )
+
+    models = ModelProvider(settings, usage_sink=usage_sink)
 
     async def stream():
         answer: list[str] = []

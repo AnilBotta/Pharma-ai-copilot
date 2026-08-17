@@ -24,9 +24,11 @@ not have wanted it quoted back at them either.
 
 from __future__ import annotations
 
+import contextlib
 import logging
+import time
 from collections.abc import Awaitable, Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from app.manager import docs
@@ -47,6 +49,17 @@ class ToolContext:
     models: Any
     #: time.monotonic() value after which slow tools must not start.
     deadline: float | None = None
+    #: When the turn began, for tools that need to know how much of it is left.
+    started: float = field(default_factory=time.monotonic)
+
+    #: Research runs started by this turn. A run costs roughly $0.50 and nine
+    #: minutes of compute, and the cap is here rather than only in the prompt
+    #: because an instruction not to spend money is exactly the kind a
+    #: sufficiently determined conversation talks its way past.
+    runs_started: int = 0
+
+    def seconds_spent(self) -> float:
+        return time.monotonic() - self.started
 
 
 @dataclass
@@ -406,6 +419,138 @@ async def _get_run_report(ctx: ToolContext, run_id: str) -> Any:
     }
 
 
+# --------------------------------------------------------------------------- #
+# Dispatch — commanding the other agents and starting work
+#
+# None of these is an accountable act. Each is something the requesting user
+# could do from the UI, done on their behalf and recorded against them.
+# --------------------------------------------------------------------------- #
+
+#: A gate assessment is one model call of about a minute. Starting one late in
+#: a turn risks the invocation being killed with the work half done and paid
+#: for, so past this point it is refused rather than attempted.
+ASSESS_LATEST_START_SECONDS = 120.0
+
+
+async def _assess_gate(ctx: ToolContext, stage_id: str) -> Any:
+    """Run the PDP Operations Agent against one gate, inline."""
+    spent = ctx.seconds_spent()
+    if spent > ASSESS_LATEST_START_SECONDS:
+        return {
+            "started": False,
+            "reason": (
+                f"This turn has already run for {spent:.0f}s. A gate assessment "
+                "takes about a minute and would risk being cut off part-way. "
+                "Tell the user to ask for the assessment on its own."
+            ),
+        }
+
+    from app.pdp.agent import assess_gate as run_assessment
+
+    session_id = await ctx.pdp.start_agent_session(
+        ctx.user_id,
+        agent="pdp_operations",
+        project_id=(await ctx.pdp.capabilities_for_stage(ctx.user_id, stage_id))[0],
+        objective=f"Assess gate {stage_id} (dispatched by the Manager Agent)",
+    )
+    try:
+        result = await run_assessment(
+            pool=ctx.pool, models=ctx.models, user_id=ctx.user_id, stage_id=stage_id
+        )
+    except Exception as exc:
+        await ctx.pdp.finish_agent_session(session_id, error=str(exc)[:1000])
+        raise
+
+    await ctx.pdp.finish_agent_session(
+        session_id,
+        findings={"blocker_analysis": result["blocker_analysis"]},
+        recommendations=result["recommended_actions"],
+        handoff_question=result["handoff_question"],
+        usage=result.get("usage"),
+    )
+    return {
+        "started": True,
+        "session_id": session_id,
+        "summary": result["summary"],
+        "blocker_analysis": result["blocker_analysis"],
+        "recommended_actions": result["recommended_actions"],
+        "handoff_question": result["handoff_question"],
+    }
+
+
+async def _start_research_run(
+    ctx: ToolContext,
+    project_id: str,
+    question: str,
+    molecule: str | None = None,
+    indication: str | None = None,
+    max_results: int = 12,
+) -> Any:
+    """Queue a research run. It executes in the background, not in this turn."""
+    if ctx.runs_started >= 1:
+        return {
+            "queued": False,
+            "reason": (
+                "A research run has already been started in this turn. Each one "
+                "costs real money and takes about nine minutes; starting more "
+                "than one at a time needs the user to ask again."
+            ),
+        }
+
+    run = await ctx.core.create_run(
+        ctx.user_id,
+        project_id,
+        {
+            "original_question": question,
+            "molecule": molecule,
+            "indication": indication,
+            "dosage_form": None,
+            "route_of_administration": None,
+            "delivery_technology": None,
+            "development_stage": None,
+            "jurisdictions": None,
+            "date_from": None,
+            "date_to": None,
+            "max_results": max(1, min(max_results, 25)),
+            "additional_instructions": None,
+        },
+    )
+    ctx.runs_started += 1
+
+    # Best effort, exactly as POST /api/runs does it: a lost trigger costs a
+    # minute, because pg_cron sweeps the queue.
+    from app.worker import trigger_tick
+
+    with contextlib.suppress(Exception):
+        await trigger_tick(ctx.settings)
+
+    return {
+        "queued": True,
+        "run_id": str(run["id"]),
+        "note": (
+            "Running in the background; it takes roughly nine minutes and "
+            "completes across several slices. Tell the user it is under way "
+            "and that they can watch it under Research Runs."
+        ),
+    }
+
+
+async def _sweep_notifications(ctx: ToolContext) -> Any:
+    """Recompute alert conditions across every programme the sweep covers."""
+    from app.notifications import sweep_all_projects
+
+    result = await sweep_all_projects(ctx.pool)
+    return {
+        "raised": result.get("raised", 0),
+        "resolved": result.get("resolved", 0),
+        "escalated": result.get("escalated", 0),
+        "note": (
+            "Detection is a query over current state, so this raises nothing "
+            "new when nothing has changed."
+        ),
+    }
+
+
 async def _search_docs(ctx: ToolContext, query: str) -> Any:
     hits = docs.search(query)
     if not hits:
@@ -576,12 +721,68 @@ READ_TOOLS: list[Tool] = [
 ]
 
 
+#: Tools that start work rather than read it. Listed separately from
+#: READ_TOOLS so that "what can this agent set in motion" is answerable by
+#: looking at one list, rather than by reading thirty descriptions.
+DISPATCH_TOOLS: list[Tool] = [
+    Tool(
+        "assess_gate",
+        "Dispatch the PDP Operations Agent to analyse one gate: which blockers "
+        "are the real constraint rather than consequences, who must act, and "
+        "where the obvious action would not help. Takes about a minute and "
+        "costs a few cents. Use it when the user wants analysis of a gate, not "
+        "when they just want to know what is outstanding - get_gate answers "
+        "that for free.",
+        _params(
+            {"stage_id": {"type": "string", "description": "Gate (stage) UUID."}},
+            ["stage_id"],
+        ),
+        _assess_gate,
+    ),
+    Tool(
+        "start_research_run",
+        "Queue a literature and patent research run. It executes in the "
+        "background over about nine minutes and costs real money - roughly "
+        "fifty cents. Only start one when the user has actually asked for "
+        "research; do not start one to answer a question you could answer by "
+        "reading the record.",
+        _params(
+            {
+                **_PROJECT,
+                "question": {
+                    "type": "string",
+                    "description": "The research objective, in full.",
+                },
+                "molecule": {"type": "string", "description": "Optional."},
+                "indication": {"type": "string", "description": "Optional."},
+                "max_results": {
+                    "type": "integer",
+                    "description": "Sources per provider, 1-25. Default 12.",
+                },
+            },
+            ["project_id", "question"],
+        ),
+        _start_research_run,
+    ),
+    Tool(
+        "sweep_notifications",
+        "Recompute alert conditions now rather than waiting for the scheduled "
+        "sweep. Raises newly-true alerts and resolves ones whose condition has "
+        "stopped being true. Safe to run at any time.",
+        _params({}, []),
+        _sweep_notifications,
+    ),
+]
+
+ALL_TOOLS: list[Tool] = [*READ_TOOLS, *DISPATCH_TOOLS]
+
+
 def registry() -> dict[str, Tool]:
-    return {t.name: t for t in READ_TOOLS}
+    return {t.name: t for t in ALL_TOOLS}
 
 
 def schemas() -> list[dict]:
-    return [t.schema() for t in READ_TOOLS]
+    return [t.schema() for t in ALL_TOOLS]
 
 
 async def execute(ctx: ToolContext, name: str, arguments: dict) -> Any:
