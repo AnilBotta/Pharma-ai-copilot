@@ -38,6 +38,29 @@ class IntegrationState(StrEnum):
     KEYLESS = "keyless"  # usable without credentials, possibly rate-limited
 
 
+def _resend_detail(has_key: bool, from_email: str | None) -> str:
+    """Say which half of the email configuration is missing, not just that one is.
+
+    "Not configured" sends an operator to look at the wrong variable half the
+    time. Both are needed and either can be the one that was forgotten.
+    """
+    if has_key and from_email:
+        return f"Alert email via Resend, from {from_email}."
+    if has_key:
+        return (
+            "RESEND_API_KEY is set but NOTIFICATION_FROM_EMAIL is not, so "
+            "nothing can be sent. Alerts are raised and recorded only."
+        )
+    if from_email:
+        return (
+            "NOTIFICATION_FROM_EMAIL is set but RESEND_API_KEY is not, so "
+            "nothing can be sent. Alerts are raised and recorded only."
+        )
+    return (
+        "No email provider. Alerts are raised and recorded, and nobody is told."
+    )
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=(BACKEND_DIR / ".env"),
@@ -129,7 +152,25 @@ class Settings(BaseSettings):
     #: silently doing nothing, so nobody believes mail is going out when it is
     #: not.
     resend_api_key: SecretStr | None = None
-    notification_from_email: str | None = None
+    #: Also accepted as RESEND_FROM_EMAIL, which is what an operator setting
+    #: RESEND_API_KEY naturally reaches for - the two look like a pair.
+    #:
+    #: This is not politeness. `build_notifier` needs BOTH values and falls
+    #: back to sending nothing if either is missing, so a near-miss on the name
+    #: disables alerts entirely and says nothing about why. It happened: a
+    #: deployment with RESEND_API_KEY and RESEND_FROM_EMAIL both correctly set
+    #: still delivered nothing, and the only symptom was 44 rows quietly
+    #: marked `skipped`.
+    #:
+    #: Same reasoning as the SUPABASE_URL alias above. Where two names for one
+    #: value are both reasonable, accepting both is a safeguard; insisting on
+    #: one is a trap.
+    notification_from_email: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices(
+            "notification_from_email", "resend_from_email"
+        ),
+    )
 
     # ------------------------------------------------------------- limits ---
     max_literature_results: int = Field(default=50, ge=1, le=200)
@@ -269,6 +310,26 @@ class Settings(BaseSettings):
                 ),
                 "required": False,
                 "detail": "Optional secondary patent source.",
+            },
+            # Listed because its absence is the one that fails quietly. Every
+            # other integration here announces itself when missing - a run
+            # without patents says so in its own output. Notifications do not:
+            # alerts are still raised and still recorded, the deliveries table
+            # still fills up, and nobody is told. Production had 44 of those
+            # before anyone thought to look.
+            "resend": {
+                # Half-configured counts as not configured. A key with no from
+                # address cannot send, and reporting that as CONFIGURED would
+                # be this system telling its own operator a comfortable lie.
+                "state": (
+                    IntegrationState.CONFIGURED
+                    if (self.resend_api_key and self.notification_from_email)
+                    else IntegrationState.NOT_CONFIGURED
+                ),
+                "required": False,
+                "detail": _resend_detail(
+                    bool(self.resend_api_key), self.notification_from_email
+                ),
             },
         }
 

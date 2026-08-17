@@ -312,9 +312,19 @@ every one `skipped` with the reason *"No email provider configured; nothing was
 sent."* The audience resolved correctly — the project manager, by email — so
 the engine did its job and said plainly that nothing left the building.
 
-**`RESEND_API_KEY` is not set in Vercel.** Until it is, alerts accumulate in the
-database and nobody is told. Set it, plus `NOTIFICATION_FROM_EMAIL`, and the
-backlog goes out on the next sweep.
+**Email needs two variables and sends nothing without both:**
+
+```
+RESEND_API_KEY
+NOTIFICATION_FROM_EMAIL     (RESEND_FROM_EMAIL is also accepted)
+```
+
+`build_notifier` falls back to the logging notifier if either is missing, so a
+near-miss on one name disables alerts entirely and reports nothing about why.
+That is not hypothetical: a deployment had `RESEND_API_KEY` and
+`RESEND_FROM_EMAIL` both correctly set and still delivered nothing, because the
+field only bound `NOTIFICATION_FROM_EMAIL`. Both names are accepted now, and
+`GET /api/health` reports which half is missing when one is.
 
 That last clause is only true since the fix below. Previously a `skipped`
 delivery permanently consumed its slot in the `(event_id, recipient,
