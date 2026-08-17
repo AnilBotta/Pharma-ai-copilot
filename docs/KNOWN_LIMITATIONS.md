@@ -305,6 +305,25 @@ EPO_OPS_CONSUMER_SECRET=
 `SUPABASE_JWT_SECRET` is **not** needed — this project signs with asymmetric
 ES256 keys, verified against its JWKS endpoint.
 
+### 1.6b Notifications: raised, recorded, and not sent
+
+Production has **44 open `requirement_overdue` alerts** and 44 delivery rows,
+every one `skipped` with the reason *"No email provider configured; nothing was
+sent."* The audience resolved correctly — the project manager, by email — so
+the engine did its job and said plainly that nothing left the building.
+
+**`RESEND_API_KEY` is not set in Vercel.** Until it is, alerts accumulate in the
+database and nobody is told. Set it, plus `NOTIFICATION_FROM_EMAIL`, and the
+backlog goes out on the next sweep.
+
+That last clause is only true since the fix below. Previously a `skipped`
+delivery permanently consumed its slot in the `(event_id, recipient,
+escalation_level)` unique constraint, so configuring email later would have
+delivered **nothing** — the 44 would have stayed unsent forever while the table
+showed 44 deliveries. Found by reading production, not by a test: the dispatch
+path had no database coverage at all, which is how it survived. It has six
+assertions now.
+
 ### 1.7 The conversational Manager Agent
 
 Built in four steps and driven in a browser against the real model at each one.

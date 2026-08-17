@@ -52,6 +52,19 @@ def dsn() -> str:
     return re.search(r"^DATABASE_URL=(.+)$", env, re.MULTILINE).group(1).strip()
 
 
+class _Acquire:
+    """Hands `dispatch_pending` the one connection this suite's transaction owns."""
+
+    def __init__(self, conn):
+        self._conn = conn
+
+    async def __aenter__(self):
+        return self._conn
+
+    async def __aexit__(self, *exc):
+        return False
+
+
 async def sweep(conn):
     return await conn.fetchrow("select * from private.sweep_notifications($1)", PROJECT)
 
@@ -336,6 +349,89 @@ async def main() -> int:
             "five more sweeps change nothing",
             before == after_count,
             f"{before} open events, unchanged",
+        )
+
+        # -------------------------------- 8. delivery, and the skipped trap ---
+        #
+        # This path had no test, which is how the bug below survived to
+        # production: 44 deliveries recorded, every one `skipped` because no
+        # email provider was configured, and every one permanently
+        # undeliverable - because the "already told them" check excluded any
+        # delivery row regardless of whether anything was actually sent.
+        #
+        # A table full of deliveries that never happened reads as coverage.
+        print("\n8. A delivery that never left the building is not a delivery")
+
+        from app.notifications import LoggingNotifier, dispatch_pending
+
+        class Pool:
+            def acquire(self):
+                return _Acquire(conn)
+
+        class Recording:
+            """A notifier that is NOT LoggingNotifier, so sends are real."""
+
+            def __init__(self) -> None:
+                self.sent: list[str] = []
+
+            async def send(self, *, to: str, subject: str, body: str) -> None:
+                self.sent.append(to)
+
+        # Give the project manager somebody to be.
+        await conn.execute(
+            """
+            insert into public.user_roles (user_id, role_id, project_id)
+            select $1, r.id, $2 from public.roles r where r.key = 'project_manager'
+            on conflict do nothing
+            """,
+            APPROVER, PROJECT,
+        )
+
+        first = await dispatch_pending(Pool(), LoggingNotifier())
+        check(
+            "with no provider, deliveries are recorded as skipped",
+            first["skipped"] > 0 and first["sent"] == 0,
+            f"{first}",
+        )
+        rows = await conn.fetch(
+            "select status, error from public.notification_deliveries "
+            "where recipient_user_id = $1", APPROVER,
+        )
+        check(
+            "and the row says so rather than claiming success",
+            bool(rows) and all(r["status"] == "skipped" for r in rows),
+            f"{len(rows)} row(s)",
+        )
+
+        # The whole point: configure a provider later and the backlog goes out.
+        recording = Recording()
+        second = await dispatch_pending(Pool(), recording)
+        check(
+            "a provider arriving later DELIVERS the skipped backlog",
+            second["sent"] > 0,
+            f"sent {second['sent']}",
+        )
+        check(
+            "and the notifier actually received them",
+            len(recording.sent) == second["sent"],
+            f"{len(recording.sent)} message(s)",
+        )
+        rows = await conn.fetch(
+            "select status from public.notification_deliveries "
+            "where recipient_user_id = $1", APPROVER,
+        )
+        check(
+            "the skipped rows became sent rather than duplicating",
+            bool(rows) and all(r["status"] == "sent" for r in rows),
+            f"{len(rows)} row(s), statuses {sorted({r['status'] for r in rows})}",
+        )
+
+        # ...and the original guarantee still holds.
+        third = await dispatch_pending(Pool(), Recording())
+        check(
+            "a real delivery is never repeated",
+            third["sent"] == 0 and third["considered"] == 0,
+            f"{third}",
         )
 
     finally:
