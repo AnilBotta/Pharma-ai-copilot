@@ -173,6 +173,15 @@ class PdpRepository:
         module is a uuid. An HTTP caller supplies a string and never notices;
         an internal caller passing the UUID it just read would lose the audit
         entry for a change that did happen.
+
+        `p_actor_agent` is read from `app.acting_agent` inside the query rather
+        than threaded through Python. `audit_events.actor_agent` has existed
+        since 0007, described there as making accountability unambiguous, and
+        nothing ever populated it - every agent action was recorded looking
+        exactly like a person's. Taking it from the same transaction-local
+        setting that migration 0022's triggers read means one source of truth
+        for "an agent is acting", and every call site is covered without any of
+        them having to remember.
         """
         await conn.fetchval(
             """
@@ -186,6 +195,7 @@ class PdpRepository:
                 p_previous      => $7,
                 p_new           => $8,
                 p_reason        => $9,
+                p_actor_agent   => nullif(current_setting('app.acting_agent', true), ''),
                 p_source        => 'api'
             )
             """,

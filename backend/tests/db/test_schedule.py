@@ -26,6 +26,16 @@ OWNER = "ea000000-0000-0000-0000-000000000001"
 PROJECT = "ea100000-0000-0000-0000-000000000001"
 T = {n: f"ea300000-0000-0000-0000-00000000000{n}" for n in range(1, 6)}
 
+#: Replaced in main() with the DATABASE's idea of today.
+#:
+#: It used to be `date.today()`, which made this suite fail for a few hours
+#: every evening: task status is computed by Postgres against `current_date` in
+#: UTC, and a machine behind UTC seeds a forecast_start that the database
+#: already considers yesterday. A task meant to read `not_started` came back
+#: `late_to_start`, and nothing about the code had changed.
+#:
+#: A test that fails depending on the hour is worse than no test, because it
+#: teaches people that a red run is probably the clock.
 TODAY = date.today()
 passed, failed = 0, 0
 
@@ -77,7 +87,13 @@ async def status_of(conn, task_id) -> str:
 
 
 async def main() -> int:
+    global TODAY
+
     conn = await asyncpg.connect(dsn(), statement_cache_size=0)
+    # Every date in this suite is compared by Postgres against current_date, so
+    # every date in this suite comes from Postgres.
+    TODAY = await conn.fetchval("select current_date")
+
     tx = conn.transaction()
     await tx.start()
     try:

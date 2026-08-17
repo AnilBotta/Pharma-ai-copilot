@@ -29,6 +29,7 @@ import logging
 import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
+from datetime import date
 from typing import Any
 
 from app.manager import docs
@@ -51,6 +52,11 @@ class ToolContext:
     deadline: float | None = None
     #: When the turn began, for tools that need to know how much of it is left.
     started: float = field(default_factory=time.monotonic)
+
+    #: Set only inside a conversation; `propose` needs both to attach a
+    #: proposal to the exchange that produced it.
+    manager: Any = None
+    conversation_id: str | None = None
 
     #: Research runs started by this turn. A run costs roughly $0.50 and nine
     #: minutes of compute, and the cap is here rather than only in the prompt
@@ -551,6 +557,40 @@ async def _sweep_notifications(ctx: ToolContext) -> Any:
     }
 
 
+async def _list_people(ctx: ToolContext, project_id: str) -> Any:
+    """Who holds a role on this programme, and their user ids.
+
+    The one place this module writes its own SQL. Every write that names a
+    person - assigning an owner, setting a reviewer - needs a uuid, and the
+    agent is talking to someone who says "give it to Sarah". Without this it
+    would have to guess an id, and guessing an id is how work gets assigned to
+    the wrong person silently.
+    """
+    async with ctx.pool.acquire() as conn:
+        # Access is checked the same way every other read is, before anything
+        # about the project's people is returned.
+        await ctx.pdp.capabilities(ctx.user_id, project_id)
+        rows = await conn.fetch(
+            """
+            select ur.user_id,
+                   coalesce(p.full_name, p.email) as name,
+                   array_agg(distinct r.key order by r.key) as roles
+              from public.user_roles ur
+              join public.roles r on r.id = ur.role_id
+         left join public.profiles p on p.id = ur.user_id
+             where (ur.project_id is null or ur.project_id = $1)
+               and (ur.expires_at is null or ur.expires_at > now())
+          group by ur.user_id, coalesce(p.full_name, p.email)
+          order by 2
+            """,
+            project_id,
+        )
+    return [
+        {"user_id": str(r["user_id"]), "name": r["name"], "roles": list(r["roles"])}
+        for r in rows
+    ]
+
+
 async def _search_docs(ctx: ToolContext, query: str) -> Any:
     hits = docs.search(query)
     if not hits:
@@ -562,6 +602,284 @@ async def _search_docs(ctx: ToolContext, query: str) -> Any:
             ),
         }
     return {"results": hits}
+
+
+# --------------------------------------------------------------------------- #
+# Tier 1 writes — executed immediately, under the agent mark
+#
+# WHERE THE LINE IS
+#
+# Not "risky versus safe". It is: does this change what the readiness engine
+# concludes, or is it an accountable act? Everything here fails both tests. A
+# task, a milestone, an owner, a due date, an acknowledgement - all reversible,
+# none of them evidence, none of them a decision about whether a gate may open.
+#
+# Attaching evidence is NOT here despite the database permitting it, because
+# evidence supersedes approvals and therefore moves what the engine concludes.
+# That waits for the proposal flow.
+#
+# Every one of these lands in `audit_events` with `actor_agent` set, so "the
+# agent did this" is answerable from the record rather than from memory.
+# --------------------------------------------------------------------------- #
+
+
+def _date(value: str | None) -> Any:
+    """Parse an ISO date, refusing anything else rather than guessing."""
+    if not value:
+        return None
+    try:
+        return date.fromisoformat(value)
+    except ValueError as exc:
+        raise ValueError(
+            f"{value!r} is not an ISO date. Use YYYY-MM-DD."
+        ) from exc
+
+
+async def _create_task(
+    ctx: ToolContext,
+    project_id: str,
+    title: str,
+    description: str | None = None,
+    requirement_id: str | None = None,
+    owner_user_id: str | None = None,
+    forecast_start: str | None = None,
+    forecast_end: str | None = None,
+    priority: str = "medium",
+) -> Any:
+    row = await ctx.pdp.create_task(
+        ctx.user_id,
+        project_id,
+        title=title,
+        description=description,
+        requirement_id=requirement_id,
+        owner_user_id=owner_user_id,
+        forecast_start=_date(forecast_start),
+        forecast_end=_date(forecast_end),
+        priority=priority,
+    )
+    return {"created": True, "task_id": str(row["id"]), "title": row.get("title")}
+
+
+async def _update_task(
+    ctx: ToolContext,
+    task_id: str,
+    forecast_start: str | None = None,
+    forecast_end: str | None = None,
+    actual_start: str | None = None,
+    actual_end: str | None = None,
+    owner_user_id: str | None = None,
+    priority: str | None = None,
+    reason: str | None = None,
+) -> Any:
+    row = await ctx.pdp.update_task(
+        ctx.user_id,
+        task_id,
+        forecast_start=_date(forecast_start),
+        forecast_end=_date(forecast_end),
+        actual_start=_date(actual_start),
+        actual_end=_date(actual_end),
+        owner_user_id=owner_user_id,
+        priority=priority,
+        reason=reason,
+    )
+    return {
+        "updated": True,
+        "task_id": str(row["id"]),
+        # Returned so the model can report the consequence rather than just
+        # the edit: moving a forecast changes variance against the baseline,
+        # and the baseline is what was promised.
+        "variance_days": row.get("variance_days"),
+    }
+
+
+async def _add_task_dependency(
+    ctx: ToolContext,
+    successor_id: str,
+    predecessor_id: str,
+    dependency_type: str = "FS",
+    lag_days: int = 0,
+) -> Any:
+    await ctx.pdp.add_task_dependency(
+        ctx.user_id,
+        successor_id,
+        predecessor_id=predecessor_id,
+        dependency_type=dependency_type,
+        lag_days=lag_days,
+    )
+    return {"linked": True, "successor_id": successor_id, "predecessor_id": predecessor_id}
+
+
+async def _create_milestone(
+    ctx: ToolContext,
+    project_id: str,
+    name: str,
+    forecast_date: str | None = None,
+    description: str | None = None,
+) -> Any:
+    row = await ctx.pdp.create_milestone(
+        ctx.user_id,
+        project_id,
+        name=name,
+        forecast_date=_date(forecast_date),
+        description=description,
+        # An agent may not declare something contractual. That is a commitment
+        # and belongs with the same authority as a baseline.
+        is_contractual=False,
+    )
+    return {"created": True, "milestone_id": str(row["id"]), "name": row.get("name")}
+
+
+async def _set_assignment(
+    ctx: ToolContext,
+    requirement_id: str,
+    owner_user_id: str | None = None,
+    reviewer_user_id: str | None = None,
+    due_date: str | None = None,
+    priority: str | None = None,
+) -> Any:
+    row = await ctx.pdp.set_assignment(
+        ctx.user_id,
+        requirement_id,
+        owner_user_id=owner_user_id,
+        reviewer_user_id=reviewer_user_id,
+        due_date=_date(due_date),
+        priority=priority,
+    )
+    return {
+        "updated": True,
+        "requirement_id": requirement_id,
+        "ref_code": row.get("ref_code"),
+        "owner": row.get("owner_name"),
+        "due_date": str(row["due_date"]) if row.get("due_date") else None,
+    }
+
+
+async def _set_blocked(
+    ctx: ToolContext, requirement_id: str, blocked: bool, reason: str | None = None
+) -> Any:
+    row = await ctx.pdp.set_blocked(
+        ctx.user_id, requirement_id, blocked=blocked, reason=reason
+    )
+    return {
+        "updated": True,
+        "ref_code": row.get("ref_code"),
+        "is_blocked": row.get("is_blocked"),
+        "blocked_reason": row.get("blocked_reason"),
+    }
+
+
+async def _acknowledge_notification(ctx: ToolContext, event_id: str) -> Any:
+    row = await ctx.pdp.acknowledge_notification(ctx.user_id, event_id)
+    return {
+        "acknowledged": True,
+        "event_id": event_id,
+        "title": row.get("title"),
+        "note": (
+            "Acknowledged, not resolved. Only the underlying condition ceasing "
+            "to be true resolves an alert - say so rather than implying the "
+            "problem is dealt with."
+        ),
+    }
+
+
+async def _create_document(
+    ctx: ToolContext,
+    project_id: str,
+    document_number: str,
+    title: str,
+    document_type: str,
+    discipline: str | None = None,
+    description: str | None = None,
+) -> Any:
+    row = await ctx.pdp.create_document(
+        ctx.user_id,
+        project_id,
+        document_number=document_number,
+        title=title,
+        document_type=document_type,
+        discipline=discipline,
+        description=description,
+    )
+    return {
+        "created": True,
+        "document_id": str(row["id"]),
+        "document_number": row.get("document_number"),
+        "note": (
+            "This registers the document. It has no version yet, so it cannot "
+            "satisfy any requirement until an approved version is added by a "
+            "person."
+        ),
+    }
+
+
+# --------------------------------------------------------------------------- #
+# Proposing an accountable act
+#
+# ONE TOOL, NOT SIX
+#
+# `propose` takes an action name and its parameters rather than there being an
+# approve_requirement tool, a decide_gate tool and so on. Three reasons, and the
+# third is the real one:
+#
+#   * one confirmation surface in the UI instead of six that drift apart;
+#   * one place where the premise is captured, so no action can be added later
+#     that forgets to record what it was reasoned from;
+#   * and it keeps the shape of the thing honest. These are not six
+#     capabilities the agent has. They are one capability - asking - applied to
+#     six acts it cannot perform.
+# --------------------------------------------------------------------------- #
+
+
+async def _propose(
+    ctx: ToolContext, action_type: str, params: dict, rationale: str
+) -> Any:
+    from app.manager import proposals as P
+
+    if ctx.manager is None or ctx.conversation_id is None:
+        raise ValueError("Proposals can only be made inside a conversation.")
+
+    action = P.validate(action_type, params)
+
+    # Captured through the agent's own repository, so the premise is exactly
+    # what the agent could see when it decided to propose - not a privileged
+    # view somebody would have to reconcile later.
+    premise = await P.capture_premise(ctx.pdp, ctx.user_id, action, params)
+
+    project_id = params.get("project_id")
+    if not project_id:
+        # Every subject resolves to a project; the card needs it to check access.
+        if "requirement_id" in params:
+            req = await ctx.pdp.get_requirement(ctx.user_id, params["requirement_id"])
+            project_id = str(req["project_id"])
+        elif "stage_id" in params:
+            project_id, _caps = await ctx.pdp.capabilities_for_stage(
+                ctx.user_id, params["stage_id"]
+            )
+        elif "document_id" in params:
+            doc = await ctx.pdp.get_document(ctx.user_id, params["document_id"])
+            project_id = str(doc["project_id"])
+
+    row = await ctx.manager.create_proposal(
+        conversation_id=ctx.conversation_id,
+        requested_by=ctx.user_id,
+        project_id=str(project_id) if project_id else None,
+        action_type=action_type,
+        params=params,
+        rationale=rationale,
+        premise=premise,
+    )
+    return {
+        "proposed": True,
+        "proposal_id": str(row["id"]),
+        "action": action.summary,
+        "expires_at": str(row["expires_at"]),
+        "note": (
+            "This is NOT done. It is waiting for the person you are talking to "
+            "to confirm it, and they will see the current state of the record "
+            "rather than your description of it. Tell them what you have "
+            "prepared and why, and that it needs their confirmation."
+        ),
+    }
 
 
 # --------------------------------------------------------------------------- #
@@ -707,6 +1025,13 @@ READ_TOOLS: list[Tool] = [
         _get_run_report,
     ),
     Tool(
+        "list_people",
+        "Who holds a role on this programme, with their user ids and role keys. "
+        "Use this before assigning anything to anyone - never invent a user id.",
+        _params(dict(_PROJECT), ["project_id"]),
+        _list_people,
+    ),
+    Tool(
         "search_docs",
         "Search this system's own documentation for how it works and why - roles, "
         "segregation of duties, what the readiness engine requires, what a gate "
@@ -774,7 +1099,201 @@ DISPATCH_TOOLS: list[Tool] = [
     ),
 ]
 
-ALL_TOOLS: list[Tool] = [*READ_TOOLS, *DISPATCH_TOOLS]
+#: Writes the agent performs immediately, under its own mark. Reversible, and
+#: none of them changes what the readiness engine concludes. See the block
+#: comment above the handlers for where the line sits and why.
+WRITE_TOOLS: list[Tool] = [
+    Tool(
+        "create_task",
+        "Create a task on a programme, optionally linked to a requirement and "
+        "assigned to someone. Use list_people to get a user_id; never guess one.",
+        _params(
+            {
+                **_PROJECT,
+                "title": {"type": "string", "description": "What the task is."},
+                "description": {"type": "string"},
+                "requirement_id": {
+                    "type": "string",
+                    "description": "Optional requirement this task delivers.",
+                },
+                "owner_user_id": {"type": "string", "description": "From list_people."},
+                "forecast_start": {"type": "string", "description": "YYYY-MM-DD."},
+                "forecast_end": {"type": "string", "description": "YYYY-MM-DD."},
+                "priority": {
+                    "type": "string",
+                    "description": "low, medium, high or critical.",
+                },
+            },
+            ["project_id", "title"],
+        ),
+        _create_task,
+    ),
+    Tool(
+        "update_task",
+        "Move a task's forecast or actual dates, its owner or its priority. "
+        "Baseline dates cannot be touched here - those are the commitment, and "
+        "changing one is a re-baselining that needs a person.",
+        _params(
+            {
+                "task_id": {"type": "string"},
+                "forecast_start": {"type": "string", "description": "YYYY-MM-DD."},
+                "forecast_end": {"type": "string", "description": "YYYY-MM-DD."},
+                "actual_start": {"type": "string", "description": "YYYY-MM-DD."},
+                "actual_end": {"type": "string", "description": "YYYY-MM-DD."},
+                "owner_user_id": {"type": "string"},
+                "priority": {"type": "string"},
+                "reason": {
+                    "type": "string",
+                    "description": "Why it moved. Recorded in the audit trail.",
+                },
+            },
+            ["task_id"],
+        ),
+        _update_task,
+    ),
+    Tool(
+        "add_task_dependency",
+        "Make one task depend on another. Refused if it would create a cycle.",
+        _params(
+            {
+                "successor_id": {"type": "string", "description": "The task that waits."},
+                "predecessor_id": {
+                    "type": "string",
+                    "description": "The task that must happen first.",
+                },
+                "dependency_type": {
+                    "type": "string",
+                    "description": "FS, SS, FF or SF. Default FS.",
+                },
+                "lag_days": {"type": "integer"},
+            },
+            ["successor_id", "predecessor_id"],
+        ),
+        _add_task_dependency,
+    ),
+    Tool(
+        "create_milestone",
+        "Add a milestone with a forecast date. It is never marked contractual - "
+        "that is a commitment and needs a person.",
+        _params(
+            {
+                **_PROJECT,
+                "name": {"type": "string"},
+                "forecast_date": {"type": "string", "description": "YYYY-MM-DD."},
+                "description": {"type": "string"},
+            },
+            ["project_id", "name"],
+        ),
+        _create_milestone,
+    ),
+    Tool(
+        "set_assignment",
+        "Set a requirement's owner, reviewer, due date or priority. Use "
+        "list_people for user ids.",
+        _params(
+            {
+                "requirement_id": {"type": "string"},
+                "owner_user_id": {"type": "string"},
+                "reviewer_user_id": {"type": "string"},
+                "due_date": {"type": "string", "description": "YYYY-MM-DD."},
+                "priority": {"type": "string"},
+            },
+            ["requirement_id"],
+        ),
+        _set_assignment,
+    ),
+    Tool(
+        "set_blocked",
+        "Mark a requirement blocked, or clear a block. Blocking requires a "
+        "stated reason.",
+        _params(
+            {
+                "requirement_id": {"type": "string"},
+                "blocked": {"type": "boolean"},
+                "reason": {"type": "string", "description": "Required when blocking."},
+            },
+            ["requirement_id", "blocked"],
+        ),
+        _set_blocked,
+    ),
+    Tool(
+        "acknowledge_notification",
+        "Take ownership of an alert so it stops escalating. This does NOT "
+        "resolve it - only the underlying condition ceasing to be true does "
+        "that. Say so when you report it.",
+        _params({"event_id": {"type": "string"}}, ["event_id"]),
+        _acknowledge_notification,
+    ),
+    Tool(
+        "create_document",
+        "Register a controlled document. It has no version, so it satisfies "
+        "nothing until a person adds an approved version.",
+        _params(
+            {
+                **_PROJECT,
+                "document_number": {"type": "string", "description": "e.g. SOP-014."},
+                "title": {"type": "string"},
+                "document_type": {
+                    "type": "string",
+                    "description": "sop, protocol, report, specification, plan.",
+                },
+                "discipline": {"type": "string"},
+                "description": {"type": "string"},
+            },
+            ["project_id", "document_number", "title", "document_type"],
+        ),
+        _create_document,
+    ),
+]
+
+#: Asking a person to take an act the agent cannot. One tool; see the block
+#: comment above `_propose` for why it is not six.
+PROPOSE_TOOLS: list[Tool] = [
+    Tool(
+        "propose",
+        "Prepare an act you cannot perform, for the person you are talking to "
+        "to confirm. Use this when asked to approve a requirement, decide a "
+        "gate, attach evidence, add a document version, confirm acceptance "
+        "criteria, or re-baseline a schedule.\n\n"
+        "action_type is one of: approve_requirement (requirement_id, "
+        "optional comments), decide_gate (stage_id, decision, optional note "
+        "and conditions), attach_evidence (requirement_id, evidence_type, and "
+        "one of research_run_id / document_version_id / external_url / note), "
+        "add_document_version (document_id, version_label, storage_url), "
+        "set_acceptance (requirement_id, confirmed), rebaseline (project_id, "
+        "name, reason).\n\n"
+        "It does NOT perform the act. Say clearly that it is waiting for them.",
+        _params(
+            {
+                "action_type": {
+                    "type": "string",
+                    "description": "One of the six named above.",
+                },
+                "params": {
+                    "type": "object",
+                    "description": "Parameters for that action.",
+                    "additionalProperties": True,
+                },
+                "rationale": {
+                    "type": "string",
+                    "description": (
+                        "Why you are proposing it. Shown to the reviewer "
+                        "beneath the evidence, not as grounds for approving."
+                    ),
+                },
+            },
+            ["action_type", "params", "rationale"],
+        ),
+        _propose,
+    ),
+]
+
+ALL_TOOLS: list[Tool] = [
+    *READ_TOOLS,
+    *DISPATCH_TOOLS,
+    *WRITE_TOOLS,
+    *PROPOSE_TOOLS,
+]
 
 
 def registry() -> dict[str, Tool]:

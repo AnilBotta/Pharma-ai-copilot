@@ -630,6 +630,30 @@ export interface ManagerConversationDetail {
   messages: ManagerMessage[];
 }
 
+export type ProposalAction =
+  | "approve_requirement"
+  | "decide_gate"
+  | "attach_evidence"
+  | "add_document_version"
+  | "set_acceptance"
+  | "rebaseline";
+
+export interface AgentProposal {
+  id: string;
+  action_type: ProposalAction;
+  params: Record<string, unknown>;
+  rationale: string;
+  /**
+   * The state the agent reasoned from. Used only to say what has MOVED —
+   * never to render the current state, which the card fetches itself.
+   */
+  premise: Record<string, unknown>;
+  status: "pending" | "confirmed" | "rejected" | "expired" | "failed";
+  project_id: string | null;
+  expires_at: string;
+  created_at: string;
+}
+
 /** One frame of a streamed turn. */
 export type ManagerEvent =
   | { type: "token"; text: string }
@@ -884,6 +908,9 @@ export const pdp = {
 
   getGate: (stageId: string) => request<GateWorkspace>(`/pdp/stages/${stageId}`),
 
+  getRequirement: (requirementId: string) =>
+    request<Requirement>(`/pdp/requirements/${requirementId}`),
+
   /**
    * PDP Operations Agent. Advisory: the readiness engine remains the
    * authority on whether this gate can open, and the database refuses the
@@ -912,6 +939,21 @@ export const pdp = {
 
   archiveConversation: (id: string) =>
     request<void>(`/manager/conversations/${id}`, { method: "DELETE" }),
+
+  listProposals: (status = "pending") =>
+    request<AgentProposal[]>(`/manager/proposals?status_filter=${status}`),
+
+  confirmProposal: (id: string) =>
+    request<{ status: string; proposal_id: string }>(
+      `/manager/proposals/${id}/confirm`,
+      { method: "POST" }
+    ),
+
+  rejectProposal: (id: string, reason?: string) =>
+    request<{ status: string; proposal_id: string }>(
+      `/manager/proposals/${id}/reject`,
+      { method: "POST", body: JSON.stringify({ reason: reason ?? null }) }
+    ),
 
   decideGate: (
     stageId: string,
