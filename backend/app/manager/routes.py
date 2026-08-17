@@ -333,7 +333,23 @@ async def confirm_proposal(
         # Not recorded as a failure of the proposal: nothing was attempted.
         # It stays pending so the card can show what changed.
         raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
-    except (Conflict, Forbidden, NotFound) as exc:
+    except Forbidden as exc:
+        # NOT a failure of the proposal. "You may not do this" is a fact about
+        # the person who clicked, and the commonest case is the honest one -
+        # you confirmed the acceptance criteria yourself, so you cannot also
+        # approve. A colleague with gate authority still can.
+        #
+        # This was marked `failed` in the first version, which quietly threw
+        # away the proposal because the wrong person opened it. Found by
+        # reading production after the merge: one proposal sitting at `failed`
+        # for exactly that reason.
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            f"{exc} This proposal is still open for someone who can.",
+        ) from exc
+    except (Conflict, NotFound) as exc:
+        # These are about the act itself - a gate with blockers, a requirement
+        # that no longer exists - so the proposal really is spent.
         await repository.settle_proposal(
             proposal_id, status="failed", error=str(exc)[:1000]
         )

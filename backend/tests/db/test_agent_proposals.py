@@ -30,7 +30,7 @@ from app.db import _init_connection
 from app.manager import proposals as P
 from app.manager.repository import ManagerRepository
 from app.pdp.agent import AgentRepository
-from app.pdp.repository import PdpRepository
+from app.pdp.repository import Forbidden, PdpRepository
 
 DOER = "ab000000-0000-0000-0000-000000000001"
 APPROVER = "ab000000-0000-0000-0000-000000000002"
@@ -282,14 +282,27 @@ async def main() -> int:
         # ---------------------------------------- segregation still applies ---
         print("\n  SEGREGATION OF DUTIES STILL APPLIES TO THE CONFIRMER")
         doer_proposal = dict(stored)
+        # `Forbidden` specifically, not any exception. The route distinguishes
+        # by type: Forbidden leaves the proposal PENDING, because "you may not
+        # do this" is a fact about the person who clicked and a colleague with
+        # authority still can. Anything else marks it spent.
+        #
+        # The first version marked every failure spent, and production showed
+        # what that costs: a proposal sitting at `failed` purely because the
+        # person who confirmed the acceptance was the one who opened the card.
         ok, detail = await refused(
             conn,
             P.confirm(repo=human, user_id=DOER, proposal=doer_proposal),
-            Exception,
+            Forbidden,
         )
         check(
             "the doer cannot confirm an approval of their own work",
             ok,
+            detail,
+        )
+        check(
+            "...and it is Forbidden, so the proposal stays open for someone else",
+            ok and "segregation" in detail.lower(),
             detail,
         )
 
