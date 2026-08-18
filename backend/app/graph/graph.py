@@ -3,14 +3,15 @@
     START
       -> intake_and_scope
       -> supervisor_planner
-      -> { research_agent, literature_agent, patent_agent }   (parallel)
+      -> { research_agent, literature_agent, patent_agent,
+           document_agent }                                   (parallel)
       -> development_strategy_agent
       -> supervisor_synthesis
       -> evidence_reviewer
       -> report_generation  (or back to synthesis once, on verification failure)
       -> END
 
-The three specialist agents run concurrently because none depends on the
+The four specialist agents run concurrently because none depends on the
 others' output; they are joined by a fan-in edge before strategy runs. State
 fields they all write use additive reducers, so concurrent updates merge rather
 than overwrite.
@@ -30,6 +31,8 @@ from typing import Any
 from langgraph.graph import END, START, StateGraph
 
 from app.graph.context import RunContext
+from app.graph.nodes.documents import NODE as NODE_DOCUMENTS
+from app.graph.nodes.documents import document_agent
 from app.graph.nodes.intake import (
     NODE_INTAKE,
     NODE_PLANNER,
@@ -94,7 +97,7 @@ def route_after_intake(state: ResearchState) -> str:
 
 
 def route_after_planning(state: ResearchState) -> list[str]:
-    """Fan out to the three specialists, or abort.
+    """Fan out to the four specialists, or abort.
 
     Returns node names rather than a semantic key because LangGraph fans out on
     a returned *sequence* of destinations; a path_map value cannot itself be a
@@ -102,7 +105,7 @@ def route_after_planning(state: ResearchState) -> list[str]:
     """
     if _has_fatal_error(state) or state.get("research_plan") is None:
         return [END]
-    return [NODE_RESEARCH, NODE_LITERATURE, NODE_PATENT]
+    return [NODE_RESEARCH, NODE_LITERATURE, NODE_PATENT, NODE_DOCUMENTS]
 
 
 def route_after_verification(state: ResearchState) -> str:
@@ -137,6 +140,7 @@ def build_graph(context: RunContext, checkpointer: Any = None) -> Any:
     builder.add_node(NODE_RESEARCH, _bind(research_agent, context))
     builder.add_node(NODE_LITERATURE, _bind(literature_agent, context))
     builder.add_node(NODE_PATENT, _bind(patent_agent, context))
+    builder.add_node(NODE_DOCUMENTS, _bind(document_agent, context))
     builder.add_node(NODE_STRATEGY, _bind(development_strategy_agent, context))
     builder.add_node(NODE_SYNTHESIS, _bind(supervisor_synthesis, context))
     builder.add_node(NODE_REVIEWER, _bind(evidence_reviewer, context))
@@ -150,16 +154,21 @@ def build_graph(context: RunContext, checkpointer: Any = None) -> Any:
         {"plan": NODE_PLANNER, "abort": END},
     )
 
-    # Fan out to the three specialists. Returning several destinations makes
+    # Fan out to the four specialists. Returning several destinations makes
     # LangGraph schedule them concurrently.
     builder.add_conditional_edges(
         NODE_PLANNER,
         route_after_planning,
-        [NODE_RESEARCH, NODE_LITERATURE, NODE_PATENT, END],
+        [NODE_RESEARCH, NODE_LITERATURE, NODE_PATENT, NODE_DOCUMENTS, END],
     )
 
-    # Fan in: strategy waits for all three.
-    builder.add_edge([NODE_RESEARCH, NODE_LITERATURE, NODE_PATENT], NODE_STRATEGY)
+    # Fan in: strategy waits for all four. The document branch is included even
+    # when the project has no uploads - it returns immediately in that case, and
+    # a node that is always scheduled is simpler to reason about than one whose
+    # presence in the graph depends on data.
+    builder.add_edge(
+        [NODE_RESEARCH, NODE_LITERATURE, NODE_PATENT, NODE_DOCUMENTS], NODE_STRATEGY
+    )
 
     builder.add_conditional_edges(
         NODE_STRATEGY,
@@ -194,6 +203,7 @@ NODE_SEQUENCE = (
     NODE_RESEARCH,
     NODE_LITERATURE,
     NODE_PATENT,
+    NODE_DOCUMENTS,
     NODE_STRATEGY,
     NODE_SYNTHESIS,
     NODE_REVIEWER,
@@ -206,6 +216,7 @@ NODE_AGENT = {
     NODE_RESEARCH: "research_agent",
     NODE_LITERATURE: "literature_agent",
     NODE_PATENT: "patent_agent",
+    NODE_DOCUMENTS: "document_agent",
     NODE_STRATEGY: "development_strategy_agent",
     NODE_SYNTHESIS: "supervisor",
     NODE_REVIEWER: "evidence_reviewer",

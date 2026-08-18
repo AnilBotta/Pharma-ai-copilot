@@ -103,6 +103,19 @@ export const PATENT_DISCLAIMER =
   "validity analysis, infringement analysis, or freedom-to-operate opinion. " +
   "Consult qualified patent counsel.";
 
+/**
+ * Shown wherever uploaded material is cited.
+ *
+ * These passages appear beside peer-reviewed literature, in the same layout,
+ * carrying the same kind of marker. Nothing about that presentation says the
+ * two were held to different standards, and one of them was not held to any.
+ */
+export const INTERNAL_DOCUMENT_DISCLAIMER =
+  "These passages come from documents uploaded to this workspace. They have not " +
+  "been peer-reviewed, published, or verified by anyone outside your " +
+  "organisation, and carry no independent standing. Weigh them accordingly " +
+  "against the published sources cited alongside them.";
+
 export const GENERAL_DISCLAIMER =
   "This platform provides research support only. It does not provide medical, " +
   "regulatory, toxicological, clinical, or legal decisions, and does not replace " +

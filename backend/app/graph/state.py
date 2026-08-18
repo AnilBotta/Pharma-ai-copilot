@@ -14,11 +14,12 @@ from __future__ import annotations
 
 import operator
 from datetime import datetime
-from typing import Annotated, Any, TypedDict
+from typing import Annotated, Any, NotRequired, TypedDict
 
 from app.models.agents import (
     BackgroundSummary,
     DevelopmentStrategy,
+    DocumentFindings,
     LiteratureFindings,
     PatentFindings,
     ReportDraft,
@@ -50,6 +51,12 @@ class EvidenceEntry(TypedDict):
     evidence_category: str | None
     relevance_score: float | None
     retrieved_by_agent: str
+
+    #: Set only for `internal_document` evidence. It is what makes a citation
+    #: resolve to the exact passage on the exact page, rather than to a filename
+    #: the reader then has to search. Literature and patent evidence leave it
+    #: absent; they are located by their own identifiers.
+    document_chunk_id: NotRequired[str | None]
 
 
 class RunError(TypedDict):
@@ -111,6 +118,7 @@ class ResearchState(TypedDict, total=False):
     background_summary: BackgroundSummary | None
     literature_findings: LiteratureFindings | None
     patent_findings: PatentFindings | None
+    document_findings: DocumentFindings | None
     development_strategy: DevelopmentStrategy | None
     verification: VerificationReport | None
     report: ReportDraft | None
@@ -191,6 +199,7 @@ def initial_state(
         background_summary=None,
         literature_findings=None,
         patent_findings=None,
+        document_findings=None,
         development_strategy=None,
         verification=None,
         report=None,

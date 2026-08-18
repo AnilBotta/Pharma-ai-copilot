@@ -6,7 +6,7 @@ import { ExternalLink, FileText, ShieldCheck, Upload } from "lucide-react";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { PATENT_DISCLAIMER } from "@/lib/agents";
+import { INTERNAL_DOCUMENT_DISCLAIMER, PATENT_DISCLAIMER } from "@/lib/agents";
 import type { Evidence } from "@/lib/api";
 
 const ACCESS_LABELS: Record<string, { label: string; variant: "success" | "warning" | "muted" }> = {
@@ -68,7 +68,13 @@ export function SourceExplorer({ evidence }: { evidence: Evidence[] }) {
         )}
       </TabsContent>
 
-      <TabsContent value="documents" className="mt-4">
+      <TabsContent value="documents" className="mt-4 space-y-3">
+        {documents.length > 0 && (
+          <div className="rounded-lg border border-sky-500/30 bg-sky-500/5 p-3 text-xs leading-relaxed">
+            <Upload className="mb-1 inline size-3.5 text-sky-600 dark:text-sky-400" />{" "}
+            {INTERNAL_DOCUMENT_DISCLAIMER}
+          </div>
+        )}
         {documents.length === 0 ? (
           <EmptyState
             icon={Upload}
@@ -89,7 +95,14 @@ export function SourceExplorer({ evidence }: { evidence: Evidence[] }) {
 }
 
 function SourceCard({ evidence }: { evidence: Evidence }) {
-  const access = ACCESS_LABELS[evidence.access_level] ?? ACCESS_LABELS.metadata_only;
+  // For an uploaded document the access level is always `full_text` - the
+  // passage was read in full - and rendering that as a green "Full text" badge
+  // borrows the visual language of a peer-reviewed paper we obtained in full.
+  // Accurate, and misleading. It says what the source is instead.
+  const access =
+    evidence.source_type === "internal_document"
+      ? { label: "Uploaded", variant: "muted" as const }
+      : ACCESS_LABELS[evidence.access_level] ?? ACCESS_LABELS.metadata_only;
 
   return (
     <article className="rounded-xl border p-4">

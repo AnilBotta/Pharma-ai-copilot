@@ -156,6 +156,33 @@ class LiteratureFindings(Strict):
     warnings: list[str] = Field(default_factory=list)
 
 
+class DocumentExtraction(Strict):
+    """What the document agent took from one retrieved passage."""
+
+    marker: str = Field(description="Evidence marker of the passage being described.")
+    key_points: list[str] = Field(default_factory=list)
+    relevance_note: str | None = None
+    relevance_score: float = Field(ge=0.0, le=1.0)
+
+
+class DocumentFindings(Strict):
+    """Internal Document Agent output.
+
+    Has no `contradictions` field, unlike the literature agent, and the omission
+    is deliberate. Where an internal document disagrees with published
+    literature, that is not a contradiction between sources of equal standing to
+    be reported neutrally - one is peer-reviewed and one is a file somebody
+    uploaded. Disagreement is recorded as a caveat on the claim instead, which
+    keeps the asymmetry visible.
+    """
+
+    summary: str
+    extractions: list[DocumentExtraction] = Field(default_factory=list)
+    synthesis: list[Claim] = Field(default_factory=list)
+    evidence_gaps: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+
+
 class PatentAnalysis(Strict):
     """What the patent agent concluded about one patent family."""
 
