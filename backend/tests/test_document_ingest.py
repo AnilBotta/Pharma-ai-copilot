@@ -307,6 +307,54 @@ class TestRetrievalDoesNotPadWithIrrelevance:
         )
 
 
+class TestConfirmingAnUploadStorageCannotMeasure:
+    """Storage gzips text, and a gzipped response has no content-length.
+
+    Two of the three accepted document types are text, so this was not an edge
+    case - it was most non-PDF uploads. The failure surfaced as a check
+    constraint violation on `size_bytes > 0`, raised from the driver, naming a
+    column rather than the upload it belonged to. A PDF is already compressed
+    and is not gzipped again, which is why testing with one hid it completely.
+    """
+
+    async def test_an_unmeasurable_size_is_refused_not_written(self) -> None:
+        from app.documents.repository import DocumentRepository
+        from app.documents.storage import SIZE_UNKNOWN
+
+        class Pool:
+            def acquire(self):
+                raise AssertionError("nothing should reach the database")
+
+        with pytest.raises(ValueError) as exc:
+            await DocumentRepository(Pool()).mark_uploaded("u", "d", SIZE_UNKNOWN)
+
+        # It has to say what to do instead, or the next reader reaches for the
+        # constraint rather than the caller.
+        assert "declared size" in str(exc.value)
+
+    async def test_a_real_size_is_written(self) -> None:
+        from app.documents.repository import DocumentRepository
+
+        class Conn:
+            async def fetchrow(self, *args):
+                assert args[-1] == 1913
+                return {"id": "d", "size_bytes": 1913}
+
+        class Acquire:
+            async def __aenter__(self):
+                return Conn()
+
+            async def __aexit__(self, *exc):
+                return False
+
+        class Pool:
+            def acquire(self):
+                return Acquire()
+
+        row = await DocumentRepository(Pool()).mark_uploaded("u", "d", 1913)
+        assert row["size_bytes"] == 1913
+
+
 def _far_future() -> float:
     import time
 

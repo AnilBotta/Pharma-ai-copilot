@@ -35,6 +35,12 @@ BUCKET = "documents"
 #: connection, short enough that a leaked URL is not a standing grant.
 SIGNED_UPLOAD_TTL_SECONDS = 900
 
+#: Returned by :meth:`DocumentStorage.exists` when the object is there but its
+#: size could not be established. Distinct from None, which means absent, and
+#: emphatically not the same as "zero bytes" - `documents.size_bytes` refuses
+#: zero, so a caller that treats this as a measurement writes an invalid row.
+SIZE_UNKNOWN = 0
+
 #: Storage is a different service from the database and can be slow for large
 #: objects, so this is generous compared with the provider timeouts.
 _TIMEOUT = httpx.Timeout(connect=10.0, read=120.0, write=120.0, pool=10.0)
@@ -125,25 +131,54 @@ class DocumentStorage:
     async def exists(self, path: str) -> int | None:
         """Object size in bytes, or None if it is not there.
 
+        `SIZE_UNKNOWN` (0) means the object is present but its size could not be
+        established - a real state, distinct from absence, and one the caller
+        must not confuse with an empty file.
+
         Used to confirm an upload actually landed. A client that reports success
-        over a bucket that does not have the file is a state worth catching at
-        the point of claim, rather than discovering it in the worker minutes
-        later with nothing useful to say about why.
+        over a bucket that does not have the file is worth catching here, rather
+        than discovering it in the worker minutes later with nothing useful to
+        say about why.
 
-        A HEAD against the object itself, deliberately, rather than the
-        `/object/info` endpoint. If that endpoint were unavailable it would
-        answer 404 - identical to "no such object" - and every upload would be
-        rejected at the confirmation step with a message blaming the user's
-        browser. HEAD on the download path has no such ambiguity: this is the
-        route the worker will use to fetch the bytes, so a 200 here means the
-        thing that matters is true.
+        WHY NOT JUST READ content-length
+
+        Because Storage gzips compressible content types, and a gzipped response
+        carries `content-encoding: gzip` and NO content-length at all. Measured:
+
+            text/plain, 280 B            content-length None,  gzip
+            text/plain, 140,000 B        content-length None,  gzip
+            application/octet-stream     content-length 10240, no encoding
+
+        Two of the three document types this feature accepts are text. Reading
+        content-length therefore reports zero for most non-PDF uploads, and
+        `documents.size_bytes` has a `> 0` check constraint, so confirming a text
+        upload raised a constraint violation. PDFs are already compressed and are
+        not gzipped again, which is why testing with one hid this entirely.
+
+        `/object/info` reports the true size for every case, so it is the source
+        of truth. A 404 from it is checked against the object itself before the
+        upload is declared missing - the one ambiguity worth guarding, since
+        "this endpoint is unavailable" and "no such object" look identical.
         """
-        url = f"{self._base}/object/{BUCKET}/{path}"
         async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
-            response = await client.head(url, headers=self._headers)
+            response = await client.get(
+                f"{self._base}/object/info/{BUCKET}/{path}", headers=self._headers
+            )
 
-        if response.status_code == 404:
-            return None
+            if response.status_code == 404:
+                # Ask the object itself before declaring it absent.
+                head = await client.head(
+                    f"{self._base}/object/{BUCKET}/{path}", headers=self._headers
+                )
+                if head.status_code == 404:
+                    return None
+                if head.status_code < 400:
+                    return SIZE_UNKNOWN
+                raise StorageError(
+                    _explain(head, f"Could not check {path}."),
+                    status_code=head.status_code,
+                )
+
         if response.status_code >= 400:
             raise StorageError(
                 _explain(response, f"Could not check {path}."),
@@ -151,11 +186,10 @@ class DocumentStorage:
             )
 
         try:
-            return int(response.headers.get("content-length", 0))
-        except (TypeError, ValueError):
-            # Present but unmeasurable. Report existence, since that is the
-            # question actually being asked; the true size is not load-bearing.
-            return 0
+            size = int(response.json().get("size"))
+        except (TypeError, ValueError, AttributeError):
+            return SIZE_UNKNOWN
+        return size if size > 0 else SIZE_UNKNOWN
 
     async def remove(self, path: str) -> None:
         """Delete an object. A missing object is not an error.
@@ -194,4 +228,4 @@ def _explain(response: httpx.Response, fallback: str) -> str:
     return f"{fallback} HTTP {response.status_code}."
 
 
-__all__ = ["BUCKET", "DocumentStorage", "StorageError"]
+__all__ = ["BUCKET", "SIZE_UNKNOWN", "DocumentStorage", "StorageError"]
