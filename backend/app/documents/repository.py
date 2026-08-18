@@ -355,9 +355,16 @@ class DocumentRepository:
         redundancy worth keeping, because it means a future change to how
         projects are shared cannot silently widen what a run can read.
 
-        `<=>` is cosine distance, matching the operator class the index in 0004
-        was built with. Similarity is reported as `1 - distance` so a larger
-        number means a closer match, which is what every caller expects.
+        `<=>` is cosine distance. Similarity is reported as `1 - distance` so a
+        larger number means a closer match, which is what every caller expects.
+
+        This is an exact scan. The approximate index 0004 created was removed by
+        0026 after it was measured returning none of the true ten nearest
+        passages - it had been built on an empty table, so its centroids
+        partitioned nothing. Exact search costs about 31 ms at 4,000 chunks,
+        inside a run that takes minutes. See 0026 for the corpus size at which
+        an index becomes worth reconsidering, and for how to build one that
+        works.
         """
         vector = "[" + ",".join(repr(float(x)) for x in embedding) + "]"
         async with self._pool.acquire() as conn:
