@@ -423,9 +423,35 @@ async def worker_tick(
         logger.exception("The notification sweep failed; the tick continues")
         result["notifications"] = {"error": "sweep failed; see server logs"}
 
+    # Document ingest rides along on the same tick, for the same reasons and
+    # under the same rule: it must never fail the tick. One document is advanced
+    # per pass, within its own budget, so a large upload cannot starve the
+    # research slice that shares this invocation.
+    try:
+        from app.documents.ingest import ingest_pending
+        from app.documents.repository import DocumentRepository
+        from app.llm.provider import ModelProvider
+
+        result["documents"] = await ingest_pending(
+            settings,
+            DocumentRepository(db.get_pool()),
+            # A usage sink is passed rather than omitted: embedding costs money,
+            # and a cost that is spent but not recorded is the reason the chat
+            # turns went unaccounted for.
+            ModelProvider(settings),
+            record_usage=repository.record_usage,
+        )
+    except Exception:
+        logger.exception("Document ingest failed; the tick continues")
+        result["documents"] = {"error": "ingest failed; see server logs"}
+
     # Chain straight into the next slice rather than waiting for the next
-    # scheduled sweep, so a multi-slice run progresses continuously.
-    if result.get("continues"):
+    # scheduled sweep, so a multi-slice run progresses continuously. A document
+    # part-way through embedding is unfinished work in exactly the same sense.
+    if result.get("continues") or result.get("documents", {}).get("outcome") in (
+        "continues",
+        "ready",
+    ):
         with contextlib.suppress(Exception):
             await trigger_tick(settings)
 

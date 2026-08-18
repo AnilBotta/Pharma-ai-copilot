@@ -1232,3 +1232,134 @@ export function subscribeToRun(
 export function getRunEvents(runId: string) {
   return request<RunEvent[]>(`/runs/${runId}/events?after_id=0`);
 }
+
+// --------------------------------------------------------------------------
+// Uploaded documents
+// --------------------------------------------------------------------------
+
+export interface UploadedDocument {
+  id: string;
+  project_id: string | null;
+  filename: string;
+  mime_type: string;
+  size_bytes: number;
+  status: "pending" | "extracting" | "embedding" | "ready" | "failed";
+  error: string | null;
+  page_count: number | null;
+  extracted_chars: number | null;
+  chunk_count: number;
+  pending_chunk_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+interface UploadTicket {
+  document_id: string;
+  upload_url: string;
+  token: string;
+  storage_path: string;
+  max_size_bytes: number;
+}
+
+export const SUPPORTED_DOCUMENT_TYPES = [
+  "application/pdf",
+  "text/plain",
+  "text/markdown",
+] as const;
+
+/**
+ * The upload goes to Supabase Storage, not to this API.
+ *
+ * A serverless function accepts a request body of roughly 4.5 MB, and the
+ * documents this feature exists for are routinely larger. So the API only mints
+ * a signed URL and the bytes travel directly to storage, which has no such
+ * limit. The third call tells the backend the object landed, so a row can never
+ * sit claiming a file that was never sent.
+ *
+ * `onProgress` uses XMLHttpRequest rather than fetch: upload progress events are
+ * still the one thing fetch cannot report.
+ */
+export async function uploadDocument(
+  file: File,
+  options: { projectId?: string | null; onProgress?: (fraction: number) => void } = {}
+): Promise<UploadedDocument> {
+  const mimeType = normaliseMimeType(file);
+
+  const ticket = await request<UploadTicket>("/documents/upload-url", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      filename: file.name,
+      mime_type: mimeType,
+      size_bytes: file.size,
+      project_id: options.projectId ?? null,
+    }),
+  });
+
+  await putToStorage(ticket.upload_url, file, mimeType, options.onProgress);
+
+  return request<UploadedDocument>(`/documents/${ticket.document_id}/complete`, {
+    method: "POST",
+  });
+}
+
+function putToStorage(
+  url: string,
+  file: File,
+  mimeType: string,
+  onProgress?: (fraction: number) => void
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("PUT", url);
+    xhr.setRequestHeader("Content-Type", mimeType);
+    // No Authorization header: the signed URL carries its own token, and
+    // attaching the session token would send it to a URL this code did not
+    // construct.
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable) onProgress?.(event.loaded / event.total);
+    };
+    xhr.onload = () =>
+      xhr.status >= 200 && xhr.status < 300
+        ? resolve()
+        : reject(
+            new ApiError(
+              `The upload was rejected by storage (${xhr.status}).`,
+              xhr.status
+            )
+          );
+    xhr.onerror = () =>
+      reject(new ApiError("The upload failed before it finished.", 0));
+    xhr.onabort = () => reject(new ApiError("The upload was cancelled.", 0));
+    xhr.send(file);
+  });
+}
+
+/**
+ * Browsers disagree about markdown, and some report no type at all for `.md`.
+ * The backend accepts exactly three values, so guessing here produces a clear
+ * refusal instead of a database constraint violation.
+ */
+function normaliseMimeType(file: File): string {
+  const declared = (file.type || "").split(";")[0].trim().toLowerCase();
+  if ((SUPPORTED_DOCUMENT_TYPES as readonly string[]).includes(declared)) {
+    return declared;
+  }
+  const name = file.name.toLowerCase();
+  if (name.endsWith(".pdf")) return "application/pdf";
+  if (name.endsWith(".md") || name.endsWith(".markdown")) return "text/markdown";
+  if (name.endsWith(".txt")) return "text/plain";
+  return declared || "application/octet-stream";
+}
+
+export const documents = {
+  list: (projectId?: string) =>
+    request<UploadedDocument[]>(
+      projectId ? `/documents?project_id=${encodeURIComponent(projectId)}` : "/documents"
+    ),
+
+  remove: (documentId: string) =>
+    request<void>(`/documents/${documentId}`, { method: "DELETE" }),
+
+  upload: uploadDocument,
+};

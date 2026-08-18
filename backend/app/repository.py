@@ -399,8 +399,8 @@ class Repository:
                     identifier_type, identifier, publication_date, url,
                     retrieved_text, access_level, evidence_category,
                     relevance_score, retrieved_by_agent,
-                    literature_record_id, patent_record_id
-                ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+                    literature_record_id, patent_record_id, document_chunk_id
+                ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
                 on conflict (run_id, marker) do nothing
                 """,
                 run_id, entry["marker"], entry["source_type"], entry["provider"],
@@ -411,6 +411,12 @@ class Repository:
                 entry.get("evidence_category"), entry.get("relevance_score"),
                 entry["retrieved_by_agent"],
                 lit_ids.get(identifier or ""), pat_ids.get(identifier or ""),
+                # 0003 has held this column and its foreign key since the
+                # beginning; nothing ever wrote to it. Without it a citation to
+                # an uploaded document resolves to a filename and no further,
+                # which is the difference between "see this document" and
+                # "see p. 12 of this document".
+                entry.get("document_chunk_id"),
             )
 
     async def _save_report(self, conn, run_id: str, state: ResearchState) -> None:
@@ -622,7 +628,12 @@ class Repository:
                 """
                 select
                   count(*) filter (where source_type = 'literature') as literature,
-                  count(*) filter (where source_type = 'patent')     as patents
+                  count(*) filter (where source_type = 'patent')     as patents,
+                  -- Omitted until Stage 8, when nothing produced this type. A
+                  -- run answered from uploaded documents would otherwise report
+                  -- zero sources while displaying a fully cited report.
+                  count(*) filter (where source_type = 'internal_document')
+                    as internal_documents
                   from public.evidence_records e
                   join public.research_runs r on r.id = e.run_id
                  where r.user_id = $1

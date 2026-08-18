@@ -98,7 +98,13 @@ class TestRouting:
     def test_missing_plan_aborts(self) -> None:
         assert route_after_planning(make_state(research_plan=None)) == [END]
 
-    def test_valid_plan_fans_out_to_all_three_specialists(self) -> None:
+    def test_valid_plan_fans_out_to_every_specialist(self) -> None:
+        """Including the document branch, whether or not the project has uploads.
+
+        It is scheduled unconditionally and returns immediately when there is
+        nothing to search. A graph whose shape depended on the data would be
+        harder to reason about, and would make the fan-in edge conditional.
+        """
         from app.models.agents import ResearchPlan
 
         state = make_state(research_plan=ResearchPlan(approach="x"))
@@ -107,6 +113,7 @@ class TestRouting:
             "research_agent",
             "literature_agent",
             "patent_agent",
+            "document_agent",
         }
 
     def test_verification_failure_requests_revision(self) -> None:

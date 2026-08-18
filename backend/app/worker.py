@@ -215,12 +215,36 @@ class Worker:
             )
 
         models = ModelProvider(self.settings, usage_sink=usage_sink)
+
+        # Uploaded documents are searched per project, so the retriever is bound
+        # to this run's project and owner and cannot be pointed elsewhere. It is
+        # None when the project has no ready documents, which is the ordinary
+        # case and is why the node stays silent rather than reporting an absence
+        # in every report.
+        try:
+            from app.documents.repository import DocumentRepository
+            from app.documents.retrieval import DocumentRetriever
+
+            retriever = await DocumentRetriever.for_run(
+                DocumentRepository(self.pool),
+                models,
+                project_id=str(run["project_id"]),
+                user_id=str(run["user_id"]),
+            )
+        except Exception:
+            # A run must not fail because internal documents could not be
+            # listed. It proceeds on external evidence, which is the same
+            # degradation a missing patent provider gets.
+            logger.warning("Could not prepare document retrieval", exc_info=True)
+            retriever = None
+
         context = RunContext(
             models=models,
             literature_providers=literature,
             patent_providers=patents,
             events=RepositoryEventSink(self.repository),
             is_cancelled=lambda: self.repository.is_cancel_requested(run_id),
+            document_retriever=retriever,
         )
 
         await self.repository.update_run_status(run_id, "running", progress_pct=0)

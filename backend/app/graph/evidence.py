@@ -87,6 +87,58 @@ def patent_to_evidence(
     )
 
 
+def chunk_to_evidence(
+    chunk: dict,
+    marker: str,
+    *,
+    agent: str = "document_agent",
+    relevance_score: float | None = None,
+) -> EvidenceEntry:
+    """Build an evidence entry from a passage of an uploaded document.
+
+    THE TITLE CARRIES THE PAGE. `title` is what a reader sees beside a citation,
+    so "Stability Report.pdf - p. 12" is the difference between being sent to a
+    place and being sent to a file. `document_chunk_id` then resolves it to the
+    exact passage.
+
+    `access_level` is `full_text` and that is accurate rather than generous: the
+    chunk's text was read in full. It says nothing about the document as a
+    whole, which is the same distinction the literature agent draws when it
+    records that it saw an abstract and not a paper.
+
+    `provider` is the filename rather than a service name. There is no provider
+    here - the user supplied this - and naming the file is what makes the
+    origin obvious wherever evidence is listed.
+    """
+    page = chunk.get("page_number")
+    filename = chunk.get("filename") or "Uploaded document"
+    title = f"{filename} - p. {page}" if page else filename
+
+    text = chunk.get("content") or ""
+
+    return EvidenceEntry(
+        marker=marker,
+        source_type="internal_document",
+        provider=filename,
+        title=title,
+        authors=[],
+        identifier_type="document",
+        # Human-readable and stable, so the same passage cited in two runs is
+        # recognisably the same passage.
+        identifier=f"{filename}#p{page}" if page else filename,
+        publication_date=None,
+        # No URL: the file lives in a private bucket and any link would be a
+        # signed URL that expires. A dead link in a report is worse than none.
+        url=None,
+        retrieved_text=text[:MAX_EVIDENCE_TEXT],
+        access_level="full_text",
+        evidence_category="internal_document",
+        relevance_score=relevance_score,
+        retrieved_by_agent=agent,
+        document_chunk_id=str(chunk["id"]),
+    )
+
+
 def _literature_identifier(record: LiteratureRecord) -> tuple[str | None, str | None]:
     """Pick the most resolvable identifier available."""
     if record.doi:
