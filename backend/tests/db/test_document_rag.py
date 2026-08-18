@@ -181,6 +181,41 @@ async def main() -> int:
             all(r["filename"] == "Stability Report.pdf" for r in rows),
         )
 
+        # ------------------------------------- 3b. search is exact, not approximate ---
+        print("\n3b. Retrieval is exact, and the plan proves it")
+
+        # The ivfflat index from 0004 was built on an empty table, so its
+        # centroids described nothing and it returned neighbours that were not
+        # the nearest - measured at 0/10 overlap with exact search. 0026 removed
+        # it. If it ever comes back, retrieval silently starts missing passages
+        # again, and a passage that was never retrieved cannot be cited: its
+        # absence is indistinguishable from the document not containing it.
+        approximate = await conn.fetch(
+            """
+            select indexname from pg_indexes
+             where schemaname = 'public' and tablename = 'document_chunks'
+               and indexdef ilike '%ivfflat%' or indexdef ilike '%hnsw%'
+            """
+        )
+        check(
+            "no approximate index is present",
+            len(approximate) == 0,
+            str([r["indexname"] for r in approximate]),
+        )
+
+        plan = "\n".join(
+            r["QUERY PLAN"]
+            for r in await conn.fetch(
+                """
+                explain select c.id from public.document_chunks c
+                 where c.document_id = $2
+              order by c.embedding <=> $1::vector limit 3
+                """,
+                vec(0.1), DOCUMENT,
+            )
+        )
+        check("the planner scans rather than probes", "Index Scan" not in plan)
+
         # ------------------------------- 4. a citation resolves to a chunk ---
         print("\n4. Evidence resolves to the exact passage")
 
