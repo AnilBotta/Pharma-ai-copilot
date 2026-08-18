@@ -143,8 +143,16 @@ class Settings(BaseSettings):
 
     #: Absolute origin this deployment answers on, e.g. https://app.vercel.app.
     #: Needed because a slice triggers its own successor over HTTP and a
-    #: serverless invocation cannot otherwise know its own public URL.
-    public_base_url: str | None = None
+    #: serverless invocation cannot otherwise know its own public URL - and now
+    #: also to put a clickable link in an alert email.
+    #:
+    #: NEXT_PUBLIC_SITE_URL is accepted as the same value. It is what a person
+    #: configuring a Next.js deployment sets, and having two variables for one
+    #: origin is how you end up with alerts that link nowhere.
+    public_base_url: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("public_base_url", "next_public_site_url"),
+    )
 
     # ------------------------------------------------------ notifications ---
     #: Absent means notifications are computed and recorded but nothing is
@@ -171,6 +179,9 @@ class Settings(BaseSettings):
             "notification_from_email", "resend_from_email"
         ),
     )
+    #: Where a reply goes. Alerts are sent from a no-reply address, so without
+    #: this a person answering one is talking to nobody.
+    email_reply_to: str | None = None
 
     # ------------------------------------------------------------- limits ---
     max_literature_results: int = Field(default=50, ge=1, le=200)
@@ -211,7 +222,7 @@ class Settings(BaseSettings):
 
     @field_validator(
         "ncbi_email", "crossref_mailto", "public_base_url",
-        "notification_from_email", mode="before",
+        "notification_from_email", "email_reply_to", mode="before",
     )
     @classmethod
     def _blank_optional_string_is_absent(cls, v: object) -> object:

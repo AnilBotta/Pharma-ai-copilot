@@ -416,7 +416,9 @@ async def worker_tick(
 
         pool = db.get_pool()
         result["notifications"] = await sweep_all_projects(pool)
-        result["deliveries"] = await dispatch_pending(pool, build_notifier(settings))
+        result["deliveries"] = await dispatch_pending(
+            pool, build_notifier(settings), base_url=settings.public_base_url
+        )
     except Exception:
         logger.exception("The notification sweep failed; the tick continues")
         result["notifications"] = {"error": "sweep failed; see server logs"}

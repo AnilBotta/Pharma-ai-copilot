@@ -63,23 +63,33 @@ class ResendNotifier:
 
     name = "resend"
 
-    def __init__(self, api_key: str, from_email: str) -> None:
+    def __init__(
+        self, api_key: str, from_email: str, reply_to: str | None = None
+    ) -> None:
         self._api_key = api_key
         self._from = from_email
+        # These messages come from a no-reply sender, so a reply lands nowhere
+        # unless somebody says otherwise. Somebody who hits reply on an overdue
+        # requirement is trying to deal with it, and silence is a poor answer.
+        self._reply_to = reply_to
 
     async def send(self, *, to: str, subject: str, body: str) -> None:
         import httpx
+
+        payload: dict[str, Any] = {
+            "from": self._from,
+            "to": [to],
+            "subject": subject,
+            "text": body,
+        }
+        if self._reply_to:
+            payload["reply_to"] = self._reply_to
 
         async with httpx.AsyncClient(timeout=20.0) as client:
             response = await client.post(
                 "https://api.resend.com/emails",
                 headers={"Authorization": f"Bearer {self._api_key}"},
-                json={
-                    "from": self._from,
-                    "to": [to],
-                    "subject": subject,
-                    "text": body,
-                },
+                json=payload,
             )
             if response.status_code >= 400:
                 # Body, not just status: a 422 from Resend names the field.
@@ -94,7 +104,11 @@ def build_notifier(settings: Any) -> Notifier:
     key = getattr(settings, "resend_api_key", None)
     sender = getattr(settings, "notification_from_email", None)
     if key and sender:
-        return ResendNotifier(key.get_secret_value(), sender)
+        return ResendNotifier(
+            key.get_secret_value(),
+            sender,
+            reply_to=getattr(settings, "email_reply_to", None),
+        )
     return LoggingNotifier()
 
 
@@ -103,7 +117,9 @@ def build_notifier(settings: Any) -> Notifier:
 # --------------------------------------------------------------------------- #
 
 
-async def dispatch_pending(pool: Any, notifier: Notifier, *, limit: int = 200) -> dict:
+async def dispatch_pending(
+    pool: Any, notifier: Notifier, *, limit: int = 200, base_url: str | None = None
+) -> dict:
     """Deliver open, unacknowledged events to the people their rule names.
 
     Recipients come from the rule's role lists, resolved through user_roles,
@@ -126,6 +142,24 @@ async def dispatch_pending(pool: Any, notifier: Notifier, *, limit: int = 200) -
                      e.title,
                      e.detail,
                      e.project_id,
+                     e.subject_type,
+                     -- 0021 gave events a subject "so the UI can link to it".
+                     -- Nothing ever did, and the emails went out with no way to
+                     -- act on them: 44 messages naming requirements and
+                     -- offering no route to any of them.
+                     --
+                     -- A requirement's link has to point at its GATE, because
+                     -- that is the page a person works on, so the stage is
+                     -- resolved here rather than by a second round trip per
+                     -- recipient.
+                     case
+                       when e.subject_type = 'gate_requirement' then (
+                         select gr.project_stage_id::text
+                           from public.gate_requirements gr
+                          where gr.id::text = e.subject_id
+                       )
+                       when e.subject_type = 'project_stage' then e.subject_id
+                     end as stage_id,
                      p.id   as recipient_user_id,
                      p.email as recipient_email
                 from public.notification_events e
@@ -171,7 +205,7 @@ async def dispatch_pending(pool: Any, notifier: Notifier, *, limit: int = 200) -
 
         for row in pending:
             subject = f"[{row['severity'].upper()}] {row['title']}"
-            body = _compose(row)
+            body = _compose(row, base_url)
 
             status, error = "sent", None
             if isinstance(notifier, LoggingNotifier):
@@ -224,7 +258,36 @@ async def dispatch_pending(pool: Any, notifier: Notifier, *, limit: int = 200) -
             "considered": len(pending)}
 
 
-def _compose(row: Any) -> str:
+def _link_for(row: Any, base_url: str | None) -> str | None:
+    """Where a person should go to deal with this.
+
+    Without a base URL there is no link. That is deliberate: a relative path in
+    an email is not clickable, and a guessed origin would send people somewhere
+    that may not exist.
+    """
+    if not base_url or not row["project_id"]:
+        return None
+
+    project = row["project_id"]
+    subject = row["subject_type"]
+
+    if subject in ("gate_requirement", "project_stage"):
+        stage = row["stage_id"]
+        # A requirement whose stage could not be resolved still gets the
+        # programme, which beats nothing.
+        return (
+            f"{base_url}/programmes/{project}/gates/{stage}"
+            if stage
+            else f"{base_url}/programmes/{project}"
+        )
+    if subject == "controlled_document_version":
+        return f"{base_url}/programmes/{project}/documents"
+    if subject == "project_task":
+        return f"{base_url}/programmes/{project}/schedule"
+    return f"{base_url}/programmes/{project}"
+
+
+def _compose(row: Any, base_url: str | None = None) -> str:
     lines = [row["title"], ""]
     if row["detail"]:
         lines += [row["detail"], ""]
@@ -233,6 +296,11 @@ def _compose(row: Any) -> str:
             "This has been escalated because it was not acknowledged in time.",
             "",
         ]
+
+    link = _link_for(row, base_url)
+    if link:
+        lines += [link, ""]
+
     lines += [
         "This is an automated message from the Pharma R&D Copilot stage-gate "
         "module. It reports the state of the record; it is not a decision and "

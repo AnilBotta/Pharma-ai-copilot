@@ -373,9 +373,11 @@ async def main() -> int:
 
             def __init__(self) -> None:
                 self.sent: list[str] = []
+                self.bodies: list[str] = []
 
             async def send(self, *, to: str, subject: str, body: str) -> None:
                 self.sent.append(to)
+                self.bodies.append(body)
 
         # Give the project manager somebody to be.
         await conn.execute(
@@ -405,11 +407,39 @@ async def main() -> int:
 
         # The whole point: configure a provider later and the backlog goes out.
         recording = Recording()
-        second = await dispatch_pending(Pool(), recording)
+        second = await dispatch_pending(
+            Pool(), recording, base_url="https://app.test"
+        )
         check(
             "a provider arriving later DELIVERS the skipped backlog",
             second["sent"] > 0,
             f"sent {second['sent']}",
+        )
+
+        # An alert that names something and offers no route to it is noise.
+        # This exercises the SQL rather than the formatting: subject_type has to
+        # survive the audience query, and for a requirement the gate has to be
+        # resolved by the sub-select.
+        #
+        # Which alerts are still open here depends on what earlier sections
+        # resolved, so this asserts the property that holds for all of them
+        # rather than naming one. The per-subject routing is pinned in
+        # tests/test_config.py, where the row can be constructed directly.
+        check(
+            "every email carries a link",
+            bool(recording.bodies)
+            and all("https://app.test/programmes/" in b for b in recording.bodies),
+            f"{sum('https://app.test/programmes/' in b for b in recording.bodies)}"
+            f" of {len(recording.bodies)}",
+        )
+        specific = [
+            b for b in recording.bodies
+            if any(p in b for p in ("/gates/", "/schedule", "/documents"))
+        ]
+        check(
+            "and it points at the page that deals with it, not just the programme",
+            len(specific) == len(recording.bodies),
+            f"{len(specific)} of {len(recording.bodies)} are subject-specific",
         )
         check(
             "and the notifier actually received them",
