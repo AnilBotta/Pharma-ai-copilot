@@ -32,6 +32,15 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# ...except the template, which is the whole point of having one. The blanket
+# rule above swallowed it, so `.env.example` has never been in the repository -
+# while the application's own startup error tells you to "Copy .env.example to
+# .env.local". Anyone cloning this had to reconstruct the variable list from
+# app/config.py.
+#
+# It contains placeholders only, and a `git check-ignore -v .env.example` will
+# now report this line rather than the one above.
+!.env.example
 
 # vercel
 .vercel
