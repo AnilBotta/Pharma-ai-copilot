@@ -83,10 +83,55 @@ class TestEmailProviderIsReportable:
                 SUPABASE_URL="https://x.supabase.co",
                 RESEND_API_KEY="re_test",
                 NOTIFICATION_FROM_EMAIL="alerts@example.test",
+                PUBLIC_BASE_URL="https://app.example.test",
             )
         )
         assert status["state"] == "configured"
         assert "alerts@example.test" in str(status["detail"])
+        # Nothing is missing, so nothing is warned about.
+        assert "no way to reach it" not in str(status["detail"])
+
+    def test_sending_without_a_base_url_says_the_alerts_are_linkless(
+        self, build
+    ) -> None:
+        """Mail sends, so the state is honestly `configured` - but incomplete.
+
+        This is the third variable in the same family as the two above, and it
+        fails the same quiet way: the email arrives, names an overdue
+        requirement, and offers no route to it. Forty-four of those went out
+        before the links existed at all. Reporting a bare "configured" here
+        would let the next operator believe the alerts are whole.
+        """
+        status = self._resend(
+            build(
+                **MINIMAL,
+                SUPABASE_URL="https://x.supabase.co",
+                RESEND_API_KEY="re_test",
+                NOTIFICATION_FROM_EMAIL="alerts@example.test",
+            )
+        )
+        assert status["state"] == "configured"
+        detail = str(status["detail"])
+        assert "PUBLIC_BASE_URL" in detail
+        assert "no way to reach it" in detail
+
+    def test_the_site_url_alias_counts_as_a_base_url(self, build) -> None:
+        """A Next.js deployment sets NEXT_PUBLIC_SITE_URL, not PUBLIC_BASE_URL.
+
+        If health reported "linkless" while the links were in fact being
+        composed, it would send an operator to set a variable that is already
+        effectively set - the mirror image of the failure it is there to catch.
+        """
+        status = self._resend(
+            build(
+                **MINIMAL,
+                SUPABASE_URL="https://x.supabase.co",
+                RESEND_API_KEY="re_test",
+                NOTIFICATION_FROM_EMAIL="alerts@example.test",
+                NEXT_PUBLIC_SITE_URL="https://app.example.test",
+            )
+        )
+        assert "no way to reach it" not in str(status["detail"])
 
     def test_a_key_without_a_sender_is_not_configured(self, build) -> None:
         """Half-configured cannot send, so reporting it as configured would be

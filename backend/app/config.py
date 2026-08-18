@@ -38,14 +38,28 @@ class IntegrationState(StrEnum):
     KEYLESS = "keyless"  # usable without credentials, possibly rate-limited
 
 
-def _resend_detail(has_key: bool, from_email: str | None) -> str:
+def _resend_detail(
+    has_key: bool, from_email: str | None, base_url: str | None = None
+) -> str:
     """Say which half of the email configuration is missing, not just that one is.
 
     "Not configured" sends an operator to look at the wrong variable half the
     time. Both are needed and either can be the one that was forgotten.
+
+    ``base_url`` is not required to send, so its absence does not make the
+    integration unconfigured - mail still goes out. It does mean every alert
+    arrives without a link to the thing it is about, which is the same quiet
+    half-failure as the two names above and deserves saying out loud rather
+    than being discovered by reading an email.
     """
     if has_key and from_email:
-        return f"Alert email via Resend, from {from_email}."
+        sending = f"Alert email via Resend, from {from_email}."
+        if base_url:
+            return sending
+        return (
+            f"{sending} No PUBLIC_BASE_URL (or NEXT_PUBLIC_SITE_URL), so alerts "
+            "name a record and give no way to reach it."
+        )
     if has_key:
         return (
             "RESEND_API_KEY is set but NOTIFICATION_FROM_EMAIL is not, so "
@@ -339,7 +353,9 @@ class Settings(BaseSettings):
                 ),
                 "required": False,
                 "detail": _resend_detail(
-                    bool(self.resend_api_key), self.notification_from_email
+                    bool(self.resend_api_key),
+                    self.notification_from_email,
+                    self.public_base_url,
                 ),
             },
         }
