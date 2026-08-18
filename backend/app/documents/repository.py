@@ -75,7 +75,18 @@ class DocumentRepository:
 
         The size recorded at creation was the browser's claim about a file it
         had not yet sent. This one comes from Storage.
+
+        A non-positive size is refused rather than written. `documents.size_bytes`
+        carries a `> 0` check constraint, so passing one through turns a
+        successful upload into a constraint violation raised from the driver -
+        an error naming a column, three layers below the caller who could
+        explain what actually happened.
         """
+        if size_bytes <= 0:
+            raise ValueError(
+                f"Refusing to record a size of {size_bytes} for {document_id}. "
+                "Storage could not measure the object; use the declared size."
+            )
         async with self._pool.acquire() as conn:
             row = await conn.fetchrow(
                 """

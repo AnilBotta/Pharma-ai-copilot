@@ -125,7 +125,14 @@ async def complete_upload(
         await repository.fail(document_id, message)
         raise HTTPException(status.HTTP_400_BAD_REQUEST, message)
 
-    updated = await repository.mark_uploaded(user.id, document_id, size)
+    # SIZE_UNKNOWN means the object is present but unmeasured, so the size the
+    # client declared stands. Writing the sentinel through violates the `> 0`
+    # check constraint on documents.size_bytes and fails an upload that actually
+    # succeeded - which is exactly what happened to every text document, because
+    # Storage gzips them and a gzipped response has no content-length.
+    updated = await repository.mark_uploaded(
+        user.id, document_id, size or document["size_bytes"]
+    )
 
     # Start ingest in seconds rather than at the next scheduled tick. Exactly
     # the pattern create_run uses, and best-effort for the same reason: the
