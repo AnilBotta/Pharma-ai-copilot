@@ -33,6 +33,9 @@ SUPABASE_KEYS = (
     "RESEND_API_KEY",
     "NOTIFICATION_FROM_EMAIL",
     "RESEND_FROM_EMAIL",
+    "EMAIL_REPLY_TO",
+    "PUBLIC_BASE_URL",
+    "NEXT_PUBLIC_SITE_URL",
 )
 
 
@@ -138,6 +141,72 @@ class TestEmailProviderIsReportable:
         )
         assert status["state"] == "not_configured"
         assert "RESEND_API_KEY" in str(status["detail"])
+
+
+class TestAlertEmailsCanBeActedOn:
+    """An alert naming a requirement and offering no route to it is noise.
+
+    44 of those went out before this existed. The link is built from
+    public_base_url, which NEXT_PUBLIC_SITE_URL now also satisfies - two
+    variables for one origin is how you get alerts that link nowhere.
+    """
+
+    def _row(self, **over):
+        row = {
+            "title": "G1-FD-001 is overdue",
+            "detail": "Due 2026-08-01 and still awaiting evidence.",
+            "escalation_level": 0,
+            "project_id": "proj-1",
+            "subject_type": "gate_requirement",
+            "stage_id": "stage-9",
+        }
+        row.update(over)
+        return row
+
+    def test_a_requirement_links_to_its_gate(self) -> None:
+        from app.notifications import _link_for
+
+        link = _link_for(self._row(), "https://app.test")
+        assert link == "https://app.test/programmes/proj-1/gates/stage-9"
+
+    def test_a_requirement_with_no_resolved_stage_still_links_somewhere(self) -> None:
+        from app.notifications import _link_for
+
+        link = _link_for(self._row(stage_id=None), "https://app.test")
+        assert link == "https://app.test/programmes/proj-1"
+
+    def test_each_subject_type_goes_to_the_page_that_deals_with_it(self) -> None:
+        from app.notifications import _link_for
+
+        cases = {
+            "project_task": "https://app.test/programmes/proj-1/schedule",
+            "controlled_document_version": "https://app.test/programmes/proj-1/documents",
+            "project_stage": "https://app.test/programmes/proj-1/gates/stage-9",
+        }
+        for subject, expected in cases.items():
+            assert _link_for(self._row(subject_type=subject), "https://app.test") == expected
+
+    def test_without_a_base_url_there_is_no_link(self) -> None:
+        """Rather than a relative path, which is not clickable in an email."""
+        from app.notifications import _link_for
+
+        assert _link_for(self._row(), None) is None
+
+    def test_the_link_appears_in_the_body(self) -> None:
+        from app.notifications import _compose
+
+        body = _compose(self._row(), "https://app.test")
+        assert "https://app.test/programmes/proj-1/gates/stage-9" in body
+        # And the message still says what it is and is not.
+        assert "not a decision" in body
+
+    def test_next_public_site_url_is_accepted_as_the_origin(self, build) -> None:
+        settings = build(
+            **MINIMAL,
+            SUPABASE_URL="https://x.supabase.co",
+            NEXT_PUBLIC_SITE_URL="https://app.test",
+        )
+        assert settings.public_base_url == "https://app.test"
 
 
 class TestSupabaseUrlAlias:
