@@ -217,10 +217,25 @@ async def main() -> int:
         # ------------------------------------------------ 4. escalation ---
         print("\n4. Escalation waits, and climbs one rung")
 
-        escalated_now = await conn.fetchval("select private.escalate_notifications()")
+        # `escalate_notifications()` is GLOBAL - it has no project argument and
+        # escalates every eligible event in the database. Reading its return
+        # count as though it described this project was wrong from the start,
+        # and stayed invisible only while no real event was old enough. It
+        # eventually failed against correct code: 44 production alerts crossed
+        # the 72-hour threshold and the count came back non-zero.
+        #
+        # The property under test was always about THIS event, so ask about it.
+        await conn.execute("select private.escalate_notifications()")
+        level_now = await conn.fetchval(
+            """
+            select max(escalation_level) from public.notification_events
+             where project_id = $1 and resolved_at is null
+            """,
+            PROJECT,
+        )
         check(
             "a fresh alert does not escalate immediately",
-            escalated_now == 0,
+            level_now == 0,
             "the rule requires 72 hours to pass first",
         )
 
@@ -234,10 +249,17 @@ async def main() -> int:
         check("an aged, unacknowledged alert escalates", first_climb >= 1,
               f"{first_climb}")
 
-        second_climb = await conn.fetchval("select private.escalate_notifications()")
+        # Project-scoped for the same reason as above: the count is global, and
+        # this assertion is about whether THIS event climbs twice.
+        await conn.execute("select private.escalate_notifications()")
+        after_second = await conn.fetchval(
+            "select max(escalation_level) from public.notification_events "
+            "where project_id = $1 and resolved_at is null",
+            PROJECT,
+        )
         check(
             "but only one rung — it does not keep climbing",
-            second_climb == 0,
+            after_second == 1,
             "a ladder that climbs itself puts everyone on every notification",
         )
 
