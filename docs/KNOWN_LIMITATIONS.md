@@ -375,15 +375,47 @@ segregation of duties still refusing the confirming person.
 
 ## 2. Not implemented
 
-### Document upload and RAG
+### Document upload and RAG — now built (stage 8)
 
-Not built. The database schema (`documents`, `document_chunks` with a
-`vector(1536)` column and an ivfflat index) and the evidence back-reference are
-in place, and `internal_document` is a valid evidence source type, but there is
-no upload endpoint, no PDF extraction, no chunking and no embedding pipeline.
+Implemented and verified on the deployment. PDF, plain text and Markdown upload
+directly to a private Supabase Storage bucket via a signed URL, are extracted
+page by page, chunked with page and heading retained, embedded in batches, and
+retrieved by the `document_agent` branch as `internal_document` evidence with
+page-anchored citations.
 
-The Documents page states this plainly rather than showing a file picker that
-does nothing.
+What remains true and worth knowing:
+
+- **No OCR.** A scanned PDF contains images of text, extracts to nothing, and is
+  failed with a message saying so rather than arriving `ready` and empty.
+- **Vector search is exact, not approximate.** The ivfflat index from `0004` was
+  built on an empty table, so its centroids partitioned nothing; measured at
+  0/10 overlap with exact search on uniformly distributed vectors, though it
+  returned the same top three on a real corpus. Removed in `0026`. Exact search
+  costs about 31 ms at 4,000 chunks. Reconsider an index around 100k chunks per
+  project, built *after* the corpus exists and with recall actually measured.
+- **Documents are project-scoped.** A run searches every `ready` document on its
+  own project. There is no per-run selection and no cross-project sharing.
+- **The upload goes around the API**, because a serverless request body is
+  capped near 4.5 MB and the limit is 25 MB.
+
+### Human review checkpoint — partially built
+
+The specified graph includes a `human_review_checkpoint` node. There is still no
+node, and no run pauses mid-graph for a person.
+
+What now exists is the outcome that mattered most. A report whose reviewer still
+reports high-severity findings after its one permitted revision ends
+`awaiting_review` rather than `completed`, and the report's Limitations section
+opens by saying it did not pass verification and listing what survived.
+
+Before this, `verification.requires_revision` was forced False once the revision
+budget was spent, so it meant "clean **or** we gave up" and nothing downstream
+could tell the difference. A run finished with nine unresolved high-severity
+findings, recorded `completed`, and said nothing about verification anywhere in
+its report.
+
+Still absent: nobody is *asked* to review. The run is held and labelled; there
+is no assignment, no notification, and no action that clears the state.
 
 ### Optional providers
 
@@ -395,12 +427,6 @@ selecting them does nothing. Only PubMed, Europe PMC and EPO OPS exist.
 
 Markdown export works (client-side assembly from fetched sections). PDF is
 browser print-to-PDF via print CSS, not a server-rendered document.
-
-### Human review checkpoint
-
-The specified graph includes a `human_review_checkpoint` node. It is not
-implemented. Runs proceed from verification straight to report generation. The
-`awaiting_review` run status exists in the enum but is never set.
 
 ---
 

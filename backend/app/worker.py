@@ -408,6 +408,25 @@ class Worker:
                 await self.repository.complete_job(job_id)
                 return "failed"
 
+            # A report whose own verifier still reports high-severity findings
+            # is not complete, and must not be labelled as though it were.
+            # `awaiting_review` has been in the run_status enum since 0002 and
+            # was never set by anything, so every run ended `completed` however
+            # badly it had failed review.
+            #
+            # The report is still written and still saved - it is useful, and
+            # withholding it would help nobody. What changes is the claim made
+            # about it.
+            unresolved = int(final_state.get("unresolved_high_severity", 0) or 0)
+            if unresolved:
+                await self._finish(
+                    run_id, job_id, "awaiting_review",
+                    f"Research run finished with {unresolved} unresolved "
+                    "high-severity verification finding(s). Held for human "
+                    "review; see the report's limitations section.",
+                )
+                return "awaiting_review"
+
             await self._finish(run_id, job_id, "completed", "Research run complete.")
             return "completed"
 

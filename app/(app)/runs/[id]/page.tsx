@@ -29,6 +29,7 @@ import {
   ApiError,
   getRunEvents,
   subscribeToRun,
+  TERMINAL_RUN_STATUSES,
   type Evidence,
   type ReportSection,
   type RunDetail,
@@ -58,9 +59,7 @@ export default function RunDetailPage() {
   const [loadError, setLoadError] = React.useState<string | null>(null);
   const [acting, setActing] = React.useState(false);
 
-  const terminal = run
-    ? ["completed", "failed", "cancelled"].includes(run.status)
-    : false;
+  const terminal = run ? TERMINAL_RUN_STATUSES.includes(run.status) : false;
 
   const loadArtifacts = React.useCallback(async () => {
     const [ev, rep, qs, errs] = await Promise.all([
@@ -109,7 +108,10 @@ export default function RunDetailPage() {
         ),
       onStatus: (status) => {
         setRun((prev) => (prev ? { ...prev, status } : prev));
-        if (["completed", "failed", "cancelled"].includes(status)) {
+        // Includes `awaiting_review`. A run held for review has a full report
+        // and full evidence; refusing to load them would mean the one case a
+        // reader most needs to inspect is the one they cannot see.
+        if (TERMINAL_RUN_STATUSES.includes(status)) {
           void api.getRun(id).then(setRun);
           void loadArtifacts();
         }
@@ -218,6 +220,31 @@ export default function RunDetailPage() {
           }
         />
       </div>
+
+      {/* A badge reading "Awaiting review" does not tell anyone what happened
+          or what to do. This report failed its own verification and is one
+          click from being exported and circulated, so the reason says so
+          plainly and points at where the findings are written down. */}
+      {run.status === "awaiting_review" && (
+        <Card className="border-amber-500/40 bg-amber-500/5">
+          <CardContent className="flex items-start gap-3 py-4">
+            <AlertTriangle className="mt-0.5 size-5 shrink-0 text-amber-600 dark:text-amber-400" />
+            <div className="space-y-1">
+              <p className="text-sm font-medium">
+                This report did not pass its own verification
+              </p>
+              <p className="text-sm text-muted-foreground">
+                High-severity findings were still outstanding after the report
+                was revised, so the run is held rather than reported as
+                complete. The findings are listed at the top of the{" "}
+                <span className="font-medium">Limitations</span> section. Treat
+                every affected statement as unverified until someone has checked
+                it.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {run.status === "running" && (
         <Card className="no-print">

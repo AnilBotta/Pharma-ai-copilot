@@ -134,6 +134,14 @@ class ResearchState(TypedDict, total=False):
     #: Set when the reviewer found high-severity problems. Bounded to one
     #: revision so a model that cannot satisfy the reviewer does not loop.
     revision_count: int
+    #: High-severity findings still standing when the revision budget ran out.
+    #:
+    #: This exists because `verification.requires_revision` cannot answer the
+    #: question. It is forced False once the budget is spent, so it means
+    #: "clean OR we gave up" - and nothing downstream could tell those apart.
+    #: A report finalised with unresolved findings must not be presented the
+    #: same way as one that passed.
+    unresolved_high_severity: int
     #: True when the patent provider was unavailable, so the report can say so
     #: rather than implying no patents exist.
     patent_search_unavailable: bool
@@ -209,6 +217,7 @@ def initial_state(
         errors=[],
         section_confidence={},
         revision_count=0,
+        unresolved_high_severity=0,
         patent_search_unavailable=False,
         no_literature_found=False,
         total_input_tokens=0,

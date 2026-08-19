@@ -192,6 +192,21 @@ export type RunStatus =
   | "failed"
   | "cancelled";
 
+/**
+ * States in which the worker has stopped and will do no more.
+ *
+ * `awaiting_review` belongs here: the run finished and the report exists, it
+ * simply did not pass its own verification and is held rather than presented as
+ * complete. It is not "still working", and anything that polls for progress
+ * must stop on it.
+ */
+export const TERMINAL_RUN_STATUSES: readonly RunStatus[] = [
+  "completed",
+  "awaiting_review",
+  "failed",
+  "cancelled",
+];
+
 export interface RunSummary {
   id: string;
   project_id: string;
@@ -1206,7 +1221,11 @@ export function subscribeToRun(
       }
       handlers.onStatus?.(run.status);
 
-      if (["completed", "failed", "cancelled"].includes(run.status)) {
+      // `awaiting_review` is terminal for the worker: the run is finished and
+      // the report is written, it just did not pass verification. Omitting it
+      // here would leave the page polling every two seconds forever for work
+      // that has already stopped.
+      if (TERMINAL_RUN_STATUSES.includes(run.status)) {
         stopped = true;
         return;
       }
