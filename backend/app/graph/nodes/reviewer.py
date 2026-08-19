@@ -166,11 +166,18 @@ async def evidence_reviewer(state: ResearchState, context: RunContext) -> dict:
         data={"issues": len(verification.issues), "high_severity": len(high)},
     )
 
+    # `requires_revision` is forced False once the budget is spent, so from here
+    # on it means "clean OR we gave up" and cannot distinguish the two. That
+    # distinction is the difference between a report that passed review and one
+    # that did not, so it is carried explicitly.
+    unresolved = len(high) if not needs_revision else 0
+
     warnings = []
-    if high and not needs_revision:
+    if unresolved:
         warnings.append(
-            f"{len(high)} high-severity verification issue(s) remain after the "
-            "revision limit was reached; they are listed in the report."
+            f"{unresolved} high-severity verification issue(s) remain after the "
+            "revision limit was reached; they are listed in the report, and the "
+            "run is held for human review rather than reported as complete."
         )
 
     return {
@@ -178,6 +185,7 @@ async def evidence_reviewer(state: ResearchState, context: RunContext) -> dict:
         "contradictions": verification.contradictions,
         "warnings": warnings,
         "revision_count": revision_count + (1 if needs_revision else 0),
+        "unresolved_high_severity": unresolved,
     }
 
 

@@ -176,13 +176,16 @@ class RecordingGraph:
     "values", ``{node_name: delta}`` under "updates".
     """
 
-    def __init__(self, nodes: list[str]) -> None:
+    def __init__(self, nodes: list[str], final_extra: dict | None = None) -> None:
         self.nodes = nodes
         self.position = 0
         self.stream_input: Any = "not called"
         self.first_input: Any = "not called"
         self.call_count = 0
         self.interrupt_after: Any = None
+        #: Merged into the state this yields, so a test can produce the state a
+        #: real graph would end with - an unresolved verification finding, say.
+        self.final_extra = final_extra or {}
 
     def astream(self, stream_input, config=None, stream_mode=None, interrupt_after=None):
         self.stream_input = stream_input
@@ -199,7 +202,9 @@ class RecordingGraph:
             if node is None:
                 return
             yield "updates", {node: {}}
-            yield "values", {"errors": [], "report": None, "last_node": node}
+            yield "values", {
+                "errors": [], "report": None, "last_node": node, **self.final_extra
+            }
 
         return gen()
 
@@ -281,6 +286,86 @@ def _install_graph(monkeypatch, graph, *, has_checkpoint: bool):
             return None
 
     monkeypatch.setattr(worker_module, "ModelProvider", lambda *a, **k: FakeModels())
+
+
+class TestTheRunIsNotCalledCompleteWhenItIsNot:
+    """A report that failed its own verification must not be labelled complete.
+
+    Observed on a real run: the reviewer finished with nine high-severity
+    findings and the run was recorded `completed`. `awaiting_review` had been in
+    the run_status enum since 0002 and nothing had ever set it.
+    """
+
+    async def test_unresolved_findings_hold_the_run(self, worker_parts) -> None:
+        worker, calls, monkeypatch = worker_parts
+        graph = RecordingGraph(
+            ["report_generation"], final_extra={"unresolved_high_severity": 3}
+        )
+        _install_graph(monkeypatch, graph, has_checkpoint=True)
+
+        outcome = await worker.execute({"id": "j1", "run_id": "r1", "attempts": 1})
+
+        assert outcome == "awaiting_review"
+        assert ("r1", "awaiting_review", None) in [
+            (r, s, n) for r, s, n in calls["status"]
+        ]
+        assert "completed" not in [s for _, s, _ in calls["status"]]
+
+    async def test_the_closing_event_says_why_it_was_held(self, worker_parts) -> None:
+        """A status nobody can explain gets clicked past."""
+        worker, calls, monkeypatch = worker_parts
+        graph = RecordingGraph(
+            ["report_generation"], final_extra={"unresolved_high_severity": 3}
+        )
+        _install_graph(monkeypatch, graph, has_checkpoint=True)
+
+        await worker.execute({"id": "j1", "run_id": "r1", "attempts": 1})
+
+        message = " ".join(e.get("message", "") for e in calls["events"])
+        assert "3 unresolved high-severity" in message
+
+    async def test_the_job_is_still_finished(self, worker_parts) -> None:
+        """Held for review is not unfinished work.
+
+        Leaving the job claimable would have the worker redo a run that already
+        produced its report, at full cost, for ever.
+        """
+        worker, calls, monkeypatch = worker_parts
+        graph = RecordingGraph(
+            ["report_generation"], final_extra={"unresolved_high_severity": 1}
+        )
+        _install_graph(monkeypatch, graph, has_checkpoint=True)
+
+        await worker.execute({"id": "j1", "run_id": "r1", "attempts": 1})
+
+        assert calls["completed"] == ["j1"]
+
+    async def test_a_clean_run_still_completes(self, worker_parts) -> None:
+        worker, calls, monkeypatch = worker_parts
+        graph = RecordingGraph(
+            ["report_generation"], final_extra={"unresolved_high_severity": 0}
+        )
+        _install_graph(monkeypatch, graph, has_checkpoint=True)
+
+        outcome = await worker.execute({"id": "j1", "run_id": "r1", "attempts": 1})
+
+        assert outcome == "completed"
+        assert "awaiting_review" not in [s for _, s, _ in calls["status"]]
+
+    async def test_a_report_is_still_saved_when_held(self, worker_parts) -> None:
+        """Withholding the report would help nobody.
+
+        What changes is the claim made about it, not whether it exists.
+        """
+        worker, calls, monkeypatch = worker_parts
+        graph = RecordingGraph(
+            ["report_generation"], final_extra={"unresolved_high_severity": 2}
+        )
+        _install_graph(monkeypatch, graph, has_checkpoint=True)
+
+        await worker.execute({"id": "j1", "run_id": "r1", "attempts": 1})
+
+        assert "saved" in calls
 
 
 class TestResume:

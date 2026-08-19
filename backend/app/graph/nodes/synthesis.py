@@ -13,6 +13,7 @@ by code, not by a model.
 from __future__ import annotations
 
 import logging
+import re
 
 from app.graph.context import RunContext
 from app.graph.evidence import format_evidence_for_prompt
@@ -331,9 +332,72 @@ def _build_references(evidence: list) -> ReportSectionDraft:
     )
 
 
+#: What a citation-shaped token becomes when a verification finding is disclosed.
+_REDACTED = "a removed citation"
+_MARKER_SHAPED = re.compile(r"\[?E\d+\]?")
+
+
+def _without_markers(text: str) -> str:
+    """Strip citation-shaped tokens out of disclosure text.
+
+    Verification findings are frequently *about* a citation that resolved to
+    nothing, and quoting one verbatim would put that marker back into the
+    report - the exact text the reviewer had removed. `extract_markers` only
+    matches bracketed markers, so no false citation row would be written; but
+    "no hallucinated marker appears anywhere in the report" is a blunt
+    invariant that is hard to violate by accident, and worth more than the
+    weaker "appears, but not in brackets".
+
+    Nothing is lost by the reader. The identifier refers to no record, so
+    naming it tells them precisely nothing they can act on.
+    """
+    return _MARKER_SHAPED.sub(_REDACTED, text or "")
+
+
 def _build_limitations(state: ResearchState, stripped: int) -> ReportSectionDraft:
     """Limitations and disclaimers, assembled from what actually happened."""
-    lines = [GENERAL_DISCLAIMER, "", "### Scope of this assessment", ""]
+    lines = [GENERAL_DISCLAIMER, ""]
+
+    # Unresolved high-severity findings go FIRST, above the scope notes and the
+    # boilerplate. The reviewer has said since it was written that such issues
+    # "are listed in the report" - and nothing listed them. A run finished with
+    # nine of them, reported `completed`, and its Limitations section did not
+    # mention verification at all.
+    #
+    # Placement is the point. A reader who stops after the first paragraph must
+    # still have been told that this report failed its own review.
+    unresolved = state.get("unresolved_high_severity", 0)
+    if unresolved:
+        verification = state.get("verification")
+        high = [
+            issue
+            for issue in (verification.issues if verification else [])
+            if issue.severity == "high"
+        ]
+        lines += [
+            "",
+            "### This report did not pass its own verification",
+            "",
+            f"**{unresolved} high-severity finding(s) remain unresolved.** The "
+            "report was revised once and the findings below still stand, so it "
+            "is held for human review rather than presented as complete. Treat "
+            "every affected statement as unverified until someone has checked "
+            "it.",
+            "",
+        ]
+        for issue in high:
+            detail = _without_markers(issue.detail.strip())
+            quoted = _without_markers((issue.quoted_text or "").strip())
+            lines.append(
+                f"- **{issue.section_key}** — {issue.issue_type.replace('_', ' ')}: "
+                f"{detail}"
+                # A quote that was nothing but a marker says nothing once the
+                # marker is gone.
+                + (f' Quoted: "{quoted}"' if quoted and quoted != _REDACTED else "")
+            )
+        lines.append("")
+
+    lines += ["### Scope of this assessment", ""]
 
     evidence = state.get("evidence_records", [])
     literature_count = sum(1 for e in evidence if e["source_type"] == "literature")
