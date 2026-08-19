@@ -355,6 +355,96 @@ class TestConfirmingAnUploadStorageCannotMeasure:
         assert row["size_bytes"] == 1913
 
 
+class TestTheReportAccountsForInternalSources:
+    """Found by reading a real report, not by a test.
+
+    A run drawing on uploaded documents printed, in its Limitations section:
+
+        This report is based on 14 retrieved sources (4 publications,
+        4 patent families).
+
+    Six sources unaccounted for, in the one section a careful reader turns to
+    first. The danger is not the arithmetic - it is that a reader who does not
+    reconcile it concludes the report rests on eight published sources, when
+    nearly half its citations are internal material nobody outside the
+    organisation has reviewed.
+    """
+
+    def _entry(self, marker: str, source_type: str, **overrides) -> dict:
+        return {
+            "marker": marker,
+            "source_type": source_type,
+            "provider": "Stability Report.pdf" if source_type == "internal_document" else "pubmed",
+            "title": "A title",
+            "authors": [],
+            "identifier_type": "document" if source_type == "internal_document" else "doi",
+            "identifier": "x",
+            "publication_date": None,
+            "url": None,
+            "retrieved_text": "text",
+            "access_level": "full_text",
+            "evidence_category": None,
+            "relevance_score": None,
+            "retrieved_by_agent": "a",
+            **overrides,
+        }
+
+    def test_the_breakdown_adds_up_to_the_total(self) -> None:
+        from app.graph.nodes.synthesis import _build_limitations
+
+        evidence = [
+            self._entry("E1", "literature"),
+            self._entry("E2", "patent"),
+            self._entry("E21", "internal_document"),
+            self._entry("E22", "internal_document"),
+        ]
+        body = _build_limitations({"evidence_records": evidence}, 0).body_markdown
+
+        assert "4 retrieved sources" in body
+        assert "1 publications" in body
+        assert "1 patent families" in body
+        assert "2 passages from uploaded internal documents" in body
+
+    def test_it_says_the_internal_sources_are_unreviewed(self) -> None:
+        from app.graph.nodes.synthesis import _build_limitations
+
+        body = _build_limitations(
+            {"evidence_records": [self._entry("E21", "internal_document")]}, 0
+        ).body_markdown
+        assert "not been peer-reviewed" in body
+
+    def test_a_run_with_no_documents_says_nothing_about_them(self) -> None:
+        """A caution printed on every run is one people stop reading."""
+        from app.graph.nodes.synthesis import _build_limitations
+
+        body = _build_limitations(
+            {"evidence_records": [self._entry("E1", "literature")]}, 0
+        ).body_markdown
+        assert "internal document" not in body.lower()
+
+    def test_a_reference_to_an_uploaded_document_is_labelled_as_one(self) -> None:
+        """`full text` is true of the passage and reads as a retrieval result.
+
+        Beside a peer-reviewed paper obtained in full, it borrows exactly the
+        credibility the source has not got - and the provider is the filename,
+        which the title already printed.
+        """
+        from app.graph.nodes.synthesis import _build_references
+
+        body = _build_references([self._entry("E21", "internal_document")]).body_markdown
+
+        assert "internal document, not peer-reviewed" in body
+        assert "full text" not in body
+
+    def test_an_external_reference_still_reports_what_was_read(self) -> None:
+        from app.graph.nodes.synthesis import _build_references
+
+        body = _build_references(
+            [self._entry("E1", "literature", access_level="abstract_only")]
+        ).body_markdown
+        assert "abstract only" in body
+
+
 def _far_future() -> float:
     import time
 
