@@ -311,7 +311,18 @@ def _build_references(evidence: list) -> ReportSectionDraft:
                 parts.append(f"{kind}: {entry['identifier']}.")
             if entry.get("url"):
                 parts.append(f"<{entry['url']}>")
-            parts.append(f"*({entry['provider']}, {entry['access_level'].replace('_', ' ')})*")
+            # For an external source the provider and access level say how much
+            # of it we actually read. For an uploaded document the provider IS
+            # the filename - already printed as the title - and `full_text` is
+            # true of the passage but reads as a retrieval achievement, borrowing
+            # the language of a paper we obtained in full. What a reader needs to
+            # know about this source is that it is internal.
+            if entry["source_type"] == "internal_document":
+                parts.append("*(internal document, not peer-reviewed)*")
+            else:
+                parts.append(
+                    f"*({entry['provider']}, {entry['access_level'].replace('_', ' ')})*"
+                )
             lines.append(" ".join(parts))
         body = "\n\n".join(lines)
 
@@ -327,12 +338,35 @@ def _build_limitations(state: ResearchState, stripped: int) -> ReportSectionDraf
     evidence = state.get("evidence_records", [])
     literature_count = sum(1 for e in evidence if e["source_type"] == "literature")
     patent_count = sum(1 for e in evidence if e["source_type"] == "patent")
+    document_count = sum(1 for e in evidence if e["source_type"] == "internal_document")
     abstract_only = sum(1 for e in evidence if e["access_level"] == "abstract_only")
+
+    # The breakdown has to account for every source in the total. It listed only
+    # publications and patents, so a run drawing on uploaded documents printed
+    # "14 retrieved sources (4 publications, 4 patent families)" - six sources
+    # unaccounted for, in the section a careful reader turns to first. Worse
+    # than a wrong number: a reader who does not reconcile it concludes the
+    # report rests on eight published sources, when a third of its citations are
+    # internal material nobody outside the organisation has reviewed.
+    breakdown = [
+        f"{literature_count} publications",
+        f"{patent_count} patent families",
+    ]
+    if document_count:
+        breakdown.append(f"{document_count} passages from uploaded internal documents")
 
     lines.append(
         f"- This report is based on {len(evidence)} retrieved sources "
-        f"({literature_count} publications, {patent_count} patent families)."
+        f"({', '.join(breakdown)})."
     )
+    if document_count:
+        lines.append(
+            f"- {document_count} of those sources are internal documents uploaded "
+            "to this workspace. They have not been peer-reviewed, published or "
+            "verified by anyone outside your organisation, and carry no "
+            "independent standing. Claims resting on them are the "
+            "organisation's own account of its own work."
+        )
     if abstract_only:
         lines.append(
             f"- {abstract_only} source(s) were reviewed at abstract level only. "
