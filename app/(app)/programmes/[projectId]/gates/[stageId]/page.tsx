@@ -325,8 +325,22 @@ function GateDecisionCard({
   // outcome trains people to ignore the refusal.
   const openDialog = () => {
     setDecision(readiness.is_ready ? "approved" : "conditionally_approved");
+    // Conditions left over from a previous decision would attach themselves to
+    // this one, and they are written into the audit record verbatim.
+    setNote("");
+    setConditions("");
     setOpen(true);
   };
+
+  // The same two rules the server enforces, said before the request rather
+  // than after it. The server remains the authority: these only decide whether
+  // it is worth sending, and what to tell somebody who is stuck on the form.
+  const missing =
+    decision === "conditionally_approved" && !conditions.trim()
+      ? "Conditions are required — a conditional approval that does not say what the conditions are is just an approval."
+      : (decision === "rejected" || decision === "on_hold") && !note.trim()
+        ? "A note is required. It is what the audit record carries as the reason."
+        : undefined;
 
   if (!capabilities.can_gate) {
     return (
@@ -419,6 +433,40 @@ function GateDecisionCard({
               </select>
             </div>
 
+            {/* A disabled <option> is the weakest way to state the rule this
+                module exists for, and in testing it read as "there is no way
+                to approve a gate" rather than "not yet, and here is why". The
+                server refusal names the blockers; so should this. */}
+            {!readiness.is_ready && (
+              <div className="rounded-lg border bg-muted/30 p-3 text-sm">
+                <p className="font-medium">
+                  Approve is unavailable until{" "}
+                  {readiness.blocker_count === 1
+                    ? "one mandatory requirement is"
+                    : `${readiness.blocker_count} mandatory requirements are`}{" "}
+                  satisfied.
+                </p>
+                <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
+                  {gate.blockers.slice(0, 6).map((b) => (
+                    <li key={b.requirement_id}>
+                      <span className="font-medium text-foreground">
+                        {b.ref_code}
+                      </span>{" "}
+                      — {b.reason}
+                    </li>
+                  ))}
+                  {gate.blockers.length > 6 && (
+                    <li>and {gate.blockers.length - 6} more.</li>
+                  )}
+                </ul>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Approving with conditions stays open. It records what is
+                  outstanding right now alongside the decision, so the gate is
+                  never made to look clean.
+                </p>
+              </div>
+            )}
+
             {decision === "conditionally_approved" && (
               <div className="space-y-2">
                 <Label htmlFor="gate-conditions">
@@ -454,12 +502,16 @@ function GateDecisionCard({
             </div>
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="flex-col items-stretch gap-2 sm:flex-row sm:items-center">
+            {missing && (
+              <p className="mr-auto text-xs text-muted-foreground">{missing}</p>
+            )}
             <Button variant="outline" onClick={() => setOpen(false)}>
               Cancel
             </Button>
             <Button
-              disabled={busy}
+              disabled={busy || Boolean(missing)}
+              title={missing}
               onClick={() => {
                 onDecide({
                   decision,

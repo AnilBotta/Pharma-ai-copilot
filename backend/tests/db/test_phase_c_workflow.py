@@ -501,6 +501,24 @@ async def main() -> int:
         )
         check("conditional approval requires written conditions", ok, msg[:60])
 
+        # A gate stopped without a reason leaves an audit entry saying a
+        # decision was taken and nothing about why. The form has always marked
+        # the note required; until now only the form did.
+        for stopped in ("rejected", "on_hold"):
+            ok, msg = await raises(
+                Conflict,
+                repo.decide_gate(GATEKEEPER, stage_id, decision=stopped),
+            )
+            check(f"'{stopped}' requires a note saying why", ok, msg[:70])
+
+            ok, msg = await raises(
+                Conflict,
+                repo.decide_gate(GATEKEEPER, stage_id, decision=stopped,
+                                 note="   "),
+            )
+            check(f"...and whitespace does not count as one ({stopped})", ok,
+                  msg[:40])
+
         stage_row = await repo.decide_gate(
             GATEKEEPER, stage_id, decision="conditionally_approved",
             note="Proceeding at risk.", conditions="R-004 sign-off within 14 days.",
