@@ -481,6 +481,40 @@ function GateDecisionCard({
 
 /* -------------------------------------------------------------- requirement */
 
+/** `analytical_lead` reads as "the Analytical Lead" in a sentence. */
+function roleLabel(key: string) {
+  return `the ${key
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase())}`;
+}
+
+/**
+ * Why the reader cannot approve this requirement, when they can approve
+ * others. The button being merely greyed out invites the conclusion that the
+ * app is broken, which is what actually happened during testing.
+ */
+function approvalBarredReason(req: Requirement) {
+  if (req.eligible_approvers.length === 0) {
+    return "Nobody can approve this requirement — see the note above.";
+  }
+  // Three rules can bar you and the reader need not be told which: naming who
+  // it is for answers the only question they have. Guessing the rule would
+  // sometimes be wrong, since holding approval authority somewhere on the
+  // project does not mean holding the role this requirement names.
+  const needs = req.approver_role_key
+    ? ` Approval here needs ${roleLabel(req.approver_role_key)}, and whoever confirms the acceptance criteria or owns the requirement is excluded.`
+    : " Whoever confirms the acceptance criteria or owns the requirement is excluded.";
+  return `This one is for ${nameList(
+    req.eligible_approvers.map((a) => a.name)
+  )}.${needs}`;
+}
+
+function nameList(names: string[]) {
+  if (names.length === 0) return "nobody";
+  if (names.length === 1) return names[0];
+  return `${names.slice(0, -1).join(", ")} or ${names[names.length - 1]}`;
+}
+
 function RequirementCard({
   requirement: req,
   runs,
@@ -606,13 +640,38 @@ function RequirementCard({
               </div>
             )}
 
-            {req.acceptance_confirmed_by_name && (
-              <p className="text-xs text-muted-foreground">
-                Acceptance criteria confirmed by{" "}
-                {req.acceptance_confirmed_by_name}. Whoever confirms cannot also
-                approve.
-              </p>
-            )}
+            {req.acceptance_confirmed_by_name &&
+              (req.eligible_approvers.length === 0 ? (
+                <div className="rounded-lg border border-amber-500/40 bg-amber-500/5 p-3 text-sm">
+                  <p className="font-medium text-amber-700 dark:text-amber-400">
+                    Nobody can approve this requirement.
+                  </p>
+                  <p className="mt-1 text-muted-foreground">
+                    {req.acceptance_confirmed_by_name} confirmed the acceptance
+                    criteria, and whoever confirms cannot also approve.{" "}
+                    {req.approver_role_key
+                      ? `Approval here needs ${roleLabel(
+                          req.approver_role_key
+                        )}, and nobody else holds it.`
+                      : "Nobody else holds a role with approval authority."}
+                  </p>
+                  <p className="mt-2 text-muted-foreground">
+                    To move it on: withdraw the acceptance, have a colleague
+                    confirm it instead, then approve. Or grant{" "}
+                    {req.approver_role_key
+                      ? roleLabel(req.approver_role_key)
+                      : "an approving role"}{" "}
+                    to a second person.
+                  </p>
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  Acceptance criteria confirmed by{" "}
+                  {req.acceptance_confirmed_by_name}. Whoever confirms cannot
+                  also approve, so this one is for{" "}
+                  {nameList(req.eligible_approvers.map((a) => a.name))}.
+                </p>
+              ))}
 
             <RequirementActions
               requirement={req}
@@ -763,10 +822,18 @@ function RequirementActions({
   act: (key: string, fn: () => Promise<unknown>) => Promise<void>;
 }) {
   const [rejectOpen, setRejectOpen] = React.useState(false);
+  const [strandOpen, setStrandOpen] = React.useState(false);
   const [comments, setComments] = React.useState("");
 
   const canApprove = capabilities.can_approve;
   const acceptanceReady = req.evidence_count > 0 && !req.is_blocked;
+
+  // Confirming an acceptance is what bars you from approving. On a small team
+  // that can remove the last eligible approver and strand the requirement, so
+  // the click asks first rather than discovering it two steps later.
+  const wouldStrand = req.approvers_if_i_accept.length === 0;
+  const confirmAcceptance = () =>
+    act(`${req.id}:accept`, () => pdp.setAcceptance(req.id, true));
 
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -793,7 +860,9 @@ function RequirementActions({
               ? undefined
               : "Attach evidence first — there is nothing yet for the confirmation to refer to."
           }
-          onClick={() => act(`${req.id}:accept`, () => pdp.setAcceptance(req.id, true))}
+          onClick={() =>
+            wouldStrand ? setStrandOpen(true) : void confirmAcceptance()
+          }
         >
           <Check className="size-3.5" /> Confirm acceptance criteria
         </Button>
@@ -803,11 +872,18 @@ function RequirementActions({
         <>
           <Button
             size="sm"
-            disabled={busy || !req.acceptance_confirmed_by || req.is_blocked}
+            disabled={
+              busy ||
+              !req.acceptance_confirmed_by ||
+              req.is_blocked ||
+              !req.i_can_approve
+            }
             title={
-              req.acceptance_confirmed_by
-                ? undefined
-                : "Approval agrees with a confirmed claim. There is no claim yet."
+              !req.acceptance_confirmed_by
+                ? "Approval agrees with a confirmed claim. There is no claim yet."
+                : !req.i_can_approve
+                  ? approvalBarredReason(req)
+                  : undefined
             }
             onClick={() =>
               act(`${req.id}:approve`, () =>
@@ -820,7 +896,8 @@ function RequirementActions({
           <Button
             size="sm"
             variant="ghost"
-            disabled={busy}
+            disabled={busy || !req.i_can_approve}
+            title={req.i_can_approve ? undefined : approvalBarredReason(req)}
             onClick={() => setRejectOpen(true)}
           >
             Request changes
@@ -854,6 +931,50 @@ function RequirementActions({
           Block
         </Button>
       )}
+
+      <Dialog open={strandOpen} onOpenChange={setStrandOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirming this leaves nobody able to approve it</DialogTitle>
+            <DialogDescription asChild>
+              <div className="space-y-2 text-sm">
+                <p>
+                  Whoever confirms the acceptance criteria cannot also approve
+                  them — that separation is the point of the step. If you
+                  confirm {req.ref_code}, no one on this project will be able to
+                  approve it
+                  {req.approver_role_key
+                    ? `, because approval needs ${roleLabel(
+                        req.approver_role_key
+                      )} and you are the only person who holds it`
+                    : ""}
+                  .
+                </p>
+                <p>
+                  Better: ask a colleague to confirm the acceptance criteria,
+                  and approve it yourself afterwards. You can also confirm now
+                  and withdraw it later, or give a second person the approving
+                  role.
+                </p>
+              </div>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setStrandOpen(false)}>
+              Leave it for a colleague
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setStrandOpen(false);
+                void confirmAcceptance();
+              }}
+            >
+              Confirm anyway
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={rejectOpen} onOpenChange={setRejectOpen}>
         <DialogContent>
