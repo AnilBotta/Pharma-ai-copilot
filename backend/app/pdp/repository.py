@@ -296,13 +296,19 @@ class PdpRepository:
                     """
                     insert into public.project_stages (
                         project_id, template_stage_id, position, key, name,
-                        description, gate_question, exit_criteria
-                    ) values ($1,$2,$3,$4,$5,$6,$7,$8)
+                        description, gate_question, exit_criteria,
+                        unattended_after_days
+                    ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9)
                     returning *
                     """,
                     project_id, stage["id"], stage["position"], stage["key"],
                     stage["name"], stage["description"], stage["gate_question"],
                     stage["exit_criteria"],
+                    # Copied like every other stage field, so a later template
+                    # edit cannot change how long a running programme's gate may
+                    # sit before it is reported. Null here means the gate
+                    # inherits the system default, which is the ordinary case.
+                    stage["unattended_after_days"],
                 )
                 created_stages.append(dict(new_stage))
 

@@ -19,6 +19,8 @@ from app.manager.routes import router as manager_router
 from app.pdp.repository import PdpRepository
 from app.pdp.routes import router as pdp_router
 from app.repository import Repository
+from app.settings_module.repository import RecipientRepository
+from app.settings_module.routes import router as settings_router
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +48,7 @@ async def lifespan(app: FastAPI):
         app.state.pdp_repository = PdpRepository(pool)
         app.state.manager_repository = ManagerRepository(pool)
         app.state.document_repository = DocumentRepository(pool)
+        app.state.recipient_repository = RecipientRepository(pool)
     except Exception:
         # Start anyway so /health can report the problem rather than the whole
         # service being unreachable.
@@ -54,6 +57,7 @@ async def lifespan(app: FastAPI):
         app.state.pdp_repository = None
         app.state.manager_repository = None
         app.state.document_repository = None
+        app.state.recipient_repository = None
 
     yield
 
@@ -88,6 +92,7 @@ def create_app() -> FastAPI:
     app.include_router(pdp_router, prefix="/api")
     app.include_router(manager_router, prefix="/api")
     app.include_router(documents_router, prefix="/api")
+    app.include_router(settings_router, prefix="/api")
 
     @app.exception_handler(Exception)
     async def unhandled_exception(request: Request, exc: Exception):
