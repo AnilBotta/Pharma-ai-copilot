@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  BellRing,
   Bot,
   FolderGit2,
   GitBranch,
@@ -51,7 +52,14 @@ const navGroups: { title: string; items: NavItem[] }[] = [
   },
   {
     title: "Configuration",
-    items: [{ href: "/integrations", label: "Integrations", icon: Plug }],
+    items: [
+      { href: "/integrations", label: "Integrations", icon: Plug },
+      {
+        href: "/settings/notifications",
+        label: "Notifications",
+        icon: BellRing,
+      },
+    ],
   },
 ];
 

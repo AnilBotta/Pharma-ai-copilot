@@ -412,12 +412,23 @@ async def worker_tick(
     # endpoint's job, and an alert delayed by a minute costs nothing because
     # the condition is recomputed from the record next time.
     try:
-        from app.notifications import build_notifier, dispatch_pending, sweep_all_projects
+        from app.notifications import (
+            build_notifier,
+            dispatch_pending,
+            send_digests,
+            sweep_all_projects,
+        )
 
         pool = db.get_pool()
+        notifier = build_notifier(settings)
         result["notifications"] = await sweep_all_projects(pool)
         result["deliveries"] = await dispatch_pending(
-            pool, build_notifier(settings), base_url=settings.public_base_url
+            pool, notifier, base_url=settings.public_base_url
+        )
+        # One summary per address per day, enforced by a unique index rather
+        # than by this running at a particular time.
+        result["digests"] = await send_digests(
+            pool, notifier, base_url=settings.public_base_url
         )
     except Exception:
         logger.exception("The notification sweep failed; the tick continues")

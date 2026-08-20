@@ -120,22 +120,30 @@ def build_notifier(settings: Any) -> Notifier:
 async def dispatch_pending(
     pool: Any, notifier: Notifier, *, limit: int = 200, base_url: str | None = None
 ) -> dict:
-    """Deliver open, unacknowledged events to the people their rule names.
+    """Deliver open, unacknowledged events to the people who should hear them.
 
-    Recipients come from the rule's role lists, resolved through user_roles,
-    plus the owner of the thing the event is about. At escalation level zero the
-    audience is `notify_roles`; above it, `escalate_to_roles`.
+    Two audiences, unioned:
 
-    The `unique (event_id, recipient_user_id, escalation_level)` constraint on
-    deliveries is what makes this safe to run every minute: a person is told
-    once per event per rung, and a re-run cannot re-send.
+    * ROLE HOLDERS, resolved through user_roles. At escalation level zero the
+      rule's `notify_roles`; above it, `escalate_to_roles`.
+    * CONFIGURED ADDRESSES from `notification_recipients`, which hold no role
+      and no authority - they are a delivery list maintained from the settings
+      page. Added to the role audience rather than replacing it, so the person
+      accountable for the work does not stop being told because a setting
+      changed somewhere else.
+
+    Deduplication differs between the two and both matter. For a role holder it
+    is the `unique (event_id, recipient_user_id, escalation_level)` constraint.
+    For an address with no account `recipient_user_id` is null, NULL is never
+    equal to NULL in a unique constraint, and 0029 adds a partial unique index
+    on the email instead - without which every sweep would re-send.
     """
     sent = failed = skipped = 0
 
     async with pool.acquire() as conn:
         pending = await conn.fetch(
             """
-            with audience as (
+            with events as (
               select e.id as event_id,
                      e.escalation_level,
                      e.severity,
@@ -143,6 +151,13 @@ async def dispatch_pending(
                      e.detail,
                      e.project_id,
                      e.subject_type,
+                     r.condition,
+                     r.notify_roles,
+                     r.escalate_to_roles,
+                     --: When this event reached the rung it is on now. Used to
+                     --: decide whether a newly added recipient should hear
+                     --: about it.
+                     coalesce(e.last_escalated_at, e.raised_at) as arrived_at,
                      -- 0021 gave events a subject "so the UI can link to it".
                      -- Nothing ever did, and the emails went out with no way to
                      -- act on them: 44 messages naming requirements and
@@ -159,31 +174,71 @@ async def dispatch_pending(
                           where gr.id::text = e.subject_id
                        )
                        when e.subject_type = 'project_stage' then e.subject_id
-                     end as stage_id,
-                     p.id   as recipient_user_id,
-                     p.email as recipient_email
+                     end as stage_id
                 from public.notification_events e
                 join public.notification_rules r on r.id = e.rule_id
+               where e.resolved_at is null
+                 and e.acknowledged_at is null
+            ),
+            audience as (
+              select ev.event_id, ev.escalation_level, ev.severity, ev.title,
+                     ev.detail, ev.project_id, ev.subject_type, ev.stage_id,
+                     p.id    as recipient_user_id,
+                     p.email as recipient_email
+                from events ev
                 join public.user_roles ur
                   on ur.role_id in (
                        select id from public.roles
                         where key = any(
-                          case when e.escalation_level = 0
-                               then r.notify_roles else r.escalate_to_roles end)
+                          case when ev.escalation_level = 0
+                               then ev.notify_roles else ev.escalate_to_roles end)
                      )
-                 and (ur.project_id is null or ur.project_id = e.project_id)
+                 and (ur.project_id is null or ur.project_id = ev.project_id)
                  and (ur.expires_at is null or ur.expires_at > now())
                 join public.profiles p on p.id = ur.user_id
-               where e.resolved_at is null
-                 and e.acknowledged_at is null
-                 and p.is_active
+               where p.is_active
+
+              union all
+
+              -- Addresses configured on the settings page. An empty
+              -- `conditions` array means every condition, which is the common
+              -- case and must not require anybody to tick seven boxes to get
+              -- the obvious behaviour.
+              select ev.event_id, ev.escalation_level, ev.severity, ev.title,
+                     ev.detail, ev.project_id, ev.subject_type, ev.stage_id,
+                     null::uuid as recipient_user_id,
+                     nr.email   as recipient_email
+                from events ev
+                join public.notification_recipients nr
+                  on nr.is_active
+                 and nr.wants_immediate
+                 and (cardinality(nr.conditions) = 0
+                      or ev.condition = any(nr.conditions))
+                 -- Only what happened AFTER they were added. Otherwise adding
+                 -- an address delivers the entire standing backlog in one go -
+                 -- 44 emails at present - which is the flood this design exists
+                 -- to avoid, arriving as somebody's first impression of the
+                 -- system. `arrived_at` is when the event reached its current
+                 -- rung, so an escalation still reaches a recent addition.
+                 --
+                 -- They are not left ignorant of the backlog: the daily digest
+                 -- describes everything currently open, which is precisely the
+                 -- job it exists to do.
+                 and ev.arrived_at >= nr.created_at
             )
-            select distinct a.*
+            -- One row per address per event, even when the same person is both
+            -- a role holder and on the roster - which is likely, since the
+            -- people configuring this are the people already in the system.
+            -- `nulls last` keeps the role-based row, so the delivery is
+            -- attributed to the account rather than to a bare address.
+            select distinct on (a.event_id, lower(a.recipient_email))
+                   a.event_id, a.escalation_level, a.severity, a.title,
+                   a.detail, a.project_id, a.subject_type, a.stage_id,
+                   a.recipient_user_id, a.recipient_email
               from audience a
              where not exists (
                select 1 from public.notification_deliveries d
                 where d.event_id = a.event_id
-                  and d.recipient_user_id = a.recipient_user_id
                   and d.escalation_level = a.escalation_level
                   -- `skipped` means nothing left the building, so it must not
                   -- count as delivered. Excluding only real attempts is what
@@ -197,7 +252,17 @@ async def dispatch_pending(
                   -- happened is exactly the kind of thing that reads as
                   -- coverage.
                   and d.status <> 'skipped'
+                  and (
+                    (a.recipient_user_id is not null
+                     and d.recipient_user_id = a.recipient_user_id)
+                    or
+                    (a.recipient_user_id is null
+                     and d.recipient_user_id is null
+                     and lower(d.recipient_email) = lower(a.recipient_email))
+                  )
              )
+             order by a.event_id, lower(a.recipient_email),
+                      a.recipient_user_id nulls last
              limit $1
             """,
             limit,
@@ -231,25 +296,40 @@ async def dispatch_pending(
                     status, error = "failed", str(exc)[:500]
                     failed += 1
 
-            await conn.execute(
-                """
+            # Two conflict targets, because two different indexes protect the
+            # two kinds of recipient and a statement may name only one. The
+            # `where` clause on each is identical: only a `skipped` row may be
+            # overwritten, and only by an attempt that actually happened, so the
+            # guarantee that a person is told once per event per rung survives.
+            insert_sql = """
                 insert into public.notification_deliveries
                   (event_id, recipient_user_id, recipient_email, channel, status,
                    error, escalation_level, sent_at)
                 values ($1,$2,$3,'email',$4,$5,$6,
                         case when $4 = 'sent' then now() else null end)
-                on conflict (event_id, recipient_user_id, escalation_level)
-                -- Only a `skipped` row may be overwritten, and only by an
-                -- attempt that actually happened. Everything else stays
-                -- do-nothing, so the constraint still guarantees a person is
-                -- told once per event per rung.
+                on conflict {target}
                 do update set status     = excluded.status,
                               error      = excluded.error,
                               sent_at    = excluded.sent_at,
                               created_at = now()
                  where public.notification_deliveries.status = 'skipped'
                    and excluded.status <> 'skipped'
-                """,
+            """
+            target = (
+                "(event_id, recipient_user_id, escalation_level)"
+                if row["recipient_user_id"] is not None
+                # The partial index from 0029. Named by its predicate rather
+                # than by name so Postgres infers it, and so the expression is
+                # visible here - a reader who changes one must change the other.
+                else (
+                    "(event_id, lower(recipient_email), escalation_level) "
+                    "where recipient_user_id is null"
+                )
+            )
+            await conn.execute(
+                # `target` is one of two literals chosen above, never caller
+                # input, so the format call cannot carry anything injectable.
+                insert_sql.format(target=target),
                 row["event_id"], row["recipient_user_id"], row["recipient_email"],
                 status, error, row["escalation_level"],
             )
@@ -307,6 +387,228 @@ def _compose(row: Any, base_url: str | None = None) -> str:
         "does not replace one.",
     ]
     return "\n".join(lines)
+
+
+# --------------------------------------------------------------------------- #
+# The daily digest
+# --------------------------------------------------------------------------- #
+#
+# Immediate mail is for the person who must act. The digest is for everybody
+# else: one message a day describing every open gate, so "everyone knows the
+# gate status" does not mean "everyone receives forty-four emails".
+#
+# That distinction is the whole reason this exists. 0021's own header says a
+# system that reports everything produces the same outcome as one that reports
+# nothing, because people stop reading. A CEO who gets one summary reads it; a
+# CEO who gets forty-four filters the sender.
+
+
+async def digest_due(pool: Any, *, on_date: Any = None) -> list[dict]:
+    """Addresses that want a digest and have not had one today.
+
+    The `unique (lower(recipient_email), digest_date)` index in 0029 is what
+    makes "once a day" true. This query only avoids doing pointless work; the
+    index is what makes a double send impossible.
+    """
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            select r.email, r.name, r.conditions
+              from public.notification_recipients r
+             where r.is_active and r.wants_digest
+               and not exists (
+                 select 1 from public.notification_digests d
+                  where lower(d.recipient_email) = lower(r.email)
+                    and d.digest_date = coalesce($1::date, current_date)
+                    and d.status <> 'failed'
+               )
+          order by lower(r.email)
+            """,
+            on_date,
+        )
+    return [dict(r) for r in rows]
+
+
+async def gather_digest(pool: Any, *, conditions: list[str] | None = None) -> list[dict]:
+    """Every open alert, grouped by programme and gate.
+
+    One query rather than one per recipient: the content is identical for
+    everybody, and only the filtering differs.
+    """
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            select p.name as project_name,
+                   e.project_id,
+                   r.condition,
+                   e.severity,
+                   e.title,
+                   e.escalation_level,
+                   e.raised_at,
+                   case
+                     when e.subject_type = 'gate_requirement' then (
+                       select s.name from public.gate_requirements gr
+                         join public.project_stages s on s.id = gr.project_stage_id
+                        where gr.id::text = e.subject_id
+                     )
+                     when e.subject_type = 'project_stage' then (
+                       select s.name from public.project_stages s
+                        where s.id::text = e.subject_id
+                     )
+                   end as gate_name
+              from public.notification_events e
+              join public.notification_rules r on r.id = e.rule_id
+              left join public.projects p on p.id = e.project_id
+             where e.resolved_at is null
+               and e.acknowledged_at is null
+               and ($1::text[] is null or cardinality($1::text[]) = 0
+                    or r.condition = any($1::text[]))
+          order by p.name, gate_name nulls last, e.severity desc, e.raised_at
+            """,
+            conditions,
+        )
+    return [dict(r) for r in rows]
+
+
+def compose_digest(rows: list[dict], *, base_url: str | None = None) -> tuple[str, str]:
+    """Subject and body for one digest. No model call; this is a report."""
+    if not rows:
+        return (
+            "Stage gates: nothing outstanding",
+            "No gate has an open alert against it today.\n\n"
+            "This is an automated summary from the Pharma R&D Copilot stage-gate "
+            "module.",
+        )
+
+    by_project: dict[str, list[dict]] = {}
+    for row in rows:
+        by_project.setdefault(row["project_name"] or "Unassigned", []).append(row)
+
+    critical = sum(1 for r in rows if r["severity"] == "critical")
+    escalated = sum(1 for r in rows if (r["escalation_level"] or 0) > 0)
+
+    subject = (
+        f"Stage gates: {len(rows)} open alert(s) across {len(by_project)} programme(s)"
+    )
+
+    lines = [
+        f"{len(rows)} open alert(s) across {len(by_project)} programme(s).",
+    ]
+    if critical:
+        lines.append(f"{critical} are critical.")
+    if escalated:
+        # Naming this matters: an escalated alert is one nobody acknowledged in
+        # time, which is a different fact from it merely being open.
+        lines.append(f"{escalated} escalated because nobody acknowledged them.")
+    lines.append("")
+
+    for project, items in by_project.items():
+        lines.append(f"## {project}")
+        by_gate: dict[str, list[dict]] = {}
+        for item in items:
+            by_gate.setdefault(item["gate_name"] or "Not tied to a gate", []).append(item)
+
+        for gate, gate_items in by_gate.items():
+            lines.append(f"  {gate} — {len(gate_items)} open")
+            # Bounded, so a programme with sixty alerts does not produce an
+            # unreadable email. The count above stays truthful either way.
+            for item in gate_items[:8]:
+                flag = "!" if item["severity"] == "critical" else "-"
+                age = _days_since(item["raised_at"])
+                lines.append(f"    {flag} {item['title']} ({age})")
+            if len(gate_items) > 8:
+                lines.append(f"    … and {len(gate_items) - 8} more")
+
+        if base_url and items[0]["project_id"]:
+            lines.append(f"  {base_url}/programmes/{items[0]['project_id']}")
+        lines.append("")
+
+    lines += [
+        "This is an automated summary from the Pharma R&D Copilot stage-gate "
+        "module. It reports the state of the record; it is not a decision and "
+        "does not replace one.",
+    ]
+    return subject, "\n".join(lines)
+
+
+def _days_since(when: Any) -> str:
+    """How long this has been open, in the words a reader thinks in.
+
+    "9 days open" is the number that makes somebody act; a timestamp is not.
+    """
+    if when is None:
+        return "age unknown"
+    from datetime import UTC, datetime
+
+    if getattr(when, "tzinfo", None) is None:
+        return "age unknown"
+    days = (datetime.now(UTC) - when).days
+    if days <= 0:
+        return "today"
+    return f"{days} day{'s' if days != 1 else ''} open"
+
+
+async def send_digests(
+    pool: Any, notifier: Notifier, *, base_url: str | None = None
+) -> dict:
+    """One summary per address per day."""
+    due = await digest_due(pool)
+    if not due:
+        return {"due": 0, "sent": 0, "failed": 0, "skipped": 0}
+
+    # Gathered ONCE, then filtered per recipient. Two reasons: the content is
+    # identical for everybody so re-querying is waste, and acquiring a second
+    # connection inside a loop that already holds one is how a pool deadlocks
+    # under load.
+    everything = await gather_digest(pool)
+
+    sent = failed = skipped = 0
+    async with pool.acquire() as conn:
+        for recipient in due:
+            wanted = set(recipient.get("conditions") or [])
+            rows = (
+                everything
+                if not wanted
+                else [r for r in everything if r["condition"] in wanted]
+            )
+            subject, body = compose_digest(rows, base_url=base_url)
+
+            status, error = "sent", None
+            if isinstance(notifier, LoggingNotifier):
+                status = "skipped"
+                error = "No email provider configured; nothing was sent."
+                skipped += 1
+            else:
+                try:
+                    await notifier.send(
+                        to=recipient["email"], subject=subject, body=body
+                    )
+                    sent += 1
+                except Exception as exc:
+                    logger.warning(
+                        "Digest failed for %s: %s", recipient["email"], exc
+                    )
+                    status, error = "failed", str(exc)[:500]
+                    failed += 1
+
+            await conn.execute(
+                """
+                insert into public.notification_digests
+                    (recipient_email, digest_date, event_count, status, error, sent_at)
+                values ($1, current_date, $2, $3, $4,
+                        case when $3 = 'sent' then now() else null end)
+                on conflict (lower(recipient_email), digest_date)
+                do update set status = excluded.status,
+                              error  = excluded.error,
+                              sent_at = excluded.sent_at,
+                              event_count = excluded.event_count
+                 where public.notification_digests.status in ('pending', 'skipped')
+                   and excluded.status <> 'skipped'
+                """,
+                recipient["email"], len(rows), status, error,
+            )
+
+    return {"due": len(due), "sent": sent, "failed": failed, "skipped": skipped}
 
 
 async def sweep_all_projects(pool: Any) -> dict:

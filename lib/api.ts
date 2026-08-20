@@ -1371,6 +1371,74 @@ function normaliseMimeType(file: File): string {
   return declared || "application/octet-stream";
 }
 
+// --------------------------------------------------------------------------
+// Notification settings
+// --------------------------------------------------------------------------
+
+export interface AlertType {
+  condition: string;
+  name: string;
+  description: string | null;
+  severity: "info" | "warning" | "critical";
+  is_active: boolean;
+}
+
+export interface NotificationRecipient {
+  id: string;
+  email: string;
+  name: string | null;
+  is_active: boolean;
+  /** Empty means every alert type. */
+  conditions: string[];
+  wants_immediate: boolean;
+  wants_digest: boolean;
+  /** Evidence the address is really receiving mail, not just configured. */
+  sent_count: number;
+  last_sent_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export const notificationSettings = {
+  alertTypes: () => request<AlertType[]>("/settings/alert-types"),
+
+  list: () =>
+    request<NotificationRecipient[]>("/settings/notification-recipients"),
+
+  add: (body: {
+    email: string;
+    name?: string | null;
+    conditions?: string[];
+    wants_immediate?: boolean;
+    wants_digest?: boolean;
+  }) =>
+    request<NotificationRecipient>("/settings/notification-recipients", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }),
+
+  update: (
+    id: string,
+    body: Partial<
+      Pick<
+        NotificationRecipient,
+        "name" | "conditions" | "wants_immediate" | "wants_digest" | "is_active"
+      >
+    >
+  ) =>
+    request<NotificationRecipient>(`/settings/notification-recipients/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }),
+
+  remove: (id: string) =>
+    request<void>(`/settings/notification-recipients/${id}`, {
+      method: "DELETE",
+    }),
+};
+
 export const documents = {
   list: (projectId?: string) =>
     request<UploadedDocument[]>(
