@@ -566,6 +566,10 @@ class PdpRepository:
                 """,
                 stage_id,
             )
+            unattended_default = await conn.fetchval(
+                "select threshold_days from public.notification_rules "
+                "where condition = 'gate_unattended'"
+            )
 
         by_requirement: dict[str, list[dict]] = {}
         for row in evidence:
@@ -592,14 +596,86 @@ class PdpRepository:
             )
             enriched.append(item)
 
+        # The effective inactivity threshold, and whether it was chosen here or
+        # inherited. Both are sent so the page can say "7 days (system default)"
+        # rather than printing a number that looks like somebody picked it -
+        # which is the whole reason the column is nullable rather than defaulted.
+        stage_row = dict(stage)
+        chosen = stage_row.get("unattended_after_days")
+        stage_row["unattended_effective_days"] = chosen or unattended_default or 7
+        stage_row["unattended_is_inherited"] = chosen is None
+
         return {
             "project_id": project_id,
-            "stage": dict(stage),
+            "stage": stage_row,
             "readiness": dict(readiness),
             "blockers": [dict(b) for b in blockers],
             "requirements": enriched,
             "capabilities": caps.as_dict(),
         }
+
+    async def set_unattended_threshold(
+        self, user_id: str, stage_id: str, days: int | None, *, reason: str | None = None
+    ) -> dict:
+        """How long this gate may sit untouched before it is reported.
+
+        `None` clears the override and returns the gate to the system default.
+        That is a real choice rather than an absence, so it is audited like any
+        other - "who made this gate quieter" is exactly the question somebody
+        asks after a stage slips unnoticed.
+
+        Deliberately requires no gate authority. Changing when a reminder fires
+        is not a decision about whether a gate may open, and gating it behind
+        `can_gate` would put a routine setting out of reach of the people who
+        actually run the programme.
+        """
+        if days is not None and not (1 <= days <= 365):
+            raise Conflict(
+                f"{days} is not a usable threshold. Choose between 1 and 365 days, "
+                "or clear it to inherit the system default."
+            )
+
+        async with self._pool.acquire() as conn, conn.transaction():
+            project_id, caps = await self._capabilities_for_stage(conn, user_id, stage_id)
+            if not caps.can_access:
+                raise Forbidden("You do not have access to this programme.")
+
+            before = await conn.fetchval(
+                "select unattended_after_days from public.project_stages where id = $1",
+                stage_id,
+            )
+            await conn.execute(
+                "update public.project_stages set unattended_after_days = $2 "
+                "where id = $1",
+                stage_id, days,
+            )
+            # Recorded against `gate_notification_setting`, NOT `project_stage`.
+            #
+            # The unattended detector measures activity as the newest audit
+            # event touching the stage or its requirements. An event filed under
+            # `project_stage` therefore counts as somebody working on the gate -
+            # so writing this one there means CONFIGURING THE ALERT SILENCES THE
+            # ALERT. Measured: after three threshold changes the gate stopped
+            # being reported at all, including when the value was put back.
+            #
+            # This is the second time the same failure arrived by a different
+            # route; the first was `project_stages.updated_at`, which a trigger
+            # maintains on every write. An exclusion list would work and would
+            # fail silently the first time somebody adds another setting, so the
+            # record simply is not filed against the gate. It is still fully
+            # audited and still found by stage id.
+            await self._audit(
+                conn,
+                actor=user_id,
+                action="gate_notification_setting.unattended_threshold_set",
+                entity_type="gate_notification_setting",
+                entity_id=stage_id,
+                project_id=project_id,
+                previous={"unattended_after_days": before},
+                new={"unattended_after_days": days},
+                reason=reason,
+            )
+        return await self.get_gate(user_id, stage_id)
 
     async def _requirement_view(self, conn, requirement_id: str) -> dict:
         """One requirement as the engine now sees it.

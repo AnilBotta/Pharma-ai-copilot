@@ -359,6 +359,18 @@ class NotApplicableRequest(StrictRequest):
         return self
 
 
+class UnattendedThresholdRequest(StrictRequest):
+    """Days of silence before this gate is reported as unattended.
+
+    Null clears the override and returns the gate to the system default, which
+    is a real choice rather than an absence - so it is accepted explicitly
+    rather than by omitting the field.
+    """
+
+    days: int | None = Field(default=None, ge=1, le=365)
+    reason: str | None = Field(default=None, max_length=MAX_REASON_LENGTH)
+
+
 class GateDecisionRequest(StrictRequest):
     decision: Literal["approved", "conditionally_approved", "rejected", "on_hold"]
     note: str | None = Field(default=None, max_length=MAX_REASON_LENGTH)

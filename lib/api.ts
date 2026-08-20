@@ -471,6 +471,19 @@ export interface StageSummary {
   mandatory_satisfied: number;
   requirement_count: number;
   overdue_count: number;
+
+  /**
+   * Days of silence before this gate is reported unattended.
+   *
+   * `unattended_after_days` is the override and is null when none is set;
+   * `unattended_effective_days` is what actually applies. Both are sent so the
+   * page can distinguish a chosen value from an inherited one — printing only
+   * the effective number would make a system default look like somebody's
+   * decision. Present on the gate workspace, absent from programme listings.
+   */
+  unattended_after_days?: number | null;
+  unattended_effective_days?: number;
+  unattended_is_inherited?: boolean;
 }
 
 export interface ProgrammeDetail {
@@ -969,6 +982,17 @@ export const pdp = {
       `/manager/proposals/${id}/reject`,
       { method: "POST", body: JSON.stringify({ reason: reason ?? null }) }
     ),
+
+  /** Null clears the override so the gate inherits the system default. */
+  setUnattendedThreshold: (
+    stageId: string,
+    body: { days: number | null; reason?: string }
+  ) =>
+    request<GateWorkspace>(`/pdp/stages/${stageId}/unattended-threshold`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }),
 
   decideGate: (
     stageId: string,

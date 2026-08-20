@@ -620,6 +620,28 @@ async def decide_gate(
     return serialise(row)
 
 
+@router.post("/stages/{stage_id}/unattended-threshold", response_model=s.GateWorkspace)
+async def set_unattended_threshold(
+    stage_id: str,
+    payload: s.UnattendedThresholdRequest,
+    user: AuthenticatedUser = Depends(current_user),
+    repository: PdpRepository = Depends(get_pdp_repository),
+):
+    """How long this gate may sit untouched before an alert is raised.
+
+    Null clears the override so the gate inherits the system default set on the
+    notifications settings page.
+    """
+    try:
+        return serialise(
+            await repository.set_unattended_threshold(
+                user.id, stage_id, payload.days, reason=payload.reason
+            )
+        )
+    except (NotFound, Forbidden, Conflict) as exc:
+        raise _translate(exc) from exc
+
+
 # ------------------------------------------------------------ requirements ---
 
 

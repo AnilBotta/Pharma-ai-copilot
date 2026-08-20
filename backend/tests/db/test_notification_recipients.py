@@ -312,6 +312,54 @@ async def main() -> int:
         # detector reads the audit trail instead.
         check("and clearing it brings the alert back", back == 1, f"{back}")
 
+        # ------------------------------ 6b. CONFIGURING MUST NOT SILENCE ---
+        print("\n6b. Changing the threshold is not working on the gate")
+
+        # This failed twice, by two different routes. First
+        # `project_stages.updated_at`, which a trigger maintains on every write.
+        # Then the audit event for the change itself, which was filed under
+        # `project_stage` - the very entity type the detector scans for
+        # activity. Both made configuring the alert silence the alert, and
+        # neither was visible without running it.
+        await conn.execute(
+            """
+            select private.record_audit_event(
+                p_action      => 'gate_notification_setting.unattended_threshold_set',
+                p_entity_type => 'gate_notification_setting',
+                p_entity_id   => $1,
+                p_project_id  => $2,
+                p_source      => 'api'
+            )
+            """,
+            str(STAGE), PROJECT,
+        )
+        still = await conn.fetchval(
+            "select count(*) from private.detect_notification_conditions($1) "
+            "where condition = 'gate_unattended'",
+            PROJECT,
+        )
+        check("the gate is still reported after its setting changed", still == 1, f"{still}")
+
+        # And the counterexample: a real edit to the gate DOES count.
+        await conn.execute(
+            """
+            select private.record_audit_event(
+                p_action      => 'requirement.evidence_attached',
+                p_entity_type => 'gate_requirement',
+                p_entity_id   => $1,
+                p_project_id  => $2,
+                p_source      => 'api'
+            )
+            """,
+            str(REQ), PROJECT,
+        )
+        worked = await conn.fetchval(
+            "select count(*) from private.detect_notification_conditions($1) "
+            "where condition = 'gate_unattended'",
+            PROJECT,
+        )
+        check("but real work on a requirement does silence it", worked == 0, f"{worked}")
+
         # ---------------------------------------------------- 7. the audit ---
         print("\n7. Changes to who is notified are recorded")
 
