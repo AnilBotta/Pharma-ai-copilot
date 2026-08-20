@@ -581,6 +581,12 @@ export interface RequirementApproval {
   superseded_reason: string | null;
 }
 
+/** Somebody the segregation rules would allow to approve a requirement. */
+export interface ApproverCandidate {
+  user_id: string;
+  name: string;
+}
+
 export interface Requirement {
   id: string;
   project_stage_id: string;
@@ -603,6 +609,12 @@ export interface Requirement {
   owner_user_id: string | null;
   owner_name: string | null;
   approver_role_key: string | null;
+  /** Who may approve this now. Empty means nobody can, and the gate is stuck. */
+  eligible_approvers: ApproverCandidate[];
+  /** Who would still be able to approve if you confirmed the acceptance. */
+  approvers_if_i_accept: ApproverCandidate[];
+  /** Whether *you* may approve this one — not merely whether you can approve. */
+  i_can_approve: boolean;
   due_date: string | null;
   priority: "low" | "medium" | "high" | "critical";
   is_blocked: boolean;

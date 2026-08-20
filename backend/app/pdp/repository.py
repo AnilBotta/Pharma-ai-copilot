@@ -26,6 +26,7 @@ so a method cannot accidentally run unchecked.
 
 from __future__ import annotations
 
+import json
 import logging
 from datetime import date
 from typing import Any
@@ -511,6 +512,8 @@ class PdpRepository:
                        coalesce(owner_p.full_name, owner_p.email) as owner_name,
                        coalesce(acceptor_p.full_name, acceptor_p.email)
                          as acceptance_confirmed_by_name,
+                       private.eligible_approvers(r.id, null)      as eligible_approvers,
+                       private.eligible_approvers(r.id, $2::uuid)  as approvers_if_i_accept,
                        (select json_agg(json_build_object(
                                   'id', d.depends_on_id,
                                   'ref_code', dep.ref_code,
@@ -527,7 +530,7 @@ class PdpRepository:
                  where r.project_stage_id = $1
               order by r.position, r.ref_code
                 """,
-                stage_id,
+                stage_id, user_id,
             )
             evidence = await conn.fetch(
                 """
@@ -594,6 +597,7 @@ class PdpRepository:
                 ),
                 None,
             )
+            item["i_can_approve"] = _is_eligible(item["eligible_approvers"], user_id)
             enriched.append(item)
 
         # The effective inactivity threshold, and whether it was chosen here or
@@ -677,7 +681,9 @@ class PdpRepository:
             )
         return await self.get_gate(user_id, stage_id)
 
-    async def _requirement_view(self, conn, requirement_id: str) -> dict:
+    async def _requirement_view(
+        self, conn, requirement_id: str, viewer_id: str | None = None
+    ) -> dict:
         """One requirement as the engine now sees it.
 
         Every mutating method returns this rather than the row it just wrote.
@@ -685,6 +691,10 @@ class PdpRepository:
         approval, so the state after a write is frequently not the state the
         write alone would suggest. Returning the stored row would invite a
         client to render something the engine does not agree with.
+
+        `viewer_id` only affects `approvers_if_i_accept`, the hypothetical the
+        caller needs in order to be warned before confirming an acceptance that
+        would leave nobody able to approve.
         """
         row = await conn.fetchrow(
             """
@@ -694,13 +704,15 @@ class PdpRepository:
                    (select count(*) from public.evidence_links e
                      where e.requirement_id = r.id) as evidence_count,
                    coalesce(owner_p.full_name, owner_p.email)       as owner_name,
-                   coalesce(acceptor_p.full_name, acceptor_p.email) as acceptance_confirmed_by_name
+                   coalesce(acceptor_p.full_name, acceptor_p.email) as acceptance_confirmed_by_name,
+                   private.eligible_approvers(r.id, null)     as eligible_approvers,
+                   private.eligible_approvers(r.id, $2::uuid) as approvers_if_i_accept
               from public.gate_requirements r
          left join public.profiles owner_p    on owner_p.id = r.owner_user_id
          left join public.profiles acceptor_p on acceptor_p.id = r.acceptance_confirmed_by
              where r.id = $1
             """,
-            requirement_id,
+            requirement_id, viewer_id,
         )
         if row is None:
             raise NotFound(f"Requirement {requirement_id} not found.")
@@ -746,12 +758,13 @@ class PdpRepository:
         item["evidence"] = [dict(e) for e in evidence]
         item["approvals"] = []
         item["current_approval"] = dict(current) if current else None
+        item["i_can_approve"] = _is_eligible(item["eligible_approvers"], viewer_id)
         return item
 
     async def get_requirement(self, user_id: str, requirement_id: str) -> dict:
         async with self._pool.acquire() as conn:
             await self._capabilities_for_requirement(conn, user_id, requirement_id)
-            return await self._requirement_view(conn, requirement_id)
+            return await self._requirement_view(conn, requirement_id, user_id)
 
     async def list_attachable_runs(self, user_id: str, project_id: str) -> list[dict]:
         """Completed research runs on this project, usable as evidence.
@@ -1766,7 +1779,7 @@ class PdpRepository:
                 new={"acceptance_confirmed_by": row["acceptance_confirmed_by"]},
             )
             await self._sync_gate_status(conn, str(req["project_stage_id"]), user_id)
-            return await self._requirement_view(conn, requirement_id)
+            return await self._requirement_view(conn, requirement_id, user_id)
 
     async def decide_requirement(
         self,
@@ -1984,7 +1997,7 @@ class PdpRepository:
                 },
             )
             await self._sync_gate_status(conn, str(req["project_stage_id"]), user_id)
-            return await self._requirement_view(conn, requirement_id)
+            return await self._requirement_view(conn, requirement_id, user_id)
 
     async def set_blocked(
         self, user_id: str, requirement_id: str, *, blocked: bool, reason: str | None
@@ -2019,7 +2032,7 @@ class PdpRepository:
                 reason=reason,
             )
             await self._sync_gate_status(conn, str(req["project_stage_id"]), user_id)
-            return await self._requirement_view(conn, requirement_id)
+            return await self._requirement_view(conn, requirement_id, user_id)
 
     async def set_not_applicable(
         self, user_id: str, requirement_id: str, *, not_applicable: bool, reason: str | None
@@ -2077,7 +2090,7 @@ class PdpRepository:
                 reason=reason,
             )
             await self._sync_gate_status(conn, str(req["project_stage_id"]), user_id)
-            return await self._requirement_view(conn, requirement_id)
+            return await self._requirement_view(conn, requirement_id, user_id)
 
     async def record_review(
         self, user_id: str, requirement_id: str, *, outcome: str, comments: str | None
@@ -2327,6 +2340,22 @@ class PdpRepository:
             },
             reason="Derived from the record by the readiness engine.",
         )
+
+
+def _is_eligible(approvers: Any, user_id: Any) -> bool:
+    """Is this person one of the people `private.eligible_approvers` named?
+
+    The list arrives as jsonb, which the pool decodes for us. A bare connection
+    without the codec would hand back the raw string instead, and comparing
+    against that would quietly answer "no" to every question - the one wrong
+    answer that looks exactly like a correct refusal. So it is parsed rather
+    than assumed.
+    """
+    if user_id is None:
+        return False
+    if isinstance(approvers, str):
+        approvers = json.loads(approvers)
+    return any(str(a.get("user_id")) == str(user_id) for a in approvers or [])
 
 
 def _days(n: int):

@@ -246,6 +246,17 @@ class RequirementDetail(BaseModel):
     owner_user_id: str | None = None
     owner_name: str | None = None
     approver_role_key: str | None = None
+
+    #: Who may approve this requirement as things currently stand, and who
+    #: would still be able to if the person reading confirmed the acceptance
+    #: criteria. An empty first list means the requirement cannot be approved
+    #: by anybody; an empty second list means confirming would make it so.
+    eligible_approvers: list[dict[str, Any]] = Field(default_factory=list)
+    approvers_if_i_accept: list[dict[str, Any]] = Field(default_factory=list)
+    #: `can_approve` on the workspace says the reader holds approval authority
+    #: somewhere on this project. This says it applies to *this* requirement,
+    #: which is a different question once segregation is taken into account.
+    i_can_approve: bool = False
     due_date: date | None = None
     priority: str
     is_blocked: bool
