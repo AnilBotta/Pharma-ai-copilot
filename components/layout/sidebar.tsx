@@ -3,13 +3,11 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  BellRing,
   Bot,
   FolderGit2,
   GitBranch,
   LayoutDashboard,
   ListChecks,
-  Plug,
   Settings,
   Sparkles,
   Upload,
@@ -50,17 +48,10 @@ const navGroups: { title: string; items: NavItem[] }[] = [
     title: "Development",
     items: [{ href: "/programmes", label: "Stage Gates", icon: GitBranch }],
   },
-  {
-    title: "Configuration",
-    items: [
-      { href: "/integrations", label: "Integrations", icon: Plug },
-      {
-        href: "/settings/notifications",
-        label: "Notifications",
-        icon: BellRing,
-      },
-    ],
-  },
+  // No Configuration group. Integrations and Notifications are both reached
+  // through the Settings link in the footer, which is where somebody looks for
+  // configuration - and listing them twice made the sidebar longer without
+  // making anything easier to find.
 ];
 
 function ManagerNavButton({ onNavigate }: { onNavigate: () => void }) {
