@@ -2191,6 +2191,18 @@ class PdpRepository:
                     "what must still be done."
                 )
 
+            # `note` becomes the audit record's reason. A gate stopped without
+            # one leaves an entry that says a decision was taken and nothing
+            # about why, which is exactly the hole the register exists to close
+            # - and the form has always marked it required, so until now the
+            # asterisk promised an enforcement that did not exist.
+            if decision in ("rejected", "on_hold") and not (note or "").strip():
+                stopped = "rejected" if decision == "rejected" else "placed on hold"
+                raise Conflict(
+                    f"A gate cannot be {stopped} without a note saying why. "
+                    "The note is what the audit record carries as the reason."
+                )
+
             row = await conn.fetchrow(
                 """
                 update public.project_stages
