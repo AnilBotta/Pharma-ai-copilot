@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import datetime
+
 from pydantic import BaseModel, Field, field_validator
 
 from app.documents.extract import SUPPORTED_MIME_TYPES
@@ -72,8 +74,13 @@ class DocumentResponse(BaseModel):
     chunk_count: int
     pending_chunk_count: int
 
-    created_at: str
-    updated_at: str
+    # `datetime`, not `str`. `serialise` converts UUID and Decimal and
+    # deliberately leaves datetimes alone. Declaring `str` here made this model
+    # reject its own rows, so GET /api/documents returned 500 for any non-empty
+    # list - invisible for as long as no document existed, which is exactly how
+    # long it took to notice.
+    created_at: datetime
+    updated_at: datetime
 
 
 __all__ = ["DocumentResponse", "RequestUploadRequest", "UploadTicket"]
