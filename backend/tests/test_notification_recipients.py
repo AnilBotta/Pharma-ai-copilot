@@ -11,6 +11,7 @@ else. These tests pin the parts of that where being wrong is silent.
 
 from __future__ import annotations
 
+import uuid
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -101,6 +102,86 @@ class TestTheDigestIsReadable:
     def test_an_alert_not_tied_to_a_gate_still_appears(self) -> None:
         _, body = compose_digest([_row(gate_name=None)])
         assert "Not tied to a gate" in body
+
+
+class TestResponseModelsAcceptTheirOwnRows:
+    """A response model that rejects a real row is a 500 nobody sees coming.
+
+    `serialise` converts UUID and Decimal and deliberately leaves datetimes
+    alone, because every response model in this codebase declares them as
+    datetimes. Two of mine declared `str`, so the models rejected the very rows
+    they exist to describe.
+
+    The failure was invisible for as long as the tables were empty - a
+    validation error cannot happen when there is nothing to validate - and
+    surfaced the first time somebody added a recipient. `GET /api/documents`
+    carried the identical defect and would have returned 500 the moment a
+    document existed.
+
+    These build each response from a row shaped like the query's output, which
+    is the check that was missing.
+    """
+
+    def test_a_recipient_row_builds_its_response(self) -> None:
+        from app.settings_module.routes import _to_response
+
+        row = {
+            "id": uuid.uuid4(),
+            "email": "ceo@example.test",
+            "name": "The CEO",
+            "is_active": True,
+            "conditions": ["task_overdue"],
+            "wants_immediate": True,
+            "wants_digest": True,
+            "sent_count": 3,
+            "last_sent_at": datetime.now(UTC),
+            "created_at": datetime.now(UTC),
+            "updated_at": datetime.now(UTC),
+        }
+        assert _to_response(row).email == "ceo@example.test"
+
+    def test_a_freshly_inserted_recipient_builds_too(self) -> None:
+        """`create` returns the bare row: no sent_count, no last_sent_at.
+
+        Those come from the listing query's subselects, so the insert path has
+        to tolerate their absence - and it is the path the POST takes.
+        """
+        from app.settings_module.routes import _to_response
+
+        row = {
+            "id": uuid.uuid4(),
+            "email": "new@example.test",
+            "name": None,
+            "is_active": True,
+            "conditions": [],
+            "wants_immediate": True,
+            "wants_digest": True,
+            "created_at": datetime.now(UTC),
+            "updated_at": datetime.now(UTC),
+        }
+        response = _to_response(row)
+        assert response.sent_count == 0
+        assert response.last_sent_at is None
+
+    def test_a_document_row_builds_its_response(self) -> None:
+        from app.documents.routes import _to_response as document_response
+
+        row = {
+            "id": uuid.uuid4(),
+            "project_id": uuid.uuid4(),
+            "filename": "Stability Report.pdf",
+            "mime_type": "application/pdf",
+            "size_bytes": 1913,
+            "status": "ready",
+            "error": None,
+            "page_count": 4,
+            "extracted_chars": 5000,
+            "chunk_count": 6,
+            "pending_chunk_count": 0,
+            "created_at": datetime.now(UTC),
+            "updated_at": datetime.now(UTC),
+        }
+        assert document_response(row).filename == "Stability Report.pdf"
 
 
 class TestConditionValidation:

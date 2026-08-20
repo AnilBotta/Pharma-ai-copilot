@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import datetime
+
 from pydantic import BaseModel, Field, field_validator
 
 from app.settings_module.repository import KNOWN_CONDITIONS
@@ -72,10 +74,16 @@ class RecipientResponse(BaseModel):
     #: So the page can show that an address is really receiving mail, rather
     #: than only that somebody once typed it in.
     sent_count: int
-    last_sent_at: str | None
 
-    created_at: str
-    updated_at: str
+    # `datetime`, not `str`. `serialise` converts UUID and Decimal and
+    # deliberately leaves datetimes alone, because every other response model
+    # here declares them as datetimes and Pydantic serialises them on the way
+    # out. Declaring `str` made the model reject its own rows - and the failure
+    # was invisible until the first row existed, because a validation error
+    # cannot occur while the list is empty.
+    last_sent_at: datetime | None
+    created_at: datetime
+    updated_at: datetime
 
 
 class AlertType(BaseModel):
