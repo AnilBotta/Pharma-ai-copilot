@@ -565,6 +565,61 @@ class TestEPOAuthAndFailures:
         assert result.ok is False
         assert result.records == []
 
+    @respx.mock
+    async def test_a_404_is_zero_results_not_a_failure(self) -> None:
+        """OPS's documented quirk: SERVER.EntityNotFound (404) means the query
+        matched nothing, not that the request was rejected.
+
+        Confirmed against the live service: an identically-shaped broad query
+        returns 200 with tens of thousands of hits, and the narrow form that
+        matches nothing returns exactly this 404/fault body. Treating it as a
+        provider failure - which is what the generic >=400 handling used to do
+        - would report a run's own patent search as broken every time a
+        compound genuinely has no matching patents, which for anything novel
+        enough to be worth searching is the common case, not the rare one.
+        """
+        respx.post(OPS_AUTH).mock(
+            httpx.Response(200, json={"access_token": "tok", "expires_in": 1200})
+        )
+        respx.get(OPS_SEARCH).mock(
+            httpx.Response(
+                404,
+                text=(
+                    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+                    '<fault xmlns="http://ops.epo.org">'
+                    "<code>SERVER.EntityNotFound</code>"
+                    "<message>No results found</message>"
+                    "</fault>"
+                ),
+            )
+        )
+        provider = EPOOPSProvider("k", "s")
+        result = await provider.search("an unmatched compound name", SearchFilters())
+        await provider.aclose()
+
+        assert result.ok is True
+        assert result.records == []
+        assert result.error is None
+
+    @respx.mock
+    async def test_other_4xx_statuses_still_report_failure(self) -> None:
+        """The 404-as-empty-results carve-out must not swallow real errors.
+
+        CLIENT.InvalidIndex (malformed CQL) comes back as 400 and has to keep
+        surfacing as a failure - it means the query was rejected, not that it
+        matched nothing.
+        """
+        respx.post(OPS_AUTH).mock(
+            httpx.Response(200, json={"access_token": "tok", "expires_in": 1200})
+        )
+        respx.get(OPS_SEARCH).mock(httpx.Response(400))
+        provider = EPOOPSProvider("k", "s")
+        result = await provider.search("x", SearchFilters())
+        await provider.aclose()
+
+        assert result.ok is False
+        assert "400" in result.error
+
 
 class TestEPOQueryBuilding:
     def test_plain_text_becomes_title_or_abstract_search(self) -> None:
