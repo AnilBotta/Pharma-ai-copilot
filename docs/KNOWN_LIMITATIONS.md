@@ -92,6 +92,60 @@ WO2026154647A1  fam=100620759  DR GOO CO LTD [JP]                     priority 2
 US20260208867A1 fam=100577943  GOODRICH CORP [US]                     priority 2025-01-21
 ```
 
+### 1.0b EPO OPS, a second live run — two more defects, both concrete
+
+A user-facing run against the seeded PDX-114 walkthrough reported the patent
+search entirely broken: 9 queries, all 9 failed, mixed `400`/`404`/`413`.
+`ProviderHTTPClient` discards the response body on error, so the app itself
+never saw more than "Request failed with status N." Reproduced live with the
+credentials and the exact queries recovered from `search_queries`, both causes
+turned out to be real and to have entirely different fixes.
+
+**1. Patent-search queries were never filtered by their own `provider` field.**
+The stored plan showed the planner had done its job correctly — 4 queries
+labelled `provider="europepmc"` in Europe PMC's `TITLE_ABS:` syntax, 5 labelled
+`provider="epo_ops"` in proper CQL, all inside `patent_searches`. `patent_agent`
+sent every one of the 9 to every configured patent provider regardless of the
+label, because nothing read it — the exact defect §1.1's `TestQueryRouting`
+already documents for the literature side, present here too because the
+patent side never got the same fix. Live, that got exactly what asking for it
+gets:
+
+```
+CLIENT.InvalidIndex (400): "Invalid index name title_abs"
+CLIENT.NotOperatorMaxNumber (413): "There can not be more than 1 NOT operators"
+```
+
+`patent_agent` now has its own `_queries_by_provider`, routing each query only
+to the provider it names. It differs from the literature version in one
+deliberate way: a query naming a *known-but-not-ours* provider (here,
+`europepmc`, a real provider name that just isn't a patent provider) is
+**dropped**, not broadcast to whatever patent providers exist — broadcasting is
+what caused this incident, since the only configured patent provider received
+it anyway. An unlabelled query still broadcasts, since there is nothing to
+route it by.
+
+**2. A zero-result CQL search is reported by OPS as HTTP 404, not 200 with an
+empty list.** The 5 correctly-routed queries were narrow-and-correct CQL
+searching for a fictional walkthrough compound (`PDX-114`) that has no real
+patents — a legitimate empty result, which OPS expresses as
+`SERVER.EntityNotFound`, `"No results found"`, at HTTP 404:
+
+```
+ti=peptide                                              -> 200, 45,676 hits
+(ti="PDX-114" or ti="PDX114" or ...) and ab=peptide      -> 404, "No results found"
+```
+
+`ProviderHTTPClient`'s generic `>=400` handling turned that into a reported
+provider failure — "epo_ops failed" — for what was actually a correct, honest
+zero. `EPOOPSProvider.search()` now special-cases a 404 as an empty successful
+result rather than forwarding it as an error; every other status still
+surfaces as a failure exactly as before.
+
+Both fixes replayed against the exact failing run's stored plan, live: routing
+now sends exactly the 5 correctly-labelled queries to EPO OPS, and all 5 come
+back `ok=True` with `records=0` rather than reported as broken.
+
 **Still unverified for EPO:** the family-lookup endpoint, legal-status
 retrieval (deliberately not implemented — it costs extra quota and would invite
 legal inference), and behaviour at the 4 GB monthly quota ceiling.

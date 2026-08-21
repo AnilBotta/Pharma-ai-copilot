@@ -72,6 +72,41 @@ Word it that way: absence of retrieved results is not absence of patents.
 """
 
 
+def _queries_by_provider(
+    plan, providers, fallback_question: str
+) -> dict[str, list[str]]:
+    """Route each planned patent query to the provider it was written for.
+
+    `plan.patent_searches` is not restricted to patent-provider syntax: the
+    planner may pair a literature-syntax query with a patent-syntax one for
+    the same idea, both correctly labelled with their own `provider`. Sending
+    every `patent_searches` entry to every configured *patent* provider,
+    which this used to do, forwarded Europe PMC's `TITLE_ABS:` queries
+    straight to EPO OPS - live, that gets `CLIENT.InvalidIndex` (400), and
+    once a query also carried two NOT clauses, `CLIENT.NotOperatorMaxNumber`
+    (413). A query is only ever valid for the provider it was written for, so
+    a query naming a provider that is not one of ours is dropped rather than
+    forwarded in a dialect nothing here understands. Only an unlabelled query
+    is broadcast, since there is nothing to route it by.
+    """
+    routed: dict[str, list[str]] = {p.name: [] for p in providers}
+    known = set(routed)
+
+    for search in getattr(plan, "patent_searches", None) or []:
+        name = (search.provider or "").strip().lower()
+        if name in known:
+            routed[name].append(search.query)
+        elif not name:
+            for queries in routed.values():
+                queries.append(search.query)
+
+    for name, queries in routed.items():
+        if not queries:
+            routed[name] = [fallback_question]
+
+    return routed
+
+
 async def patent_agent(state: ResearchState, context: RunContext) -> dict:
     run_id = state["run_id"]
     plan = state.get("research_plan")
@@ -103,29 +138,33 @@ async def patent_agent(state: ResearchState, context: RunContext) -> dict:
             ],
         }
 
-    queries = (
-        [s.query for s in plan.patent_searches]
-        if plan and plan.patent_searches
-        else [state["original_question"]]
-    )
+    plan_by_provider = _queries_by_provider(plan, providers, state["original_question"])
+    total_queries = sum(len(q) for q in plan_by_provider.values())
 
     await context.emit(
         run_id,
         "node_started",
-        f"Searching patents: {len(queries)} queries",
+        f"Searching patents: {total_queries} queries across {len(providers)} providers",
         node=NODE,
         agent_id="patent_agent",
-        data={"queries": queries, "providers": [p.name for p in providers]},
+        data={
+            "providers": [p.name for p in providers],
+            "queries_per_provider": {k: len(v) for k, v in plan_by_provider.items()},
+        },
     )
 
     filters = SearchFilters(
         date_from=state.get("date_from"),
         date_to=state.get("date_to"),
-        max_results=max(1, state.get("max_results", 30) // max(1, len(queries))),
+        max_results=max(1, state.get("max_results", 30) // max(1, total_queries)),
         jurisdictions=tuple(state.get("jurisdictions") or ()),
     )
 
-    tasks = [p.search(query, filters) for p in providers for query in queries]
+    tasks = [
+        p.search(query, filters)
+        for p in providers
+        for query in plan_by_provider[p.name]
+    ]
     results = await asyncio.gather(*tasks, return_exceptions=True)
 
     records = []

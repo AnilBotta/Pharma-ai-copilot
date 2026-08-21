@@ -447,6 +447,90 @@ class TestQueryRouting:
         assert routed["pubmed"] == ["peptide"]
         assert routed["europepmc"] == ["peptide"]
 
+
+class TestPatentQueryRouting:
+    """Regression guards for the patent-side twin of `TestQueryRouting` above.
+
+    A live run's planner put four Europe PMC queries (`TITLE_ABS:` syntax,
+    correctly labelled `provider="europepmc"`) into `patent_searches` alongside
+    five EPO OPS queries. `patent_agent` sent every one of the nine to EPO OPS
+    regardless of the label, because nothing read it. Live, that produced
+    `CLIENT.InvalidIndex` (400) for the mis-routed queries, and once one also
+    carried two NOT clauses, `CLIENT.NotOperatorMaxNumber` (413).
+
+    This differs from the literature case in one deliberate way: an unnamed
+    provider still broadcasts (there is nothing to route it by), but a query
+    naming a provider that plainly is not a patent provider must be DROPPED,
+    not broadcast — broadcasting is what caused the incident, since the only
+    configured patent provider received it anyway.
+    """
+
+    def test_each_query_goes_only_to_its_named_provider(self) -> None:
+        from app.graph.nodes.patents import _queries_by_provider
+        from app.models.agents import PlannedSearch, ResearchPlan
+
+        plan = ResearchPlan(
+            approach="x",
+            patent_searches=[
+                PlannedSearch(provider="epo_ops", query='ti="peptide"', rationale="r"),
+                PlannedSearch(
+                    provider="europepmc", query="TITLE_ABS:peptide", rationale="r"
+                ),
+            ],
+        )
+        providers = [FakePatentProvider("epo_ops")]
+
+        routed = _queries_by_provider(plan, providers, "fallback")
+        assert routed["epo_ops"] == ['ti="peptide"']
+
+    def test_a_query_naming_a_non_patent_provider_is_dropped_not_broadcast(self) -> None:
+        """The behaviour that would have prevented the incident: forwarding a
+        query in a dialect no patent provider understands is worse than
+        skipping it, because it is guaranteed to fail rather than merely
+        possibly waste a query."""
+        from app.graph.nodes.patents import _queries_by_provider
+        from app.models.agents import PlannedSearch, ResearchPlan
+
+        plan = ResearchPlan(
+            approach="x",
+            patent_searches=[
+                PlannedSearch(
+                    provider="europepmc", query="TITLE_ABS:peptide", rationale="r"
+                ),
+                PlannedSearch(provider="epo_ops", query='ti="peptide"', rationale="r"),
+            ],
+        )
+        providers = [FakePatentProvider("epo_ops")]
+
+        routed = _queries_by_provider(plan, providers, "fallback")
+        assert routed["epo_ops"] == ['ti="peptide"']
+        assert "TITLE_ABS:peptide" not in routed["epo_ops"]
+
+    def test_an_unlabelled_query_still_broadcasts(self) -> None:
+        from app.graph.nodes.patents import _queries_by_provider
+        from app.models.agents import PlannedSearch, ResearchPlan
+
+        plan = ResearchPlan(
+            approach="x",
+            patent_searches=[
+                PlannedSearch(provider="", query="peptide depot", rationale="r")
+            ],
+        )
+        providers = [FakePatentProvider("epo_ops")]
+
+        routed = _queries_by_provider(plan, providers, "fallback")
+        assert routed["epo_ops"] == ["peptide depot"]
+
+    def test_provider_with_no_matching_queries_falls_back_rather_than_idling(self) -> None:
+        from app.graph.nodes.patents import _queries_by_provider
+        from app.models.agents import ResearchPlan
+
+        plan = ResearchPlan(approach="x", patent_searches=[])
+        providers = [FakePatentProvider("epo_ops")]
+
+        routed = _queries_by_provider(plan, providers, "the original question")
+        assert routed["epo_ops"] == ["the original question"]
+
     async def test_providers_receive_only_their_own_queries_end_to_end(self) -> None:
         from app.models.agents import PlannedSearch, ResearchPlan
 

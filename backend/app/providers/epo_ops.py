@@ -12,10 +12,14 @@ Two concerns shape this adapter:
   to classify each one, because presenting an application as a granted patent
   would materially mislead.
 
-This adapter has been written against the documented OPS 3.2 response shape and
-is covered by fixture-based tests. It has **not** yet been exercised against the
-live service - that requires credentials, and is listed in
-docs/KNOWN_LIMITATIONS.md until it has been.
+This adapter has been exercised against the live service; see
+docs/KNOWN_LIMITATIONS.md §1.0 for the defects that surfaced and were fixed.
+
+One live quirk worth knowing before touching this file: **a search with zero
+matches comes back as HTTP 404** (`SERVER.EntityNotFound`, "No results
+found"), not 200 with an empty list. `search()` treats that status as a
+legitimate empty result rather than a failure - do not "simplify" that branch
+back into the generic error path.
 """
 
 from __future__ import annotations
@@ -185,17 +189,27 @@ class EPOOPSProvider(PatentProvider):
                 {"q": cql, "Range": f"1-{end}"},
             )
         except ProviderError as exc:
-            logger.warning("EPO OPS search failed: %s", exc)
-            return SearchResult[PatentRecord](
-                provider=self.name,
-                query=cql,
-                records=[],
-                ok=False,
-                error=str(exc),
-                duration_ms=int((time.monotonic() - started) * 1000),
-            )
-
-        records, total = self._parse_search(payload)
+            if exc.status_code == 404:
+                # OPS's documented behaviour: a search with no matches comes
+                # back as SERVER.EntityNotFound (404), not 200 with an empty
+                # list. Confirmed against the live service - the identical
+                # query broadened to match returns 200 with tens of thousands
+                # of hits; narrowed to an unmatched name it returns exactly
+                # this fault. Reporting it as a provider failure misrepresents
+                # a legitimate empty result as a broken search.
+                records, total = [], 0
+            else:
+                logger.warning("EPO OPS search failed: %s", exc)
+                return SearchResult[PatentRecord](
+                    provider=self.name,
+                    query=cql,
+                    records=[],
+                    ok=False,
+                    error=str(exc),
+                    duration_ms=int((time.monotonic() - started) * 1000),
+                )
+        else:
+            records, total = self._parse_search(payload)
 
         await self._cache.set(
             key,
