@@ -1069,7 +1069,7 @@ function RequirementActions({
   );
 }
 
-type EvidenceKind = "document" | "research_run" | "url" | "note";
+type EvidenceKind = "document" | "research_run" | "url" | "note" | "data";
 
 function AttachEvidenceDialog({
   open,
@@ -1120,7 +1120,7 @@ function AttachEvidenceDialog({
       research_run_id: kind === "research_run" ? runId : undefined,
       document_version_id: kind === "document" ? versionId : undefined,
       external_url: kind === "url" ? url.trim() : undefined,
-      note: kind === "note" ? note.trim() : undefined,
+      note: kind === "note" || kind === "data" ? note.trim() : undefined,
       title: title.trim() || undefined,
     });
     onOpenChange(false);
@@ -1135,7 +1135,8 @@ function AttachEvidenceDialog({
     (kind === "research_run" && runId) ||
     (kind === "document" && versionId) ||
     (kind === "url" && url.trim()) ||
-    (kind === "note" && note.trim());
+    (kind === "note" && note.trim()) ||
+    (kind === "data" && note.trim());
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -1159,6 +1160,7 @@ function AttachEvidenceDialog({
             >
               <option value="document">Controlled document</option>
               <option value="research_run">Completed research run</option>
+              <option value="data">Data</option>
               <option value="url">Link</option>
               <option value="note">Note</option>
             </select>
@@ -1232,6 +1234,19 @@ function AttachEvidenceDialog({
                   evidence.
                 </p>
               )}
+            </div>
+          )}
+
+          {kind === "data" && (
+            <div className="space-y-2">
+              <Label htmlFor="evidence-data">Data</Label>
+              <Textarea
+                id="evidence-data"
+                rows={3}
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                placeholder="What was measured, and the result — a value, a table, or a summary of a dataset held elsewhere."
+              />
             </div>
           )}
 
