@@ -5,41 +5,69 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
-  CheckCircle2,
-  Clock,
   FileText,
+  GitBranch,
   LayoutDashboard,
-  Loader2,
   Plus,
 } from "lucide-react";
 
-import { PageHeader } from "@/components/shared/page-header";
-import { StatCard } from "@/components/shared/stat-card";
-import { EmptyState } from "@/components/shared/empty-state";
+import {
+  awaitingDecision,
+  NeedsDecision,
+  PortfolioRows,
+} from "@/components/pdp/needs-decision";
 import { RunStatusBadge } from "@/components/runs/run-status-badge";
+import { EmptyState } from "@/components/shared/empty-state";
+import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
-import { api, ApiError, type Dashboard, type RunSummary } from "@/lib/api";
+import { Skeleton, SkeletonText } from "@/components/ui/skeleton";
+import {
+  api,
+  ApiError,
+  pdp,
+  type Dashboard,
+  type ProgrammeSummary,
+  type RunSummary,
+} from "@/lib/api";
 import { formatRelative } from "@/lib/utils";
 
+/**
+ * The dashboard used to be four research-run counters and a list of runs —
+ * Running, Completed, Failed, Estimated cost — with no mention of stage gates
+ * at all. Somebody with gate authority opened the product and saw telemetry
+ * from the research agent rather than the state of their portfolio.
+ *
+ * It now leads with what is waiting on a person, then the portfolio, and
+ * demotes research activity to a strip at the bottom. Research is still the
+ * thing you start from here; it is no longer the only thing the page knows.
+ */
 export default function DashboardPage() {
   const router = useRouter();
   const [summary, setSummary] = React.useState<Dashboard | null>(null);
   const [runs, setRuns] = React.useState<RunSummary[]>([]);
+  const [programmes, setProgrammes] = React.useState<ProgrammeSummary[]>([]);
   const [error, setError] = React.useState<string | null>(null);
   const [loading, setLoading] = React.useState(true);
 
   React.useEffect(() => {
     let active = true;
-    Promise.all([api.dashboard(), api.listRuns()])
-      .then(([dashboard, runList]) => {
+    // allSettled, not all: a portfolio the account cannot fully read must not
+    // blank the research half of the page, and vice versa.
+    Promise.allSettled([api.dashboard(), api.listRuns(), pdp.listProgrammes()])
+      .then(([dash, runList, progs]) => {
         if (!active) return;
-        setSummary(dashboard);
-        setRuns(runList.slice(0, 8));
-      })
-      .catch((err) => {
-        if (active) setError(err instanceof ApiError ? err.message : String(err));
+        if (dash.status === "fulfilled") setSummary(dash.value);
+        if (runList.status === "fulfilled") setRuns(runList.value.slice(0, 6));
+        if (progs.status === "fulfilled") setProgrammes(progs.value);
+
+        const firstFailure = [dash, runList, progs].find(
+          (r): r is PromiseRejectedResult => r.status === "rejected"
+        );
+        if (firstFailure) {
+          const reason = firstFailure.reason;
+          setError(reason instanceof ApiError ? reason.message : String(reason));
+        }
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -49,11 +77,23 @@ export default function DashboardPage() {
     };
   }, []);
 
+  // Shared with the list below, so the headline can never disagree with what
+  // is actually rendered under it.
+  const waitingCount = awaitingDecision(programmes).length;
+
   return (
     <div className="space-y-8">
       <PageHeader
-        title="Dashboard"
-        description="Research activity across your projects."
+        title={
+          loading
+            ? "Dashboard"
+            : waitingCount === 0
+              ? "Nothing is waiting on a decision"
+              : waitingCount === 1
+                ? "One gate needs a decision"
+                : `${waitingCount} gates need a decision`
+        }
+        description="What is waiting on a person, and where every programme stands."
         icon={LayoutDashboard}
         actions={
           <Button asChild>
@@ -65,12 +105,12 @@ export default function DashboardPage() {
       />
 
       {error && (
-        <Card className="border-destructive/40 bg-destructive/5">
+        <Card tone="danger">
           <CardContent className="flex items-start gap-3 py-4">
-            <AlertTriangle className="mt-0.5 size-5 shrink-0 text-destructive" />
+            <AlertTriangle className="mt-0.5 size-5 shrink-0 text-danger" />
             <div className="text-sm">
-              <p className="font-medium text-destructive">
-                Could not load dashboard data
+              <p className="font-medium text-danger">
+                Some of this page could not be loaded
               </p>
               <p className="mt-1 text-muted-foreground">{error}</p>
             </div>
@@ -78,49 +118,100 @@ export default function DashboardPage() {
         </Card>
       )}
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {/* ── waiting on a person ─────────────────────────────────────────── */}
+      <section className="space-y-3">
+        <h2 className="type-label text-muted-foreground">Waiting on you</h2>
         {loading ? (
-          Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-28 rounded-xl" />
-          ))
+          <div className="space-y-3">
+            <Skeleton className="h-20 rounded-xl" />
+            <Skeleton className="h-20 rounded-xl" />
+          </div>
+        ) : programmes.length === 0 ? (
+          <EmptyState
+            icon={GitBranch}
+            title="No programmes yet"
+            description="Instantiate a stage-gate template against a project to begin tracking its gates."
+            actionLabel="Start a programme"
+            onAction={() => router.push("/programmes")}
+            compact
+          />
         ) : (
-          <>
-            <StatCard
-              label="Running"
-              value={String(summary?.running ?? 0)}
-              icon={Loader2}
-            />
-            <StatCard
-              label="Completed"
-              value={String(summary?.completed ?? 0)}
-              icon={CheckCircle2}
-            />
-            <StatCard
-              label="Failed"
-              value={String(summary?.failed ?? 0)}
-              icon={AlertTriangle}
-            />
-            <StatCard
-              label="Estimated cost"
-              value={formatCost(summary?.total_cost)}
-              icon={FileText}
-            />
-          </>
+          <NeedsDecision programmes={programmes} />
         )}
-      </div>
+      </section>
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
+      {/* ── the portfolio ───────────────────────────────────────────────── */}
+      {(loading || programmes.length > 0) && (
+        <section className="space-y-3">
+          <div className="flex items-baseline justify-between">
+            <h2 className="type-label text-muted-foreground">Portfolio</h2>
+            <Link
+              href="/programmes"
+              className="text-xs text-muted-foreground transition-colors hover:text-foreground"
+            >
+              All programmes
+            </Link>
+          </div>
+          <Card>
+            <CardContent className="py-1">
+              {loading ? (
+                <div className="py-4">
+                  <SkeletonText lines={4} />
+                </div>
+              ) : (
+                <PortfolioRows programmes={programmes} />
+              )}
+            </CardContent>
+          </Card>
+        </section>
+      )}
+
+      {/* ── research, deliberately below the fold ───────────────────────── */}
+      <section className="space-y-3">
+        <div className="flex items-baseline justify-between">
+          <h2 className="type-label text-muted-foreground">
+            Research activity
+          </h2>
+          <Link
+            href="/runs"
+            className="text-xs text-muted-foreground transition-colors hover:text-foreground"
+          >
+            All runs
+          </Link>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {loading
+            ? Array.from({ length: 4 }).map((_, i) => (
+                <Skeleton key={i} className="h-20 rounded-xl" />
+              ))
+            : [
+                { label: "Running", value: String(summary?.running ?? 0) },
+                { label: "Completed", value: String(summary?.completed ?? 0) },
+                { label: "Failed", value: String(summary?.failed ?? 0) },
+                {
+                  label: "Estimated cost",
+                  value: formatCost(summary?.total_cost),
+                },
+              ].map((stat) => (
+                <Card key={stat.label}>
+                  <CardContent className="py-4">
+                    <p className="type-label text-muted-foreground">
+                      {stat.label}
+                    </p>
+                    <p className="metric mt-1.5 text-2xl">{stat.value}</p>
+                  </CardContent>
+                </Card>
+              ))}
+        </div>
+
+        <Card>
           <CardHeader>
-            <CardTitle className="text-[15px]">Recent research runs</CardTitle>
+            <CardTitle className="text-md">Recent runs</CardTitle>
           </CardHeader>
           <CardContent>
             {loading ? (
-              <div className="space-y-3">
-                {Array.from({ length: 3 }).map((_, i) => (
-                  <Skeleton key={i} className="h-16 rounded-lg" />
-                ))}
-              </div>
+              <SkeletonText lines={3} />
             ) : runs.length === 0 ? (
               <EmptyState
                 icon={FileText}
@@ -128,83 +219,35 @@ export default function DashboardPage() {
                 description="Submit a research question to start your first run."
                 actionLabel="Start research"
                 onAction={() => router.push("/research/new")}
+                compact
               />
             ) : (
-              <ul className="divide-y">
+              <div className="divide-y">
                 {runs.map((run) => (
-                  <li key={run.id}>
-                    <Link
-                      href={`/runs/${run.id}`}
-                      className="-mx-2 flex items-start gap-3 rounded-lg px-2 py-3 transition-colors hover:bg-accent"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <p className="line-clamp-2 text-sm font-medium">
-                          {run.original_question}
-                        </p>
-                        <p className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
-                          <Clock className="size-3" />
-                          {formatRelative(run.created_at)}
-                          {run.evidence_count > 0 && (
-                            <span>· {run.evidence_count} sources</span>
-                          )}
-                        </p>
-                      </div>
-                      <RunStatusBadge status={run.status} />
-                    </Link>
-                  </li>
+                  <Link
+                    key={run.id}
+                    href={`/runs/${run.id}`}
+                    className="flex items-center gap-4 py-3 outline-none transition-colors hover:bg-accent/40"
+                  >
+                    <p className="min-w-0 flex-1 truncate text-sm">
+                      {run.original_question}
+                    </p>
+                    <span className="hidden shrink-0 text-xs text-muted-foreground sm:block">
+                      {formatRelative(run.created_at)}
+                    </span>
+                    <RunStatusBadge status={run.status} />
+                  </Link>
                 ))}
-              </ul>
+              </div>
             )}
           </CardContent>
         </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-[15px]">Sources retrieved</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {loading ? (
-              <Skeleton className="h-24 rounded-lg" />
-            ) : (
-              <>
-                <SourceCount
-                  label="Publications"
-                  value={summary?.source_counts?.literature ?? 0}
-                />
-                <SourceCount
-                  label="Patent families"
-                  value={summary?.source_counts?.patents ?? 0}
-                />
-                <div className="border-t pt-4 text-xs text-muted-foreground">
-                  <p>
-                    {(summary?.total_tokens ?? 0).toLocaleString()} tokens used
-                    across {summary?.total_runs ?? 0} run
-                    {summary?.total_runs === 1 ? "" : "s"}.
-                  </p>
-                  <p className="mt-1">
-                    Cost is estimated from configured model pricing and is not a
-                    billing figure.
-                  </p>
-                </div>
-              </>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+      </section>
     </div>
   );
 }
 
-function SourceCount({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="flex items-baseline justify-between">
-      <span className="text-sm text-muted-foreground">{label}</span>
-      <span className="text-2xl font-semibold tabular-nums">{value}</span>
-    </div>
-  );
-}
-
-function formatCost(value: number | undefined): string {
-  if (!value) return "$0.00";
+function formatCost(value: number | undefined) {
+  if (value === undefined || value === null) return "$0.00";
   return `$${value.toFixed(2)}`;
 }
