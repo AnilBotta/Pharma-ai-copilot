@@ -1,15 +1,55 @@
 import * as React from "react";
+import { cva, type VariantProps } from "class-variance-authority";
 
 import { cn } from "@/lib/utils";
 
-function Card({ className, ...props }: React.ComponentProps<"div">) {
+/**
+ * `tone` replaces the hand-rolled `border-destructive/40 bg-destructive/5`
+ * pattern, which appeared on fourteen cards across the app with three
+ * different opacity pairs between them. `variant="dashed"` replaces the
+ * `border-dashed` that marks every advisory (agent) surface.
+ *
+ * Both are additive: `<Card className="…">` keeps working identically, so the
+ * routes that have not been touched yet are unaffected.
+ */
+const cardVariants = cva(
+  "flex flex-col gap-6 rounded-xl border py-6 text-card-foreground",
+  {
+    variants: {
+      variant: {
+        default: "bg-card shadow-e1",
+        flush: "bg-card shadow-none",
+        elevated: "bg-card shadow-e3",
+        // Advisory surfaces. The agent's opinion is deliberately drawn as a
+        // weaker thing than the engine's record.
+        dashed: "border-dashed bg-card shadow-none",
+        interactive:
+          "bg-card shadow-e1 transition-colors hover:border-primary/40 focus-within:border-primary/40",
+      },
+      tone: {
+        neutral: "",
+        success: "border-success-border bg-success-surface",
+        warning: "border-warning-border bg-warning-surface",
+        info: "border-info-border bg-info-surface",
+        danger: "border-danger-border bg-danger-surface",
+      },
+    },
+    defaultVariants: { variant: "default", tone: "neutral" },
+  }
+);
+
+export type CardTone = NonNullable<VariantProps<typeof cardVariants>["tone"]>;
+
+function Card({
+  className,
+  variant,
+  tone,
+  ...props
+}: React.ComponentProps<"div"> & VariantProps<typeof cardVariants>) {
   return (
     <div
       data-slot="card"
-      className={cn(
-        "bg-card text-card-foreground flex flex-col gap-6 rounded-xl border py-6 shadow-sm",
-        className
-      )}
+      className={cn(cardVariants({ variant, tone }), className)}
       {...props}
     />
   );
@@ -83,6 +123,7 @@ function CardFooter({ className, ...props }: React.ComponentProps<"div">) {
 
 export {
   Card,
+  cardVariants,
   CardHeader,
   CardFooter,
   CardTitle,
