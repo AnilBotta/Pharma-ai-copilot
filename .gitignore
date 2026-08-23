@@ -64,3 +64,8 @@ htmlcov/
 # local uploads / scratch
 backend/uploads/
 backend/.cache/
+
+# Design canvas build output. The .dc.html artboards and canvas.json in
+# design/ ARE the source and are tracked; this is the ~2 MB seeded page
+# assembled from them, regenerated on every change.
+design/pharma-copilot-instrument.html

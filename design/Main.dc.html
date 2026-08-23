@@ -1,0 +1,358 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap">
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; }
+    a { color: var(--brand); }
+    a:hover { color: color-mix(in oklab, var(--brand) 80%, black); }
+
+    /* Light — the ground the product ships on. */
+    .sheet {
+      --bg: oklch(0.975 0.007 240);
+      --surface: oklch(1 0 0);
+      --surface-2: oklch(0.955 0.012 250);
+      --ink: oklch(0.21 0.04 250);
+      --ink-muted: oklch(0.52 0.03 250);
+      --line: oklch(0.91 0.014 250);
+      --brand: oklch(0.55 0.22 262);
+      --brand-ink: oklch(0.985 0 0);
+      --success: oklch(0.46 0.11 155);
+      --success-surface: oklch(0.955 0.035 155);
+      --success-border: oklch(0.86 0.055 155);
+      --success-solid: oklch(0.60 0.14 155);
+      --warning: oklch(0.47 0.10 72);
+      --warning-surface: oklch(0.96 0.045 78);
+      --warning-border: oklch(0.87 0.07 78);
+      --warning-solid: oklch(0.70 0.15 72);
+      --danger: oklch(0.49 0.18 25);
+      --danger-surface: oklch(0.96 0.03 25);
+      --danger-border: oklch(0.88 0.06 25);
+      --danger-solid: oklch(0.58 0.20 25);
+      --info: oklch(0.47 0.12 240);
+      --info-surface: oklch(0.955 0.03 240);
+      --info-border: oklch(0.87 0.055 240);
+      --info-solid: oklch(0.60 0.15 240);
+      --neutral-surface: oklch(0.955 0.012 250);
+      --shadow-1: 0 1px 2px oklch(0.21 0.04 250 / 0.06);
+      --shadow-2: 0 1px 2px oklch(0.21 0.04 250 / 0.05), 0 6px 16px -8px oklch(0.21 0.04 250 / 0.14);
+    }
+
+    /* Dark — retuned, not inverted. Status hues gain lightness and shed
+       chroma so they sit on a dark ground without vibrating. */
+    .sheet.dark {
+      --bg: oklch(0.16 0.03 255);
+      --surface: oklch(0.195 0.033 255);
+      --surface-2: oklch(0.24 0.03 255);
+      --ink: oklch(0.93 0.015 250);
+      --ink-muted: oklch(0.66 0.025 250);
+      --line: oklch(0.28 0.035 255);
+      --brand: oklch(0.68 0.17 262);
+      --brand-ink: oklch(0.16 0.04 255);
+      --success: oklch(0.80 0.13 155);
+      --success-surface: oklch(0.26 0.045 155);
+      --success-border: oklch(0.36 0.06 155);
+      --success-solid: oklch(0.68 0.14 155);
+      --warning: oklch(0.83 0.12 78);
+      --warning-surface: oklch(0.28 0.045 72);
+      --warning-border: oklch(0.38 0.06 72);
+      --warning-solid: oklch(0.76 0.14 72);
+      --danger: oklch(0.76 0.14 25);
+      --danger-surface: oklch(0.27 0.05 25);
+      --danger-border: oklch(0.37 0.07 25);
+      --danger-solid: oklch(0.65 0.18 25);
+      --info: oklch(0.79 0.11 240);
+      --info-surface: oklch(0.26 0.04 240);
+      --info-border: oklch(0.36 0.055 240);
+      --info-solid: oklch(0.68 0.13 240);
+      --neutral-surface: oklch(0.24 0.03 255);
+      --shadow-1: 0 1px 2px oklch(0 0 0 / 0.32);
+      --shadow-2: 0 1px 2px oklch(0 0 0 / 0.3), 0 6px 16px -8px oklch(0 0 0 / 0.55);
+    }
+  </style>
+</helmet>
+
+<div class="sheet {{themeClass}}" style="
+    font-family: Geist, ui-sans-serif, system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    padding: 48px 56px 64px;
+    min-height: 1780px;
+  ">
+
+  <!-- ─── masthead ─────────────────────────────────────────── -->
+  <div style="display: flex; align-items: flex-end; justify-content: space-between; gap: 32px; padding-bottom: 20px; border-bottom: 1px solid var(--line);">
+    <div style="display: flex; flex-direction: column; gap: 6px;">
+      <div style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-muted);">Design foundations</div>
+      <div style="font-size: 30px; font-weight: 600; letter-spacing: -0.02em; line-height: 36px;">Instrument</div>
+      <div style="font-size: 15px; line-height: 22px; color: var(--ink-muted); max-width: 620px;">The system reads like laboratory instrumentation: a reading is a reading, and credibility comes from never overstating. Brand colour and status colour are kept strictly apart.</div>
+    </div>
+    <div style="display: flex; gap: 8px; align-items: center; padding-bottom: 4px;">
+      <div style="width: 28px; height: 28px; border-radius: 8px; background: linear-gradient(135deg, oklch(0.55 0.22 262), oklch(0.62 0.19 225)); box-shadow: var(--shadow-1);"></div>
+      <div style="font-size: 15px; font-weight: 600; letter-spacing: -0.01em;">Pharma R&amp;D Copilot</div>
+    </div>
+  </div>
+
+  <!-- ─── the rule ─────────────────────────────────────────── -->
+  <div style="margin-top: 28px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px;">
+    <div style="background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 22px 24px; box-shadow: var(--shadow-1);">
+      <div style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--brand); margin-bottom: 10px;">Brand — identity only</div>
+      <div style="display: flex; gap: 8px; margin-bottom: 12px;">
+        <div style="flex: 1; height: 44px; border-radius: 10px; background: var(--brand);"></div>
+        <div style="flex: 1; height: 44px; border-radius: 10px; background: color-mix(in oklab, var(--brand) 55%, var(--surface));"></div>
+        <div style="flex: 1; height: 44px; border-radius: 10px; background: color-mix(in oklab, var(--brand) 22%, var(--surface));"></div>
+        <div style="flex: 1; height: 44px; border-radius: 10px; background: color-mix(in oklab, var(--brand) 8%, var(--surface));"></div>
+      </div>
+      <div style="font-size: 13px; line-height: 19px; color: var(--ink-muted);">Links, focus rings, primary actions, the mark. <strong style="color: var(--ink); font-weight: 500;">Never</strong> used to indicate state.</div>
+    </div>
+    <div style="background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 22px 24px; box-shadow: var(--shadow-1);">
+      <div style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-muted); margin-bottom: 10px;">Status — verdicts only</div>
+      <div style="display: flex; gap: 8px; margin-bottom: 12px;">
+        <div style="flex: 1; height: 44px; border-radius: 10px; background: var(--success-solid);"></div>
+        <div style="flex: 1; height: 44px; border-radius: 10px; background: var(--warning-solid);"></div>
+        <div style="flex: 1; height: 44px; border-radius: 10px; background: var(--danger-solid);"></div>
+        <div style="flex: 1; height: 44px; border-radius: 10px; background: var(--info-solid);"></div>
+      </div>
+      <div style="font-size: 13px; line-height: 19px; color: var(--ink-muted);">Appear only where they encode a real verdict. No decorative gradient ever uses a status hue.</div>
+    </div>
+  </div>
+
+  <!-- ─── the gauge ────────────────────────────────────────── -->
+  <div style="margin-top: 36px;">
+    <div style="display: flex; align-items: baseline; gap: 12px; margin-bottom: 4px;">
+      <div style="font-size: 20px; font-weight: 600; letter-spacing: -0.01em;">Gate readiness</div>
+      <div style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--warning);">the signature component</div>
+    </div>
+    <div style="font-size: 14px; line-height: 20px; color: var(--ink-muted); max-width: 780px; margin-bottom: 18px;">
+      Readiness is <em>not</em> a percentage threshold — Gate 1 is ready at 94.4%, Gate 7 at 87.5%. What decides it is whether every mandatory requirement is satisfied. So the mandatory items are drawn as discrete pips: the pips are the verdict, the bar is only progress.
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px;">
+      <sc-for list="{{gauges}}" as="g" hint-placeholder-count="2">
+        <div style="background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 22px 24px; box-shadow: var(--shadow-2);">
+          <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 12px;">
+            <div style="display: flex; align-items: baseline; gap: 10px;">
+              <span style="font-size: 30px; font-weight: 600; letter-spacing: -0.02em; font-variant-numeric: tabular-nums;">{{g.pct}}%</span>
+              <span style="font-size: 12px; color: var(--ink-muted);">{{g.sub}}</span>
+            </div>
+            <span style="display: inline-flex; align-items: center; gap: 6px; border-radius: 8px; padding: 3px 9px; font-size: 12px; font-weight: 500; background: {{g.verdictBg}}; color: {{g.verdictInk}};">
+              <span style="width: 6px; height: 6px; border-radius: 50%; background: currentColor;"></span>{{g.verdict}}
+            </span>
+          </div>
+
+          <div style="margin-top: 14px; height: 6px; border-radius: 999px; background: var(--surface-2); overflow: hidden;">
+            <div style="height: 100%; border-radius: 999px; width: {{g.pct}}%; background: {{g.barColor}};"></div>
+          </div>
+
+          <div style="margin-top: 18px; display: flex; align-items: center; gap: 10px;">
+            <span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-muted); width: 76px;">Mandatory</span>
+            <div style="display: flex; gap: 5px; flex: 1;">
+              <sc-for list="{{g.pips}}" as="p" hint-placeholder-count="7">
+                <span style="height: 10px; flex: 1; border-radius: 3px; background: {{p.fill}}; border: 1px solid {{p.stroke}};"></span>
+              </sc-for>
+            </div>
+            <span style="font-size: 12px; color: var(--ink-muted); font-variant-numeric: tabular-nums; white-space: nowrap;">{{g.pipLabel}}</span>
+          </div>
+
+          <div style="margin-top: 16px; font-size: 13px; line-height: 19px; color: var(--ink-muted); border-top: 1px solid var(--line); padding-top: 14px;">{{g.note}}</div>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+
+  <!-- ─── type ─────────────────────────────────────────────── -->
+  <div style="margin-top: 40px; display: grid; grid-template-columns: 1.15fr 1fr; gap: 20px;">
+    <div style="background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 24px 26px; box-shadow: var(--shadow-1);">
+      <div style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-muted); margin-bottom: 16px;">Type scale — Geist</div>
+      <div style="display: flex; flex-direction: column; gap: 14px;">
+        <sc-for list="{{typeRows}}" as="t" hint-placeholder-count="7">
+          <div style="display: flex; align-items: baseline; gap: 18px; border-bottom: 1px solid color-mix(in oklab, var(--line) 60%, transparent); padding-bottom: 12px;">
+            <span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 11px; color: var(--ink-muted); width: 108px; flex-shrink: 0;">{{t.token}}</span>
+            <span style="flex: 1; font-size: {{t.size}}; font-weight: {{t.weight}}; letter-spacing: {{t.tracking}}; line-height: 1.2;">{{t.sample}}</span>
+            <span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 11px; color: var(--ink-muted); font-variant-numeric: tabular-nums;">{{t.size}}</span>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 20px;">
+      <div style="background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 24px 26px; box-shadow: var(--shadow-1);">
+        <div style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-muted); margin-bottom: 16px;">Figures — tabular by default</div>
+        <div style="display: flex; align-items: baseline; gap: 22px;">
+          <div>
+            <div style="font-size: 30px; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: -0.02em;">94.4%</div>
+            <div style="font-size: 11px; color: var(--ink-muted); margin-top: 2px;">readiness</div>
+          </div>
+          <div>
+            <div style="font-size: 30px; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: -0.02em;">+14d</div>
+            <div style="font-size: 11px; color: var(--ink-muted); margin-top: 2px;">slip</div>
+          </div>
+          <div>
+            <div style="font-size: 30px; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: -0.02em;">$0.64</div>
+            <div style="font-size: 11px; color: var(--ink-muted); margin-top: 2px;">run cost</div>
+          </div>
+        </div>
+        <div style="margin-top: 14px; font-size: 13px; line-height: 19px; color: var(--ink-muted);">Every number in the product stops jittering as it updates.</div>
+      </div>
+
+      <div style="background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 24px 26px; box-shadow: var(--shadow-1); flex: 1;">
+        <div style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-muted); margin-bottom: 16px;">Reference codes — mono</div>
+        <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+          <sc-for list="{{refCodes}}" as="r" hint-placeholder-count="6">
+            <span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px; background: var(--surface-2); border-radius: 6px; padding: 3px 8px; color: var(--ink-muted);">{{r.code}}</span>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── components ───────────────────────────────────────── -->
+  <div style="margin-top: 40px; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 26px 28px; box-shadow: var(--shadow-1);">
+    <div style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-muted); margin-bottom: 20px;">Components</div>
+
+    <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 28px;">
+
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        <div style="font-size: 13px; font-weight: 500;">Buttons</div>
+        <div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center;">
+          <span style="display: inline-flex; align-items: center; height: 36px; padding: 0 16px; border-radius: 10px; background: var(--brand); color: var(--brand-ink); font-size: 14px; font-weight: 500; box-shadow: var(--shadow-1);">Approve</span>
+          <span style="display: inline-flex; align-items: center; height: 36px; padding: 0 16px; border-radius: 10px; background: var(--surface); border: 1px solid var(--line); font-size: 14px; font-weight: 500;">Attach evidence</span>
+          <span style="display: inline-flex; align-items: center; height: 36px; padding: 0 16px; border-radius: 10px; font-size: 14px; font-weight: 500; color: var(--ink-muted);">Request changes</span>
+        </div>
+        <div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center;">
+          <span style="display: inline-flex; align-items: center; height: 36px; padding: 0 16px; border-radius: 10px; background: color-mix(in oklab, var(--surface-2) 70%, transparent); border: 1px solid var(--line); font-size: 14px; font-weight: 500; color: color-mix(in oklab, var(--ink-muted) 65%, transparent);">Approve</span>
+          <span style="font-size: 12px; color: var(--ink-muted); align-self: center;">disabled states carry a reason</span>
+        </div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        <div style="font-size: 13px; font-weight: 500;">Status chips</div>
+        <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+          <sc-for list="{{chips}}" as="c" hint-placeholder-count="8">
+            <span style="display: inline-flex; align-items: center; gap: 6px; border-radius: 8px; padding: 3px 9px; font-size: 12px; font-weight: 500; background: {{c.bg}}; color: {{c.ink}}; border: 1px solid {{c.border}};">
+              <span style="width: 5px; height: 5px; border-radius: 50%; background: currentColor;"></span>{{c.label}}
+            </span>
+          </sc-for>
+        </div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        <div style="font-size: 13px; font-weight: 500;">Elevation</div>
+        <div style="display: flex; gap: 10px;">
+          <div style="flex: 1; height: 56px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line);"></div>
+          <div style="flex: 1; height: 56px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow-1);"></div>
+          <div style="flex: 1; height: 56px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow-2);"></div>
+        </div>
+        <div style="font-size: 12px; color: var(--ink-muted); line-height: 18px;">Flat for data surfaces, raised for chrome. Glass is reserved for the shell.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── refusal ──────────────────────────────────────────── -->
+  <div style="margin-top: 36px;">
+    <div style="font-size: 20px; font-weight: 600; letter-spacing: -0.01em; margin-bottom: 4px;">Refusal is the product</div>
+    <div style="font-size: 14px; line-height: 20px; color: var(--ink-muted); max-width: 780px; margin-bottom: 18px;">The most important moments in this app are the ones where it says no. They are designed, not defaulted.</div>
+    <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px;">
+      <sc-for list="{{refusals}}" as="r" hint-placeholder-count="3">
+        <div style="background: {{r.bg}}; border: 1px solid {{r.border}}; border-radius: 14px; padding: 18px 20px;">
+          <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+            <span style="width: 6px; height: 6px; border-radius: 50%; background: {{r.ink}};"></span>
+            <span style="font-size: 13px; font-weight: 600; color: {{r.ink}};">{{r.title}}</span>
+          </div>
+          <div style="font-size: 13px; line-height: 19px; color: var(--ink-muted);">{{r.body}}</div>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{"dark":{"editor":"boolean","default":false,"section":"Theme"},"readiness":{"editor":"range","default":50,"min":0,"max":100,"step":0.1,"unit":"%","section":"Gauge"}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const dark = this.props.dark ?? false;
+    const pct = this.props.readiness ?? 50;
+
+    // Gate 1 as it really stands, and the live-tweakable not-ready case.
+    const ready = {
+      pct: '94.4', sub: '17 of 18 weighted', verdict: 'Ready for review',
+      satisfied: 7, total: 7,
+      note: 'Every mandatory requirement is satisfied. One optional item is still open, which is why the bar is not at 100 and why that does not matter.',
+    };
+    const notReady = {
+      pct: pct.toFixed(1), sub: 'weighted progress', verdict: 'Not ready · 3',
+      satisfied: 4, total: 7,
+      note: 'Three mandatory requirements outstanding. The bar can climb as far as it likes; the pips decide, and the pips are not full.',
+    };
+
+    const pips = (n, total, ok) =>
+      Array.from({ length: total }, (_, i) => ({
+        fill: i < n ? (ok ? 'var(--success-solid)' : 'var(--warning-solid)') : 'transparent',
+        stroke: i < n ? 'transparent' : 'var(--line)',
+      }));
+
+    const build = (g, ok) => ({
+      ...g,
+      barColor: ok ? 'var(--success-solid)' : 'var(--warning-solid)',
+      verdictBg: ok ? 'var(--success-surface)' : 'var(--warning-surface)',
+      verdictInk: ok ? 'var(--success)' : 'var(--warning)',
+      pips: pips(g.satisfied, g.total, ok),
+      pipLabel: g.satisfied + ' of ' + g.total,
+    });
+
+    return {
+      themeClass: dark ? 'dark' : '',
+      gauges: [build(ready, true), build(notReady, false)],
+      typeRows: [
+        { token: 'display', size: '30px', weight: 600, tracking: '-0.02em', sample: 'Gate 1: Feasibility' },
+        { token: 'title', size: '20px', weight: 600, tracking: '-0.01em', sample: 'Formulation candidate selection' },
+        { token: 'card-title', size: '15px', weight: 600, tracking: '0', sample: 'Controlled documents' },
+        { token: 'body', size: '14px', weight: 400, tracking: '0', sample: 'Approval agrees with a confirmed claim.' },
+        { token: 'meta', size: '12px', weight: 400, tracking: '0', sample: '4 evidence · due 12 Sep' },
+        { token: 'label', size: '11px', weight: 600, tracking: '0.08em', sample: 'MANDATORY' },
+      ],
+      refCodes: [
+        { code: 'G1-FD-001' }, { code: 'G2-AN-001' }, { code: 'G5-RA-002' },
+        { code: 'PDX-114-API-001' }, { code: 'v1.0' }, { code: 'WBS 2.4.1' },
+      ],
+      chips: [
+        { label: 'Satisfied', bg: 'var(--success-surface)', ink: 'var(--success)', border: 'var(--success-border)' },
+        { label: 'Approved', bg: 'var(--success-surface)', ink: 'var(--success)', border: 'var(--success-border)' },
+        { label: 'Awaiting approval', bg: 'var(--warning-surface)', ink: 'var(--warning)', border: 'var(--warning-border)' },
+        { label: 'Awaiting prerequisite', bg: 'var(--warning-surface)', ink: 'var(--warning)', border: 'var(--warning-border)' },
+        { label: 'Approved with conditions', bg: 'var(--warning-surface)', ink: 'var(--warning)', border: 'var(--warning-border)' },
+        { label: 'Overdue', bg: 'var(--danger-surface)', ink: 'var(--danger)', border: 'var(--danger-border)' },
+        { label: 'In progress', bg: 'var(--info-surface)', ink: 'var(--info)', border: 'var(--info-border)' },
+        { label: 'Not started', bg: 'var(--neutral-surface)', ink: 'var(--ink-muted)', border: 'var(--line)' },
+      ],
+      refusals: [
+        {
+          title: 'A percentage does not unlock a gate',
+          body: 'Approve is unavailable and the blockers are named beneath it. The refusal explains itself rather than greying out in silence.',
+          bg: 'var(--warning-surface)', border: 'var(--warning-border)', ink: 'var(--warning)',
+        },
+        {
+          title: 'Whoever confirms cannot approve',
+          body: 'The requirement says who it is waiting on. If confirming would leave nobody able to approve, the app asks first.',
+          bg: 'var(--warning-surface)', border: 'var(--warning-border)', ink: 'var(--warning)',
+        },
+        {
+          title: 'The agent may prepare, never perform',
+          body: 'Advisory surfaces are dashed and subordinate. They never render a percentage and never count as an approval.',
+          bg: 'var(--neutral-surface)', border: 'var(--line)', ink: 'var(--ink-muted)',
+        },
+      ],
+    };
+  }
+}
+</script>
+</body>
+</html>
