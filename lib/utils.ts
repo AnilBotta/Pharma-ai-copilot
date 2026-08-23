@@ -1,5 +1,35 @@
 import { clsx, type ClassValue } from "clsx";
-import { twMerge } from "tailwind-merge";
+import { extendTailwindMerge } from "tailwind-merge";
+
+/**
+ * tailwind-merge has to be told about scale steps we added ourselves,
+ * because it decides which classes conflict by matching them against its own
+ * built-in scales rather than reading our CSS.
+ *
+ * The elevation steps are the ones that were actually broken. Measured
+ * against bare `twMerge` before this change:
+ *
+ *   "shadow-e2 shadow-primary/20"  ->  "shadow-primary/20"   // e2 dropped
+ *   "shadow-sm shadow-e2"          ->  "shadow-sm shadow-e2" // no override
+ *
+ * `shadow-e2` looked like a shadow *colour*, so it was discarded by a real
+ * colour; and it was not recognised as a shadow *size*, so it could not
+ * override `shadow-sm`. Both fail silently — a component keeps its old
+ * elevation and nothing warns.
+ *
+ * The font-size steps are registered defensively rather than to fix a bug:
+ * `text-2xs` and `text-md` were checked and already merged correctly, but
+ * that is incidental behaviour we would rather not depend on. Pinned by
+ * lib/utils.test.ts, which records the measured before/after either way.
+ */
+const twMerge = extendTailwindMerge({
+  extend: {
+    classGroups: {
+      "font-size": [{ text: ["2xs", "md"] }],
+      shadow: [{ shadow: ["e1", "e2", "e3", "e4"] }],
+    },
+  },
+});
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));

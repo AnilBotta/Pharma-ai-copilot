@@ -11,6 +11,11 @@
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "isolatedModules": true,
+    // Node's native TypeScript stripping runs the unit tests directly and
+    // resolves them as ESM, where the specifier is not rewritten — so
+    // `import { cn } from "./utils.ts"` is required there. Safe here because
+    // noEmit is on: nothing is written out carrying that extension.
+    "allowImportingTsExtensions": true,
     "jsx": "preserve",
     "incremental": true,
     "plugins": [
