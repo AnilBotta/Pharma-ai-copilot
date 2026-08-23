@@ -16,7 +16,10 @@ import {
   History,
 } from "lucide-react";
 
+import { GateTrack } from "@/components/charts/gate-track";
+import { MandatoryByGate } from "@/components/charts/mandatory-by-gate";
 import { GateStatusBadge, ReadyVerdict } from "@/components/pdp/gate-readiness";
+import { MandatoryPips } from "@/components/pdp/mandatory-pips";
 import { PageHeader } from "@/components/shared/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -122,6 +125,23 @@ export default function ProgrammePage() {
         />
       </div>
 
+      {/* The programme end to end, above the tabs, because "where is this
+          thing" is the first question anybody opening it has. */}
+      <Card>
+        <CardContent className="grid gap-8 py-6 lg:grid-cols-[1.1fr_1fr]">
+          <div className="min-w-0">
+            <p className="type-label mb-3 text-muted-foreground">Gates</p>
+            <GateTrack stages={detail.stages} projectId={projectId} />
+          </div>
+          <div className="min-w-0">
+            <p className="type-label mb-3 text-muted-foreground">
+              Mandatory requirements
+            </p>
+            <MandatoryByGate stages={detail.stages} height={180} />
+          </div>
+        </CardContent>
+      </Card>
+
       <Tabs defaultValue="gates">
         <TabsList>
           <TabsTrigger value="gates">
@@ -190,14 +210,13 @@ function StageRow({ stage, projectId }: { stage: StageSummary; projectId: string
             )}
             <p className="mt-1.5 text-xs text-muted-foreground">
               {stage.satisfied_count} of {stage.applicable_count} requirements
-              satisfied · {stage.mandatory_satisfied} of {stage.mandatory_count}{" "}
-              mandatory
+              satisfied
             </p>
           </div>
 
           <div className="w-full space-y-2 sm:w-56">
             <div className="flex items-baseline justify-between gap-2">
-              <span className="text-base font-semibold tabular-nums">
+              <span className="metric text-base">
                 {stage.readiness_pct.toFixed(1)}%
               </span>
               <ReadyVerdict
@@ -211,6 +230,15 @@ function StageRow({ stage, projectId }: { stage: StageSummary; projectId: string
               valueText={`${stage.readiness_pct.toFixed(1)} percent, ${
                 stage.is_ready ? "ready for review" : "not ready"
               }`}
+            />
+            {/* Replaces the prose "N of M mandatory" that used to sit under
+                the title. The count is the verdict, so it is drawn rather
+                than mentioned. */}
+            <MandatoryPips
+              satisfied={stage.mandatory_satisfied}
+              total={stage.mandatory_count}
+              isReady={stage.is_ready}
+              label="Mand."
             />
           </div>
 

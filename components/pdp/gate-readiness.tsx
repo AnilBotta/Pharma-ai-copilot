@@ -2,6 +2,7 @@
 
 import { AlertTriangle, CheckCircle2, CircleSlash } from "lucide-react";
 
+import { MandatoryPips } from "@/components/pdp/mandatory-pips";
 import { Badge, type BadgeVariant } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
@@ -54,6 +55,15 @@ export function GateReadiness({
         valueText={`${readiness_pct.toFixed(1)} percent, ${
           is_ready ? "ready for review" : `not ready, ${blocker_count} outstanding`
         }`}
+      />
+
+      {/* The dispositive quantity, drawn. The bar above is weighted across
+          optional work and so can sit at 94% on a ready gate and 96% on one
+          that is not; these pips are what actually decides it. */}
+      <MandatoryPips
+        satisfied={readiness.mandatory_satisfied}
+        total={readiness.mandatory_count}
+        isReady={is_ready}
       />
 
       {!is_ready && blockers.length > 0 && (
