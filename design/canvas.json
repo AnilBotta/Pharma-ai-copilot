@@ -1,0 +1,41 @@
+{
+  "artboards": [
+    { "file": "Main.dc.html", "title": "Foundations — Instrument", "x": 0, "y": 0, "w": 1400, "h": 1800 },
+    { "file": "Dashboard.dc.html", "title": "Dashboard — role-aware", "x": 1520, "y": 0, "w": 1440, "h": 1120 },
+    { "file": "Programmes.dc.html", "title": "Development Programmes", "x": 3080, "y": 0, "w": 1440, "h": 1080 },
+    { "file": "GateWorkspace.dc.html", "title": "Gate workspace", "x": 1520, "y": 1240, "w": 1440, "h": 1180 },
+    { "file": "RunReport.dc.html", "title": "Run report — held", "x": 3080, "y": 1240, "w": 1100, "h": 1160 },
+    { "file": "ManagerAgent.dc.html", "title": "Manager Agent panel", "x": 4300, "y": 1240, "w": 580, "h": 1080 }
+  ],
+  "annotations": [
+    {
+      "id": "the-rule",
+      "x": 0,
+      "y": -180,
+      "w": 620,
+      "text": "INSTRUMENT\n\nThe organising rule: brand colour and status colour are disjoint. Blue-violet is identity, links, focus and primary action — never state. Emerald / amber / rose / sky appear only where they encode a real verdict.\n\nEvery artboard has a dark toggle in its tweak row."
+    },
+    {
+      "id": "gauge-change",
+      "x": 700,
+      "y": -180,
+      "w": 660,
+      "text": "CHANGED FROM THE APPROVED PLAN\n\nA threshold marker on the percentage bar would itself be a false signal — Gate 1 is ready at 94.4%, Gate 7 at 87.5%. Readiness is decided by all mandatory items being satisfied, not by crossing a percentage.\n\nSo the mandatory items are drawn as discrete pips. The pips are the verdict; the bar is only progress."
+    },
+    {
+      "id": "dashboard-note",
+      "x": 1520,
+      "y": -180,
+      "w": 620,
+      "text": "The Dashboard today shows only research telemetry — Running / Completed / Failed / Cost — and nothing about stage gates, which are now the larger half of the product.\n\nRebuilt to lead with what your roles make actionable."
+    },
+    {
+      "id": "refusal-note",
+      "x": 1520,
+      "y": 1080,
+      "w": 620,
+      "text": "Refusal is the product. Approve is unavailable AND the blockers are named beneath it; the requirement says who it is waiting on, and why you personally cannot approve it.\n\nAdvisory surfaces stay dashed, subordinate, and never render a percentage."
+    }
+  ],
+  "launch": { "view": "canvas" }
+}
