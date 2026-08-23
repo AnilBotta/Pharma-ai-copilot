@@ -207,7 +207,10 @@ function StageRow({ stage, projectId }: { stage: StageSummary; projectId: string
             </div>
             <Progress
               value={stage.readiness_pct}
-              indicatorClassName={stage.is_ready ? "bg-emerald-500" : "bg-amber-500"}
+              tone={stage.is_ready ? "success" : "warning"}
+              valueText={`${stage.readiness_pct.toFixed(1)} percent, ${
+                stage.is_ready ? "ready for review" : "not ready"
+              }`}
             />
           </div>
 

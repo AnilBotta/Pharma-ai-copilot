@@ -259,7 +259,10 @@ function ProgrammeCard({ programme }: { programme: ProgrammeSummary }) {
             </div>
             <Progress
               value={pct}
-              indicatorClassName={isReady ? "bg-emerald-500" : "bg-amber-500"}
+              tone={isReady ? "success" : "warning"}
+              valueText={`${pct.toFixed(1)} percent, ${
+                isReady ? "ready for review" : "not ready"
+              }`}
             />
           </div>
         )}

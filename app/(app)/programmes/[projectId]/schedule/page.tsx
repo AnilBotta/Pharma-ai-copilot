@@ -15,7 +15,7 @@ import {
 
 import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
-import { Badge } from "@/components/ui/badge";
+import { Badge, type BadgeVariant } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -251,10 +251,6 @@ const STATUS_LABELS: Record<string, { label: string; variant: BadgeVariant }> = 
   blocked: { label: "Blocked", variant: "destructive" },
   complete: { label: "Complete", variant: "success" },
 };
-
-type BadgeVariant =
-  | "default" | "secondary" | "destructive" | "outline"
-  | "success" | "warning" | "info" | "muted";
 
 function VarianceBadge({ days }: { days: number | null }) {
   if (days === null || days === 0) return null;

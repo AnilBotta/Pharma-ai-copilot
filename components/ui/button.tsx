@@ -1,6 +1,7 @@
 import * as React from "react";
 import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
+import { Loader2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
@@ -35,23 +36,54 @@ const buttonVariants = cva(
   }
 );
 
+/**
+ * As with Badge, `loading` and `asChild` are mutually exclusive in the type:
+ * Slot takes exactly one child, and a spinner alongside the label would hand
+ * it two. A compile error beats a runtime one.
+ */
+type ButtonProps = React.ComponentProps<"button"> &
+  VariantProps<typeof buttonVariants> &
+  (
+    | { asChild: true; loading?: never }
+    | {
+        asChild?: false;
+        /**
+         * Shows a spinner, disables the button and sets aria-busy. Six call
+         * sites hand-rolled this triple; forgetting the third is how a
+         * screen-reader user hears nothing while a gate decision is saving.
+         */
+        loading?: boolean;
+      }
+  );
+
 function Button({
   className,
   variant,
   size,
   asChild = false,
+  loading = false,
+  disabled,
+  children,
   ...props
-}: React.ComponentProps<"button"> &
-  VariantProps<typeof buttonVariants> & {
-    asChild?: boolean;
-  }) {
+}: ButtonProps) {
   const Comp = asChild ? Slot : "button";
   return (
     <Comp
       data-slot="button"
       className={cn(buttonVariants({ variant, size, className }))}
+      disabled={disabled || loading}
+      aria-busy={loading || undefined}
       {...props}
-    />
+    >
+      {loading ? (
+        <>
+          <Loader2 aria-hidden="true" className="size-4 animate-spin" />
+          {children}
+        </>
+      ) : (
+        children
+      )}
+    </Comp>
   );
 }
 

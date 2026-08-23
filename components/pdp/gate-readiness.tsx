@@ -2,7 +2,7 @@
 
 import { AlertTriangle, CheckCircle2, CircleSlash } from "lucide-react";
 
-import { Badge } from "@/components/ui/badge";
+import { Badge, type BadgeVariant } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import type { Blocker, Readiness } from "@/lib/api";
@@ -50,7 +50,10 @@ export function GateReadiness({
         value={readiness_pct}
         // Amber while not ready, however high the number climbs. Green here
         // would contradict the verdict standing next to it.
-        indicatorClassName={is_ready ? "bg-emerald-500" : "bg-amber-500"}
+        tone={is_ready ? "success" : "warning"}
+        valueText={`${readiness_pct.toFixed(1)} percent, ${
+          is_ready ? "ready for review" : `not ready, ${blocker_count} outstanding`
+        }`}
       />
 
       {!is_ready && blockers.length > 0 && (
@@ -121,16 +124,6 @@ const GATE_STATUS_LABELS: Record<string, { label: string; variant: BadgeVariant 
   rejected: { label: "Rejected", variant: "destructive" },
   on_hold: { label: "On hold", variant: "muted" },
 };
-
-type BadgeVariant =
-  | "default"
-  | "secondary"
-  | "destructive"
-  | "outline"
-  | "success"
-  | "warning"
-  | "info"
-  | "muted";
 
 export function GateStatusBadge({ status }: { status: string }) {
   const entry = GATE_STATUS_LABELS[status] ?? { label: status, variant: "muted" as const };
