@@ -17,7 +17,9 @@ export function Logo({
       <div
         className={cn(
           iconBox,
-          "relative flex items-center justify-center bg-gradient-to-br from-blue-600 via-indigo-600 to-violet-600 text-white shadow-lg shadow-blue-600/25"
+          // The mark follows --brand-from/--brand-to like the wordmark beside
+          // it, so both shift together with the theme.
+          "brand-surface relative flex items-center justify-center text-primary-foreground shadow-e2"
         )}
       >
         <svg viewBox="0 0 24 24" fill="none" className={iconSize} aria-hidden>
