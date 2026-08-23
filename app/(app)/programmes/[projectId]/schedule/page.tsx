@@ -15,6 +15,7 @@ import {
 
 import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
+import { GanttTimeline } from "@/components/charts/gantt/timeline";
 import { Badge, type BadgeVariant } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -177,8 +178,21 @@ export default function SchedulePage() {
           onAction={() => setTaskOpen(true)}
         />
       ) : (
-        <div className="space-y-2">
-          <h2 className="text-sm font-semibold">Tasks ({schedule.tasks.length})</h2>
+        <>
+          {/* The timeline is the overview; the rows below remain the place
+              where work is actually recorded. Hidden below md: a horizontally
+              scrolling Gantt on a phone is worse than the card list, which
+              already reads well there. */}
+          <div className="hidden space-y-2 md:block">
+            <h2 className="text-sm font-semibold">Timeline</h2>
+            <GanttTimeline
+              tasks={schedule.tasks}
+              milestones={schedule.milestones}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <h2 className="text-sm font-semibold">Tasks ({schedule.tasks.length})</h2>
           {schedule.tasks.map((task) => (
             <TaskRow
               key={task.id}
@@ -197,7 +211,8 @@ export default function SchedulePage() {
               }
             />
           ))}
-        </div>
+          </div>
+        </>
       )}
 
       {schedule.milestones.length > 0 && (
