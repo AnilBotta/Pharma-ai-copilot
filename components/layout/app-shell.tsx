@@ -52,12 +52,19 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     // conversation survives navigating to the gate it is about.
     <ManagerProvider>
       <div className="relative min-h-screen">
-        <div className="bg-glow pointer-events-none fixed inset-0 -z-10" />
-        <div className="pointer-events-none fixed inset-0 -z-10 bg-grid opacity-[0.35] dark:opacity-[0.12]" />
+        {/* Both decoration layers are `fixed inset-0` and neither carried
+            `no-print`, so they printed as full-page tints behind the report. */}
+        <div className="no-print bg-glow pointer-events-none fixed inset-0 -z-10" />
+        <div className="no-print pointer-events-none fixed inset-0 -z-10 bg-grid opacity-[0.35] dark:opacity-[0.12]" />
         <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
         <div className="flex min-h-screen flex-col lg:pl-[264px]">
           <Topbar onMenuClick={() => setSidebarOpen(true)} />
-          <main className="print-area mx-auto w-full max-w-[1440px] flex-1 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+          {/* `print-area` deliberately does NOT live here. It takes
+              `position:absolute; inset:0`, and the run report puts it on its
+              own report container too — two nested absolutely-positioned
+              ancestors, which is why printing collapsed. The page that owns a
+              printable region owns the class. */}
+          <main className="mx-auto w-full max-w-[1440px] flex-1 px-4 py-6 sm:px-6 md:py-7 lg:px-8 lg:py-8">
             {children}
           </main>
         </div>

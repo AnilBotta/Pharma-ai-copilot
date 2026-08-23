@@ -13,7 +13,7 @@ import {
   Upload,
   X,
 } from "lucide-react";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 
 import { useManager } from "@/components/manager/manager-provider";
 import { Logo } from "@/components/shared/logo";
@@ -28,12 +28,21 @@ interface NavItem {
   badge?: string;
 }
 
+/**
+ * Labels are the UI names, not the URLs — the routes are unchanged.
+ *
+ * Two collisions are fixed here. "Projects" and "Stage Gates" were
+ * near-synonyms for genuinely different things (a project is enrolled into a
+ * programme by instantiating a template), and there were two separate
+ * "Documents": this upload-and-search library, and the per-programme
+ * controlled register. Nobody reading the nav could tell which was which.
+ */
 const navGroups: { title: string; items: NavItem[] }[] = [
   {
     title: "Workspace",
     items: [
       { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-      { href: "/projects", label: "Projects", icon: FolderGit2 },
+      { href: "/projects", label: "Portfolio", icon: FolderGit2 },
     ],
   },
   {
@@ -41,12 +50,14 @@ const navGroups: { title: string; items: NavItem[] }[] = [
     items: [
       { href: "/research/new", label: "New Research", icon: Sparkles },
       { href: "/runs", label: "Research Runs", icon: ListChecks },
-      { href: "/documents", label: "Documents", icon: Upload },
+      { href: "/documents", label: "Knowledge Library", icon: Upload },
     ],
   },
   {
     title: "Development",
-    items: [{ href: "/programmes", label: "Stage Gates", icon: GitBranch }],
+    items: [
+      { href: "/programmes", label: "Development Programmes", icon: GitBranch },
+    ],
   },
   // No Configuration group. Integrations and Notifications are both reached
   // through the Settings link in the footer, which is where somebody looks for
@@ -83,18 +94,23 @@ export function Sidebar({
   onClose: () => void;
 }) {
   const pathname = usePathname();
+  // The active pill slides between nav items via a shared layout animation.
+  // For anyone who asked for less motion, it simply appears.
+  const reduceMotion = useReducedMotion();
 
   return (
     <>
       {open && (
         <div
-          className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm lg:hidden"
+          className="no-print fixed inset-0 z-40 bg-black/40 backdrop-blur-sm lg:hidden"
           onClick={onClose}
         />
       )}
+      {/* `no-print` was missing, and this is `fixed inset-y-0` — so the rail
+          printed down the left edge of every page of a run report. */}
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-50 flex w-[264px] flex-col border-r bg-sidebar/95 backdrop-blur-xl transition-transform duration-300 lg:translate-x-0",
+          "no-print fixed inset-y-0 left-0 z-50 flex w-[264px] flex-col border-r border-sidebar-border bg-sidebar/95 backdrop-blur-xl transition-transform duration-300 lg:translate-x-0",
           open ? "translate-x-0" : "-translate-x-full"
         )}
       >
@@ -140,13 +156,16 @@ export function Sidebar({
                           : "text-muted-foreground hover:bg-accent hover:text-foreground"
                       )}
                     >
-                      {active && (
-                        <motion.span
-                          layoutId="sidebar-active"
-                          className="absolute inset-0 -z-0 rounded-lg bg-primary/10"
-                          transition={{ type: "spring", stiffness: 400, damping: 32 }}
-                        />
-                      )}
+                      {active &&
+                        (reduceMotion ? (
+                          <span className="absolute inset-0 -z-0 rounded-lg bg-primary/10" />
+                        ) : (
+                          <motion.span
+                            layoutId="sidebar-active"
+                            className="absolute inset-0 -z-0 rounded-lg bg-primary/10"
+                            transition={{ type: "spring", stiffness: 400, damping: 32 }}
+                          />
+                        ))}
                       <Icon
                         className={cn(
                           "relative z-10 size-[18px] transition-colors",

@@ -372,6 +372,12 @@
   border: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
 }
 
+/* The brand mark's fill. Paired with `text-gradient` on the wordmark so the
+   two halves of the logo always agree. */
+@utility brand-surface {
+  background: linear-gradient(135deg, var(--brand-from), var(--brand-to));
+}
+
 /* Was hard-coded to the light-mode brand values, so the wordmark never
    shifted in dark. Now follows --brand-from/--brand-to. */
 @utility text-gradient {
