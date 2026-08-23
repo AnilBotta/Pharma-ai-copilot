@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 
 import { AuthProvider } from "@/components/auth-provider";
 import { ThemeProvider } from "@/components/theme-provider";
+import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import "./globals.css";
 
@@ -44,6 +45,9 @@ export default function RootLayout({
           <AuthProvider>
             <TooltipProvider>{children}</TooltipProvider>
           </AuthProvider>
+          {/* Inside ThemeProvider so it can follow the theme, outside
+              AuthProvider so /login can report a failed sign-in too. */}
+          <Toaster />
         </ThemeProvider>
       </body>
     </html>

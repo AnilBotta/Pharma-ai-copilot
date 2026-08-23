@@ -53,6 +53,7 @@ import {
   type Requirement,
 } from "@/lib/api";
 import { cn, formatRelative } from "@/lib/utils";
+import { toast } from "sonner";
 
 export default function GatePage() {
   const params = useParams<{ projectId: string; stageId: string }>();
@@ -86,14 +87,22 @@ export default function GatePage() {
   }, [reload]);
 
   const act = React.useCallback(
-    async (key: string, fn: () => Promise<unknown>) => {
+    async (key: string, fn: () => Promise<unknown>, done?: string) => {
       setBusy(key);
       setError(null);
       try {
         await fn();
         await reload();
+        if (done) toast.success(done);
       } catch (err) {
-        setError(err instanceof ApiError ? err.message : String(err));
+        const message = err instanceof ApiError ? err.message : String(err);
+        // Kept inline as well as toasted. A refusal here is the product
+        // working — segregation of duties, an unsatisfied gate — and it
+        // belongs on the page, not only in something that fades. The toast
+        // exists because this page is long enough that a message at the top
+        // is invisible to somebody acting on the fourteenth requirement.
+        setError(message);
+        toast.error("That change was not made", { description: message });
       } finally {
         setBusy(null);
       }
@@ -159,7 +168,13 @@ export default function GatePage() {
         <GateDecisionCard
           gate={gate}
           busy={busy === "gate"}
-          onDecide={(body) => act("gate", () => pdp.decideGate(stageId, body))}
+          onDecide={(body) =>
+            act(
+              "gate",
+              () => pdp.decideGate(stageId, body),
+              "Gate decision recorded in the audit trail"
+            )
+          }
         />
       </div>
 
@@ -582,7 +597,11 @@ function RequirementCard({
   projectId: string;
   capabilities: GateWorkspace["capabilities"];
   busy: string | null;
-  act: (key: string, fn: () => Promise<unknown>) => Promise<void>;
+  act: (
+    key: string,
+    fn: () => Promise<unknown>,
+    done?: string
+  ) => Promise<void>;
 }) {
   const [expanded, setExpanded] = React.useState(false);
   const [attachOpen, setAttachOpen] = React.useState(false);
@@ -671,7 +690,11 @@ function RequirementCard({
             <EvidenceList
               requirement={req}
               onDetach={(id) =>
-                act(`${req.id}:detach`, () => pdp.detachEvidence(id))
+                act(
+                  `${req.id}:detach`,
+                  () => pdp.detachEvidence(id),
+                  `Evidence removed from ${req.ref_code}. Any approval was superseded.`
+                )
               }
               busy={working}
             />
@@ -744,7 +767,11 @@ function RequirementCard({
         docs={docs}
         projectId={projectId}
         onAttach={(body) =>
-          act(`${req.id}:attach`, () => pdp.attachEvidence(req.id, body))
+          act(
+            `${req.id}:attach`,
+            () => pdp.attachEvidence(req.id, body),
+            `Evidence attached to ${req.ref_code}. Any approval was superseded.`
+          )
         }
       />
     </Card>
@@ -871,10 +898,16 @@ function RequirementActions({
   capabilities: GateWorkspace["capabilities"];
   busy: boolean;
   onAttach: () => void;
-  act: (key: string, fn: () => Promise<unknown>) => Promise<void>;
+  act: (
+    key: string,
+    fn: () => Promise<unknown>,
+    done?: string
+  ) => Promise<void>;
 }) {
   const [rejectOpen, setRejectOpen] = React.useState(false);
   const [strandOpen, setStrandOpen] = React.useState(false);
+  const [blockOpen, setBlockOpen] = React.useState(false);
+  const [blockReason, setBlockReason] = React.useState("");
   const [comments, setComments] = React.useState("");
 
   const canApprove = capabilities.can_approve;
@@ -885,7 +918,11 @@ function RequirementActions({
   // the click asks first rather than discovering it two steps later.
   const wouldStrand = req.approvers_if_i_accept.length === 0;
   const confirmAcceptance = () =>
-    act(`${req.id}:accept`, () => pdp.setAcceptance(req.id, true));
+    act(
+      `${req.id}:accept`,
+      () => pdp.setAcceptance(req.id, true),
+      `${req.ref_code}: acceptance criteria confirmed`
+    );
 
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -898,7 +935,13 @@ function RequirementActions({
           size="sm"
           variant="ghost"
           disabled={busy}
-          onClick={() => act(`${req.id}:accept`, () => pdp.setAcceptance(req.id, false))}
+          onClick={() =>
+            act(
+              `${req.id}:accept`,
+              () => pdp.setAcceptance(req.id, false),
+              `${req.ref_code}: acceptance withdrawn, any approval superseded`
+            )
+          }
         >
           Withdraw acceptance
         </Button>
@@ -938,8 +981,10 @@ function RequirementActions({
                   : undefined
             }
             onClick={() =>
-              act(`${req.id}:approve`, () =>
-                pdp.decideRequirement(req.id, { decision: "approved" })
+              act(
+                `${req.id}:approve`,
+                () => pdp.decideRequirement(req.id, { decision: "approved" }),
+                `${req.ref_code} approved and recorded against your name`
               )
             }
           >
@@ -962,7 +1007,13 @@ function RequirementActions({
           size="sm"
           variant="ghost"
           disabled={busy}
-          onClick={() => act(`${req.id}:block`, () => pdp.setBlocked(req.id, false))}
+          onClick={() =>
+            act(
+              `${req.id}:block`,
+              () => pdp.setBlocked(req.id, false),
+              `${req.ref_code}: block cleared`
+            )
+          }
         >
           Clear block
         </Button>
@@ -971,18 +1022,53 @@ function RequirementActions({
           size="sm"
           variant="ghost"
           disabled={busy}
-          onClick={() => {
-            const reason = window.prompt("Why is this blocked?");
-            if (reason?.trim()) {
-              void act(`${req.id}:block`, () =>
-                pdp.setBlocked(req.id, true, reason.trim())
-              );
-            }
-          }}
+          onClick={() => setBlockOpen(true)}
         >
           Block
         </Button>
       )}
+
+      {/* Was `window.prompt`. Besides breaking the visual language entirely,
+          the browser dialog is unstyleable, untranslatable, silently
+          suppressible, and its single line is a poor place to write the
+          reason that goes into an audit record. */}
+      <Dialog open={blockOpen} onOpenChange={setBlockOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Block {req.ref_code}</DialogTitle>
+            <DialogDescription>
+              A block stops this requirement from being confirmed or approved
+              until it is cleared. The reason is recorded and shown to whoever
+              picks it up.
+            </DialogDescription>
+          </DialogHeader>
+          <Textarea
+            rows={3}
+            value={blockReason}
+            onChange={(e) => setBlockReason(e.target.value)}
+            placeholder="What is preventing this from proceeding."
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBlockOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              disabled={!blockReason.trim()}
+              onClick={() => {
+                void act(
+                  `${req.id}:block`,
+                  () => pdp.setBlocked(req.id, true, blockReason.trim()),
+                  `${req.ref_code} blocked`
+                );
+                setBlockOpen(false);
+                setBlockReason("");
+              }}
+            >
+              Block requirement
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={strandOpen} onOpenChange={setStrandOpen}>
         <DialogContent>
@@ -1050,11 +1136,14 @@ function RequirementActions({
             <Button
               disabled={!comments.trim()}
               onClick={() => {
-                void act(`${req.id}:reject`, () =>
-                  pdp.decideRequirement(req.id, {
-                    decision: "rejected",
-                    comments: comments.trim(),
-                  })
+                void act(
+                  `${req.id}:reject`,
+                  () =>
+                    pdp.decideRequirement(req.id, {
+                      decision: "rejected",
+                      comments: comments.trim(),
+                    }),
+                  `${req.ref_code}: changes requested, any approval superseded`
                 );
                 setRejectOpen(false);
                 setComments("");
