@@ -4,6 +4,10 @@ import * as React from "react";
 import Link from "next/link";
 import { AlertTriangle, GitBranch, Loader2, Plus } from "lucide-react";
 
+import {
+  PortfolioHeatmap,
+  usePortfolioMatrix,
+} from "@/components/charts/portfolio-heatmap";
 import { GateStatusBadge, ReadyVerdict } from "@/components/pdp/gate-readiness";
 import { PortfolioBriefing } from "@/components/pdp/portfolio-briefing";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -20,6 +24,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { NativeSelect } from "@/components/ui/native-select";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -43,6 +48,8 @@ export default function ProgrammesPage() {
   const [templateId, setTemplateId] = React.useState("");
   const [startDate, setStartDate] = React.useState("");
   const [creating, setCreating] = React.useState(false);
+
+  const matrix = usePortfolioMatrix(programmes);
 
   const load = React.useCallback(async () => {
     try {
@@ -107,10 +114,13 @@ export default function ProgrammesPage() {
       />
 
       {error && (
-        <Card className="border-destructive/40 bg-destructive/5">
+        <Card variant="flush" tone="danger">
           <CardContent className="flex items-start gap-3 py-4">
-            <AlertTriangle className="mt-0.5 size-5 shrink-0 text-destructive" />
-            <p className="text-sm text-destructive">{error}</p>
+            <AlertTriangle
+              aria-hidden="true"
+              className="mt-0.5 size-5 shrink-0 text-danger"
+            />
+            <p className="text-sm text-danger">{error}</p>
           </CardContent>
         </Card>
       )}
@@ -132,6 +142,25 @@ export default function ProgrammesPage() {
       ) : (
         <>
           <PortfolioBriefing programmeCount={programmes.length} />
+
+          {/* Above the cards: the cards answer "how is this one programme
+              doing", the grid answers "where is the portfolio stuck", and the
+              second question is the one somebody opens this page with. */}
+          <Card>
+            <CardContent className="space-y-4 py-5">
+              <div>
+                <h2 className="type-label text-muted-foreground">
+                  Every gate, every programme
+                </h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  A gate is green only once it has actually been approved —
+                  readiness alone never colours a cell.
+                </p>
+              </div>
+              <PortfolioHeatmap {...matrix} />
+            </CardContent>
+          </Card>
+
           <div className="grid gap-4 lg:grid-cols-2">
             {programmes.map((programme) => (
               <ProgrammeCard key={programme.id} programme={programme} />
@@ -153,9 +182,8 @@ export default function ProgrammesPage() {
           <div className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="programme-project">Project</Label>
-              <select
+              <NativeSelect
                 id="programme-project"
-                className="h-9 w-full rounded-md border bg-transparent px-3 text-sm"
                 value={projectId}
                 onChange={(e) => setProjectId(e.target.value)}
               >
@@ -165,14 +193,13 @@ export default function ProgrammesPage() {
                     {p.name}
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="programme-template">Template</Label>
-              <select
+              <NativeSelect
                 id="programme-template"
-                className="h-9 w-full rounded-md border bg-transparent px-3 text-sm"
                 value={templateId}
                 onChange={(e) => setTemplateId(e.target.value)}
               >
@@ -182,9 +209,9 @@ export default function ProgrammesPage() {
                     {t.name} (v{t.version}) — {t.requirement_count} requirements
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
               {activeTemplates.length === 0 && (
-                <p className="text-xs text-amber-700 dark:text-amber-400">
+                <p className="rounded-md border border-warning-border bg-warning-surface px-2.5 py-2 text-xs text-warning">
                   No template has been approved for use yet. Seeded templates are
                   scaffolding, not regulatory advice, and must be reviewed and
                   approved by your scientific, quality and regulatory functions
