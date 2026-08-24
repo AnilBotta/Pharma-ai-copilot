@@ -18,6 +18,7 @@ import {
 
 import { GateTrack } from "@/components/charts/gate-track";
 import { MandatoryByGate } from "@/components/charts/mandatory-by-gate";
+import { ReadinessHistory } from "@/components/charts/readiness-history";
 import { GateStatusBadge, ReadyVerdict } from "@/components/pdp/gate-readiness";
 import { MandatoryPips } from "@/components/pdp/mandatory-pips";
 import { PageHeader } from "@/components/shared/page-header";
@@ -37,6 +38,10 @@ import {
 } from "@/lib/api";
 import { cn, formatRelative } from "@/lib/utils";
 
+/** The audit window. Named so the chart caption can state it rather than
+ *  imply that the history is complete. */
+const AUDIT_WINDOW = 200;
+
 export default function ProgrammePage() {
   const params = useParams<{ projectId: string }>();
   const projectId = params.projectId;
@@ -52,11 +57,25 @@ export default function ProgrammePage() {
     (n) => !n.resolved_at && n.severity === "critical"
   );
 
+  // The engine's own numbers, summed across the programme's gates. The history
+  // chart is terminated on these so it cannot contradict the page it sits on.
+  const totals = React.useMemo(
+    () =>
+      (detail?.stages ?? []).reduce(
+        (acc, s) => ({
+          satisfied: acc.satisfied + s.satisfied_count,
+          applicable: acc.applicable + s.applicable_count,
+        }),
+        { satisfied: 0, applicable: 0 }
+      ),
+    [detail]
+  );
+
   React.useEffect(() => {
     let active = true;
     Promise.all([
       pdp.getProgramme(projectId),
-      pdp.audit(projectId, 60),
+      pdp.audit(projectId, AUDIT_WINDOW),
       pdp.listNotifications(projectId),
     ])
       .then(([programme, events, alerts]) => {
@@ -139,6 +158,23 @@ export default function ProgrammePage() {
             </p>
             <MandatoryByGate stages={detail.stages} height={180} />
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Counts, never a percentage — see components/charts/readiness-history.
+          Below the two charts above, which show the current state; this one is
+          the weaker claim because it is reconstructed rather than recorded. */}
+      <Card>
+        <CardContent className="py-6">
+          <p className="type-label mb-3 text-muted-foreground">
+            Requirements satisfied over time
+          </p>
+          <ReadinessHistory
+            audit={audit}
+            satisfied={totals.satisfied}
+            applicable={totals.applicable}
+            windowLimit={AUDIT_WINDOW}
+          />
         </CardContent>
       </Card>
 
