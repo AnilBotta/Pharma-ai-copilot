@@ -50,7 +50,7 @@ function SheetContent({
           "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
           // Lighter than the dialog's scrim: the page behind is still meant to
           // be readable while you ask a question about it.
-          "fixed inset-0 z-50 bg-black/25"
+          "fixed inset-0 z-50 bg-overlay-soft"
         )}
       />
       <DialogPrimitive.Content

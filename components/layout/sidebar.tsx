@@ -102,7 +102,7 @@ export function Sidebar({
     <>
       {open && (
         <div
-          className="no-print fixed inset-0 z-40 bg-black/40 backdrop-blur-sm lg:hidden"
+          className="no-print fixed inset-0 z-40 bg-overlay backdrop-blur-sm lg:hidden"
           onClick={onClose}
         />
       )}
