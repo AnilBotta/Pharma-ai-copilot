@@ -17,7 +17,7 @@ import { NativeSelect } from "@/components/ui/native-select";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
-import { CHART, statusColor } from "@/lib/chart-tokens";
+import { CHART, needsDecision, statusColor } from "@/lib/chart-tokens";
 
 const BADGES = [
   "default",
@@ -241,11 +241,25 @@ export function Gallery({ dark }: { dark: boolean }) {
 
       <Section
         title="Gate status colour"
-        note="The chart layer's copy of the product rule: green means approved, never merely ready."
+        note="Green means approved, never merely ready. All eight are distinct and all clear 3:1 against the card — but the ringed one is separated by more than colour, because depth alone got it only 1.4:1 from in_progress in this theme."
       >
         <div className="grid grid-cols-4 gap-2">
           {GATE_STATUSES.map((s) => (
-            <Swatch key={s} label={s} value={statusColor(s)} />
+            <div key={s} className="min-w-0">
+              <div
+                aria-hidden="true"
+                className={
+                  "flex h-9 items-center justify-center rounded-md border" +
+                  (needsDecision(s) ? " ring-2 ring-foreground/70 ring-inset" : "")
+                }
+                style={{ backgroundColor: statusColor(s) }}
+              >
+                {needsDecision(s) && (
+                  <span className="size-1.5 rounded-full bg-foreground/80" />
+                )}
+              </div>
+              <p className="mt-1 truncate text-2xs text-muted-foreground">{s}</p>
+            </div>
           ))}
         </div>
       </Section>

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 
-import { statusColor } from "@/lib/chart-tokens";
+import { needsDecision, statusColor } from "@/lib/chart-tokens";
 import { cn } from "@/lib/utils";
 import type { StageSummary } from "@/lib/api";
 
@@ -53,14 +53,23 @@ export function GateTrack({
               <span
                 aria-hidden="true"
                 className={cn(
-                  "h-7 rounded-md border transition-transform group-hover:-translate-y-0.5",
-                  isCurrent ? "border-primary" : "border-transparent"
+                  "flex h-7 items-center justify-center rounded-md border transition-transform group-hover:-translate-y-0.5",
+                  isCurrent ? "border-primary" : "border-transparent",
+                  // The same non-colour marker the portfolio grid uses, for
+                  // the same reason: this status is only ~1.4:1 away from
+                  // `in_progress` in dark, and it is the one needing a person.
+                  needsDecision(stage.gate_status) &&
+                    "ring-2 ring-foreground/70 ring-inset"
                 )}
                 style={{
                   // Raw token, never the --color-* bridge: see lib/chart-tokens.
                   backgroundColor: statusColor(stage.gate_status),
                 }}
-              />
+              >
+                {needsDecision(stage.gate_status) && (
+                  <span className="size-1.5 rounded-full bg-foreground/80" />
+                )}
+              </span>
               <span className="truncate text-center text-2xs text-muted-foreground">
                 {stage.position}
               </span>
