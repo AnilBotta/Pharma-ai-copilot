@@ -119,15 +119,15 @@ export default function NotificationSettingsPage() {
       />
 
       {error && (
-        <Card className="border-destructive/40 bg-destructive/5">
+        <Card variant="flush" tone="danger">
           <CardContent className="flex items-start gap-3 py-4">
-            <AlertTriangle className="mt-0.5 size-5 shrink-0 text-destructive" />
-            <p className="text-sm text-destructive">{error}</p>
+            <AlertTriangle className="mt-0.5 size-5 shrink-0 text-danger" />
+            <p className="text-sm text-danger">{error}</p>
           </CardContent>
         </Card>
       )}
 
-      <Card className="border-sky-500/30 bg-sky-500/5">
+      <Card className="border-info-border bg-info-surface">
         <CardContent className="py-4 text-sm text-muted-foreground">
           An address here receives email and nothing else. It creates no account,
           grants no permission, and does not allow anyone to approve a

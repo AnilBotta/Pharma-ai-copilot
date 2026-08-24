@@ -23,7 +23,7 @@ export function ChartCard({
     <Card className={cn("overflow-hidden", className)}>
       <CardHeader className="flex-row items-start justify-between gap-4 space-y-0">
         <div>
-          <CardTitle className="text-[15px]">{title}</CardTitle>
+          <CardTitle className="text-md">{title}</CardTitle>
           {description && <CardDescription className="mt-1">{description}</CardDescription>}
         </div>
         {action}

@@ -35,11 +35,11 @@ export function Logo({
       </div>
       {!iconOnly && (
         <div className="leading-tight">
-          <p className={cn("font-semibold tracking-tight", size === "lg" ? "text-lg" : "text-[15px]")}>
+          <p className={cn("font-semibold tracking-tight", size === "lg" ? "text-lg" : "text-md")}>
             Pharma <span className="text-gradient">R&amp;D</span> Copilot
           </p>
           {size === "lg" && (
-            <p className="text-[11px] text-muted-foreground">Research support workspace</p>
+            <p className="text-2xs text-muted-foreground">Research support workspace</p>
           )}
         </div>
       )}

@@ -109,7 +109,7 @@ export function AgentAssessment({
         )}
 
         {error && (
-          <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-xs text-destructive">
+          <div className="flex items-start gap-2 rounded-lg border border-danger-border bg-danger-surface p-3 text-xs text-destructive">
             <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
             <div>
               <p>{error}</p>
@@ -152,7 +152,7 @@ function AssessmentBody({ result }: { result: GateAssessment }) {
               key={b.ref_code}
               className={cn(
                 "rounded-lg border p-3 text-xs",
-                b.is_root_cause && "border-amber-500/40 bg-amber-500/5"
+                b.is_root_cause && "border-warning-border bg-warning-surface"
               )}
             >
               <div className="flex flex-wrap items-center gap-2">
@@ -206,8 +206,8 @@ function AssessmentBody({ result }: { result: GateAssessment }) {
       )}
 
       {result.handoff_question && (
-        <div className="rounded-lg border border-sky-500/30 bg-sky-500/5 p-3 text-xs">
-          <div className="flex items-center gap-2 font-medium text-sky-700 dark:text-sky-400">
+        <div className="rounded-lg border border-info-border bg-info-surface p-3 text-xs">
+          <div className="flex items-center gap-2 font-medium text-info">
             <FlaskConical className="size-3.5" />
             Referred to the Scientist Agent
           </div>

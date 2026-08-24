@@ -91,10 +91,10 @@ export default function DocumentsPage() {
       </div>
 
       {error && (
-        <Card className="border-destructive/40 bg-destructive/5">
+        <Card variant="flush" tone="danger">
           <CardContent className="flex items-start gap-3 py-4">
-            <AlertTriangle className="mt-0.5 size-5 shrink-0 text-destructive" />
-            <p className="text-sm text-destructive">{error}</p>
+            <AlertTriangle className="mt-0.5 size-5 shrink-0 text-danger" />
+            <p className="text-sm text-danger">{error}</p>
           </CardContent>
         </Card>
       )}
@@ -263,7 +263,7 @@ function RegisterDialog({
         <div className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="doc-number">
-              Document number <span className="text-destructive">*</span>
+              Document number <span className="text-danger">*</span>
             </Label>
             <Input
               id="doc-number"
@@ -279,7 +279,7 @@ function RegisterDialog({
 
           <div className="space-y-2">
             <Label htmlFor="doc-title">
-              Title <span className="text-destructive">*</span>
+              Title <span className="text-danger">*</span>
             </Label>
             <Input
               id="doc-title"
@@ -389,7 +389,7 @@ function VersionDialog({
         <div className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="ver-label">
-              Version <span className="text-destructive">*</span>
+              Version <span className="text-danger">*</span>
             </Label>
             <Input
               id="ver-label"
@@ -401,7 +401,7 @@ function VersionDialog({
 
           <div className="space-y-2">
             <Label htmlFor="ver-url">
-              Link to the file <span className="text-destructive">*</span>
+              Link to the file <span className="text-danger">*</span>
             </Label>
             <Input
               id="ver-url"
@@ -456,7 +456,7 @@ function VersionDialog({
             <label
               className={cn(
                 "flex cursor-pointer items-start gap-2 rounded-lg border p-3 text-sm",
-                supersede && "border-amber-500/40 bg-amber-500/5"
+                supersede && "border-warning-border bg-warning-surface"
               )}
             >
               <input

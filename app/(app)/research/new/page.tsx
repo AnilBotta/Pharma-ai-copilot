@@ -138,10 +138,10 @@ export default function NewResearchPage() {
       />
 
       {error && (
-        <Card className="border-destructive/40 bg-destructive/5">
+        <Card variant="flush" tone="danger">
           <CardContent className="flex items-start gap-3 py-4">
-            <AlertTriangle className="mt-0.5 size-5 shrink-0 text-destructive" />
-            <p className="text-sm text-destructive">{error}</p>
+            <AlertTriangle className="mt-0.5 size-5 shrink-0 text-danger" />
+            <p className="text-sm text-danger">{error}</p>
           </CardContent>
         </Card>
       )}
@@ -149,7 +149,7 @@ export default function NewResearchPage() {
       <form onSubmit={handleSubmit} className="space-y-6">
         <Card>
           <CardHeader>
-            <CardTitle className="text-[15px]">Project</CardTitle>
+            <CardTitle className="text-md">Project</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             {loadingProjects ? (
@@ -205,7 +205,7 @@ export default function NewResearchPage() {
 
         <Card>
           <CardHeader className="flex-row items-center justify-between space-y-0">
-            <CardTitle className="text-[15px]">Research question</CardTitle>
+            <CardTitle className="text-md">Research question</CardTitle>
             <Tabs
               value={mode}
               onValueChange={(v) => setMode(v as "simple" | "advanced")}
@@ -220,7 +220,7 @@ export default function NewResearchPage() {
             <div className="space-y-2">
               <Label htmlFor="question">
                 What do you want to find out?{" "}
-                <span className="text-destructive">*</span>
+                <span className="text-danger">*</span>
               </Label>
               <Textarea
                 id="question"
@@ -261,7 +261,7 @@ export default function NewResearchPage() {
           <>
             <Card>
               <CardHeader>
-                <CardTitle className="text-[15px]">Product context</CardTitle>
+                <CardTitle className="text-md">Product context</CardTitle>
               </CardHeader>
               <CardContent className="grid gap-4 sm:grid-cols-2">
                 <Field
@@ -319,7 +319,7 @@ export default function NewResearchPage() {
 
             <Card>
               <CardHeader>
-                <CardTitle className="text-[15px]">Search scope</CardTitle>
+                <CardTitle className="text-md">Search scope</CardTitle>
               </CardHeader>
               <CardContent className="space-y-5">
                 <div className="space-y-2">

@@ -68,7 +68,7 @@ export function PortfolioBriefing({ programmeCount }: { programmeCount: number }
         </div>
 
         {error && (
-          <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-xs text-destructive">
+          <div className="flex items-start gap-2 rounded-lg border border-danger-border bg-danger-surface p-3 text-xs text-destructive">
             <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
             <p>{error}</p>
           </div>

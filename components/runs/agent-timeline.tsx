@@ -65,9 +65,9 @@ export function AgentTimeline({ events }: { events: RunEvent[] }) {
             <div
               className={cn(
                 "mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg border",
-                state === "completed" && "border-emerald-500/30 bg-emerald-500/10",
-                state === "running" && "border-blue-500/30 bg-blue-500/10",
-                state === "failed" && "border-destructive/30 bg-destructive/10",
+                state === "completed" && "border-success-border bg-success-surface",
+                state === "running" && "border-info-border bg-info-surface",
+                state === "failed" && "border-danger-border bg-danger-surface",
                 state === "pending" && "border-border bg-muted/40"
               )}
             >
@@ -104,9 +104,9 @@ export function AgentTimeline({ events }: { events: RunEvent[] }) {
 
 function StateIcon({ state }: { state: AgentState }) {
   if (state === "completed")
-    return <CheckCircle2 className="size-3.5 text-emerald-600 dark:text-emerald-400" />;
+    return <CheckCircle2 className="size-3.5 text-success" />;
   if (state === "running")
-    return <Loader2 className="size-3.5 animate-spin text-blue-600 dark:text-blue-400" />;
+    return <Loader2 className="size-3.5 animate-spin text-info" />;
   if (state === "failed") return <XCircle className="size-3.5 text-destructive" />;
   return <CircleDashed className="size-3.5 text-muted-foreground/40" />;
 }

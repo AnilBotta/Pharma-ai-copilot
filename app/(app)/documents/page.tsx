@@ -140,10 +140,10 @@ export default function DocumentsPage() {
       />
 
       {error && (
-        <Card className="border-destructive/40 bg-destructive/5">
+        <Card variant="flush" tone="danger">
           <CardContent className="flex items-start gap-3 py-4">
-            <AlertTriangle className="mt-0.5 size-5 shrink-0 text-destructive" />
-            <p className="text-sm text-destructive">{error}</p>
+            <AlertTriangle className="mt-0.5 size-5 shrink-0 text-danger" />
+            <p className="text-sm text-danger">{error}</p>
           </CardContent>
         </Card>
       )}
@@ -298,7 +298,7 @@ function DocumentRow({
           {/* The reason, verbatim. A failure without one is the same as a
               silent one. */}
           {doc.status === "failed" && doc.error && (
-            <p className="mt-2 text-sm text-destructive">{doc.error}</p>
+            <p className="mt-2 text-sm text-danger">{doc.error}</p>
           )}
 
           {doc.status === "embedding" && doc.chunk_count > 0 && (
