@@ -128,7 +128,21 @@ const GATE_STATUS_LABELS: Record<string, { label: string; variant: BadgeVariant 
   not_started: { label: "Not started", variant: "muted" },
   in_progress: { label: "In progress", variant: "info" },
   at_risk: { label: "At risk", variant: "warning" },
-  ready_for_human_review: { label: "Ready for review", variant: "success" },
+  /**
+   * `info`, not `success`.
+   *
+   * This was green — the same green surface as `approved` — which is the exact
+   * conflation the rest of this file exists to prevent. "Ready for review"
+   * means nobody has decided yet; green is the colour this product reserves
+   * for a decision having been taken. At a glance a gate awaiting a person
+   * wore the colour of a settled one.
+   *
+   * The map directly below settled this already: a requirement waiting on a
+   * person is `awaiting_approval` and it is NOT green. Two treatments of one
+   * idea, forty lines apart. `info` also matches what the chart layer has
+   * always drawn for this status, so the badge and the heatmap now agree.
+   */
+  ready_for_human_review: { label: "Ready for review", variant: "info" },
   approved: { label: "Approved", variant: "success" },
   conditionally_approved: { label: "Approved with conditions", variant: "warning" },
   rejected: { label: "Rejected", variant: "destructive" },

@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 
-import { statusColor } from "@/lib/chart-tokens";
+import { needsDecision, statusColor } from "@/lib/chart-tokens";
 import { pdp, type ProgrammeSummary, type StageSummary } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
@@ -192,15 +192,30 @@ export function PortfolioHeatmap({
                     );
                   }
                   const status = stage.gate_status.replace(/_/g, " ");
+                  const waiting = needsDecision(stage.gate_status);
                   return (
                     <Link
                       key={stage.id}
                       href={`/programmes/${programme.id}/gates/${stage.id}`}
                       title={`${stage.name} — ${status}, ${stage.mandatory_satisfied} of ${stage.mandatory_count} mandatory satisfied`}
                       aria-label={`${programme.name}, ${stage.name}: ${status}, ${stage.mandatory_satisfied} of ${stage.mandatory_count} mandatory requirements satisfied`}
-                      className="h-6 rounded-sm border border-transparent outline-none transition-transform hover:scale-110 hover:border-foreground/30 focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                      className={cn(
+                        "flex h-6 items-center justify-center rounded-sm border border-transparent outline-none transition-transform hover:scale-110 hover:border-foreground/30 focus-visible:ring-[3px] focus-visible:ring-ring/50",
+                        // Not colour. See `needsDecision` — the depth gap
+                        // between this status and `in_progress` measured
+                        // 1.40:1 in dark, which is not something anyone should
+                        // be asked to spot across a grid.
+                        waiting && "ring-2 ring-foreground/70 ring-inset"
+                      )}
                       style={{ backgroundColor: statusColor(stage.gate_status) }}
-                    />
+                    >
+                      {waiting && (
+                        <span
+                          aria-hidden="true"
+                          className="size-1.5 rounded-full bg-foreground/80"
+                        />
+                      )}
+                    </Link>
                   );
                 })}
               </React.Fragment>
@@ -217,10 +232,17 @@ export function PortfolioHeatmap({
           >
             <span
               aria-hidden="true"
-              className="size-2.5 rounded-sm border border-border/60"
+              className={cn(
+                "flex size-2.5 items-center justify-center rounded-sm border border-border/60",
+                needsDecision(key) && "ring-2 ring-foreground/70 ring-inset"
+              )}
               style={{ backgroundColor: statusColor(key) }}
             />
             {label}
+            {/* A marker nobody can decode is decoration. */}
+            {needsDecision(key) && (
+              <span className="text-foreground">— ringed, needs a decision</span>
+            )}
           </span>
         ))}
       </div>
