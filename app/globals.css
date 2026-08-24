@@ -62,7 +62,13 @@
   --success-surface: oklch(0.955 0.035 155);
   --success-border: oklch(0.86 0.055 155);
   --success-solid: oklch(0.6 0.14 155);
-  --success-on-solid: oklch(0.99 0 0);
+  /* Dark ink, not white. White on this green measures 3.60:1 — below AA — and
+     the /design gallery caught it on its first run. `--warning-on-solid` in
+     this same block, and `--success-on-solid` under `.dark`, already solve it
+     the same way: a mid-lightness solid wants dark text on it, whatever hue it
+     is. Changing the ink rather than the solid leaves the readiness pips and
+     bars, which use `--success-solid` as a fill, exactly as they were. */
+  --success-on-solid: oklch(0.21 0.04 250);
 
   --warning: oklch(0.47 0.1 72);
   --warning-surface: oklch(0.96 0.045 78);
@@ -80,7 +86,10 @@
   --info-surface: oklch(0.955 0.03 240);
   --info-border: oklch(0.87 0.055 240);
   --info-solid: oklch(0.6 0.15 240);
-  --info-on-solid: oklch(0.99 0 0);
+  /* Same story as success above: white on this blue is 3.73:1. Adding info to
+     the gallery's contrast table is what surfaced it, which is the argument
+     for the table listing every pair rather than the ones already suspected. */
+  --info-on-solid: oklch(0.21 0.04 250);
 
   --neutral-surface: oklch(0.955 0.012 250);
 
