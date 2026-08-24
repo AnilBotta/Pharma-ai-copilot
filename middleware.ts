@@ -16,6 +16,17 @@ import { NextResponse, type NextRequest } from "next/server";
 
 const PUBLIC_PATHS = ["/login", "/auth"];
 
+/**
+ * The design gallery renders the design system against fixtures and needs no
+ * session — but it must never be reachable on a deployment. It is added to the
+ * public list only outside production, and `app/design/page.tsx` calls
+ * `notFound()` in production as a second, independent guard: neither one alone
+ * is trusted to keep a development surface off the internet.
+ */
+if (process.env.NODE_ENV !== "production") {
+  PUBLIC_PATHS.push("/design");
+}
+
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request });
 
