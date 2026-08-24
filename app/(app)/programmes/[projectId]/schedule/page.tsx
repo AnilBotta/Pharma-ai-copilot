@@ -15,6 +15,7 @@ import {
 
 import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
+import { ScheduleSlip } from "@/components/charts/schedule-slip";
 import { GanttTimeline } from "@/components/charts/gantt/timeline";
 import { Badge, type BadgeVariant } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -74,10 +75,10 @@ export default function SchedulePage() {
 
   if (!schedule) {
     return (
-      <Card className="border-destructive/40 bg-destructive/5">
+      <Card variant="flush" tone="danger">
         <CardContent className="flex items-start gap-3 py-4">
-          <AlertTriangle className="mt-0.5 size-5 shrink-0 text-destructive" />
-          <p className="text-sm text-destructive">{error ?? "Schedule not found."}</p>
+          <AlertTriangle aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-danger" />
+          <p className="text-sm text-danger">{error ?? "Schedule not found."}</p>
         </CardContent>
       </Card>
     );
@@ -113,10 +114,10 @@ export default function SchedulePage() {
       </div>
 
       {error && (
-        <Card className="border-destructive/40 bg-destructive/5">
+        <Card variant="flush" tone="danger">
           <CardContent className="flex items-start gap-3 py-4">
-            <AlertTriangle className="mt-0.5 size-5 shrink-0 text-destructive" />
-            <p className="text-sm text-destructive">{error}</p>
+            <AlertTriangle aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-danger" />
+            <p className="text-sm text-danger">{error}</p>
           </CardContent>
         </Card>
       )}
@@ -142,7 +143,7 @@ export default function SchedulePage() {
           </CardContent>
         </Card>
 
-        <Card className={cn(worstSlip > 0 && "border-amber-500/40")}>
+        <Card className={cn(worstSlip > 0 && "border-warning-border")}>
           <CardContent className="py-4">
             <p className="text-xs text-muted-foreground">Slip against commitment</p>
             <p className="mt-1 text-2xl font-semibold tabular-nums">
@@ -189,6 +190,20 @@ export default function SchedulePage() {
               tasks={schedule.tasks}
               milestones={schedule.milestones}
             />
+          </div>
+
+          {/* Below the timeline: the timeline says where the work sits, this
+              says how far it has moved from what was promised. */}
+          <div className="space-y-2">
+            <h2 className="text-sm font-semibold">Slip against the baseline</h2>
+            <Card>
+              <CardContent className="py-5">
+                <ScheduleSlip
+                  tasks={schedule.tasks}
+                  hasBaseline={Boolean(current)}
+                />
+              </CardContent>
+            </Card>
           </div>
 
           <div className="space-y-2">
@@ -293,7 +308,7 @@ function TaskRow({
   };
 
   return (
-    <Card className={cn(task.is_critical && "border-l-2 border-l-amber-500")}>
+    <Card className={cn(task.is_critical && "border-l-2 border-l-warning-solid")}>
       <CardContent className="flex flex-col gap-3 py-3 lg:flex-row lg:items-center">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
