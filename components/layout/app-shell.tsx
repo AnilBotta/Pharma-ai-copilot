@@ -57,13 +57,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <div className="no-print bg-glow pointer-events-none fixed inset-0 -z-10" />
         <div className="no-print pointer-events-none fixed inset-0 -z-10 bg-grid opacity-[0.35] dark:opacity-[0.12]" />
         <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-        <div className="flex min-h-screen flex-col lg:pl-[264px]">
+        {/* `print-shell` only zeroes this element's 264px sidebar gutter when
+            printing. The gutter comes from `lg:`, which a paper-width viewport
+            should not match — but "scale to fit" and landscape can push the
+            page box past the breakpoint. */}
+        <div className="print-shell flex min-h-screen flex-col lg:pl-[264px]">
           <Topbar onMenuClick={() => setSidebarOpen(true)} />
-          {/* `print-area` deliberately does NOT live here. It takes
-              `position:absolute; inset:0`, and the run report puts it on its
-              own report container too — two nested absolutely-positioned
-              ancestors, which is why printing collapsed. The page that owns a
-              printable region owns the class. */}
+          {/* `print-area` deliberately does NOT live here. The page that owns
+              a printable region owns the class — nesting two of them was what
+              collapsed printing before. */}
           <main className="mx-auto w-full max-w-[1440px] flex-1 px-4 py-6 sm:px-6 md:py-7 lg:px-8 lg:py-8">
             {children}
           </main>

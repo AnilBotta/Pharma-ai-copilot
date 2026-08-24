@@ -11,14 +11,15 @@ import {
   Loader2,
   Printer,
   RotateCcw,
-  Search,
 } from "lucide-react";
 
 import { AgentTimeline } from "@/components/runs/agent-timeline";
-import { RunStatusBadge } from "@/components/runs/run-status-badge";
+import { ReportCaveats } from "@/components/runs/report-caveats";
+import { ReportIdentity } from "@/components/runs/report-identity";
+import { ReviewHeldNotice } from "@/components/runs/review-held-notice";
+import { SearchesTable } from "@/components/runs/searches-table";
 import { SourceExplorer } from "@/components/runs/source-explorer";
 import { LightMarkdown } from "@/components/chat/light-markdown";
-import { PageHeader } from "@/components/shared/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -37,9 +38,12 @@ import {
   type RunEvent,
   type SearchQuery,
 } from "@/lib/api";
-import { downloadFile, formatRelative } from "@/lib/utils";
+import { downloadFile } from "@/lib/utils";
 
-const CONFIDENCE_VARIANT: Record<string, "success" | "warning" | "muted" | "destructive"> = {
+const CONFIDENCE_VARIANT: Record<
+  string,
+  "success" | "warning" | "muted" | "destructive"
+> = {
   high: "success",
   moderate: "warning",
   low: "muted",
@@ -161,10 +165,13 @@ export default function RunDetailPage() {
 
   if (loadError || !run) {
     return (
-      <Card className="border-destructive/40 bg-destructive/5">
+      <Card variant="flush" tone="danger">
         <CardContent className="py-8 text-center">
-          <AlertTriangle className="mx-auto mb-3 size-8 text-destructive" />
-          <p className="font-medium text-destructive">Could not load this run</p>
+          <AlertTriangle
+            aria-hidden="true"
+            className="mx-auto mb-3 size-8 text-danger"
+          />
+          <p className="font-medium text-danger">Could not load this run</p>
           <p className="mt-1 text-sm text-muted-foreground">{loadError}</p>
           <Button asChild variant="outline" className="mt-4">
             <Link href="/runs">Back to runs</Link>
@@ -176,74 +183,60 @@ export default function RunDetailPage() {
 
   return (
     <div className="space-y-6">
-      <div className="no-print">
-        <Button asChild variant="ghost" size="sm" className="-ml-2 mb-2 gap-1.5">
+      <div className="no-print flex flex-wrap items-center justify-between gap-3">
+        <Button asChild variant="ghost" size="sm" className="-ml-2 gap-1.5">
           <Link href="/runs">
             <ArrowLeft className="size-4" /> All runs
           </Link>
         </Button>
 
-        <PageHeader
-          title="Research run"
-          description={run.original_question}
-          icon={Search}
-          actions={
-            <div className="flex flex-wrap items-center gap-2">
-              <RunStatusBadge status={run.status} />
-              {!terminal && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleCancel}
-                  disabled={acting || run.cancel_requested}
-                >
-                  <Ban className="size-4" />
-                  {run.cancel_requested ? "Cancelling…" : "Cancel"}
-                </Button>
-              )}
-              {(run.status === "failed" || run.status === "cancelled") && (
-                <Button variant="outline" size="sm" onClick={handleRetry} disabled={acting}>
-                  <RotateCcw className="size-4" /> Retry
-                </Button>
-              )}
-              {report.length > 0 && (
-                <>
-                  <Button variant="outline" size="sm" onClick={handleExportMarkdown}>
-                    <Download className="size-4" /> Markdown
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={() => window.print()}>
-                    <Printer className="size-4" /> Print / PDF
-                  </Button>
-                </>
-              )}
-            </div>
-          }
-        />
+        <div className="flex flex-wrap items-center gap-2">
+          {!terminal && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleCancel}
+              disabled={acting || run.cancel_requested}
+            >
+              <Ban className="size-4" />
+              {run.cancel_requested ? "Cancelling…" : "Cancel"}
+            </Button>
+          )}
+          {(run.status === "failed" || run.status === "cancelled") && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRetry}
+              disabled={acting}
+            >
+              <RotateCcw className="size-4" /> Retry
+            </Button>
+          )}
+          {report.length > 0 && (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleExportMarkdown}
+              >
+                <Download className="size-4" /> Markdown
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => window.print()}
+              >
+                <Printer className="size-4" /> Print / PDF
+              </Button>
+            </>
+          )}
+        </div>
       </div>
 
-      {/* A badge reading "Awaiting review" does not tell anyone what happened
-          or what to do. This report failed its own verification and is one
-          click from being exported and circulated, so the reason says so
-          plainly and points at where the findings are written down. */}
+      {/* Page level so it is visible from every tab. The printed copy is the
+          second render, inside `.print-area`. */}
       {run.status === "awaiting_review" && (
-        <Card className="border-amber-500/40 bg-amber-500/5">
-          <CardContent className="flex items-start gap-3 py-4">
-            <AlertTriangle className="mt-0.5 size-5 shrink-0 text-amber-600 dark:text-amber-400" />
-            <div className="space-y-1">
-              <p className="text-sm font-medium">
-                This report did not pass its own verification
-              </p>
-              <p className="text-sm text-muted-foreground">
-                High-severity findings were still outstanding after the report
-                was revised, so the run is held rather than reported as
-                complete. The findings are listed at the top of the{" "}
-                <span className="font-medium">Limitations</span> section. Treat
-                every affected statement as unverified until someone has checked
-                it.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+        <ReviewHeldNotice className="no-print" />
       )}
 
       {run.status === "running" && (
@@ -275,29 +268,16 @@ export default function RunDetailPage() {
       )}
 
       {run.status === "failed" && run.error_message && (
-        <Card className="border-destructive/40 bg-destructive/5 no-print">
+        <Card variant="flush" tone="danger" className="no-print">
           <CardContent className="flex items-start gap-3 py-4">
-            <AlertTriangle className="mt-0.5 size-5 shrink-0 text-destructive" />
+            <AlertTriangle
+              aria-hidden="true"
+              className="mt-0.5 size-5 shrink-0 text-danger"
+            />
             <div className="text-sm">
-              <p className="font-medium text-destructive">Run failed</p>
+              <p className="font-medium text-danger">Run failed</p>
               <p className="mt-1 text-muted-foreground">{run.error_message}</p>
             </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {run.warnings.length > 0 && (
-        <Card className="border-amber-500/40 bg-amber-500/5 no-print">
-          <CardContent className="py-4">
-            <p className="mb-2 text-sm font-medium">Warnings</p>
-            <ul className="space-y-1.5 text-sm text-muted-foreground">
-              {run.warnings.map((warning, i) => (
-                <li key={i} className="flex gap-2">
-                  <span aria-hidden>·</span>
-                  <span>{warning}</span>
-                </li>
-              ))}
-            </ul>
           </CardContent>
         </Card>
       )}
@@ -310,7 +290,20 @@ export default function RunDetailPage() {
           <TabsTrigger value="queries">Searches ({queries.length})</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="report" className="mt-4">
+        {/* `forceMount` is the print fix, and it is deliberately structural
+            rather than timed. Radix hides an inactive panel with the `hidden`
+            attribute, and `.print-area` lives in this one — so printing from
+            the Sources or Searches tab produced a document containing none of
+            the report. Switching tabs inside a `beforeprint` handler would
+            have raced React's commit against the browser's pagination; keeping
+            the panel mounted and letting the print stylesheet reveal it cannot
+            race anything. The other three panels are `no-print`. */}
+        <TabsContent
+          value="report"
+          forceMount
+          data-print-report=""
+          className="mt-4 data-[state=inactive]:hidden"
+        >
           {report.length === 0 ? (
             <Card>
               <CardContent className="py-12 text-center text-sm text-muted-foreground">
@@ -321,12 +314,29 @@ export default function RunDetailPage() {
             </Card>
           ) : (
             <div className="print-area space-y-6">
+              <ReportIdentity
+                run={run}
+                report={report}
+                evidence={evidence}
+                queries={queries}
+              />
+
+              {run.status === "awaiting_review" && (
+                <ReviewHeldNotice className="hidden print:block" />
+              )}
+
+              <ReportCaveats warnings={run.warnings} />
+
               {report.map((section) => (
-                <Card key={section.id}>
-                  <CardHeader className="flex-row items-center justify-between space-y-0">
-                    <CardTitle className="text-[15px]">{section.title}</CardTitle>
+                <Card key={section.id} className="print:break-inside-avoid">
+                  <CardHeader className="flex-row items-baseline justify-between space-y-0 gap-3">
+                    <CardTitle className="text-md">{section.title}</CardTitle>
                     {section.confidence && (
-                      <Badge variant={CONFIDENCE_VARIANT[section.confidence] ?? "muted"}>
+                      <Badge
+                        variant={
+                          CONFIDENCE_VARIANT[section.confidence] ?? "muted"
+                        }
+                      >
                         {section.confidence.replace(/_/g, " ")}
                       </Badge>
                     )}
@@ -340,14 +350,17 @@ export default function RunDetailPage() {
           )}
         </TabsContent>
 
-        <TabsContent value="sources" className="mt-4">
+        <TabsContent value="sources" className="no-print mt-4">
           <SourceExplorer evidence={evidence} />
         </TabsContent>
 
-        <TabsContent value="progress" className="mt-4 grid gap-6 lg:grid-cols-2">
+        <TabsContent
+          value="progress"
+          className="no-print mt-4 grid gap-6 lg:grid-cols-2"
+        >
           <Card>
             <CardHeader>
-              <CardTitle className="text-[15px]">Agents</CardTitle>
+              <CardTitle className="text-md">Agents</CardTitle>
             </CardHeader>
             <CardContent>
               <AgentTimeline events={events} />
@@ -356,24 +369,29 @@ export default function RunDetailPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-[15px]">Activity log</CardTitle>
+              <CardTitle className="text-md">Activity log</CardTitle>
             </CardHeader>
             <CardContent>
               {events.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No events recorded.</p>
+                <p className="text-sm text-muted-foreground">
+                  No events recorded.
+                </p>
               ) : (
                 <ol className="max-h-[480px] space-y-2 overflow-y-auto text-sm">
                   {events.map((event) => (
-                    <li key={event.id} className="flex gap-2 border-b pb-2 last:border-0">
-                      <span className="shrink-0 font-mono text-[11px] text-muted-foreground">
+                    <li
+                      key={event.id}
+                      className="flex gap-2 border-b pb-2 last:border-0"
+                    >
+                      <span className="type-mono shrink-0 text-2xs text-muted-foreground">
                         {new Date(event.created_at).toLocaleTimeString()}
                       </span>
                       <span
                         className={
                           event.event_type === "error"
-                            ? "text-destructive"
+                            ? "text-danger"
                             : event.event_type === "warning"
-                              ? "text-amber-600 dark:text-amber-400"
+                              ? "text-warning"
                               : ""
                         }
                       >
@@ -389,7 +407,7 @@ export default function RunDetailPage() {
           {errors.length > 0 && (
             <Card className="lg:col-span-2">
               <CardHeader>
-                <CardTitle className="text-[15px]">
+                <CardTitle className="text-md">
                   Provider and processing errors
                 </CardTitle>
               </CardHeader>
@@ -398,7 +416,9 @@ export default function RunDetailPage() {
                   {errors.map((error) => (
                     <li key={error.id} className="rounded-lg border p-3">
                       <div className="flex items-center gap-2">
-                        <Badge variant={error.is_fatal ? "destructive" : "warning"}>
+                        <Badge
+                          variant={error.is_fatal ? "destructive" : "warning"}
+                        >
                           {error.error_type.replace(/_/g, " ")}
                         </Badge>
                         {error.provider && (
@@ -407,7 +427,9 @@ export default function RunDetailPage() {
                           </span>
                         )}
                       </div>
-                      <p className="mt-2 text-muted-foreground">{error.message}</p>
+                      <p className="mt-2 text-muted-foreground">
+                        {error.message}
+                      </p>
                     </li>
                   ))}
                 </ul>
@@ -416,54 +438,17 @@ export default function RunDetailPage() {
           )}
         </TabsContent>
 
-        <TabsContent value="queries" className="mt-4">
-          <Card>
+        <TabsContent value="queries" className="no-print mt-4">
+          <Card variant="flush">
             <CardHeader>
-              <CardTitle className="text-[15px]">Searches executed</CardTitle>
+              <CardTitle className="text-md">Searches executed</CardTitle>
             </CardHeader>
             <CardContent>
-              {queries.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  No searches were recorded for this run.
-                </p>
-              ) : (
-                <ul className="space-y-3">
-                  {queries.map((query) => (
-                    <li key={query.id} className="rounded-lg border p-3">
-                      <div className="flex items-center justify-between gap-3">
-                        <Badge variant="outline">{query.provider}</Badge>
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                          {query.from_cache && <Badge variant="muted">cached</Badge>}
-                          <span>
-                            {query.status === "ok"
-                              ? `${query.result_count ?? 0} results`
-                              : query.status}
-                          </span>
-                          {query.duration_ms !== null && (
-                            <span>{query.duration_ms} ms</span>
-                          )}
-                        </div>
-                      </div>
-                      <p className="mt-2 break-words font-mono text-xs">
-                        {query.query_text}
-                      </p>
-                      {query.error && (
-                        <p className="mt-1 text-xs text-destructive">{query.error}</p>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              )}
+              <SearchesTable queries={queries} />
             </CardContent>
           </Card>
         </TabsContent>
       </Tabs>
-
-      <p className="text-xs text-muted-foreground">
-        Run created {formatRelative(run.created_at)} ·{" "}
-        {run.total_input_tokens + run.total_output_tokens} tokens · estimated $
-        {run.estimated_cost_usd.toFixed(4)}
-      </p>
     </div>
   );
 }
