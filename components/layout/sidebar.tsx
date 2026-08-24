@@ -79,7 +79,7 @@ function ManagerNavButton({ onNavigate }: { onNavigate: () => void }) {
     >
       <Bot className="size-[18px]" />
       <span className="flex-1 text-left">Manager Agent</span>
-      <span className="text-[10px] font-normal text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100">
+      <span className="text-2xs font-normal text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100">
         Ask
       </span>
     </button>
@@ -137,7 +137,7 @@ export function Sidebar({
 
           {navGroups.map((group) => (
             <div key={group.title}>
-              <p className="px-3 pb-2 text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">
+              <p className="px-3 pb-2 text-2xs font-semibold tracking-wider text-muted-foreground uppercase">
                 {group.title}
               </p>
               <div className="space-y-0.5">
@@ -176,7 +176,7 @@ export function Sidebar({
                       {item.badge && (
                         <Badge
                           variant={item.badge === "BETA" ? "warning" : "info"}
-                          className="relative z-10 px-1.5 py-0 text-[10px]"
+                          className="relative z-10 px-1.5 py-0 text-2xs"
                         >
                           {item.badge}
                         </Badge>

@@ -103,7 +103,7 @@ function LoginForm() {
               {configError && (
                 <div
                   role="alert"
-                  className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-800 dark:text-amber-300"
+                  className="flex items-start gap-2 rounded-lg border border-warning-border bg-warning-surface p-3 text-sm text-warning"
                 >
                   <AlertCircle className="mt-0.5 size-4 shrink-0" />
                   <span>{configError}</span>
@@ -113,7 +113,7 @@ function LoginForm() {
               {error && (
                 <div
                   role="alert"
-                  className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive"
+                  className="flex items-start gap-2 rounded-lg border border-danger-border bg-danger-surface p-3 text-sm text-danger"
                 >
                   <AlertCircle className="mt-0.5 size-4 shrink-0" />
                   <span>{error}</span>
@@ -123,7 +123,7 @@ function LoginForm() {
               {notice && (
                 <div
                   role="status"
-                  className="flex items-start gap-2 rounded-lg border border-blue-500/30 bg-blue-500/10 p-3 text-sm"
+                  className="flex items-start gap-2 rounded-lg border border-info-border bg-info-surface p-3 text-sm text-info"
                 >
                   <Mail className="mt-0.5 size-4 shrink-0" />
                   <span>{notice}</span>

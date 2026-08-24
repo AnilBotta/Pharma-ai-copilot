@@ -104,10 +104,10 @@ export default function ProgrammePage() {
 
   if (error || !detail) {
     return (
-      <Card className="border-destructive/40 bg-destructive/5">
+      <Card variant="flush" tone="danger">
         <CardContent className="flex items-start gap-3 py-4">
-          <AlertTriangle className="mt-0.5 size-5 shrink-0 text-destructive" />
-          <p className="text-sm text-destructive">{error ?? "Programme not found."}</p>
+          <AlertTriangle className="mt-0.5 size-5 shrink-0 text-danger" />
+          <p className="text-sm text-danger">{error ?? "Programme not found."}</p>
         </CardContent>
       </Card>
     );
@@ -188,7 +188,7 @@ export default function ProgrammePage() {
             {openAlerts > 0 && (
               <Badge
                 variant={hasCritical ? "destructive" : "warning"}
-                className="ml-1 px-1.5 py-0 text-[10px]"
+                className="ml-1 px-1.5 py-0 text-2xs"
               >
                 {openAlerts}
               </Badge>
@@ -306,7 +306,7 @@ function Alerts({
   if (open.length === 0) {
     return (
       <div className="flex flex-col items-center gap-2 py-10 text-center">
-        <CheckCircle2 className="size-8 text-emerald-600" />
+        <CheckCircle2 className="size-8 text-success" />
         <p className="text-sm font-medium">Nothing needs attention</p>
         <p className="max-w-sm text-xs text-muted-foreground">
           No overdue requirements, lapsing documents or slipping critical tasks.
@@ -322,8 +322,8 @@ function Alerts({
         <Card
           key={n.id}
           className={cn(
-            n.severity === "critical" && "border-destructive/40 bg-destructive/5",
-            n.severity === "warning" && "border-amber-500/40 bg-amber-500/5"
+            n.severity === "critical" && "border-danger-border bg-danger-surface",
+            n.severity === "warning" && "border-warning-border bg-warning-surface"
           )}
         >
           <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:items-start">
@@ -393,7 +393,7 @@ function AuditTrail({ entries }: { entries: AuditEntry[] }) {
           key={entry.id}
           className="flex flex-wrap items-baseline gap-x-3 gap-y-1 rounded-lg border px-3 py-2 text-xs"
         >
-          <code className="font-mono text-[11px] text-primary">{entry.action}</code>
+          <code className="font-mono text-2xs text-primary">{entry.action}</code>
           <span className="text-muted-foreground">
             {entry.actor_name ?? entry.actor_agent ?? "unknown actor"}
           </span>

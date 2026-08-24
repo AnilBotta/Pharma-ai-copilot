@@ -62,10 +62,10 @@ export default function IntegrationsPage() {
       />
 
       {error && (
-        <Card className="border-destructive/40 bg-destructive/5">
+        <Card variant="flush" tone="danger">
           <CardContent className="flex items-start gap-3 py-4">
-            <AlertTriangle className="mt-0.5 size-5 shrink-0 text-destructive" />
-            <p className="text-sm text-destructive">{error}</p>
+            <AlertTriangle className="mt-0.5 size-5 shrink-0 text-danger" />
+            <p className="text-sm text-danger">{error}</p>
           </CardContent>
         </Card>
       )}
@@ -81,13 +81,13 @@ export default function IntegrationsPage() {
           <>
             <Card>
               <CardHeader>
-                <CardTitle className="text-[15px]">Backend</CardTitle>
+                <CardTitle className="text-md">Backend</CardTitle>
               </CardHeader>
               <CardContent className="flex items-center gap-3">
                 {health.status === "ok" ? (
-                  <CheckCircle2 className="size-5 text-emerald-600 dark:text-emerald-400" />
+                  <CheckCircle2 className="size-5 text-success" />
                 ) : (
-                  <AlertTriangle className="size-5 text-amber-600 dark:text-amber-400" />
+                  <AlertTriangle className="size-5 text-warning" />
                 )}
                 <div>
                   <p className="text-sm font-medium">
@@ -168,9 +168,9 @@ function IntegrationRow({
 
 function StateIcon({ state }: { state: string }) {
   if (state === "configured")
-    return <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-emerald-600 dark:text-emerald-400" />;
+    return <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-success" />;
   if (state === "keyless")
-    return <Circle className="mt-0.5 size-5 shrink-0 text-sky-600 dark:text-sky-400" />;
+    return <Circle className="mt-0.5 size-5 shrink-0 text-info" />;
   return <XCircle className="mt-0.5 size-5 shrink-0 text-muted-foreground" />;
 }
 

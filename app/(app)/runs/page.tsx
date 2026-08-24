@@ -51,10 +51,10 @@ export default function RunsPage() {
       />
 
       {error && (
-        <Card className="border-destructive/40 bg-destructive/5">
+        <Card variant="flush" tone="danger">
           <CardContent className="flex items-start gap-3 py-4">
-            <AlertTriangle className="mt-0.5 size-5 shrink-0 text-destructive" />
-            <p className="text-sm text-destructive">{error}</p>
+            <AlertTriangle className="mt-0.5 size-5 shrink-0 text-danger" />
+            <p className="text-sm text-danger">{error}</p>
           </CardContent>
         </Card>
       )}
@@ -116,7 +116,7 @@ export default function RunsPage() {
                     )}
 
                     {run.status === "failed" && run.error_message && (
-                      <p className="mt-2 line-clamp-2 text-xs text-destructive">
+                      <p className="mt-2 line-clamp-2 text-xs text-danger">
                         {run.error_message}
                       </p>
                     )}

@@ -67,8 +67,8 @@ export function GateReadiness({
       />
 
       {!is_ready && blockers.length > 0 && (
-        <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3">
-          <p className="text-xs font-medium text-amber-700 dark:text-amber-400">
+        <div className="rounded-lg border border-warning-border bg-warning-surface p-3">
+          <p className="text-xs font-medium text-warning">
             {blocker_count} mandatory requirement{blocker_count === 1 ? "" : "s"} outstanding
           </p>
           <ul className="mt-2 space-y-1.5">

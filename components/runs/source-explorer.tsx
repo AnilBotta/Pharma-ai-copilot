@@ -52,8 +52,8 @@ export function SourceExplorer({ evidence }: { evidence: Evidence[] }) {
       </TabsContent>
 
       <TabsContent value="patents" className="mt-4 space-y-3">
-        <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-xs leading-relaxed">
-          <ShieldCheck className="mb-1 inline size-3.5 text-amber-600 dark:text-amber-400" />{" "}
+        <div className="rounded-lg border border-warning-border bg-warning-surface p-3 text-xs leading-relaxed">
+          <ShieldCheck className="mb-1 inline size-3.5 text-warning" />{" "}
           {PATENT_DISCLAIMER}
         </div>
         {patents.length === 0 ? (
@@ -70,8 +70,8 @@ export function SourceExplorer({ evidence }: { evidence: Evidence[] }) {
 
       <TabsContent value="documents" className="mt-4 space-y-3">
         {documents.length > 0 && (
-          <div className="rounded-lg border border-sky-500/30 bg-sky-500/5 p-3 text-xs leading-relaxed">
-            <Upload className="mb-1 inline size-3.5 text-sky-600 dark:text-sky-400" />{" "}
+          <div className="rounded-lg border border-info-border bg-info-surface p-3 text-xs leading-relaxed">
+            <Upload className="mb-1 inline size-3.5 text-info" />{" "}
             {INTERNAL_DOCUMENT_DISCLAIMER}
           </div>
         )}
@@ -126,7 +126,7 @@ function SourceCard({ evidence }: { evidence: Evidence }) {
             <p className="text-lg font-semibold tabular-nums">
               {(evidence.relevance_score * 100).toFixed(0)}
             </p>
-            <p className="text-[10px] text-muted-foreground">relevance</p>
+            <p className="text-2xs text-muted-foreground">relevance</p>
           </div>
         )}
       </div>
@@ -162,7 +162,7 @@ function SourceCard({ evidence }: { evidence: Evidence }) {
 
       {evidence.cited_in_sections.length > 0 && (
         <div className="mt-3 border-t pt-2">
-          <p className="text-[11px] text-muted-foreground">
+          <p className="text-2xs text-muted-foreground">
             Cited in:{" "}
             {evidence.cited_in_sections
               .map((s) => s.replace(/_/g, " "))
