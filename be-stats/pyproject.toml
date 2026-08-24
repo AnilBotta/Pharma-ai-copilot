@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "be-stats"
+version = "0.1.0"
+description = "Bioequivalence statistics: average BE, power and sample size."
+requires-python = ">=3.11"
+dependencies = [
+    # scipy supplies the t and non-central t distributions. Chosen over a
+    # hand-rolled implementation on purpose: for work intended to support a
+    # regulatory submission, "we used scipy and validated against published
+    # reference values" is a far easier position to defend than "we wrote our
+    # own incomplete beta function".
+    "scipy>=1.11",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "pytest-cov>=5"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
