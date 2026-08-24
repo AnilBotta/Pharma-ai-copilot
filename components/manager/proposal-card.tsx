@@ -163,14 +163,14 @@ export function ProposalCard({
 
       {/* ---------- subordinate: why ---------- */}
       <div className="rounded border-l-2 border-muted pl-2.5">
-        <p className="text-[11px] font-medium text-muted-foreground">
+        <p className="type-label text-muted-foreground">
           The agent&rsquo;s reason for proposing this
         </p>
         <p className="mt-0.5 text-xs text-muted-foreground">{proposal.rationale}</p>
       </div>
 
       {refused && (
-        <div className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/5 p-2.5 text-xs text-amber-800 dark:text-amber-300">
+        <div className="flex items-start gap-2 rounded-lg border border-warning-border bg-warning-surface p-2.5 text-xs text-warning">
           <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
           <div>
             <p className="font-medium">This can no longer be confirmed.</p>
@@ -184,7 +184,7 @@ export function ProposalCard({
       )}
 
       {error && (
-        <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-2.5 text-xs text-destructive">
+        <div className="flex items-start gap-2 rounded-lg border border-danger-border bg-danger-surface p-2.5 text-xs text-danger">
           <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
           <p>{error}</p>
         </div>
@@ -248,7 +248,7 @@ function RequirementFacts({ requirement }: { requirement: Requirement }) {
         </div>
       )}
       {requirement.is_blocked && requirement.blocked_reason && (
-        <p className="rounded border border-destructive/30 bg-destructive/5 p-2 text-destructive">
+        <p className="rounded border border-danger-border bg-danger-surface p-2 text-danger">
           Blocked: {requirement.blocked_reason}
         </p>
       )}
@@ -293,7 +293,7 @@ function SettledCard({ proposal }: { proposal: AgentProposal }) {
   return (
     <div className="flex items-start gap-2 rounded-lg border p-2.5 text-xs text-muted-foreground">
       {done ? (
-        <CheckCircle2 className="mt-0.5 size-3.5 shrink-0 text-emerald-600" />
+        <CheckCircle2 className="mt-0.5 size-3.5 shrink-0 text-success" />
       ) : (
         <XCircle className="mt-0.5 size-3.5 shrink-0" />
       )}
