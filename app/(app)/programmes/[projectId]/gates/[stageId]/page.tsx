@@ -89,10 +89,13 @@ export default function GatePage() {
 
   if (!gate) {
     return (
-      <Card className="border-destructive/40 bg-destructive/5">
+      <Card variant="flush" tone="danger">
         <CardContent className="flex items-start gap-3 py-4">
-          <AlertTriangle className="mt-0.5 size-5 shrink-0 text-destructive" />
-          <p className="text-sm text-destructive">{error ?? "Gate not found."}</p>
+          <AlertTriangle
+            aria-hidden="true"
+            className="mt-0.5 size-5 shrink-0 text-danger"
+          />
+          <p className="text-sm text-danger">{error ?? "Gate not found."}</p>
         </CardContent>
       </Card>
     );
@@ -117,10 +120,13 @@ export default function GatePage() {
       </div>
 
       {error && (
-        <Card className="border-destructive/40 bg-destructive/5">
+        <Card variant="flush" tone="danger">
           <CardContent className="flex items-start gap-3 py-4">
-            <AlertTriangle className="mt-0.5 size-5 shrink-0 text-destructive" />
-            <p className="text-sm text-destructive">{error}</p>
+            <AlertTriangle
+              aria-hidden="true"
+              className="mt-0.5 size-5 shrink-0 text-danger"
+            />
+            <p className="text-sm text-danger">{error}</p>
           </CardContent>
         </Card>
       )}
@@ -146,10 +152,10 @@ export default function GatePage() {
       </div>
 
       {stage.exit_criteria && (
-        <Card>
+        <Card variant="flush">
           <CardContent className="py-4">
-            <p className="text-xs font-medium text-muted-foreground">Exit criteria</p>
-            <p className="mt-1 text-sm">{stage.exit_criteria}</p>
+            <p className="type-label text-muted-foreground">Exit criteria</p>
+            <p className="mt-1.5 max-w-prose text-sm">{stage.exit_criteria}</p>
           </CardContent>
         </Card>
       )}
@@ -170,9 +176,18 @@ export default function GatePage() {
       />
 
       <div className="space-y-3">
-        <h2 className="text-sm font-semibold">
-          Requirements ({requirements.length})
-        </h2>
+        <div className="flex items-baseline gap-2">
+          <h2 className="text-sm font-semibold">
+            Requirements ({requirements.length})
+          </h2>
+          {/* The dispositive count, restated where the work is done. The pips
+              say it at the top of the page; by the time you have scrolled to
+              the list you can no longer see them. */}
+          <span className="metric text-xs text-muted-foreground">
+            {readiness.mandatory_satisfied} of {readiness.mandatory_count}{" "}
+            mandatory satisfied
+          </span>
+        </div>
         {requirements.map((req) => (
           <RequirementCard
             key={req.id}

@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { NativeSelect } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
 import type {
   AttachableRun,
@@ -103,9 +104,8 @@ export function AttachEvidenceDialog({
         <div className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="evidence-kind">Type</Label>
-            <select
+            <NativeSelect
               id="evidence-kind"
-              className="h-9 w-full rounded-md border bg-transparent px-3 text-sm"
               value={kind}
               onChange={(e) => setKind(e.target.value as EvidenceKind)}
             >
@@ -114,10 +114,10 @@ export function AttachEvidenceDialog({
               <option value="data">Data</option>
               <option value="url">Link</option>
               <option value="note">Note</option>
-            </select>
+            </NativeSelect>
             {req.required_evidence_type !== "any" &&
               kind !== req.required_evidence_type && (
-                <p className="text-xs text-amber-700 dark:text-amber-400">
+                <p className="rounded-md border border-warning-border bg-warning-surface px-2.5 py-2 text-xs text-warning">
                   This requirement asks for{" "}
                   <code className="font-mono">{req.required_evidence_type}</code>{" "}
                   evidence. Anything else can be attached, but it will not
@@ -129,9 +129,8 @@ export function AttachEvidenceDialog({
           {kind === "document" && (
             <div className="space-y-2">
               <Label htmlFor="evidence-doc">Document version</Label>
-              <select
+              <NativeSelect
                 id="evidence-doc"
-                className="h-9 w-full rounded-md border bg-transparent px-3 text-sm"
                 value={versionId}
                 onChange={(e) => setVersionId(e.target.value)}
               >
@@ -142,7 +141,7 @@ export function AttachEvidenceDialog({
                     {version.status})
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
               {usableVersions.length === 0 && (
                 <p className="text-xs text-muted-foreground">
                   No approved or effective document versions are registered for
@@ -163,9 +162,8 @@ export function AttachEvidenceDialog({
           {kind === "research_run" && (
             <div className="space-y-2">
               <Label htmlFor="evidence-run">Research run</Label>
-              <select
+              <NativeSelect
                 id="evidence-run"
-                className="h-9 w-full rounded-md border bg-transparent px-3 text-sm"
                 value={runId}
                 onChange={(e) => setRunId(e.target.value)}
               >
@@ -177,7 +175,7 @@ export function AttachEvidenceDialog({
                     {r.evidence_count} sources
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
               {runs.length === 0 && (
                 <p className="text-xs text-muted-foreground">
                   No completed research runs on this project yet. Only completed

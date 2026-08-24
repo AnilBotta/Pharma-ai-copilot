@@ -45,11 +45,17 @@ export function RequirementCard({
   const working = busy?.startsWith(req.id) ?? false;
 
   return (
-    <Card className={cn(req.is_satisfied && "border-emerald-500/30")}>
-      <CardContent className="py-4">
+    <Card
+      variant="interactive"
+      className={cn(
+        "overflow-hidden py-0",
+        req.is_satisfied && "border-success-border"
+      )}
+    >
+      <CardContent className="px-0 py-0">
         <button
           type="button"
-          className="flex w-full items-start gap-3 text-left"
+          className="flex w-full items-center gap-3 px-5 py-4 text-left outline-none focus-visible:bg-accent/40"
           onClick={() => setExpanded((v) => !v)}
           aria-expanded={expanded}
           // Without this the control announces as an unnamed button: its
@@ -57,25 +63,39 @@ export function RequirementCard({
           // does not reliably produce an accessible name.
           aria-label={`${req.ref_code} ${req.title}, ${req.status.replace(/_/g, " ")}`}
         >
+          {/* A status rail, so the state of a requirement is legible while
+              scanning a list of eight without reading any of the badges. */}
+          <span
+            aria-hidden="true"
+            className={cn(
+              "-my-4 w-0.5 self-stretch rounded-full",
+              req.is_satisfied
+                ? "bg-success-solid"
+                : req.is_blocked || req.status === "overdue"
+                  ? "bg-danger-solid"
+                  : req.status === "awaiting_approval" ||
+                      req.status === "awaiting_dependency"
+                    ? "bg-warning-solid"
+                    : "bg-border"
+            )}
+          />
+
           <ChevronDown
             className={cn(
-              "mt-0.5 size-4 shrink-0 text-muted-foreground transition-transform",
+              "size-4 shrink-0 text-muted-foreground transition-transform",
               expanded && "rotate-180"
             )}
           />
+
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <code className="font-mono text-xs text-muted-foreground">
+              <code className="type-mono shrink-0 text-2xs text-muted-foreground">
                 {req.ref_code}
               </code>
               <span className="text-sm font-medium">{req.title}</span>
-              {req.is_mandatory ? (
-                <Badge variant="outline">Mandatory</Badge>
-              ) : (
-                <Badge variant="muted">Optional</Badge>
-              )}
+              {!req.is_mandatory && <Badge variant="muted">Optional</Badge>}
             </div>
-            <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+            <div className="mt-1.5 flex flex-wrap items-center gap-2 text-2xs text-muted-foreground">
               <RequirementStatusBadge status={req.status} />
               <span>{req.evidence_count} evidence</span>
               {req.owner_name && <span>· {req.owner_name}</span>}
@@ -85,38 +105,50 @@ export function RequirementCard({
         </button>
 
         {expanded && (
-          <div className="mt-4 space-y-4 border-t pt-4">
-            {req.description && <p className="text-sm">{req.description}</p>}
+          <div className="space-y-4 border-t bg-muted/20 px-5 py-5">
+            {req.description && (
+              <p className="max-w-prose text-sm text-muted-foreground">
+                {req.description}
+              </p>
+            )}
 
             {req.acceptance_criteria && (
-              <div className="rounded-lg border bg-muted/30 p-3">
-                <p className="text-xs font-medium text-muted-foreground">
+              <div className="rounded-lg border bg-card p-3">
+                <p className="type-label text-muted-foreground">
                   Acceptance criteria
                 </p>
-                <p className="mt-1 text-sm">{req.acceptance_criteria}</p>
+                <p className="mt-1.5 text-sm">{req.acceptance_criteria}</p>
               </div>
             )}
 
             {req.is_blocked && req.blocked_reason && (
-              <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm">
-                <span className="font-medium text-destructive">Blocked:</span>{" "}
+              <div className="rounded-lg border border-danger-border bg-danger-surface p-3 text-sm">
+                <span className="font-medium text-danger">Blocked:</span>{" "}
                 {req.blocked_reason}
               </div>
             )}
 
             {req.depends_on && req.depends_on.length > 0 && (
-              <div className="text-xs">
-                <p className="font-medium text-muted-foreground">Prerequisites</p>
-                <ul className="mt-1 space-y-1">
+              <div>
+                <p className="type-label text-muted-foreground">Prerequisites</p>
+                <ul className="mt-2 space-y-1.5">
                   {req.depends_on.map((d) => (
-                    <li key={d.id} className="flex items-center gap-2">
+                    <li key={d.id} className="flex items-center gap-2 text-xs">
                       {d.is_satisfied ? (
-                        <Check className="size-3 text-emerald-600" />
+                        <Check
+                          aria-hidden="true"
+                          className="size-3.5 shrink-0 text-success"
+                        />
                       ) : (
-                        <X className="size-3 text-amber-600" />
+                        <X
+                          aria-hidden="true"
+                          className="size-3.5 shrink-0 text-warning"
+                        />
                       )}
-                      <code className="font-mono">{d.ref_code}</code>
-                      <span className="text-muted-foreground">{d.title}</span>
+                      <code className="type-mono text-muted-foreground">
+                        {d.ref_code}
+                      </code>
+                      <span className="min-w-0 truncate">{d.title}</span>
                     </li>
                   ))}
                 </ul>
@@ -136,11 +168,9 @@ export function RequirementCard({
             />
 
             {req.current_approval && (
-              <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3 text-xs">
-                <span className="font-medium text-emerald-700 dark:text-emerald-400">
-                  Approved
-                </span>{" "}
-                by {req.current_approval.approver_name ?? "an approver"} as{" "}
+              <div className="rounded-lg border border-success-border bg-success-surface p-3 text-xs">
+                <span className="font-medium text-success">Approved</span> by{" "}
+                {req.current_approval.approver_name ?? "an approver"} as{" "}
                 {req.current_approval.approver_role},{" "}
                 {formatRelative(req.current_approval.approved_at)}.
                 {req.current_approval.comments && (
@@ -153,8 +183,8 @@ export function RequirementCard({
 
             {req.acceptance_confirmed_by_name &&
               (req.eligible_approvers.length === 0 ? (
-                <div className="rounded-lg border border-amber-500/40 bg-amber-500/5 p-3 text-sm">
-                  <p className="font-medium text-amber-700 dark:text-amber-400">
+                <div className="rounded-lg border border-warning-border bg-warning-surface p-3 text-sm">
+                  <p className="font-medium text-warning">
                     Nobody can approve this requirement.
                   </p>
                   <p className="mt-1 text-muted-foreground">

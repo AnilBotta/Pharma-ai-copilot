@@ -57,7 +57,10 @@ export function RequirementActions({
     );
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    // Two groups, not one row of five. "Approve" and "Block" were sitting
+    // shoulder to shoulder in the same weight; the actions that move a
+    // requirement forward now lead, and the ones that stop it are pushed right.
+    <div className="flex flex-wrap items-center gap-2 border-t pt-4">
       <Button size="sm" variant="outline" disabled={busy} onClick={onAttach}>
         <Paperclip className="size-3.5" /> Attach evidence
       </Button>
@@ -122,6 +125,11 @@ export function RequirementActions({
           >
             <ShieldCheck className="size-3.5" /> Approve
           </Button>
+        </>
+      )}
+
+      <div className="ml-auto flex flex-wrap items-center gap-2">
+        {canApprove && (
           <Button
             size="sm"
             variant="ghost"
@@ -131,34 +139,34 @@ export function RequirementActions({
           >
             Request changes
           </Button>
-        </>
-      )}
+        )}
 
-      {req.is_blocked ? (
-        <Button
-          size="sm"
-          variant="ghost"
-          disabled={busy}
-          onClick={() =>
-            act(
-              `${req.id}:block`,
-              () => pdp.setBlocked(req.id, false),
-              `${req.ref_code}: block cleared`
-            )
-          }
-        >
-          Clear block
-        </Button>
-      ) : (
-        <Button
-          size="sm"
-          variant="ghost"
-          disabled={busy}
-          onClick={() => setBlockOpen(true)}
-        >
-          Block
-        </Button>
-      )}
+        {req.is_blocked ? (
+          <Button
+            size="sm"
+            variant="ghost"
+            disabled={busy}
+            onClick={() =>
+              act(
+                `${req.id}:block`,
+                () => pdp.setBlocked(req.id, false),
+                `${req.ref_code}: block cleared`
+              )
+            }
+          >
+            Clear block
+          </Button>
+        ) : (
+          <Button
+            size="sm"
+            variant="ghost"
+            disabled={busy}
+            onClick={() => setBlockOpen(true)}
+          >
+            Block
+          </Button>
+        )}
+      </div>
 
       {/* Was `window.prompt`. Besides breaking the visual language entirely,
           the browser dialog is unstyleable, untranslatable, silently
