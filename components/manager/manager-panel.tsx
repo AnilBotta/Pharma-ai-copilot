@@ -41,6 +41,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ProposalCard } from "@/components/manager/proposal-card";
 import { useManager } from "@/components/manager/manager-provider";
+import { LightMarkdown } from "@/components/chat/light-markdown";
 import {
   ApiError,
   pdp,
@@ -304,10 +305,14 @@ export function ManagerPanel() {
     <Sheet open={open} onOpenChange={(next) => !next && closeManager()}>
       <SheetContent className="p-0">
         <SheetHeader className="pr-12">
-          <SheetTitle className="flex items-center gap-2">
-            <Bot className="size-4 text-muted-foreground" />
+          <SheetTitle className="flex items-center gap-2.5">
+            <span className="flex size-7 shrink-0 items-center justify-center rounded-lg border border-primary/15 bg-primary/8 text-primary">
+              <Bot aria-hidden="true" className="size-4" />
+            </span>
             Manager Agent
           </SheetTitle>
+          {/* The limits are the product, so they are stated where the agent is
+              introduced rather than discovered when a button does nothing. */}
           <SheetDescription>
             Reads everything you can see. It cannot approve a requirement,
             decide a gate or move a baseline — those need a person.
@@ -336,19 +341,33 @@ export function ManagerPanel() {
             <ActivityTrail activity={activity} />
           )}
 
+          {/* The caret is the only thing that distinguishes "still writing"
+              from "stopped mid-sentence", and a partial answer is exactly
+              where that distinction matters. */}
           {partial && (
-            <div className="text-sm whitespace-pre-wrap">{partial}</div>
+            <div className="text-sm">
+              <LightMarkdown content={partial} />
+              <span
+                aria-hidden="true"
+                className="mt-1 inline-block h-3.5 w-[2px] animate-pulse bg-primary align-text-bottom"
+              />
+              <span className="sr-only">Still writing.</span>
+            </div>
           )}
 
           {streaming && !partial && activity.length === 0 && (
             <p className="flex items-center gap-2 text-xs text-muted-foreground">
-              <Loader2 className="size-3.5 animate-spin" /> Thinking…
+              <Loader2 aria-hidden="true" className="size-3.5 animate-spin" />{" "}
+              Thinking…
             </p>
           )}
 
           {error && (
-            <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-xs text-destructive">
-              <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
+            <div
+              role="alert"
+              className="flex items-start gap-2 rounded-lg border border-danger-border bg-danger-surface p-3 text-xs text-danger"
+            >
+              <AlertTriangle aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
               <p>{error}</p>
             </div>
           )}
@@ -363,12 +382,13 @@ export function ManagerPanel() {
           <div ref={bottomRef} />
         </div>
 
-        <div className="border-t p-3">
+        <div className="border-t bg-card p-3">
           <div className="flex items-end gap-2">
             <Textarea
               rows={2}
               value={draft}
               disabled={streaming}
+              aria-label="Ask the Manager Agent"
               placeholder="Ask about your programmes…"
               className="resize-none"
               onChange={(e) => setDraft(e.target.value)}
@@ -402,7 +422,7 @@ function MessageBubble({ message }: { message: PanelMessage }) {
   if (message.role === "user") {
     return (
       <div className="flex justify-end">
-        <div className="max-w-[85%] rounded-lg bg-primary/10 px-3 py-2 text-sm">
+        <div className="max-w-[85%] rounded-xl rounded-br-sm bg-primary/10 px-3.5 py-2 text-sm">
           {message.content}
         </div>
       </div>
@@ -416,11 +436,16 @@ function MessageBubble({ message }: { message: PanelMessage }) {
       {message.activity && message.activity.length > 0 && (
         <ActivityTrail activity={message.activity} />
       )}
+      {/* Was `whitespace-pre-wrap`. Seven of sixteen stored answers are
+          markdown lists, so the reader was being shown literal "- " and the
+          two-space indents of the nested ones. */}
       {message.content && (
-        <div className="text-sm whitespace-pre-wrap">{message.content}</div>
+        <div className="text-sm">
+          <LightMarkdown content={message.content} />
+        </div>
       )}
       {message.truncated && (
-        <div className="rounded-lg border border-amber-500/40 bg-amber-500/5 p-2.5 text-xs text-amber-800 dark:text-amber-300">
+        <div className="rounded-lg border border-warning-border bg-warning-surface p-2.5 text-xs text-warning">
           <span className="font-medium">This answer is incomplete.</span>{" "}
           {message.truncated_reason}
         </div>
@@ -430,43 +455,64 @@ function MessageBubble({ message }: { message: PanelMessage }) {
 }
 
 function ActivityTrail({ activity }: { activity: Activity[] }) {
+  // Deliberately NOT collapsible. This module exists on the premise that tool
+  // activity is shown rather than hidden, so the trail is made scannable
+  // instead — reads recede, writes and dispatches carry a rail and hold full
+  // contrast, and the eye can find "it changed something" without reading
+  // every line.
   return (
-    <div className="space-y-1 rounded-lg border bg-muted/30 px-3 py-2">
-      {activity.map((a, i) => {
-        const dispatched = DISPATCH_TOOLS.has(a.name);
-        const wrote = WRITE_TOOLS.has(a.name);
-        return (
-          <p
-            key={`${a.name}-${i}`}
-            className={cn(
-              "flex items-center gap-2 text-xs",
-              a.done ? "text-muted-foreground" : "text-foreground",
-              // Reading, starting work and changing the record are three
-              // different kinds of event. A reader scanning the trail should
-              // see which happened without reading every line.
-              (dispatched || wrote) && "font-medium text-foreground"
-            )}
-          >
-            {a.done ? (
-              a.ok ? (
-                wrote ? (
-                  <PencilLine className="size-3 text-amber-600" />
-                ) : dispatched ? (
-                  <Play className="size-3 text-primary" />
+    <div className="rounded-lg border bg-muted/30 px-3 py-2.5">
+      <p className="type-label mb-1.5 text-muted-foreground">What it did</p>
+      <div className="space-y-1">
+        {activity.map((a, i) => {
+          const dispatched = DISPATCH_TOOLS.has(a.name);
+          const wrote = WRITE_TOOLS.has(a.name);
+          const failed = a.done && !a.ok;
+          return (
+            <p
+              key={`${a.name}-${i}`}
+              className={cn(
+                "flex items-center gap-2 text-xs",
+                a.done ? "text-muted-foreground" : "text-foreground",
+                (dispatched || wrote) &&
+                  "-ml-3 border-l-2 pl-[10px] font-medium text-foreground",
+                wrote && "border-warning-solid",
+                dispatched && "border-primary",
+                // Amber, not red, and that is the original author's call kept
+                // deliberately: the turn still produced an answer, it just
+                // rests on less than it should. That is a caveat, not a fault.
+                failed && "text-warning"
+              )}
+            >
+              {a.done ? (
+                a.ok ? (
+                  wrote ? (
+                    <PencilLine
+                      aria-hidden="true"
+                      className="size-3 shrink-0 text-warning"
+                    />
+                  ) : dispatched ? (
+                    <Play aria-hidden="true" className="size-3 shrink-0 text-primary" />
+                  ) : (
+                    <Check aria-hidden="true" className="size-3 shrink-0 text-success" />
+                  )
                 ) : (
-                  <Check className="size-3 text-emerald-600" />
+                  <AlertTriangle
+                    aria-hidden="true"
+                    className="size-3 shrink-0 text-warning"
+                  />
                 )
               ) : (
-                <AlertTriangle className="size-3 text-amber-600" />
-              )
-            ) : (
-              <Loader2 className="size-3 animate-spin" />
-            )}
-            {TOOL_LABEL[a.name] ?? a.name}
-            {a.done && !a.ok && " — could not be completed"}
-          </p>
-        );
-      })}
+                <Loader2 aria-hidden="true" className="size-3 shrink-0 animate-spin" />
+              )}
+              <span className="min-w-0">
+                {TOOL_LABEL[a.name] ?? a.name}
+                {failed && " — could not be completed"}
+              </span>
+            </p>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -481,19 +527,24 @@ const SUGGESTIONS = [
 function Suggestions({ onPick }: { onPick: (q: string) => void }) {
   return (
     <div className="space-y-2">
-      <p className="text-xs text-muted-foreground">
-        Ask anything about your programmes, or about how this system works.
-      </p>
+      <p className="type-label text-muted-foreground">Try asking</p>
       {SUGGESTIONS.map((s) => (
         <button
           key={s}
           type="button"
           onClick={() => onPick(s)}
-          className="block w-full rounded-lg border px-3 py-2 text-left text-xs transition-colors hover:border-primary/40 hover:bg-accent"
+          className="group flex w-full items-center gap-2.5 rounded-lg border bg-card px-3 py-2.5 text-left text-xs transition-colors outline-none hover:border-primary/40 hover:bg-accent focus-visible:border-primary/40 focus-visible:bg-accent"
         >
-          {s}
+          <Search
+            aria-hidden="true"
+            className="size-3.5 shrink-0 text-muted-foreground transition-colors group-hover:text-primary"
+          />
+          <span className="min-w-0">{s}</span>
         </button>
       ))}
+      <p className="pt-1 text-2xs text-muted-foreground">
+        Or ask anything about your programmes, or about how this system works.
+      </p>
     </div>
   );
 }
