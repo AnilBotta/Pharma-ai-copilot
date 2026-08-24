@@ -57,6 +57,18 @@
   --sidebar-border: oklch(0.91 0.014 250);
   --sidebar-accent: oklch(0.955 0.012 250);
 
+  /* Scrims. A scrim's job is to say "the layer beneath is inert", and a fixed
+     `bg-black/50` cannot do that in both themes: over a near-white page it is
+     emphatic, over an already-dark one it barely registers. Tokenised so each
+     theme can carry the weight it actually needs — the dark values below are
+     stronger, not merely inverted.
+
+     Two of them because the two overlays mean different things: a dialog
+     interrupts and may obscure, a sheet accompanies and must leave the page
+     beneath legible. */
+  --overlay: oklch(0.16 0.03 255 / 0.5);
+  --overlay-soft: oklch(0.16 0.03 255 / 0.25);
+
   /* ---- status: ONLY where a real verdict is encoded ----------------- */
   --success: oklch(0.46 0.11 155);
   --success-surface: oklch(0.955 0.035 155);
@@ -161,6 +173,11 @@
   --sidebar-border: oklch(0.28 0.035 255);
   --sidebar-accent: oklch(0.24 0.03 255);
 
+  /* Heavier than light's, not inverted: a scrim over an already-dark page has
+     less room to darken, so it needs more of it to read as a scrim at all. */
+  --overlay: oklch(0.09 0.02 255 / 0.72);
+  --overlay-soft: oklch(0.09 0.02 255 / 0.45);
+
   /* Retuned rather than inverted: on a 0.19-lightness ground the status
      hues need MORE lightness and LESS chroma, or saturated blues vibrate. */
   --success: oklch(0.8 0.13 155);
@@ -246,6 +263,9 @@
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent: var(--sidebar-accent);
+
+  --color-overlay: var(--overlay);
+  --color-overlay-soft: var(--overlay-soft);
 
   --color-success: var(--success);
   --color-success-surface: var(--success-surface);

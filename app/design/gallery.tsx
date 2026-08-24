@@ -210,6 +210,36 @@ export function Gallery({ dark }: { dark: boolean }) {
       </Section>
 
       <Section
+        title="Scrims"
+        note="Translucent, so these are shown over text — which is the only way to judge whether a scrim is doing its job. Dark's are heavier than light's rather than inverted: an already-dark page has less room to darken."
+      >
+        <div className="grid grid-cols-2 gap-3">
+          {(
+            [
+              ["overlay", "Dialog — interrupts"],
+              ["overlay-soft", "Sheet — accompanies"],
+            ] as const
+          ).map(([token, caption]) => (
+            <div key={token} className="min-w-0">
+              <div className="relative h-14 overflow-hidden rounded-md border">
+                <p className="absolute inset-0 flex items-center justify-center text-sm">
+                  Page content beneath
+                </p>
+                <div
+                  aria-hidden="true"
+                  className="absolute inset-0"
+                  style={{ backgroundColor: `var(--${token})` }}
+                />
+              </div>
+              <p className="mt-1 truncate text-2xs text-muted-foreground">
+                {token} — {caption}
+              </p>
+            </div>
+          ))}
+        </div>
+      </Section>
+
+      <Section
         title="Status families"
         note="Each is a quartet: text, surface, border, solid. Brand colour never appears here — status and identity are disjoint."
       >
