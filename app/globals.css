@@ -504,13 +504,40 @@
   .no-print {
     display: none !important;
   }
+  /* The report panel is `forceMount`ed so it is always in the DOM, but Radix
+     marks an inactive tab panel `hidden` and the class list hides it too — so
+     printing from the Sources or Searches tab produced a document with none of
+     the report in it. Measured by replaying these very rules onto the screen
+     with the Searches tab active: .print-area came back 0px tall.
+     `!important` is needed to beat both the `hidden` attribute and the
+     `data-[state=inactive]:hidden` utility. */
+  [data-print-report] {
+    display: block !important;
+  }
+  /* `.print-area` used to be `position: absolute; inset: 0`. Measured on a
+     21-section report by replaying these rules onto the screen: that gave the
+     element a box 860px tall — exactly the viewport — around 14,208px of
+     content. A paged-media engine fragments BOXES, so a 14,000px overflow out
+     of an 860px absolutely-positioned box is the classic reason a long report
+     prints its first page and stops.
+
+     In normal flow the same element measures 18,024px, enclosing all of its
+     content, and every ancestor up to <body> was checked to have
+     `overflow: visible` and `max-height: none`, so nothing clips it. The
+     absolute positioning existed to escape the shell; it no longer has to,
+     because the shell, the sidebar and the other three tab panels are all
+     `no-print`. */
   .print-area {
-    position: absolute !important;
-    inset: 0 !important;
     width: 100% !important;
     overflow: visible !important;
     box-shadow: none !important;
     border: none !important;
+  }
+  /* The 264px sidebar gutter. `lg:pl-[264px]` should not match a paper-width
+     viewport, but "scale to fit" and landscape can push the page box over the
+     lg breakpoint, and an indented report is not worth leaving to chance. */
+  .print-shell {
+    padding-left: 0 !important;
   }
   body {
     background: white !important;
