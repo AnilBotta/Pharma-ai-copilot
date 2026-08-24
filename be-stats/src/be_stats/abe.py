@@ -48,11 +48,7 @@ from dataclasses import dataclass
 
 from scipy import stats
 
-from be_stats.profiles import (
-    AcceptanceInterval,
-    DrugClass,
-    RegulatoryProfile,
-)
+from be_stats.spec import AcceptanceInterval, BeSpec
 from be_stats.study import (
     CrossoverStudy,
     DataError,
@@ -117,14 +113,14 @@ def _interval(
     log_diff: float,
     standard_error: float,
     df: int,
-    profile: RegulatoryProfile,
+    spec: BeSpec,
 ) -> tuple[float, float, float]:
     """The point estimate and confidence limits, as percentages."""
     # Two one-sided tests at `alpha` each => a (1 - 2*alpha) interval. The
     # quantile is 1 - alpha, not 1 - alpha/2: this is the single place the
     # TOST structure enters, and getting it wrong would silently widen or
     # narrow every result the engine produces.
-    t_crit = stats.t.ppf(1.0 - profile.alpha, df)
+    t_crit = stats.t.ppf(1.0 - spec.alpha, df)
     half_width = t_crit * standard_error
     return (
         100.0 * math.exp(log_diff),
@@ -162,13 +158,9 @@ def _reject_zero_variance(variance: float, kind: str) -> None:
         )
 
 
-def analyse_crossover(
-    study: CrossoverStudy,
-    profile: RegulatoryProfile,
-    drug_class: DrugClass = DrugClass.STANDARD,
-) -> AbeResult:
+def analyse_crossover(study: CrossoverStudy, spec: BeSpec) -> AbeResult:
     """Average bioequivalence from a 2x2 crossover."""
-    acceptance = profile.acceptance_interval(drug_class)
+    acceptance = spec.require_interval()
 
     halves: dict[Sequence, list[float]] = {}
     for sequence in Sequence:
@@ -202,17 +194,17 @@ def analyse_crossover(
     # var(d) = sigma_W^2 / 2, so the within-subject variance is twice it.
     within_subject_log_variance = 2.0 * var_d
 
-    point, lower, upper = _interval(log_diff, standard_error, df, profile)
+    point, lower, upper = _interval(log_diff, standard_error, df, spec)
 
     return AbeResult(
         endpoint=study.endpoint,
         design="2x2 crossover",
-        regulator=str(profile.regulator),
-        drug_class=str(drug_class),
+        regulator=str(spec.jurisdiction),
+        drug_class=str(spec.drug_class),
         point_estimate=point,
         ci_lower=lower,
         ci_upper=upper,
-        confidence_level=profile.confidence_level,
+        confidence_level=spec.confidence_level,
         cv_percent=_cv_percent_from_log_variance(within_subject_log_variance),
         cv_kind="within-subject",
         degrees_of_freedom=df,
@@ -224,11 +216,7 @@ def analyse_crossover(
     )
 
 
-def analyse_parallel(
-    study: ParallelStudy,
-    profile: RegulatoryProfile,
-    drug_class: DrugClass = DrugClass.STANDARD,
-) -> AbeResult:
+def analyse_parallel(study: ParallelStudy, spec: BeSpec) -> AbeResult:
     """Average bioequivalence from a parallel-group study.
 
     Uses the pooled-variance t interval, which assumes the two groups share a
@@ -237,7 +225,7 @@ def analyse_parallel(
     switching between them changes the degrees of freedom and therefore the
     result.
     """
-    acceptance = profile.acceptance_interval(drug_class)
+    acceptance = spec.require_interval()
 
     log_test = [math.log(v) for v in study.test]
     log_reference = [math.log(v) for v in study.reference]
@@ -255,17 +243,17 @@ def analyse_parallel(
     _reject_zero_variance(pooled_variance, "pooled between-subject")
     standard_error = math.sqrt(pooled_variance * (1.0 / n_t + 1.0 / n_r))
 
-    point, lower, upper = _interval(log_diff, standard_error, df, profile)
+    point, lower, upper = _interval(log_diff, standard_error, df, spec)
 
     return AbeResult(
         endpoint=study.endpoint,
         design="parallel",
-        regulator=str(profile.regulator),
-        drug_class=str(drug_class),
+        regulator=str(spec.jurisdiction),
+        drug_class=str(spec.drug_class),
         point_estimate=point,
         ci_lower=lower,
         ci_upper=upper,
-        confidence_level=profile.confidence_level,
+        confidence_level=spec.confidence_level,
         cv_percent=_cv_percent_from_log_variance(pooled_variance),
         cv_kind="between-subject (pooled)",
         degrees_of_freedom=df,

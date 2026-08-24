@@ -192,9 +192,27 @@ and nobody makes the **FDA-vs-EMA divergence** visible in one place.
 ABE/TOST, power and sample size. No UI. Every estimator ships with a reference
 dataset and a known-correct answer, cross-checked against R in CI (§10).
 
-**Phase 2 — RSABE.** HVD scaling and the NTI three-criteria gate, on replicate
-designs. The NTI verdict must show all three sub-results, never a single
-pass/fail.
+**Phase 2 — reference scaling, split in two.** Revised at statistical review:
+"RSABE" is not one thing, and the two cases must not share a
+`passes_rsabe()` above the lowest mathematical-helper level, because their
+decision rules differ.
+
+- **2A — FDA highly variable (`FDA_HVD_RSABE`).** Replicate designs, estimate
+  sWR, switch to reference scaling at **sWR ≥ 0.294**, σw0 = **0.25**, and
+  additionally constrain the point estimate to 80.00–125.00%. Below the
+  threshold, conventional ABE applies for that endpoint. Validate against the
+  FDA appendix for highly variable drugs.
+- **2B — FDA narrow therapeutic index (`FDA_NTI_RSABE`).** Fully replicated
+  design only. σw0 = **0.10**, Δ = **1/0.9**. Three criteria, all of which must
+  pass and all of which must be shown separately: reference-scaled BE, unscaled
+  ABE within 80.00–125.00%, and the within-subject variance comparison with
+  upper limit **2.5** on σWT/σWR. Validate against the FDA appendix for NTI.
+- **EMA highly variable (`EMA_HVD_ABEL`)** is average BE with *expanding
+  limits* — a different procedure from FDA's RSABE, not a relabelling of it.
+
+These constants were supplied with citations at statistical review and are
+already carried on the resolved spec, so Phase 2 inherits verified values
+rather than rediscovering them.
 
 **Phase 3 — in vitro PBE.** The §2.3 battery. Per-endpoint configuration of
 θ<sub>P</sub>, σ<sub>T0</sub>, one- vs two-sided, and the 90–111% plume rule.

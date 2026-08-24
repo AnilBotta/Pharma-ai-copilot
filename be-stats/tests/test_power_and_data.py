@@ -1,7 +1,7 @@
 """Power, sample size, and the input checks that run before either.
 
-As in the crossover suite: these are invariances and internal consistencies,
-not comparisons against remembered numbers. Agreement with an independent
+As in the crossover suite: invariances and internal consistencies, not
+comparisons against remembered numbers. Agreement with an independent
 implementation is a validation activity and lives in `validation/`.
 """
 
@@ -10,16 +10,27 @@ from __future__ import annotations
 import pytest
 
 from be_stats import (
-    EMA,
-    FDA,
     CrossoverObservation,
     CrossoverStudy,
     DataError,
+    DrugClass,
+    Endpoint,
+    Jurisdiction,
+    NotPowerable,
     ParallelStudy,
     Sequence,
     analyse_parallel,
     power_abe,
+    resolve_be_spec,
     sample_size_abe,
+)
+
+FDA_SPEC = resolve_be_spec(jurisdiction=Jurisdiction.FDA)
+EMA_SPEC = resolve_be_spec(jurisdiction=Jurisdiction.EMA)
+EMA_NTI_AUC = resolve_be_spec(
+    jurisdiction=Jurisdiction.EMA,
+    drug_class=DrugClass.NARROW_THERAPEUTIC_INDEX,
+    endpoint=Endpoint.AUC,
 )
 
 # ----------------------------------------------------------------- power ---
@@ -27,7 +38,7 @@ from be_stats import (
 
 def test_power_increases_with_sample_size():
     powers = [
-        power_abe(cv_percent=25.0, n_total=n, profile=FDA).power
+        power_abe(cv_percent=25.0, n_total=n, spec=FDA_SPEC).power
         for n in (8, 16, 24, 32, 48)
     ]
     assert powers == sorted(powers)
@@ -36,7 +47,7 @@ def test_power_increases_with_sample_size():
 
 def test_power_decreases_as_variability_rises():
     powers = [
-        power_abe(cv_percent=cv, n_total=32, profile=FDA).power
+        power_abe(cv_percent=cv, n_total=32, spec=FDA_SPEC).power
         for cv in (10.0, 20.0, 30.0, 40.0)
     ]
     assert powers == sorted(powers, reverse=True)
@@ -45,112 +56,154 @@ def test_power_decreases_as_variability_rises():
 def test_power_is_a_probability():
     for n in (4, 6, 12, 60, 200):
         for cv in (5.0, 25.0, 60.0):
-            p = power_abe(cv_percent=cv, n_total=n, profile=FDA).power
-            assert 0.0 <= p <= 1.0
+            assert 0.0 <= power_abe(cv_percent=cv, n_total=n, spec=FDA_SPEC).power <= 1.0
 
 
 def test_power_is_highest_when_the_true_ratio_is_one():
-    """Planning at exact equality flatters the study - assert it, so that the
-    0.95 default is understood as deliberate rather than arbitrary."""
-    at_one = power_abe(
-        cv_percent=25.0, n_total=24, profile=FDA, expected_ratio=1.00
-    ).power
-    at_095 = power_abe(
-        cv_percent=25.0, n_total=24, profile=FDA, expected_ratio=0.95
-    ).power
-    at_090 = power_abe(
-        cv_percent=25.0, n_total=24, profile=FDA, expected_ratio=0.90
-    ).power
-    assert at_one > at_095 > at_090
-
-
-def test_parallel_needs_more_subjects_than_crossover():
-    """A between-subject comparison throws away the pairing, so it must cost
-    more. If this ever inverts, the standard errors have been swapped."""
-    crossover = sample_size_abe(cv_percent=25.0, profile=FDA, design="2x2").n_total
-    parallel = sample_size_abe(
-        cv_percent=25.0, profile=FDA, design="parallel"
-    ).n_total
-    assert parallel > crossover
-
-
-def test_ema_nti_narrowing_costs_subjects():
-    """The EMA/FDA divergence has a price, and the tool should show it."""
-    from be_stats import DrugClass
-
-    standard = sample_size_abe(cv_percent=15.0, profile=EMA).n_total
-    nti = sample_size_abe(
-        cv_percent=15.0,
-        profile=EMA,
-        drug_class=DrugClass.NARROW_THERAPEUTIC_INDEX,
-    ).n_total
-    assert nti > standard
+    """Why the 0.95 default is deliberate rather than arbitrary."""
+    powers = [
+        power_abe(
+            cv_percent=25.0, n_total=24, spec=FDA_SPEC, expected_ratio=r
+        ).power
+        for r in (1.00, 0.95, 0.90)
+    ]
+    assert powers[0] > powers[1] > powers[2]
 
 
 # ----------------------------------------------------------- sample size ---
 
 
-def test_sample_size_is_the_smallest_that_reaches_target():
+def test_mathematical_n_is_the_smallest_that_reaches_target():
     """Both halves matter: the answer must reach the target, and the step below
-    it must not - otherwise the search is returning something larger than
-    necessary and every study costs more than it needs to."""
+    it must not - otherwise every study costs more than it needs to."""
     target = 0.80
-    result = sample_size_abe(cv_percent=25.0, profile=FDA, target_power=target)
-
-    assert result.achieved_power >= target
-    assert result.n_total % 2 == 0
-
+    r = sample_size_abe(cv_percent=25.0, spec=FDA_SPEC, target_power=target)
+    assert r.achieved_power >= target
+    assert r.mathematical_n % 2 == 0
     below = power_abe(
-        cv_percent=25.0, n_total=result.n_total - 2, profile=FDA
+        cv_percent=25.0, n_total=r.mathematical_n - 2, spec=FDA_SPEC
     ).power
     assert below < target
 
 
-def test_sample_size_rises_with_variability():
-    sizes = [
-        sample_size_abe(cv_percent=cv, profile=FDA).n_total
-        for cv in (10.0, 20.0, 30.0)
-    ]
-    assert sizes == sorted(sizes)
+def test_regulatory_floor_is_separate_from_the_arithmetic():
+    """The correction from statistical review.
+
+    At a low CV the arithmetic asks for fewer subjects than FDA will accept.
+    Both numbers must survive into the result, and which one is binding must
+    be visible - it is usually the one nobody planned for.
+    """
+    r = sample_size_abe(cv_percent=10.0, spec=FDA_SPEC)
+    assert r.mathematical_n < 12
+    assert r.regulatory_n == 12
+    assert r.recommended_n == 12
+    assert r.binding_constraint == "the regulatory minimum"
+    # Running the floor buys power the arithmetic did not ask for.
+    assert r.power_at_recommended > r.achieved_power
+
+
+def test_power_calculation_is_binding_when_it_exceeds_the_floor():
+    r = sample_size_abe(cv_percent=30.0, spec=FDA_SPEC)
+    assert r.mathematical_n > 12
+    assert r.recommended_n == r.mathematical_n
+    assert r.binding_constraint == "the power calculation"
+    assert r.power_at_recommended == pytest.approx(r.achieved_power)
+
+
+def test_fda_floor_does_not_leak_into_ema():
+    """EMA's minimum is unconfirmed in this version, so it must not be applied.
+
+    The same arithmetic under both jurisdictions: FDA lifts the answer to its
+    floor, EMA does not invent one.
+    """
+    fda = sample_size_abe(cv_percent=10.0, spec=FDA_SPEC)
+    ema = sample_size_abe(cv_percent=10.0, spec=EMA_SPEC)
+    assert fda.mathematical_n == ema.mathematical_n
+    assert ema.regulatory_n is None
+    assert ema.recommended_n == ema.mathematical_n
+    assert fda.recommended_n > ema.recommended_n
+
+
+def test_recommended_n_is_even_even_when_the_floor_is_odd():
+    """Both designs allocate equally to two groups, so an odd total cannot."""
+    from be_stats.spec import BeSpec, Method, AcceptanceInterval
+
+    odd_floor = BeSpec(
+        method=Method.STANDARD_ABE,
+        jurisdiction=Jurisdiction.FDA,
+        drug_class=DrugClass.STANDARD,
+        endpoint=Endpoint.AUC,
+        acceptance=AcceptanceInterval(80.0, 125.0, "test fixture"),
+        regulatory_minimum_n=13,
+        regulatory_minimum_basis="fixture",
+    )
+    r = sample_size_abe(cv_percent=8.0, spec=odd_floor)
+    assert r.regulatory_n == 13
+    assert r.recommended_n == 14
+    assert r.recommended_n % 2 == 0
+
+
+def test_parallel_needs_more_subjects_than_crossover():
+    """A between-subject comparison throws away the pairing, so it must cost
+    more. If this inverts, the standard errors have been swapped."""
+    crossover = sample_size_abe(
+        cv_percent=25.0, spec=FDA_SPEC, design="2x2"
+    ).mathematical_n
+    parallel = sample_size_abe(
+        cv_percent=25.0, spec=FDA_SPEC, design="parallel"
+    ).mathematical_n
+    assert parallel > crossover
+
+
+def test_narrower_limits_cost_subjects():
+    """EMA's NTI narrowing has a price. Asserted as a direction only - the
+    magnitude depends on the full scenario and is a validation matter."""
+    standard = sample_size_abe(cv_percent=15.0, spec=EMA_SPEC).mathematical_n
+    narrowed = sample_size_abe(cv_percent=15.0, spec=EMA_NTI_AUC).mathematical_n
+    assert narrowed > standard
 
 
 def test_higher_target_power_needs_more_subjects():
-    at_80 = sample_size_abe(cv_percent=25.0, profile=FDA, target_power=0.80).n_total
-    at_90 = sample_size_abe(cv_percent=25.0, profile=FDA, target_power=0.90).n_total
+    at_80 = sample_size_abe(
+        cv_percent=25.0, spec=FDA_SPEC, target_power=0.80
+    ).mathematical_n
+    at_90 = sample_size_abe(
+        cv_percent=25.0, spec=FDA_SPEC, target_power=0.90
+    ).mathematical_n
     assert at_90 > at_80
 
 
-def test_infeasible_request_raises_rather_than_looping():
-    """The realistic infeasible case is a ratio sitting on the boundary.
+def test_ratio_on_the_boundary_is_not_powerable_at_any_size():
+    """Detected up front, not discovered after ten thousand iterations.
 
-    An earlier version of this test used an enormous CV and asserted it could
-    not be powered. That premise was wrong - the search reaches 99% power well
-    inside the cap, because subjects buy their way out of variability. What
-    subjects cannot buy is a true ratio parked on the acceptance limit: power
-    there cannot exceed alpha however large the study, so the search must give
-    up and say so.
+    As n grows the interval shrinks toward the true ratio, so a ratio sitting
+    on the limit converges onto the boundary rather than inside it. This is a
+    statement about the assumed ratio, not the study size, and the message
+    says so.
     """
-    with pytest.raises(ValueError, match="infeasible"):
-        sample_size_abe(
-            cv_percent=25.0,
-            profile=FDA,
-            target_power=0.80,
-            expected_ratio=0.80,
-        )
+    for ratio in (0.80, 1.25, 0.75, 1.30):
+        with pytest.raises(NotPowerable, match="assumed ratio"):
+            sample_size_abe(
+                cv_percent=25.0, spec=FDA_SPEC, expected_ratio=ratio
+            )
 
 
 def test_a_very_large_cv_is_merely_expensive_not_infeasible():
-    """The counterpart to the test above, so the distinction is recorded."""
-    result = sample_size_abe(cv_percent=100.0, profile=FDA, target_power=0.80)
-    assert result.achieved_power >= 0.80
-    assert result.n_total > 100
+    """The counterpart, so the distinction is recorded rather than rediscovered.
+
+    An earlier test asserted a huge CV could not be powered. That premise was
+    wrong: subjects buy their way out of variability.
+    """
+    r = sample_size_abe(cv_percent=100.0, spec=FDA_SPEC, target_power=0.80)
+    assert r.achieved_power >= 0.80
+    assert r.mathematical_n > 100
 
 
 def test_method_is_named_on_every_result():
     """A sample size whose method cannot be traced cannot be defended."""
-    assert "non-central t" in sample_size_abe(cv_percent=20.0, profile=FDA).method
+    assert "non-central t" in sample_size_abe(cv_percent=20.0, spec=FDA_SPEC).method
     assert "non-central t" in power_abe(
-        cv_percent=20.0, n_total=24, profile=FDA
+        cv_percent=20.0, n_total=24, spec=FDA_SPEC
     ).method
 
 
@@ -166,10 +219,8 @@ def test_non_positive_measurement_is_refused():
 
 def test_a_single_sequence_is_refused():
     """With one sequence the treatment effect is completely confounded with
-    the period effect. Producing a number here would be worse than failing."""
-    obs = [
-        CrossoverObservation(f"S{i}", Sequence.RT, 100.0, 105.0) for i in range(6)
-    ]
+    the period effect. A number here would be worse than a failure."""
+    obs = [CrossoverObservation(f"S{i}", Sequence.RT, 100.0, 105.0) for i in range(6)]
     with pytest.raises(DataError, match="confounded"):
         CrossoverStudy(endpoint="AUC", observations=obs)
 
@@ -194,21 +245,34 @@ def test_too_few_subjects_is_refused():
 
 
 def test_parallel_group_needs_two_subjects():
-    with pytest.raises(DataError, match="at least 2|At least 2"):
+    with pytest.raises(DataError, match="[Aa]t least 2"):
         ParallelStudy(endpoint="AUC", test=[100.0], reference=[100.0, 101.0])
 
 
 # --------------------------------------------------------------- parallel ---
 
 
-def test_parallel_analysis_runs_and_reports_between_subject_cv():
+def test_parallel_analysis_reports_between_subject_cv():
     study = ParallelStudy(
         endpoint="AUC",
         test=[100.0, 110.0, 95.0, 105.0, 98.0, 102.0],
         reference=[99.0, 108.0, 97.0, 103.0, 101.0, 100.0],
     )
-    result = analyse_parallel(study, FDA)
+    result = analyse_parallel(study, FDA_SPEC)
     assert result.design == "parallel"
     assert result.cv_kind.startswith("between-subject")
     assert result.degrees_of_freedom == 10
     assert result.ci_lower < result.point_estimate < result.ci_upper
+
+
+def test_parallel_refuses_an_unimplemented_method_too():
+    fda_hvd = resolve_be_spec(
+        jurisdiction=Jurisdiction.FDA, drug_class=DrugClass.HIGHLY_VARIABLE
+    )
+    study = ParallelStudy(
+        endpoint="AUC", test=[100.0, 110.0, 95.0], reference=[99.0, 108.0, 97.0]
+    )
+    from be_stats import NotImplementedMethod
+
+    with pytest.raises(NotImplementedMethod):
+        analyse_parallel(study, fda_hvd)
