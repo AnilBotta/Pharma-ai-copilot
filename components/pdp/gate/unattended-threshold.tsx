@@ -2,6 +2,7 @@
 
 import * as React from "react";
 
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -37,13 +38,21 @@ export function UnattendedThreshold({
   const changed = valid && parsed !== effective;
 
   return (
-    <Card>
+    <Card variant="flush">
       <CardContent className="flex flex-wrap items-end gap-4 py-4">
-        <div className="min-w-0 flex-1 space-y-1">
-          <p className="text-xs font-medium text-muted-foreground">
-            Report this gate as unattended after
-          </p>
-          <p className="text-sm text-muted-foreground">
+        <div className="min-w-0 flex-1 space-y-1.5">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="type-label text-muted-foreground">
+              Report this gate as unattended after
+            </p>
+            {/* The provenance is the point — an inherited default is not
+                somebody's expectation about this gate's tempo, and it used to
+                be stated only in a sentence below the control. */}
+            <Badge variant={inherited ? "muted" : "info"}>
+              {inherited ? "System default" : "Set for this gate"}
+            </Badge>
+          </div>
+          <p className="max-w-prose text-sm text-muted-foreground">
             Days with no recorded activity — no evidence attached, no approval,
             no status change — before an alert is raised for the gate as a whole.
           </p>
@@ -83,7 +92,7 @@ export function UnattendedThreshold({
           )}
         </div>
 
-        <p className="w-full text-xs text-muted-foreground">
+        <p className="w-full text-2xs text-muted-foreground">
           {inherited
             ? `Currently ${effective} days, inherited from the system default. Changing it here affects this gate only.`
             : `Set to ${effective} days for this gate specifically.`}

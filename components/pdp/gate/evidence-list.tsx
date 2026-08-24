@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { formatRelative } from "@/lib/utils";
+import { cn, formatRelative } from "@/lib/utils";
 import type { Requirement } from "@/lib/api";
 export function EvidenceList({
   requirement: req,
@@ -24,20 +24,29 @@ export function EvidenceList({
 }) {
   if (req.evidence.length === 0) {
     return (
-      <p className="text-xs text-muted-foreground">
+      <p className="rounded-lg border border-dashed px-3 py-2.5 text-xs text-muted-foreground">
         No evidence attached. Required type:{" "}
-        <code className="font-mono">{req.required_evidence_type}</code>.
+        <code className="type-mono text-foreground">
+          {req.required_evidence_type}
+        </code>
+        .
       </p>
     );
   }
 
   return (
     <div className="space-y-2">
-      <p className="text-xs font-medium text-muted-foreground">Evidence</p>
+      <p className="type-label text-muted-foreground">Evidence</p>
       {req.evidence.map((e) => (
         <div
           key={e.id}
-          className="flex items-start gap-2 rounded-lg border px-3 py-2 text-xs"
+          // `bg-card` is load-bearing now that the expanded requirement body
+          // sits on a muted ground: a bordered row with no fill of its own
+          // would read as part of the panel rather than as an item on it.
+          className={cn(
+            "flex items-start gap-2.5 rounded-lg border bg-card px-3 py-2.5 text-xs",
+            e.document_is_usable === false && "border-danger-border"
+          )}
         >
           {e.evidence_type === "document" ? (
             <FileText className="mt-0.5 size-3.5 shrink-0 text-primary" />
@@ -68,7 +77,7 @@ export function EvidenceList({
             {/* A superseded document is the quiet way a gate goes stale. Say it
                 where the evidence is, not only in the blocker list. */}
             {e.document_is_usable === false && (
-              <p className="mt-1 rounded border border-destructive/30 bg-destructive/5 px-2 py-1 text-destructive">
+              <p className="mt-1.5 rounded-md border border-danger-border bg-danger-surface px-2 py-1 text-danger">
                 This version is {e.document_version_status} and no longer
                 satisfies the requirement. Attach the current version.
               </p>

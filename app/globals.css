@@ -351,6 +351,22 @@
   font-weight: 600;
 }
 
+/* Identifiers — G1-PM-001, SOP-0042, run ids. They are read as codes rather
+   than as words, and they are almost always scanned in a vertical list, so
+   they get the mono face and tabular figures to keep that column aligned.
+   `font-mono` alone left ref codes ragged wherever digit widths differed. */
+@utility type-mono {
+  /* NOT `var(--font-mono)`. That name lives in the `@theme inline` block, and
+     `inline` means the value is substituted into the `font-mono` utility
+     rather than emitted as a custom property — so `var(--font-mono)` is
+     undefined at runtime, the declaration is invalid at computed-value time,
+     and the element silently inherits the SANS body face. Measured: it did.
+     The raw source is `--font-geist-mono`, which next/font really does set. */
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
 /* ---------- Surface treatments ---------- */
 @utility glass {
   background: color-mix(in oklab, var(--card) 78%, transparent);

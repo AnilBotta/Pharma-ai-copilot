@@ -14,6 +14,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { NativeSelect } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
 import { formatRelative } from "@/lib/utils";
 import type { GateWorkspace } from "@/lib/api";
@@ -65,10 +66,12 @@ export function GateDecisionCard({
 
   if (!capabilities.can_gate) {
     return (
-      <Card>
+      // Flush and unelevated: this card cannot be acted on, and giving it the
+      // same presence as the live control would be a button-shaped promise.
+      <Card variant="flush">
         <CardContent className="flex h-full flex-col justify-center gap-2 py-5">
-          <div className="flex items-center gap-2 text-sm font-medium">
-            <Lock className="size-4 text-muted-foreground" />
+          <div className="type-label flex items-center gap-2 text-muted-foreground">
+            <Lock aria-hidden="true" className="size-3.5" />
             Gate decision
           </div>
           <p className="text-xs text-muted-foreground">
@@ -82,11 +85,11 @@ export function GateDecisionCard({
   }
 
   return (
-    <Card>
-      <CardContent className="flex h-full flex-col justify-between gap-3 py-5">
+    <Card variant="elevated">
+      <CardContent className="flex h-full flex-col justify-between gap-4 py-5">
         <div>
-          <div className="flex items-center gap-2 text-sm font-medium">
-            <Gavel className="size-4" />
+          <div className="type-label flex items-center gap-2 text-muted-foreground">
+            <Gavel aria-hidden="true" className="size-3.5" />
             Gate decision
           </div>
           {stage.gate_decision_at ? (
@@ -94,9 +97,7 @@ export function GateDecisionCard({
               Recorded {formatRelative(stage.gate_decision_at)}.
               {stage.gate_conditions && (
                 <span className="mt-1 block">
-                  <span className="font-medium text-amber-700 dark:text-amber-400">
-                    Conditions:
-                  </span>{" "}
+                  <span className="font-medium text-warning">Conditions:</span>{" "}
                   {stage.gate_conditions}
                 </span>
               )}
@@ -112,8 +113,12 @@ export function GateDecisionCard({
           )}
         </div>
 
+        {/* Outline rather than primary while `!is_ready` — the control stays
+            reachable (a rejection or a hold is still a decision), but it is not
+            dressed as the page's recommended next action. */}
         <Button
           size="sm"
+          className="w-full"
           variant={readiness.is_ready ? "default" : "outline"}
           onClick={openDialog}
         >
@@ -135,9 +140,8 @@ export function GateDecisionCard({
           <div className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="gate-decision">Decision</Label>
-              <select
+              <NativeSelect
                 id="gate-decision"
-                className="h-9 w-full rounded-md border bg-transparent px-3 text-sm"
                 value={decision}
                 onChange={(e) =>
                   setDecision(e.target.value as typeof decision)
@@ -151,7 +155,7 @@ export function GateDecisionCard({
                 </option>
                 <option value="rejected">Reject</option>
                 <option value="on_hold">Place on hold</option>
-              </select>
+              </NativeSelect>
             </div>
 
             {/* A disabled <option> is the weakest way to state the rule this
@@ -159,21 +163,24 @@ export function GateDecisionCard({
                 to approve a gate" rather than "not yet, and here is why". The
                 server refusal names the blockers; so should this. */}
             {!readiness.is_ready && (
-              <div className="rounded-lg border bg-muted/30 p-3 text-sm">
-                <p className="font-medium">
+              // Amber, the same hue the readiness bar refuses to leave while
+              // `!is_ready`. A blocker list drawn in neutral grey would let the
+              // dialog read as procedural when it is in fact a refusal.
+              <div className="rounded-lg border border-warning-border bg-warning-surface p-3 text-sm">
+                <p className="font-medium text-warning">
                   Approve is unavailable until{" "}
                   {readiness.blocker_count === 1
                     ? "one mandatory requirement is"
                     : `${readiness.blocker_count} mandatory requirements are`}{" "}
                   satisfied.
                 </p>
-                <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
+                <ul className="mt-2.5 space-y-1.5 text-xs text-muted-foreground">
                   {gate.blockers.slice(0, 6).map((b) => (
-                    <li key={b.requirement_id}>
-                      <span className="font-medium text-foreground">
+                    <li key={b.requirement_id} className="flex gap-2">
+                      <code className="type-mono shrink-0 font-medium text-foreground">
                         {b.ref_code}
-                      </span>{" "}
-                      — {b.reason}
+                      </code>
+                      <span>{b.reason}</span>
                     </li>
                   ))}
                   {gate.blockers.length > 6 && (
