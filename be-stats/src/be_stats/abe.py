@@ -48,6 +48,7 @@ from dataclasses import dataclass
 
 from scipy import stats
 
+from be_stats.conversions import log_variance_to_cv_percent
 from be_stats.spec import AcceptanceInterval, BeSpec
 from be_stats.study import (
     CrossoverStudy,
@@ -104,7 +105,7 @@ class AbeResult:
             f"{self.endpoint}: ratio {self.point_estimate:.2f}% "
             f"({self.confidence_level:.0%} CI {self.ci_lower:.2f}-"
             f"{self.ci_upper:.2f}%), {verdict} "
-            f"[{self.acceptance.lower:.2f}-{self.acceptance.upper:.2f}%, "
+            f"[{self.acceptance.lower_value:.2f}-{self.acceptance.upper_value:.2f}%, "
             f"{self.acceptance.basis}]"
         )
 
@@ -129,9 +130,9 @@ def _interval(
     )
 
 
-def _cv_percent_from_log_variance(variance: float) -> float:
-    """CV% on the original scale from a variance on the log scale."""
-    return 100.0 * math.sqrt(math.expm1(variance))
+#: The one conversion, imported rather than repeated. See conversions.py for
+#: why this is not allowed to be spelled out locally.
+_cv_percent_from_log_variance = log_variance_to_cv_percent
 
 
 def _reject_zero_variance(variance: float, kind: str) -> None:
@@ -273,8 +274,8 @@ def tost_p_values(result: AbeResult) -> tuple[float, float]:
     and only if both are below alpha. The test suite asserts that equivalence
     rather than assuming it.
     """
-    lower_limit = math.log(result.acceptance.lower / 100.0)
-    upper_limit = math.log(result.acceptance.upper / 100.0)
+    lower_limit = math.log(result.acceptance.lower_value / 100.0)
+    upper_limit = math.log(result.acceptance.upper_value / 100.0)
     df = result.degrees_of_freedom
     se = result.log_standard_error
 

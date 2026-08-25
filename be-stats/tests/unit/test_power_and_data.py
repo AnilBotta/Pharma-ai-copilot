@@ -110,37 +110,50 @@ def test_power_calculation_is_binding_when_it_exceeds_the_floor():
     assert r.power_at_recommended == pytest.approx(r.achieved_power)
 
 
-def test_fda_floor_does_not_leak_into_ema():
-    """EMA's minimum is unconfirmed in this version, so it must not be applied.
+def test_both_jurisdictions_now_floor_a_crossover_at_twelve():
+    """Updated: EMA's floor is no longer absent.
 
-    The same arithmetic under both jurisdictions: FDA lifts the answer to its
-    floor, EMA does not invent one.
+    An earlier version of this test asserted that EMA had no minimum and that
+    FDA's therefore produced a larger answer. That was true only while EMA's
+    figure was unconfirmed. ICH M13A supplies twelve evaluable subjects for a
+    crossover and is adopted in both regions, so the two now agree - and the
+    interesting assertion is that they arrive there from *different documents*,
+    which is why the registry keys on jurisdiction as well as design.
     """
-    fda = sample_size_abe(cv_percent=10.0, spec=FDA_SPEC)
-    ema = sample_size_abe(cv_percent=10.0, spec=EMA_SPEC)
-    assert fda.mathematical_n == ema.mathematical_n
-    assert ema.regulatory_n is None
-    assert ema.recommended_n == ema.mathematical_n
-    assert fda.recommended_n > ema.recommended_n
+    fda = sample_size_abe(cv_percent=10.0, spec=FDA_SPEC, design="2x2")
+    ema = sample_size_abe(cv_percent=10.0, spec=EMA_SPEC, design="2x2")
+
+    assert fda.mathematical_n == ema.mathematical_n == 8
+    assert fda.regulatory_n == ema.regulatory_n == 12
+    assert fda.recommended_n == ema.recommended_n == 12
+
+    assert "FDA" in str(fda.regulatory_rule.citation)
+    assert "ICH" in str(ema.regulatory_rule.citation)
 
 
 def test_recommended_n_is_even_even_when_the_floor_is_odd():
     """Both designs allocate equally to two groups, so an odd total cannot."""
-    from be_stats.spec import BeSpec, Method, AcceptanceInterval
+    from be_stats.minimums import DesignFamily, RegulatoryMinimum, _REGISTRY
+    from be_stats.provenance import Citation, VerificationStatus
 
-    odd_floor = BeSpec(
-        method=Method.STANDARD_ABE,
-        jurisdiction=Jurisdiction.FDA,
-        drug_class=DrugClass.STANDARD,
-        endpoint=Endpoint.AUC,
-        acceptance=AcceptanceInterval(80.0, 125.0, "test fixture"),
-        regulatory_minimum_n=13,
-        regulatory_minimum_basis="fixture",
+    key = ("FIXTURE", DesignFamily.CROSSOVER)
+    _REGISTRY[key] = RegulatoryMinimum(
+        jurisdiction="FIXTURE",
+        design_family=DesignFamily.CROSSOVER,
+        citation=Citation(authority="fixture", document="odd floor"),
+        evaluable_total=13,
+        verification=VerificationStatus.UNVERIFIED,
     )
-    r = sample_size_abe(cv_percent=8.0, spec=odd_floor)
-    assert r.regulatory_n == 13
-    assert r.recommended_n == 14
-    assert r.recommended_n % 2 == 0
+    try:
+        from dataclasses import replace
+
+        odd = replace(FDA_SPEC, jurisdiction="FIXTURE")
+        r = sample_size_abe(cv_percent=8.0, spec=odd, design="2x2")
+        assert r.regulatory_n == 13
+        assert r.recommended_n == 14
+        assert r.recommended_n % 2 == 0
+    finally:
+        del _REGISTRY[key]
 
 
 def test_parallel_needs_more_subjects_than_crossover():

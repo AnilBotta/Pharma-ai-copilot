@@ -199,7 +199,7 @@ def test_confidence_interval_brackets_the_point_estimate():
 
 def test_ema_nti_auc_uses_the_narrowed_interval():
     result = analyse_crossover(BALANCED, EMA_NTI_AUC)
-    assert (result.acceptance.lower, result.acceptance.upper) == (90.00, 111.11)
+    assert (result.acceptance.lower_value, result.acceptance.upper_value) == (90.00, 111.11)
 
 
 def test_estimator_refuses_a_spec_whose_method_it_cannot_run():
@@ -222,8 +222,8 @@ def test_standard_interval_is_identical_across_jurisdictions():
     fda = analyse_crossover(BALANCED, FDA_SPEC)
     ema = analyse_crossover(BALANCED, EMA_SPEC)
     assert fda.point_estimate == pytest.approx(ema.point_estimate)
-    assert (fda.acceptance.lower, fda.acceptance.upper) == (80.00, 125.00)
-    assert (ema.acceptance.lower, ema.acceptance.upper) == (80.00, 125.00)
+    assert (fda.acceptance.lower_value, fda.acceptance.upper_value) == (80.00, 125.00)
+    assert (ema.acceptance.lower_value, ema.acceptance.upper_value) == (80.00, 125.00)
 
 
 def test_result_records_which_jurisdiction_produced_it():

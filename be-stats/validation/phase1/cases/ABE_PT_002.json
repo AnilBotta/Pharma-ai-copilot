@@ -1,0 +1,32 @@
+{
+  "case_id": "ABE_PT_002",
+  "title": "Narrowed acceptance interval, 2x2 crossover",
+  "design": "2x2",
+  "method": "standard_abe",
+  "jurisdiction": "reference_math",
+  "inputs": {
+    "cv": 0.125,
+    "true_ratio": 0.975,
+    "alpha": 0.05,
+    "target_power": 0.80,
+    "lower_limit": 0.90,
+    "upper_limit": 1.1111
+  },
+  "expected": {
+    "mathematical_n": 32,
+    "achieved_power": 0.800218
+  },
+  "tolerance": {
+    "n": 0,
+    "power": 1e-4
+  },
+  "source": {
+    "tier": 3,
+    "type": "independent implementation",
+    "package": "PowerTOST",
+    "function": "sampleN.TOST",
+    "method_note": "Exact method in PowerTOST; non-central t approximation here.",
+    "citation": "PowerTOST package documentation, published example"
+  },
+  "notes": "Exercises the narrowed 90.00-111.11 interval used by EMA for AUC of an NTI drug, as pure arithmetic. It is NOT a regulatory validation of the EMA rule itself - that needs a tier-1 source."
+}

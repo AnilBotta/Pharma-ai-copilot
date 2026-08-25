@@ -33,7 +33,9 @@ from dataclasses import dataclass
 
 from scipy import stats
 
-from be_stats.spec import BeSpec
+from be_stats.conversions import cv_percent_to_log_variance
+from be_stats.minimums import RegulatoryMinimum, design_family_for, lookup
+from be_stats.spec import BeSpec, DrugClass
 
 METHOD = "non-central t approximation"
 
@@ -64,8 +66,11 @@ class SampleSizeResult:
     #: The smallest even total reaching the target power.
     mathematical_n: int
     #: The regulator's floor, independent of power. `None` where this package
-    #: has not confirmed one for the jurisdiction.
+    #: has not confirmed one for this jurisdiction AND design.
     regulatory_n: int | None
+    #: The rule that produced it, or None. Carried whole rather than as a
+    #: string so a report can show the citation.
+    regulatory_rule: RegulatoryMinimum | None
     #: What to actually run.
     recommended_n: int
 
@@ -100,8 +105,7 @@ class SampleSizeResult:
 
 
 def _standard_error(design: str, cv_percent: float, n_total: int) -> float:
-    log_variance = math.log1p((cv_percent / 100.0) ** 2)
-    sigma = math.sqrt(log_variance)
+    sigma = math.sqrt(cv_percent_to_log_variance(cv_percent))
     if design == "2x2":
         return sigma * math.sqrt(2.0 / n_total)
     if design == "parallel":
@@ -136,8 +140,8 @@ def power_abe(
     if cv_percent <= 0.0:
         raise ValueError("cv_percent must be positive.")
 
-    theta_lower = math.log(acceptance.lower / 100.0)
-    theta_upper = math.log(acceptance.upper / 100.0)
+    theta_lower = math.log(acceptance.lower_value / 100.0)
+    theta_upper = math.log(acceptance.upper_value / 100.0)
     theta = math.log(expected_ratio)
 
     df = _degrees_of_freedom(design, n_total)
@@ -168,10 +172,11 @@ def sample_size_abe(
         raise ValueError("target_power must be between 0 and 1.")
 
     ratio_percent = expected_ratio * 100.0
-    if ratio_percent <= acceptance.lower or ratio_percent >= acceptance.upper:
+    if ratio_percent <= acceptance.lower_value or ratio_percent >= acceptance.upper_value:
         raise NotPowerable(
             f"The assumed true ratio {ratio_percent:.2f}% is at or beyond the "
-            f"acceptance interval {acceptance.lower:.2f}-{acceptance.upper:.2f}%. "
+            f"acceptance interval {acceptance.lower_value:.2f}-"
+            f"{acceptance.upper_value:.2f}%. "
             "No sample size reaches the target: as subjects are added the "
             "confidence interval shrinks toward the true ratio, so it converges "
             "onto the boundary rather than inside it. This is a statement about "
@@ -200,7 +205,16 @@ def sample_size_abe(
             f"CV {cv_percent}% with an assumed ratio of {expected_ratio}."
         )
 
-    regulatory_n = spec.regulatory_minimum_n
+    # The floor is a property of the DESIGN as well as the jurisdiction: ICH
+    # M13A gives 12 evaluable subjects for a crossover but 12 PER GROUP for a
+    # parallel design, which is 24. A jurisdiction-only lookup would apply the
+    # wrong one to half of all studies.
+    rule = lookup(
+        str(spec.jurisdiction),
+        design_family_for(design),
+        is_highly_variable=spec.drug_class is DrugClass.HIGHLY_VARIABLE,
+    )
+    regulatory_n = rule.required_total() if rule is not None else None
     if regulatory_n is not None and regulatory_n > mathematical_n:
         recommended = regulatory_n if regulatory_n % 2 == 0 else regulatory_n + 1
         binding = "the regulatory minimum"
@@ -219,11 +233,13 @@ def sample_size_abe(
     return SampleSizeResult(
         mathematical_n=mathematical_n,
         regulatory_n=regulatory_n,
+        regulatory_rule=rule,
         recommended_n=recommended,
         achieved_power=achieved,
         power_at_recommended=power_at_recommended,
         target_power=target_power,
         design=design,
         binding_constraint=binding,
-        regulatory_basis=spec.regulatory_minimum_basis,
+        regulatory_basis=rule.explain() if rule is not None else
+        "no confirmed regulatory minimum for this jurisdiction and design",
     )

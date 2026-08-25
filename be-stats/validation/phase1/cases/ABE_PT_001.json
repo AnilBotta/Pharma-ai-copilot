@@ -1,0 +1,32 @@
+{
+  "case_id": "ABE_PT_001",
+  "title": "Conventional 2x2 crossover, sample size at 80% power",
+  "design": "2x2",
+  "method": "standard_abe",
+  "jurisdiction": "reference_math",
+  "inputs": {
+    "cv": 0.20,
+    "true_ratio": 0.95,
+    "alpha": 0.05,
+    "target_power": 0.80,
+    "lower_limit": 0.80,
+    "upper_limit": 1.25
+  },
+  "expected": {
+    "mathematical_n": 20,
+    "achieved_power": 0.834680
+  },
+  "tolerance": {
+    "n": 0,
+    "power": 1e-4
+  },
+  "source": {
+    "tier": 3,
+    "type": "independent implementation",
+    "package": "PowerTOST",
+    "function": "sampleN.TOST",
+    "method_note": "PowerTOST default is the EXACT method (Owen's Q); be-stats uses the non-central t approximation. Sample size must agree exactly; power is compared within tolerance.",
+    "citation": "PowerTOST package documentation, published example"
+  },
+  "notes": "n is the decisive assertion. The power tolerance was set from the measured difference between the two methods (1.9e-07), not chosen in advance."
+}

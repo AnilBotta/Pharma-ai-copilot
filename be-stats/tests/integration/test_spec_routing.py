@@ -10,6 +10,7 @@ from __future__ import annotations
 import pytest
 
 from be_stats import (
+    cv_to_log_sd,
     DrugClass,
     Endpoint,
     Jurisdiction,
@@ -25,7 +26,7 @@ def test_standard_is_the_same_interval_in_both_jurisdictions():
     for jur in (Jurisdiction.FDA, Jurisdiction.EMA):
         spec = resolve_be_spec(jurisdiction=jur)
         assert spec.method is Method.STANDARD_ABE
-        assert (spec.acceptance.lower, spec.acceptance.upper) == (80.00, 125.00)
+        assert (spec.acceptance.lower_value, spec.acceptance.upper_value) == (80.00, 125.00)
         assert spec.is_implemented
 
 
@@ -36,7 +37,7 @@ def test_ema_nti_auc_narrows():
         endpoint=Endpoint.AUC,
     )
     assert spec.method is Method.EMA_NTI_NARROW_ABE
-    assert (spec.acceptance.lower, spec.acceptance.upper) == (90.00, 111.11)
+    assert (spec.acceptance.lower_value, spec.acceptance.upper_value) == (90.00, 111.11)
     assert spec.is_implemented
 
 
@@ -82,8 +83,8 @@ def test_product_guidance_supplies_the_cmax_answer_either_way():
         endpoint=Endpoint.CMAX,
         product=auc_only,
     )
-    assert (a.acceptance.lower, a.acceptance.upper) == (90.00, 111.11)
-    assert (b.acceptance.lower, b.acceptance.upper) == (80.00, 125.00)
+    assert (a.acceptance.lower_value, a.acceptance.upper_value) == (90.00, 111.11)
+    assert (b.acceptance.lower_value, b.acceptance.upper_value) == (80.00, 125.00)
     assert "ciclosporin" in a.acceptance.basis
     assert "colchicine" in b.acceptance.basis
 
@@ -95,7 +96,7 @@ def test_product_guidance_outranks_the_jurisdiction_default():
     spec = resolve_be_spec(
         jurisdiction=Jurisdiction.EMA, endpoint=Endpoint.AUC, product=override
     )
-    assert (spec.acceptance.lower, spec.acceptance.upper) == (85.00, 117.65)
+    assert (spec.acceptance.lower_value, spec.acceptance.upper_value) == (85.00, 117.65)
 
 
 def test_fda_nti_resolves_to_rsabe_and_refuses_to_run():
@@ -107,9 +108,9 @@ def test_fda_nti_resolves_to_rsabe_and_refuses_to_run():
     assert spec.method is Method.FDA_NTI_RSABE
     assert spec.acceptance is None
     assert spec.required_design == "fully replicated crossover"
-    assert spec.constants["sigma_w0"] == 0.10
-    assert spec.constants["variance_ratio_upper_limit"] == 2.5
-    assert spec.constants["delta"] == pytest.approx(1.0 / 0.9)
+    assert spec.constants["sigma_w0"].value == 0.10
+    assert spec.constants["variance_ratio_upper_limit"].value == 2.5
+    assert spec.constants["delta"].value == pytest.approx(1.0 / 0.9)
     assert not spec.is_implemented
 
     with pytest.raises(NotImplementedMethod, match="fully replicated"):
@@ -127,29 +128,14 @@ def test_fda_and_ema_take_different_routes_for_highly_variable_drugs():
     assert fda.method is Method.FDA_HVD_RSABE
     assert ema.method is Method.EMA_HVD_ABEL
     assert fda.method is not ema.method
-    assert fda.constants["sigma_w0"] == 0.25
-    assert fda.constants["swr_switching_threshold"] == 0.294
+    assert fda.constants["sigma_w0"].value == 0.25
+    assert fda.constants["swr_switching_threshold"].value == pytest.approx(
+        cv_to_log_sd(0.30)
+    )
     for spec in (fda, ema):
         assert not spec.is_implemented
         with pytest.raises(NotImplementedMethod):
             spec.require_implemented()
-
-
-def test_fda_regulatory_minimums_are_carried_on_the_spec():
-    standard = resolve_be_spec(jurisdiction=Jurisdiction.FDA)
-    hvd = resolve_be_spec(
-        jurisdiction=Jurisdiction.FDA, drug_class=DrugClass.HIGHLY_VARIABLE
-    )
-    assert standard.regulatory_minimum_n == 12
-    assert hvd.regulatory_minimum_n == 24
-    assert "12" in standard.regulatory_minimum_basis
-
-
-def test_ema_minimum_is_absent_rather_than_invented():
-    """An unconfirmed constant must be distinguishable from a confirmed one."""
-    spec = resolve_be_spec(jurisdiction=Jurisdiction.EMA)
-    assert spec.regulatory_minimum_n is None
-    assert "not confirmed" in spec.regulatory_minimum_basis
 
 
 def test_unimplemented_methods_are_not_in_the_implemented_set():

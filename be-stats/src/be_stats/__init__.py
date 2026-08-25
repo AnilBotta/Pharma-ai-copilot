@@ -27,8 +27,23 @@ from be_stats.power import (
     power_abe,
     sample_size_abe,
 )
+from be_stats.conversions import (
+    HVD_CV_THRESHOLD,
+    HVD_SWR_THRESHOLD,
+    cv_to_log_sd,
+    log_sd_to_cv,
+)
+from be_stats.minimums import DesignFamily, RegulatoryMinimum
+from be_stats.provenance import (
+    Citation,
+    RegulatoryValue,
+    ValidationStatus,
+    VerificationStatus,
+)
 from be_stats.spec import (
     IMPLEMENTED,
+    VALIDATION,
+    NotValidated,
     AcceptanceInterval,
     BeSpec,
     DrugClass,
@@ -53,10 +68,22 @@ from be_stats.study import (
 #: Bumped on any change that can alter a computed result. An analysis record
 #: stores this, because "which version produced this number" is the first
 #: question asked of a result years later.
-__version__ = "0.2.0"
+__version__ = "0.1.0"
 
 __all__ = [
     "AbeResult",
+    "Citation",
+    "DesignFamily",
+    "HVD_CV_THRESHOLD",
+    "HVD_SWR_THRESHOLD",
+    "NotValidated",
+    "RegulatoryMinimum",
+    "RegulatoryValue",
+    "VALIDATION",
+    "ValidationStatus",
+    "VerificationStatus",
+    "cv_to_log_sd",
+    "log_sd_to_cv",
     "AcceptanceInterval",
     "BeSpec",
     "CrossoverObservation",

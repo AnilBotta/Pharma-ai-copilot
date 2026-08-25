@@ -22,16 +22,28 @@ reference-scaled average BE; EMA uses average BE with expanding limits. They are
 different procedures with different constants and different decision rules, and
 a shared abstraction over them would exist only to be wrong in one of the two.
 
-SOURCES
+EVERY NUMBER SAYS WHERE IT CAME FROM
 
-Constants and thresholds below were supplied with citations during statistical
-review. Each carries its origin in `basis`. Nothing here was recalled.
+Constants are `RegulatoryValue`, not float: a value plus the document, the
+section, the document version, and whether anybody has checked it. `explain()`
+answers "why 0.90" with something better than "because this file says so".
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import StrEnum
+
+from be_stats.conversions import HVD_CV_THRESHOLD, HVD_SWR_THRESHOLD
+from be_stats.provenance import (
+    DERIVED_INTERNALLY,
+    EMA_BIOEQUIVALENCE,
+    FDA_STATISTICAL_APPROACHES,
+    Citation,
+    RegulatoryValue,
+    ValidationStatus,
+    VerificationStatus,
+)
 
 
 class Jurisdiction(StrEnum):
@@ -69,10 +81,22 @@ class Method(StrEnum):
     EMA_HVD_ABEL = "ema_hvd_abel"
 
 
-#: Methods this version can actually run. Everything else resolves to a spec
-#: that refuses when an estimator is asked to use it.
+#: How far each method has got. `IMPLEMENTED` is derived from this rather than
+#: maintained beside it, so the two cannot disagree.
+#:
+#: Both runnable methods are IMPLEMENTED_UNVALIDATED rather than VALIDATED:
+#: they reproduce an independent implementation (tier 3) but no tier-1
+#: regulator worked example has been reproduced yet. See validation/README.md.
+VALIDATION: dict[Method, ValidationStatus] = {
+    Method.STANDARD_ABE: ValidationStatus.IMPLEMENTED_UNVALIDATED,
+    Method.EMA_NTI_NARROW_ABE: ValidationStatus.IMPLEMENTED_UNVALIDATED,
+    Method.FDA_NTI_RSABE: ValidationStatus.NOT_IMPLEMENTED,
+    Method.FDA_HVD_RSABE: ValidationStatus.NOT_IMPLEMENTED,
+    Method.EMA_HVD_ABEL: ValidationStatus.NOT_IMPLEMENTED,
+}
+
 IMPLEMENTED: frozenset[Method] = frozenset(
-    {Method.STANDARD_ABE, Method.EMA_NTI_NARROW_ABE}
+    m for m, s in VALIDATION.items() if s is not ValidationStatus.NOT_IMPLEMENTED
 )
 
 
@@ -97,14 +121,29 @@ class SpecificationRequired(Exception):
     """
 
 
+class NotValidated(Exception):
+    """The method runs, but has not been shown to agree with the regulator."""
+
+
 @dataclass(frozen=True, slots=True)
 class AcceptanceInterval:
-    lower: float
-    upper: float
+    lower: RegulatoryValue
+    upper: RegulatoryValue
     basis: str
 
     def contains(self, ci_lower: float, ci_upper: float) -> bool:
-        return ci_lower >= self.lower and ci_upper <= self.upper
+        return ci_lower >= self.lower.value and ci_upper <= self.upper.value
+
+    @property
+    def lower_value(self) -> float:
+        return self.lower.value
+
+    @property
+    def upper_value(self) -> float:
+        return self.upper.value
+
+    def explain(self) -> list[str]:
+        return [self.lower.explain(), self.upper.explain()]
 
 
 @dataclass(frozen=True, slots=True)
@@ -123,8 +162,23 @@ class ProductOverride:
     citation: str = ""
 
 
-_STANDARD = (80.00, 125.00)
-_EMA_NARROWED = (90.00, 111.11)
+def _interval(
+    lower: float, upper: float, citation: Citation, basis: str, verification
+) -> AcceptanceInterval:
+    return AcceptanceInterval(
+        lower=RegulatoryValue(lower, citation, verification),
+        upper=RegulatoryValue(upper, citation, verification),
+        basis=basis,
+    )
+
+
+#: The conventional interval. Shared by both regulators for the standard case,
+#: and long enough established that it is treated as verified.
+_ICH_M13A_LIKE = Citation(
+    authority="ICH / FDA / EMA",
+    document="Conventional bioequivalence acceptance interval",
+    document_version="current",
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -145,22 +199,20 @@ class BeSpec:
 
     required_design: str = "2x2 crossover or parallel"
 
-    #: Smallest number of evaluable subjects the regulator will accept,
-    #: independent of what the power calculation says. `None` where this
-    #: package has not confirmed a figure for the jurisdiction.
-    regulatory_minimum_n: int | None = None
-    regulatory_minimum_basis: str = ""
-
-    #: Constants the method needs. Empty for standard ABE; carried for the
-    #: reference-scaled methods so Phase 2 inherits verified values rather than
-    #: rediscovering them.
-    constants: dict[str, float] = field(default_factory=dict)
+    #: Constants the method needs, each with its own provenance. Empty for
+    #: standard ABE; carried for the reference-scaled methods so Phase 2
+    #: inherits verified values rather than rediscovering them.
+    constants: dict[str, RegulatoryValue] = field(default_factory=dict)
 
     notes: str = ""
 
     @property
     def confidence_level(self) -> float:
         return 1.0 - 2.0 * self.alpha
+
+    @property
+    def validation_status(self) -> ValidationStatus:
+        return VALIDATION[self.method]
 
     @property
     def is_implemented(self) -> bool:
@@ -178,6 +230,21 @@ class BeSpec:
             "would be a different test, not a conservative one."
         )
 
+    def require_validated(self) -> None:
+        """Opt-in gate for a caller that must not use unvalidated arithmetic.
+
+        Not called by the estimators. A production integration calls it; a
+        development one deliberately does not, and the difference is explicit
+        at the call site rather than buried in a flag.
+        """
+        if self.validation_status is not ValidationStatus.VALIDATED:
+            raise NotValidated(
+                f"{self.method} is {self.validation_status}. It has not been "
+                "shown to reproduce a regulator-published worked example, so "
+                "its output must not support a submission. See "
+                "validation/README.md."
+            )
+
     def require_interval(self) -> AcceptanceInterval:
         self.require_implemented()
         if self.acceptance is None:
@@ -186,21 +253,27 @@ class BeSpec:
             )
         return self.acceptance
 
+    def provenance(self) -> list[str]:
+        """Every number this spec would use, and where each came from."""
+        lines: list[str] = []
+        if self.acceptance is not None:
+            lines.extend(self.acceptance.explain())
+        lines.extend(f"{name}: {rv.explain()}" for name, rv in self.constants.items())
+        return lines
 
-# ------------------------------------------------------------- minimums ---
-# FDA: not fewer than 12 evaluable subjects in a PK BE study, and at least 24
-# for a highly variable drug product. Supplied with citation at statistical
-# review. EMA's minimum is deliberately left unset - see validation/README.md;
-# an unconfirmed number here would be indistinguishable from a confirmed one.
-
-_FDA_MIN_STANDARD = 12
-_FDA_MIN_HVD = 24
-
-
-def _fda_minimum(drug_class: DrugClass) -> tuple[int, str]:
-    if drug_class is DrugClass.HIGHLY_VARIABLE:
-        return _FDA_MIN_HVD, "FDA: at least 24 subjects for a highly variable drug product"
-    return _FDA_MIN_STANDARD, "FDA: not fewer than 12 evaluable subjects in a PK BE study"
+    def unverified_values(self) -> list[str]:
+        """Names of any constant not yet checked against its primary source."""
+        names: list[str] = []
+        if self.acceptance is not None:
+            for label, rv in (("lower", self.acceptance.lower), ("upper", self.acceptance.upper)):
+                if rv.verification is VerificationStatus.UNVERIFIED:
+                    names.append(label)
+        names.extend(
+            name
+            for name, rv in self.constants.items()
+            if rv.verification is VerificationStatus.UNVERIFIED
+        )
+        return names
 
 
 def resolve_be_spec(
@@ -216,43 +289,40 @@ def resolve_be_spec(
     cls = DrugClass(drug_class)
     end = Endpoint(endpoint)
 
-    minimum_n: int | None
-    minimum_basis: str
-    if jur is Jurisdiction.FDA:
-        minimum_n, minimum_basis = _fda_minimum(cls)
-    else:
-        minimum_n, minimum_basis = (
-            None,
-            "EMA minimum not confirmed in this version - see validation/README.md",
-        )
-
     def spec(**kwargs) -> BeSpec:
         return BeSpec(
             jurisdiction=jur,
             drug_class=cls,
             endpoint=end,
             alpha=alpha,
-            regulatory_minimum_n=minimum_n,
-            regulatory_minimum_basis=minimum_basis,
             **kwargs,
         )
 
-    # A product-specific interval outranks every jurisdiction default below,
-    # but only for the methods that are decided by an interval at all.
     override = None
     if product is not None and end in product.limits:
         lo, hi = product.limits[end]
-        override = AcceptanceInterval(
-            lo, hi, f"product-specific guidance for {product.product}"
-                    f"{' - ' + product.citation if product.citation else ''}"
+        override = _interval(
+            lo,
+            hi,
+            Citation(
+                authority=str(jur),
+                document=f"product-specific guidance for {product.product}",
+                document_version=product.citation or "as supplied",
+            ),
+            f"product-specific guidance for {product.product}",
+            VerificationStatus.UNVERIFIED,
         )
 
     if cls is DrugClass.STANDARD:
-        lo, hi = _STANDARD
         return spec(
             method=Method.STANDARD_ABE,
-            acceptance=override or AcceptanceInterval(
-                lo, hi, f"{jur} standard interval"
+            acceptance=override
+            or _interval(
+                80.00,
+                125.00,
+                _ICH_M13A_LIKE,
+                f"{jur} standard interval",
+                VerificationStatus.VERIFIED,
             ),
         )
 
@@ -263,10 +333,24 @@ def resolve_be_spec(
                 acceptance=None,
                 required_design="fully replicated crossover",
                 constants={
-                    # Supplied at statistical review with FDA citations.
-                    "sigma_w0": 0.10,
-                    "delta": 1.0 / 0.9,
-                    "variance_ratio_upper_limit": 2.5,
+                    "sigma_w0": RegulatoryValue(
+                        0.10,
+                        FDA_STATISTICAL_APPROACHES,
+                        VerificationStatus.VERIFIED,
+                        "NTI reference-scaling constant.",
+                    ),
+                    "delta": RegulatoryValue(
+                        1.0 / 0.9,
+                        FDA_STATISTICAL_APPROACHES,
+                        VerificationStatus.VERIFIED,
+                        "Stated as 1/0.9.",
+                    ),
+                    "variance_ratio_upper_limit": RegulatoryValue(
+                        2.5,
+                        FDA_STATISTICAL_APPROACHES,
+                        VerificationStatus.VERIFIED,
+                        "Upper limit on the 90% CI of sigma_WT / sigma_WR.",
+                    ),
                 },
                 notes=(
                     "FDA requires reference-scaled BE, an additional unscaled "
@@ -275,16 +359,18 @@ def resolve_be_spec(
                 ),
             )
 
-        # EMA.
         if override is not None:
             return spec(method=Method.EMA_NTI_NARROW_ABE, acceptance=override)
 
         if end is Endpoint.AUC:
-            lo, hi = _EMA_NARROWED
             return spec(
                 method=Method.EMA_NTI_NARROW_ABE,
-                acceptance=AcceptanceInterval(
-                    lo, hi, "EMA: narrowed interval for AUC of an NTI drug"
+                acceptance=_interval(
+                    90.00,
+                    111.11,
+                    EMA_BIOEQUIVALENCE,
+                    "EMA: narrowed interval for AUC of an NTI drug",
+                    VerificationStatus.VERIFIED,
                 ),
             )
 
@@ -311,16 +397,37 @@ def resolve_be_spec(
                 acceptance=None,
                 required_design="partially or fully replicated crossover",
                 constants={
-                    "sigma_w0": 0.25,
-                    "swr_switching_threshold": 0.294,
-                    "point_estimate_lower": 80.00,
-                    "point_estimate_upper": 125.00,
+                    "sigma_w0": RegulatoryValue(
+                        0.25,
+                        FDA_STATISTICAL_APPROACHES,
+                        VerificationStatus.VERIFIED,
+                        "HVD reference-scaling constant.",
+                    ),
+                    "hvd_cv_threshold": RegulatoryValue(
+                        HVD_CV_THRESHOLD,
+                        FDA_STATISTICAL_APPROACHES,
+                        VerificationStatus.VERIFIED,
+                        "Within-subject variability of 30% or greater defines "
+                        "a highly variable drug.",
+                    ),
+                    # DERIVED, not transcribed. The commonly quoted 0.294 is
+                    # this quantity rounded; the two differ in the fourth
+                    # decimal and disagree for a real range of studies, so the
+                    # package computes it and records that it did.
+                    "swr_switching_threshold": RegulatoryValue(
+                        HVD_SWR_THRESHOLD,
+                        DERIVED_INTERNALLY,
+                        VerificationStatus.DERIVED,
+                        "cv_to_log_sd(0.30). Published as 0.294; whether the "
+                        "rounded figure or the 30% CV is normative is an open "
+                        "question for Phase 2A.",
+                    ),
                 },
                 notes=(
-                    "FDA switches to reference-scaled ABE at sWR >= 0.294 and "
-                    "additionally constrains the point estimate to "
-                    "80.00-125.00. Below the threshold, conventional ABE "
-                    "applies for that endpoint. Phase 2A."
+                    "FDA switches to reference-scaled ABE above the reference "
+                    "variability threshold and additionally constrains the "
+                    "point estimate to 80.00-125.00. Below it, conventional "
+                    "ABE applies for that endpoint. Phase 2A."
                 ),
             )
         return spec(
@@ -330,7 +437,7 @@ def resolve_be_spec(
             notes=(
                 "EMA uses average BE with expanding limits (ABEL), which is a "
                 "different procedure from FDA's RSABE and not a relabelling "
-                "of it. Phase 2."
+                "of it. Phase 2C."
             ),
         )
 
