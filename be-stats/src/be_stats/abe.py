@@ -159,6 +159,74 @@ def _reject_zero_variance(variance: float, kind: str) -> None:
         )
 
 
+def abe_from_log_contrast(
+    *,
+    endpoint: str,
+    design: str,
+    spec: BeSpec,
+    log_point_estimate: float,
+    log_standard_error: float,
+    degrees_of_freedom: float,
+    n_subjects: int,
+    within_subject_log_variance: float,
+    cv_kind: str = "within-subject",
+) -> AbeResult:
+    """The TOST decision, given a contrast somebody else estimated.
+
+    THE ONE PLACE THE INTERVAL IS FORMED
+
+    Phase 1 estimates its own contrast from a 2x2 crossover and then builds the
+    interval. A replicate design estimates the contrast differently - equally
+    weighted sequence means of `Iij`, per Appendix G - but the interval and the
+    acceptance decision that follow are identical arithmetic.
+
+    This function exists so that arithmetic lives once. The alternative was a
+    second TOST inside the highly-variable module, which is how two
+    implementations of one procedure start to disagree in the fourth decimal
+    and nobody notices for a year.
+
+    The caller owns the model. This function owns the interval.
+    """
+    if log_standard_error <= 0.0:
+        raise DataError(
+            "The standard error of the treatment contrast is zero, so the "
+            "confidence interval would have zero width. That is not precision: "
+            "it means every subject gave the same contrast, which in practice "
+            "is duplicated rows or over-rounded data. Check the dataset."
+        )
+    if degrees_of_freedom < 1:
+        raise DataError(
+            f"{degrees_of_freedom} degrees of freedom cannot support a "
+            "confidence interval."
+        )
+
+    acceptance = spec.require_interval()
+    t_crit = stats.t.ppf(1.0 - spec.alpha, degrees_of_freedom)
+    half_width = t_crit * log_standard_error
+    point = 100.0 * math.exp(log_point_estimate)
+    lower = 100.0 * math.exp(log_point_estimate - half_width)
+    upper = 100.0 * math.exp(log_point_estimate + half_width)
+
+    return AbeResult(
+        endpoint=endpoint,
+        design=design,
+        regulator=str(spec.jurisdiction),
+        drug_class=str(spec.drug_class),
+        point_estimate=point,
+        ci_lower=lower,
+        ci_upper=upper,
+        confidence_level=spec.confidence_level,
+        cv_percent=_cv_percent_from_log_variance(within_subject_log_variance),
+        cv_kind=cv_kind,
+        degrees_of_freedom=int(degrees_of_freedom),
+        n_subjects=n_subjects,
+        acceptance=acceptance,
+        within_acceptance_interval=acceptance.contains(lower, upper),
+        log_point_estimate=log_point_estimate,
+        log_standard_error=log_standard_error,
+    )
+
+
 def analyse_crossover(study: CrossoverStudy, spec: BeSpec) -> AbeResult:
     """Average bioequivalence from a 2x2 crossover."""
     acceptance = spec.require_interval()

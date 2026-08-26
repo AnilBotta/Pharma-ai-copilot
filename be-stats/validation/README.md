@@ -352,6 +352,80 @@ required sequence returns non-estimable with
 
 ---
 
+## FDA highly variable drugs: the decision (0.4.0)
+
+| Capability | Status |
+|---|---|
+| `FDA_HVD_METHOD_SELECTION` | `IMPLEMENTED` |
+| `FDA_HVD_TREATMENT_CONTRAST` | `IMPLEMENTED_UNVALIDATED` |
+| `FDA_HVD_RSABE` (the method) | `IMPLEMENTED_UNVALIDATED` |
+| `FDA_HVD_UNSCALED_BRANCH` | **`EXPERIMENTAL`** — see below |
+
+### What the tiers say
+
+**Tier 1A — passed.** `FDA-HVD-RSABE-CRITERION-001` records Appendix G steps 2
+and 3 against the primary document: the SAS lines, both criteria and their
+conjunction, both closed boundaries, the chi-square direction, and which
+degrees of freedom scale which term.
+
+**Tier 1B — pending, and the guidance cannot close it.** No worked dataset
+exists in the document.
+
+**Tier 3 — empty for RSABE.** PowerTOST would be a reasonable implementation
+oracle for the criterion; R is not available in this environment, so no
+cross-implementation check has been run. The Phase-1 power and sample-size
+figures remain the only tier-3 evidence in the package. A test asserts this gap
+is recorded in the case file rather than left to be noticed.
+
+`VALIDATED` requires 1B, so `FDA_HVD_RSABE` does not get it from algorithm
+conformance alone.
+
+### The one open question
+
+Appendix G step 1a says to use the two one-sided tests procedure when
+`sWR < 0.294`, and does not name a model. **Appendix C separately specifies
+average BE for replicate crossover studies** with a mixed model carrying a
+subject-by-formulation random effect (`RANDOM TRT/TYPE=FA0(2) SUB=SUBJ`) and
+treatment-specific residual variances (`REPEATED/GRP=TRT SUB=SUBJ`). This
+package does not fit that model.
+
+What is implemented applies TOST to Appendix G's **own** `ilat` contrast — the
+same estimate FDA's point-estimate constraint is applied to, at the same alpha.
+That is defensible, and it is not Appendix C. So the unscaled branch carries
+`EXPERIMENTAL`, the only such status in the package, and which model governs
+the unscaled branch of a replicate study is an open item for review.
+
+The scaled branch has no such ambiguity: `x` and `bound_x` come from exactly
+this contrast because Appendix G says so.
+
+### Things that would not have raised
+
+Every one of these produces a number of the right shape and the wrong value,
+and each has a test:
+
+| Mistake | Consequence |
+|---|---|
+| subject-weighted contrast instead of equal sequence weights | wrong whenever sequences are unequal, i.e. after any dropout |
+| `chi2.isf(0.95, df)` instead of `chi2.ppf(0.95, df)` | `bound_y` about 3× too far from zero at 20 df; sign and ordering intact |
+| `x = estimate²` without `− SE²` | biased toward failing, most in the smallest studies |
+| `bound_x` from the upper limit rather than the larger absolute limit | wrong exactly when the interval straddles zero |
+| one shared `df` field | the reference variance's df silently used for the contrast |
+| dropping criterion B | reference scaling widens without limit as variability grows |
+| a study-level HVD classification | the better-behaved endpoint inherits a scaled region |
+
+### Row-order invariance, carried forward
+
+Shuffled rows, renamed subjects, reordered sequence groups and reversed period
+order all leave the selected method, sWR, the contrast, both degrees of
+freedom, the scaled bound and the final decision **bit-identical**. No
+tolerance is granted: every quantity is a closed form over `math.fsum`, so a
+permutation cannot move a bit, and a tolerance would be where a real
+order-dependence could hide. The fully replicated design reaches its degrees of
+freedom through the Satterthwaite formula rather than an iterative fit, so the
+same holds there.
+
+---
+
 ## Degeneracy: refuse, do not rescue
 
 For a validation-oriented statistical application, non-estimable is preferable
@@ -443,8 +517,9 @@ than returning something plausible:
 | Combination | Method | Phase |
 |---|---|---|
 | FDA + NTI | `FDA_NTI_RSABE` — fully replicated, σw0 = 0.10, Δ = 1/0.9, variance ratio limit 2.5, plus unscaled 80–125% | 2B |
-| FDA + highly variable | `FDA_HVD_RSABE` — σw0 = 0.25, switch at sWR ≥ 0.294, point estimate constrained to 80–125% | 2A |
 | EMA + highly variable | `EMA_HVD_ABEL` — expanding limits; a different procedure from RSABE, not a relabelling | 2C |
+
+*`FDA_HVD_RSABE` was in this table until 0.4.0, where it was implemented.*
 
 ### The switching threshold is settled
 

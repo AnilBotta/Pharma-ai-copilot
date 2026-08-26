@@ -6,6 +6,136 @@ first question asked of a result years later.
 
 ---
 
+## 0.4.0 — FDA highly variable drugs: the decision
+
+The quantities from 0.2.0/0.3.0 now reach a conclusion. For each PK endpoint:
+
+```
+validated replicate dataset -> sWR -> switch at 0.294
+                                   -> STANDARD ABE or FDA HVD RSABE
+                                   -> endpoint decision, every component shown
+```
+
+**No FDA NTI. No EMA ABEL.** Both remain `NOT_IMPLEMENTED`, and a test asserts
+that implementing the highly-variable route did not turn NTI into a
+configuration flag.
+
+### The method is chosen per endpoint
+
+Appendix G step 1 determines BE "for the individual PK parameter(s)". So AUC
+may take ordinary average BE while Cmax is reference-scaled, from the same
+subjects. Classifying a study on its worst endpoint and scaling everything
+would hand the well-behaved endpoint an acceptance region it has not earned.
+`assess_study` is a loop over `assess_endpoint` for exactly this reason.
+
+### The contrast weights sequences, not subjects
+
+FDA's `estimate 'average' intercept 1 seq 0.3333 0.3333 0.3333` averages the
+three **sequence means**. With equal group sizes that is the subject mean; with
+unequal ones it is not, and dropouts make sequences unequal in almost every
+real study. A hand-calculated 3/2/1 fixture asserts the engine produced the
+equal-sequence-weight estimate and *not* the subject mean — both are computed
+in the test so the difference is visible rather than argued.
+
+`subject_weighted_mean()` is exported solely so that comparison can be made.
+Nothing in the package calls it.
+
+### Two designs, two contrast estimators
+
+The shared sWR formula did **not** license a shared contrast. FDA fits the
+partial replicate with `PROC GLM` and the fully replicated design with
+`PROC MIXED ... ddfm=satterth`, so they are separate classes.
+
+The Satterthwaite degrees of freedom are **computed**, not assumed.
+`satterthwaite_df` implements the general formula; FDA's model here carries a
+single residual variance component, for which it collapses to the residual
+degrees of freedom exactly, for any coefficient. A test asserts the collapse
+rather than asserting `n - 2` — and the general form keeps working if a later
+model gains a second component.
+
+### Howe's Approximation I, component by component
+
+`x`, `bound_x`, `y`, `bound_y` and `critbound` are all fields on
+`ScaledCriterion`, because each has a plausible-looking wrong version that
+raises nothing:
+
+- `x` losing its `- SE²` biases the criterion toward failing, most in the
+  smallest studies;
+- `bound_x` taking the upper limit rather than the larger **absolute** limit is
+  wrong exactly when the interval straddles zero;
+- **`bound_y` taking the wrong chi-square tail.** SAS's `cinv(0.95, df)` is the
+  inverse CDF — `stats.chi2.ppf`, not `stats.chi2.isf`. At 20 df the two differ
+  by roughly a factor of three, and the mistake keeps the sign and the ordering
+  intact. The direction is self-checkable and a test checks it: `bound_y` must
+  be closer to zero than `y`, which makes it a *lower* bound on the reference
+  variance — less scaling, the conservative way.
+
+### Both criteria, never one boolean
+
+Appendix G step 3 requires the scaled bound `<= 0` **and** the T/R ratio within
+`[0.8000, 1.2500]`. `RsabeResult` exposes each separately and derives `passes`
+from both. All four logical combinations are tested, including the one that
+matters: a comfortably passing scaled criterion with a ratio of 1.40 still
+fails. Criterion B is the stop on reference scaling, which otherwise widens the
+acceptance region without limit as reference variability grows.
+
+Both boundaries are closed and tested at ±1 in the last place.
+
+### Two subject counts, two degrees of freedom
+
+A subject missing its **test** measurement has no `Iij` and may still have both
+reference replicates. It was `ADVISORY` in 0.2.0 because sWR did not need it;
+it is an `EXCLUSION` from the contrast now — the same code at a different
+severity, disambiguated by `model` in the diagnostic context.
+
+So `n_for_swr` and `n_for_treatment_contrast` are separate fields and can
+legitimately differ, as are `reference_variance_df` and
+`treatment_contrast_df`. Appendix G scales `bound_y` by the **reference
+variance's** degrees of freedom while the interval behind `bound_x` uses the
+contrast's; one generic `df` would make them equal by construction.
+
+### The standard branch does not reimplement TOST
+
+`abe.abe_from_log_contrast()` is new: it takes a contrast somebody else
+estimated and forms the interval and the containment decision. Phase 1's
+crossover analysis and the replicate branch now share that one implementation,
+and a structural test asserts `hvd.py` contains no Student-t quantile at all.
+
+**One open question, recorded rather than resolved.** Appendix G step 1a says
+to use the two one-sided tests procedure below the threshold, without naming a
+model. Appendix C separately specifies average BE for replicate crossover
+studies with a mixed model carrying a subject-by-formulation random effect and
+treatment-specific residual variances — which this package does not fit. What
+is implemented applies TOST to Appendix G's own `ilat` contrast: the same
+estimate FDA's point-estimate constraint uses, at the same alpha. That is
+defensible and it is not Appendix C, so
+`Capability.FDA_HVD_UNSCALED_BRANCH` is `EXPERIMENTAL` — the only thing in the
+package carrying that status.
+
+### Validation state
+
+| | Status |
+|---|---|
+| `FDA_HVD_RSABE` | `IMPLEMENTED_UNVALIDATED` |
+| `FDA_HVD_METHOD_SELECTION` | `IMPLEMENTED` |
+| `FDA_HVD_TREATMENT_CONTRAST` | `IMPLEMENTED_UNVALIDATED` |
+| `FDA_HVD_UNSCALED_BRANCH` | `EXPERIMENTAL` |
+| `FDA_NTI_RSABE` | `NOT_IMPLEMENTED` |
+| `EMA_HVD_ABEL` | `NOT_IMPLEMENTED` |
+
+Tier 1A passes: `FDA-HVD-RSABE-CRITERION-001` covers the criterion, both
+boundaries, the conjunction, the chi-square direction and which degrees of
+freedom scale which term. **Tier 1B is still pending** — the guidance has no
+worked dataset. **Tier 3 is empty for RSABE**: PowerTOST would be a reasonable
+implementation oracle and R is not available here, so no cross-implementation
+check has been run on the criterion. A test asserts that gap is recorded.
+
+`VALIDATED` requires 1B. Nothing here may support a submission.
+
+264 tests pass, 4 skipped.
+
+---
+
 ## 0.3.0 — the guidance was obtained and read
 
 The FDA guidance had been unreadable through every route this tooling had:

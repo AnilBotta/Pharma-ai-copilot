@@ -103,7 +103,11 @@ VALIDATION: dict[Method, ValidationStatus] = {
     Method.STANDARD_ABE: ValidationStatus.IMPLEMENTED_UNVALIDATED,
     Method.EMA_NTI_NARROW_ABE: ValidationStatus.IMPLEMENTED_UNVALIDATED,
     Method.FDA_NTI_RSABE: ValidationStatus.NOT_IMPLEMENTED,
-    Method.FDA_HVD_RSABE: ValidationStatus.NOT_IMPLEMENTED,
+    #: Implemented in the highly-variable release. IMPLEMENTED_UNVALIDATED and
+    #: not VALIDATED: tier 1A conformance to Appendix G is established, tier 1B
+    #: is not, and this package's policy is that an attested algorithm is not a
+    #: reproduced result.
+    Method.FDA_HVD_RSABE: ValidationStatus.IMPLEMENTED_UNVALIDATED,
     Method.EMA_HVD_ABEL: ValidationStatus.NOT_IMPLEMENTED,
 }
 
@@ -135,6 +139,16 @@ class Capability(StrEnum):
     #: Estimate the within-subject reference variance and CVwR from a
     #: validated replicate dataset.
     FDA_HVD_REFERENCE_VARIANCE = "fda_hvd_reference_variance"
+    #: Estimate mu_T - mu_R as the equally weighted mean of the sequence means
+    #: of Iij, with the design's own degrees of freedom.
+    FDA_HVD_TREATMENT_CONTRAST = "fda_hvd_treatment_contrast"
+    #: Apply the switching rule at sWR = 0.294 to one endpoint.
+    FDA_HVD_METHOD_SELECTION = "fda_hvd_method_selection"
+    #: Ordinary average BE run on a replicate design's contrast. Tracked
+    #: separately from `Method.STANDARD_ABE` because the CONTRAST comes from
+    #: Appendix G's `ilat` model while Appendix C specifies a fuller mixed
+    #: model for average BE on replicate studies - see its status note.
+    FDA_HVD_UNSCALED_BRANCH = "fda_hvd_unscaled_branch"
 
 
 #: Capabilities carry their own statuses, on the same ladder.
@@ -149,6 +163,26 @@ CAPABILITY_VALIDATION: dict[Capability, ValidationStatus] = {
     Capability.FDA_HVD_REFERENCE_VARIANCE: (
         ValidationStatus.IMPLEMENTED_UNVALIDATED
     ),
+    Capability.FDA_HVD_TREATMENT_CONTRAST: (
+        ValidationStatus.IMPLEMENTED_UNVALIDATED
+    ),
+    #: Structural: the switch either applies 0.294 to the estimated sWR or it
+    #: does not, and the tier-1A cases decide that.
+    Capability.FDA_HVD_METHOD_SELECTION: ValidationStatus.IMPLEMENTED,
+    #: EXPERIMENTAL, and the only thing in the package carrying that status.
+    #:
+    #: Appendix G step 1a says to use the two one-sided tests procedure when
+    #: sWR < 0.294, without naming a model. Appendix C separately specifies
+    #: average BE for replicate crossover studies with a mixed model carrying a
+    #: subject-by-formulation random effect and treatment-specific residual
+    #: variances - which this package does not fit.
+    #:
+    #: What is implemented applies TOST to Appendix G's own `ilat` contrast:
+    #: the same estimate FDA's point-estimate constraint uses, at the same
+    #: alpha. That is defensible and it is NOT Appendix C, so it does not get
+    #: to share `STANDARD_ABE`'s status. Settling which model governs the
+    #: unscaled branch of a replicate study is an open question for review.
+    Capability.FDA_HVD_UNSCALED_BRANCH: ValidationStatus.EXPERIMENTAL,
 }
 
 

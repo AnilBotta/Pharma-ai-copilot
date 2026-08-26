@@ -1,0 +1,111 @@
+{
+  "case_id": "FDA-HVD-RSABE-CRITERION-001",
+  "title": "FDA Appendix G steps 2 and 3: the linearized criterion and the two conditions",
+  "case_type": "algorithm_conformance",
+  "subject": "reference-scaled average BE criterion",
+  "jurisdiction": "FDA",
+
+  "rule": {
+    "hypotheses": "H0: (mu_T - mu_R)^2 / sigma_WR^2 >= theta  versus  Ha: < theta",
+    "quantity": "the 95% upper confidence bound for (mu_T - mu_R)^2 - theta*sigma_WR^2",
+    "method": "Howe's Approximation I (Howe 1974, J Am Stat Assoc 69(347):789-794), as cited in the guidance footnote",
+    "theta": "[ln(1.25) / sigma_W0]^2",
+    "sigma_w0": 0.25,
+    "confidence": 0.95
+  },
+
+  "sas_lines": {
+    "x": "x = estimate**2 - stderr**2",
+    "bound_x": "boundx = (max((abs(LowerCL)),(abs(UpperCL))))**2",
+    "theta": "theta = ((log(1.25))/0.25)**2",
+    "y": "y = -theta*s2wr",
+    "bound_y": "boundy = y*dfd/cinv(0.95,dfd)",
+    "criterion": "critbound = (x+y) + sqrt(((boundx-x)**2)+((boundy-y)**2))",
+    "note": "cinv is SAS's inverse CDF, so cinv(0.95, df) is the 95th PERCENTILE of the chi-square distribution - not an upper-tail quantile. scipy's equivalent is stats.chi2.ppf(0.95, df), NOT stats.chi2.isf(0.95, df)."
+  },
+
+  "degrees_of_freedom": {
+    "which": "dfd is the degrees of freedom of the REFERENCE VARIANCE model (dlat), not of the treatment contrast (ilat)",
+    "partial_replicate": "from PROC GLM overallanova on dlat = seq: the error degrees of freedom, n_D - 3",
+    "fully_replicate": "from the Estimates output of PROC MIXED on dlat = seq, which for a single residual variance component is n_D - 2",
+    "why_it_matters": "The two models are fitted on different subject sets whenever a subject is missing its test measurement, so a single shared degrees-of-freedom field would be wrong for one of them."
+  },
+
+  "expected": [
+    {
+      "aspect": "chi_square_direction",
+      "assertion": "bound_y is closer to zero than y",
+      "why": "y is negative and df/chisq_0.95(df) < 1, so bound_y > y. It is an upper bound on -theta*sigma_WR^2, hence a LOWER bound on the reference variance - less scaling, a harder criterion. The opposite tail would scale more generously than FDA."
+    },
+    {
+      "aspect": "x_correction",
+      "assertion": "x subtracts the squared standard error",
+      "why": "Dropping it biases the criterion toward failing, by the sampling variance of the estimate, most in the smallest studies."
+    },
+    {
+      "aspect": "bound_x_selection",
+      "assertion": "bound_x squares the LARGER ABSOLUTE confidence limit",
+      "why": "For an interval straddling zero, the larger absolute limit is not the upper one."
+    }
+  ],
+
+  "criteria": {
+    "A": {
+      "statement": "The 95% upper confidence bound for (mu_T - mu_R)^2 - theta*sigma_WR^2 must be <= 0",
+      "boundary": "closed: exactly 0 passes",
+      "expected": [
+        { "upper_bound": 1e-12, "passes": false },
+        { "upper_bound": 0.0, "passes": true },
+        { "upper_bound": -1e-12, "passes": true }
+      ]
+    },
+    "B": {
+      "statement": "The point estimate of the T/R geometric mean ratio must fall within [0.8000, 1.2500]",
+      "boundary": "closed: both limits pass",
+      "expected": [
+        { "ratio": 0.799999, "passes": false },
+        { "ratio": 0.800000, "passes": true },
+        { "ratio": 1.250000, "passes": true },
+        { "ratio": 1.250001, "passes": false }
+      ]
+    },
+    "conjunction": {
+      "statement": "For T to be bioequivalent to R, BOTH of the following conditions must be satisfied for each PK parameter tested",
+      "expected": [
+        { "A": true,  "B": true,  "overall": true },
+        { "A": true,  "B": false, "overall": false },
+        { "A": false, "B": true,  "overall": false },
+        { "A": false, "B": false, "overall": false }
+      ],
+      "why_recorded": "Criterion B is the stop on reference scaling, which otherwise widens the acceptance region without limit as reference variability grows. It is the criterion most likely to be dropped, because A is the elaborate one and looks like the answer."
+    }
+  },
+
+  "treatment_contrast": {
+    "partial_replicate": "PROC GLM, model ilat = seq, estimate 'average' intercept 1 seq 0.3333333333 0.3333333333 0.3333333333",
+    "fully_replicate": "PROC MIXED, model ilat = seq / ddfm=satterth, estimate 'average' intercept 1 seq 0.5 0.5",
+    "weights": "EQUAL ON THE SEQUENCE MEANS, not on subjects. With unequal sequence sizes the two differ, and dropouts make sequences unequal in almost every real study.",
+    "alpha": 0.1,
+    "interval": "two-sided 90% on the log scale"
+  },
+
+  "endpoint_scope": {
+    "statement": "Step 1 determines the method 'for the individual PK parameter(s)', and III.C carries the analysis out 'for both AUC and Cmax'.",
+    "consequence": "AUC and Cmax may take different methods in one study. A study-level classification on the worst endpoint would give the better-behaved endpoint a scaled acceptance region it has not earned."
+  },
+
+  "source": {
+    "tier": 1,
+    "subtier": "1A",
+    "type": "regulator-stated algorithm",
+    "authority": "FDA",
+    "document": "Statistical Approaches to Establishing Bioequivalence",
+    "document_version": "final, May 2026",
+    "section": "Appendix G (highly variable drugs), steps 2 and 3, and the SAS examples",
+    "url": "https://www.fda.gov/media/163638/download",
+    "verified_by": "primary document, read at the cited section",
+    "limitation": "The guidance states the algorithm, the constants and the SAS route, and contains no worked dataset - no input values and no published answer. So this closes tier 1A for the criterion and cannot close tier 1B, which needs a regulator's number to reproduce. No external numerical oracle has been run either: PowerTOST would be a tier-3 cross-check and R is not available in this environment."
+  },
+
+  "covers": "The criterion arithmetic, the two conditions and their conjunction, the chi-square direction, and which degrees of freedom scale which term. It asserts nothing about FDA NTI (Appendix F) or EMA ABEL, neither of which is implemented."
+}

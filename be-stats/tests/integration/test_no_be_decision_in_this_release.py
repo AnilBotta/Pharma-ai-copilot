@@ -187,12 +187,30 @@ def test_the_result_reports_swr_without_reporting_a_method():
     assert "NOT COMPUTED IN THIS MODULE" in result.summary()
 
 
-def test_the_rsabe_method_is_still_not_implemented():
-    """Nothing in this release may promote it."""
-    from be_stats import VALIDATION, Method, ValidationStatus
+def test_the_decision_lives_outside_the_estimation_layer():
+    """The separation survived RSABE being implemented.
 
-    assert VALIDATION[Method.FDA_HVD_RSABE] is ValidationStatus.NOT_IMPLEMENTED
+    When this file was written, no module in the package decided anything, so
+    the guard could not tell "the estimation layer is separate" from "nothing
+    decides yet". FDA HVD RSABE is implemented now - in `hvd.py`, which is
+    allowed to import the switching rule and does.
+
+    The estimation layer still is not, and that is what the tests above check.
+    This one pins the other half: the decision exists, and it exists somewhere
+    else.
+    """
+    from be_stats import VALIDATION, Method, ValidationStatus
+    from be_stats import hvd
+
+    assert VALIDATION[Method.FDA_HVD_RSABE] is (
+        ValidationStatus.IMPLEMENTED_UNVALIDATED
+    )
+    assert hvd.__name__ not in {m.__name__ for m in MODULES}
+    assert hasattr(hvd, "assess_endpoint")
+
+    # Still not implemented, and not reachable by configuring this one.
     assert VALIDATION[Method.FDA_NTI_RSABE] is ValidationStatus.NOT_IMPLEMENTED
+    assert VALIDATION[Method.EMA_HVD_ABEL] is ValidationStatus.NOT_IMPLEMENTED
     for status in VALIDATION.values():
         assert status is not ValidationStatus.VALIDATED
 
