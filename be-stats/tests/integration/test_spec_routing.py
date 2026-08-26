@@ -129,10 +129,32 @@ def test_fda_and_ema_take_different_routes_for_highly_variable_drugs():
     assert fda.method is not ema.method
     assert fda.constants["sigma_w0"].value == 0.25
     assert fda.constants["swr_switching_threshold"].value == 0.294
-    for spec in (fda, ema):
-        assert not spec.is_implemented
-        with pytest.raises(NotImplementedMethod):
-            spec.require_implemented()
+    # FDA's route is implemented from the highly-variable release onward; EMA's
+    # ABEL is a different procedure and is not.
+    assert fda.is_implemented
+    fda.require_implemented()
+
+    assert not ema.is_implemented
+    with pytest.raises(NotImplementedMethod):
+        ema.require_implemented()
+
+
+def test_an_implemented_hvd_method_still_has_no_fixed_acceptance_interval():
+    """Implementing RSABE does not give it an interval to contain a CI in.
+
+    The acceptance region moves with the reference variability, so asking a
+    highly-variable spec for limits is asking the wrong question - and it stays
+    a refusal now that the method runs. `require_implemented` and
+    `require_interval` answer different questions and must not be conflated.
+    """
+    from be_stats.spec import NotApplicable
+
+    fda = resolve_be_spec(
+        jurisdiction=Jurisdiction.FDA, drug_class=DrugClass.HIGHLY_VARIABLE
+    )
+    assert fda.is_implemented
+    with pytest.raises(NotApplicable, match="fixed acceptance interval"):
+        fda.require_interval()
 
 
 def test_unimplemented_methods_are_not_in_the_implemented_set():
@@ -140,9 +162,33 @@ def test_unimplemented_methods_are_not_in_the_implemented_set():
 
     assert Method.STANDARD_ABE in IMPLEMENTED
     assert Method.EMA_NTI_NARROW_ABE in IMPLEMENTED
-    for method in (
-        Method.FDA_NTI_RSABE,
-        Method.FDA_HVD_RSABE,
-        Method.EMA_HVD_ABEL,
-    ):
+    assert Method.FDA_HVD_RSABE in IMPLEMENTED
+
+    # NTI and ABEL are separate procedures with their own constants and their
+    # own criteria. Implementing FDA's highly-variable route deliberately did
+    # not generalise into either.
+    for method in (Method.FDA_NTI_RSABE, Method.EMA_HVD_ABEL):
         assert method not in IMPLEMENTED
+
+
+def test_implementing_hvd_did_not_turn_nti_into_a_configuration_flag():
+    """The scope line for the next release, asserted rather than intended.
+
+    FDA NTI shares the reference-scaling shape and almost nothing else: a
+    different scaling constant, a mandatory fully replicate design, an
+    additional unscaled criterion, and a variance-ratio comparison. Reaching it
+    by flipping a parameter on the highly-variable code would be the same
+    over-generalisation that made a single `EMA_MIN_N` wrong.
+    """
+    from be_stats import VALIDATION, ValidationStatus
+
+    assert VALIDATION[Method.FDA_NTI_RSABE] is ValidationStatus.NOT_IMPLEMENTED
+
+    nti = resolve_be_spec(
+        jurisdiction=Jurisdiction.FDA,
+        drug_class=DrugClass.NARROW_THERAPEUTIC_INDEX,
+        endpoint=Endpoint.AUC,
+    )
+    assert nti.method is Method.FDA_NTI_RSABE
+    with pytest.raises(NotImplementedMethod):
+        nti.require_implemented()

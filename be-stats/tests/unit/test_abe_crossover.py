@@ -211,10 +211,16 @@ def test_estimator_refuses_a_spec_whose_method_it_cannot_run():
     with pytest.raises(NotImplementedMethod, match="fully replicated"):
         analyse_crossover(BALANCED, fda_nti)
 
+    # The highly-variable method is implemented now, and a 2x2 crossover still
+    # cannot be analysed under it - for a different and better reason. Its
+    # acceptance region moves with the reference variability, so there is no
+    # fixed interval for a confidence interval to sit inside.
+    from be_stats.spec import NotApplicable
+
     fda_hvd = resolve_be_spec(
         jurisdiction=Jurisdiction.FDA, drug_class=DrugClass.HIGHLY_VARIABLE
     )
-    with pytest.raises(NotImplementedMethod):
+    with pytest.raises(NotApplicable, match="fixed acceptance interval"):
         analyse_crossover(BALANCED, fda_hvd)
 
 

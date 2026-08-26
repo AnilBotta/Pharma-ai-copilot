@@ -352,6 +352,132 @@ required sequence returns non-estimable with
 
 ---
 
+## FDA highly variable drugs: the decision (0.4.0)
+
+| Capability | Status |
+|---|---|
+| `FDA_HVD_METHOD_SELECTION` | `IMPLEMENTED` |
+| `FDA_HVD_TREATMENT_CONTRAST` | `IMPLEMENTED_UNVALIDATED` |
+| `FDA_HVD_RSABE` (the method) | `IMPLEMENTED_UNVALIDATED` |
+| `FDA_HVD_UNSCALED_BRANCH` | **`NOT_IMPLEMENTED`** — see below |
+
+**Only the scaled branch decides.** An endpoint with `sWR < 0.294` gets its
+sWR, its selected method and its treatment contrast, and then
+`decided = False` with `REPLICATE_ABE_MODEL_NOT_IMPLEMENTED`.
+
+### What the tiers say
+
+**Tier 1A — passed.** `FDA-HVD-RSABE-CRITERION-001` records Appendix G steps 2
+and 3 against the primary document: the SAS lines, both criteria and their
+conjunction, both closed boundaries, the chi-square direction, and which
+degrees of freedom scale which term.
+
+**Tier 1B — pending, and the guidance cannot close it.** No worked dataset
+exists in the document.
+
+**Tier 3 — pending, and the next external priority.** PowerTOST would be a
+reasonable implementation oracle for the criterion; R is not available in this
+environment, so no cross-implementation check has been run. The Phase-1 power
+and sample-size figures remain the only tier-3 evidence in the package. A test
+asserts this gap is recorded in the case file rather than left to be noticed.
+
+`VALIDATED` requires 1B, so `FDA_HVD_RSABE` does not get it from algorithm
+conformance alone.
+
+| Tier | RSABE |
+|---|---|
+| 1A | **PASSED** |
+| 1B | **PENDING** |
+| 3 | **PENDING** |
+
+### Why the unscaled branch refuses
+
+Appendix G step 1a routes `sWR < 0.294` to the two one-sided tests procedure
+without naming a model. **Appendix C names one**, and it is not the Appendix G
+intermediate:
+
+```
+PROC MIXED;
+CLASSES SEQ SUBJ PER TRT;
+MODEL Y = SEQ PER TRT / DDFM=SATTERTH;
+RANDOM TRT / TYPE=FA0(2) SUB=SUBJ G;
+REPEATED / GRP=TRT SUB=SUBJ;
+ESTIMATE 'T vs. R' TRT 1 -1 / CL ALPHA=0.1;
+```
+
+Fitted on the **subject-period observations**, with a **period** term, an
+unstructured 2×2 subject-by-formulation covariance, and **separate residual
+variances for T and R** — five covariance parameters, and Satterthwaite degrees
+of freedom derived from all five.
+
+Appendix G's `Iij` is a different model: no period term, one residual variance,
+no subject-by-formulation covariance. It is the right quantity for the scaled
+criterion — FDA forms `x` and `bound_x` from exactly it — and it is not this.
+
+**Why it is not implemented rather than approximated.** This package has scipy
+and numpy. Fitting the model above means writing a REML objective over five
+parameters, an optimiser that respects the boundary behaviour of a
+factor-analytic structure, the asymptotic covariance of the variance components
+and a Satterthwaite calculation from all of them — with **no oracle available
+here to check it against**. No SAS, no R, no statsmodels (whose `MixedLM`
+supports neither group-specific residual variances nor Satterthwaite df
+anyway).
+
+An unverifiable mixed model does not fail loudly. It converges, and returns an
+interval of entirely plausible width, which becomes a verdict.
+
+**And `EXPERIMENTAL` was not an adequate hedge.** A draft of this release ran
+TOST on the `ilat` contrast and marked the capability `EXPERIMENTAL`. A status
+field does not travel with a number: the caveat sat in `CAPABILITY_VALIDATION`
+while the verdict sat in the result and looked like any other. No capability in
+the package carries `EXPERIMENTAL` now, and a test asserts it.
+
+`replicate_abe.py` records the specification so the next implementer starts
+from the model rather than from the appendix. `analyse_replicate_abe()` raises
+with it. When it is built, it must produce a contrast, an SE and degrees of
+freedom and hand them to `abe_from_log_contrast` — not form an interval of its
+own.
+
+### The Satterthwaite claim is scoped to Appendix G
+
+"Satterthwaite reduces to the residual degrees of freedom" is true of Appendix
+G's `ilat = seq` model, which has **one** variance component — no `RANDOM`, no
+`REPEATED`. `satterthwaite_df` implements the general formula and a test
+asserts the collapse across several coefficients and dfs rather than asserting
+`n − 2`.
+
+It is **not** true of Appendix C, which has five components. Reusing `n − 2`
+there would be wrong in a way that produces a plausible interval, and both the
+docstring and a test say so.
+
+### Things that would not have raised
+
+Every one of these produces a number of the right shape and the wrong value,
+and each has a test:
+
+| Mistake | Consequence |
+|---|---|
+| subject-weighted contrast instead of equal sequence weights | wrong whenever sequences are unequal, i.e. after any dropout |
+| `chi2.isf(0.95, df)` instead of `chi2.ppf(0.95, df)` | `bound_y` about 3× too far from zero at 20 df; sign and ordering intact |
+| `x = estimate²` without `− SE²` | biased toward failing, most in the smallest studies |
+| `bound_x` from the upper limit rather than the larger absolute limit | wrong exactly when the interval straddles zero |
+| one shared `df` field | the reference variance's df silently used for the contrast |
+| dropping criterion B | reference scaling widens without limit as variability grows |
+| a study-level HVD classification | the better-behaved endpoint inherits a scaled region |
+
+### Row-order invariance, carried forward
+
+Shuffled rows, renamed subjects, reordered sequence groups and reversed period
+order all leave the selected method, sWR, the contrast, both degrees of
+freedom, the scaled bound and the final decision **bit-identical**. No
+tolerance is granted: every quantity is a closed form over `math.fsum`, so a
+permutation cannot move a bit, and a tolerance would be where a real
+order-dependence could hide. The fully replicated design reaches its degrees of
+freedom through the Satterthwaite formula rather than an iterative fit, so the
+same holds there.
+
+---
+
 ## Degeneracy: refuse, do not rescue
 
 For a validation-oriented statistical application, non-estimable is preferable
@@ -443,8 +569,9 @@ than returning something plausible:
 | Combination | Method | Phase |
 |---|---|---|
 | FDA + NTI | `FDA_NTI_RSABE` — fully replicated, σw0 = 0.10, Δ = 1/0.9, variance ratio limit 2.5, plus unscaled 80–125% | 2B |
-| FDA + highly variable | `FDA_HVD_RSABE` — σw0 = 0.25, switch at sWR ≥ 0.294, point estimate constrained to 80–125% | 2A |
 | EMA + highly variable | `EMA_HVD_ABEL` — expanding limits; a different procedure from RSABE, not a relabelling | 2C |
+
+*`FDA_HVD_RSABE` was in this table until 0.4.0, where it was implemented.*
 
 ### The switching threshold is settled
 

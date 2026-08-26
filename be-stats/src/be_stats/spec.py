@@ -103,7 +103,11 @@ VALIDATION: dict[Method, ValidationStatus] = {
     Method.STANDARD_ABE: ValidationStatus.IMPLEMENTED_UNVALIDATED,
     Method.EMA_NTI_NARROW_ABE: ValidationStatus.IMPLEMENTED_UNVALIDATED,
     Method.FDA_NTI_RSABE: ValidationStatus.NOT_IMPLEMENTED,
-    Method.FDA_HVD_RSABE: ValidationStatus.NOT_IMPLEMENTED,
+    #: Implemented in the highly-variable release. IMPLEMENTED_UNVALIDATED and
+    #: not VALIDATED: tier 1A conformance to Appendix G is established, tier 1B
+    #: is not, and this package's policy is that an attested algorithm is not a
+    #: reproduced result.
+    Method.FDA_HVD_RSABE: ValidationStatus.IMPLEMENTED_UNVALIDATED,
     Method.EMA_HVD_ABEL: ValidationStatus.NOT_IMPLEMENTED,
 }
 
@@ -135,6 +139,15 @@ class Capability(StrEnum):
     #: Estimate the within-subject reference variance and CVwR from a
     #: validated replicate dataset.
     FDA_HVD_REFERENCE_VARIANCE = "fda_hvd_reference_variance"
+    #: Estimate mu_T - mu_R as the equally weighted mean of the sequence means
+    #: of Iij, with the design's own degrees of freedom.
+    FDA_HVD_TREATMENT_CONTRAST = "fda_hvd_treatment_contrast"
+    #: Apply the switching rule at sWR = 0.294 to one endpoint.
+    FDA_HVD_METHOD_SELECTION = "fda_hvd_method_selection"
+    #: Ordinary average BE for a replicate design, per FDA Appendix C. Tracked
+    #: separately from `Method.STANDARD_ABE`, which covers the 2x2 crossover
+    #: and parallel designs Phase 1 implements.
+    FDA_HVD_UNSCALED_BRANCH = "fda_hvd_unscaled_branch"
 
 
 #: Capabilities carry their own statuses, on the same ladder.
@@ -149,6 +162,25 @@ CAPABILITY_VALIDATION: dict[Capability, ValidationStatus] = {
     Capability.FDA_HVD_REFERENCE_VARIANCE: (
         ValidationStatus.IMPLEMENTED_UNVALIDATED
     ),
+    Capability.FDA_HVD_TREATMENT_CONTRAST: (
+        ValidationStatus.IMPLEMENTED_UNVALIDATED
+    ),
+    #: Structural: the switch either applies 0.294 to the estimated sWR or it
+    #: does not, and the tier-1A cases decide that.
+    Capability.FDA_HVD_METHOD_SELECTION: ValidationStatus.IMPLEMENTED,
+    #: NOT_IMPLEMENTED, and not an open question.
+    #:
+    #: Appendix G step 1a routes sWR < 0.294 to the two one-sided tests
+    #: procedure without naming a model. Appendix C names one, and it is not
+    #: the Appendix G intermediate: a mixed model on subject-period
+    #: observations with a PERIOD term, an unstructured subject-by-formulation
+    #: covariance and treatment-specific residual variances.
+    #:
+    #: An earlier version ran TOST on the `ilat` contrast and called this
+    #: EXPERIMENTAL. A status field does not travel with a number, and the
+    #: number was a bioequivalence verdict from a different model. The branch
+    #: refuses instead. See `replicate_abe.py` for the specification.
+    Capability.FDA_HVD_UNSCALED_BRANCH: ValidationStatus.NOT_IMPLEMENTED,
 }
 
 

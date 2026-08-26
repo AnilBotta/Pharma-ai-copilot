@@ -44,6 +44,7 @@ CASE_DIR = Path(__file__).resolve().parents[2] / "validation" / "phase1" / "algo
 _RUNNERS = {
     "FDA-HVD-SWITCH-001": fda_hvd_method_for,
     "FDA-HVD-SWR-FORMULA-001": None,
+    "FDA-HVD-RSABE-CRITERION-001": None,
 }
 
 
@@ -81,11 +82,27 @@ def test_case_states_its_rule_and_its_source(case: dict):
     if _RUNNERS.get(case["case_id"]) is not None:
         assert "expected" in case, f"{case['case_id']} is missing expected"
     else:
-        nested = [v for v in case.values() if isinstance(v, dict) and "expected" in v]
-        assert nested, (
+        assert _states_expectations(case), (
             f"{case['case_id']} is a structural case and states no expectations "
             "anywhere; a case that asserts nothing is documentation"
         )
+
+
+def _states_expectations(node: object) -> bool:
+    """Does an `expected` block appear anywhere in this case?
+
+    Recursive because a structural case groups its expectations under whatever
+    aspect they belong to, at whatever depth reads best - the criterion case
+    puts them under `criteria.A` and `criteria.B`. A one-level check would pass
+    that case only by accident of nesting.
+    """
+    if isinstance(node, dict):
+        if node.get("expected"):
+            return True
+        return any(_states_expectations(v) for v in node.values())
+    if isinstance(node, list):
+        return any(_states_expectations(v) for v in node)
+    return False
 
     source = case["source"]
     for field in ("tier", "subtier", "authority", "document", "section"):
@@ -259,16 +276,81 @@ def test_the_guidance_contains_no_worked_dataset_and_the_case_says_so():
     assert "1b" in limitation.lower()
 
 
+def test_the_engine_reproduces_the_criterion_boundaries_the_case_states():
+    """Both Appendix G conditions, driven from the case file rather than from
+    numbers repeated in a test."""
+    from be_stats.hvd import PointEstimateConstraint
+    from be_stats.spec import FDA_HVD_CONSTANTS
+    from tests.unit.test_rsabe_criterion import make_criterion  # noqa: PLC0415
+
+    case = _case("FDA-HVD-RSABE-CRITERION-001")
+
+    for row in case["criteria"]["A"]["expected"]:
+        criterion = make_criterion(
+            estimate=0.05, standard_error=0.04,
+            ci_lower=-0.02, ci_upper=0.12, s2wr=0.2, df_d=20,
+            upper_confidence_bound=row["upper_bound"],
+        )
+        assert criterion.passes is row["passes"], row
+
+    for row in case["criteria"]["B"]["expected"]:
+        constraint = PointEstimateConstraint(
+            geometric_mean_ratio=row["ratio"],
+            lower_limit=FDA_HVD_CONSTANTS["point_estimate_lower"].value,
+            upper_limit=FDA_HVD_CONSTANTS["point_estimate_upper"].value,
+        )
+        assert constraint.passes is row["passes"], row
+
+
+def test_the_engine_requires_both_criteria_as_the_case_states():
+    from be_stats.hvd import PointEstimateConstraint, RsabeResult
+    from tests.unit.test_rsabe_criterion import make_criterion  # noqa: PLC0415
+
+    case = _case("FDA-HVD-RSABE-CRITERION-001")
+    for row in case["criteria"]["conjunction"]["expected"]:
+        result = RsabeResult(
+            scaled_criterion=make_criterion(
+                estimate=0.05, standard_error=0.04,
+                ci_lower=-0.02, ci_upper=0.12, s2wr=0.2, df_d=20,
+                upper_confidence_bound=-0.01 if row["A"] else 0.01,
+            ),
+            point_estimate_constraint=PointEstimateConstraint(
+                geometric_mean_ratio=1.0 if row["B"] else 1.4,
+                lower_limit=0.8000,
+                upper_limit=1.2500,
+            ),
+            reference_variance=None,  # type: ignore[arg-type]
+            treatment_contrast=None,  # type: ignore[arg-type]
+        )
+        assert result.passes is row["overall"], row
+
+
+def test_no_external_numerical_oracle_has_been_run_and_the_case_says_so():
+    """Tier 3 is empty for RSABE, and that is recorded rather than implied.
+
+    PowerTOST would be a reasonable implementation oracle. R is not available
+    in this environment, so no cross-implementation check has been performed on
+    the criterion - only on the Phase-1 power and sample size.
+    """
+    case = _case("FDA-HVD-RSABE-CRITERION-001")
+    limitation = case["source"]["limitation"].lower()
+    assert "no external numerical oracle" in limitation
+    assert "powertost" in limitation
+
+
 def test_tier_1a_does_not_promote_a_method_to_validated():
     """1A is not 1B, and neither on its own is a submission.
 
-    Attesting that the engine implements FDA's decision rule says nothing about
-    whether its arithmetic reproduces a regulator-published result, and the
-    method this case describes is not implemented at all yet.
+    Attesting that the engine implements FDA's algorithm says nothing about
+    whether its arithmetic reproduces a regulator-published result. The method
+    is implemented now and still not VALIDATED, which is the distinction this
+    test exists for - it was much weaker when the method was merely absent.
     """
     from be_stats import VALIDATION, ValidationStatus
     from be_stats.spec import Method as M
 
-    assert VALIDATION[M.FDA_HVD_RSABE] is ValidationStatus.NOT_IMPLEMENTED
+    assert VALIDATION[M.FDA_HVD_RSABE] is (
+        ValidationStatus.IMPLEMENTED_UNVALIDATED
+    )
     for status in VALIDATION.values():
         assert status is not ValidationStatus.VALIDATED

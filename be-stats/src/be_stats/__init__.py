@@ -12,7 +12,8 @@ than the limits.
 
 Measuring and deciding are also separated. The replicate layer estimates sWR
 and CVwR and stops; it cannot see the FDA switching rule, and a test enforces
-that. A quantity should be checkable before anything depends on it.
+that. The decision lives in `hvd.py`, which reads the same quantities from the
+outside. A quantity should be checkable before anything depends on it.
 
 STATUS: development. Not qualified for use in a regulatory submission. See
 `validation/README.md` for what would have to be true first.
@@ -20,9 +21,35 @@ STATUS: development. Not qualified for use in a regulatory submission. See
 
 from be_stats.abe import (
     AbeResult,
+    abe_from_log_contrast,
     analyse_crossover,
     analyse_parallel,
     tost_p_values,
+)
+from be_stats.hvd import (
+    FdaHvdResult,
+    NotDecidable,
+    PointEstimateConstraint,
+    RsabeResult,
+    ScaledCriterion,
+    assess_endpoint,
+    assess_study,
+    point_estimate_constraint,
+    scaled_criterion,
+)
+from be_stats.replicate_abe import (
+    APPENDIX_C_MODEL,
+    ReplicateAbeModelSpecification,
+    analyse_replicate_abe,
+)
+from be_stats.treatment_contrast import (
+    FullyReplicateTreatmentContrastEstimator,
+    PartialReplicateTreatmentContrastEstimator,
+    TreatmentContrastResult,
+    contrast_estimator_for,
+    estimate_treatment_contrast,
+    satterthwaite_df,
+    subject_weighted_mean,
 )
 from be_stats.power import (
     NotPowerable,
@@ -101,10 +128,30 @@ from be_stats.study import (
 #: Bumped on any change that can alter a computed result. An analysis record
 #: stores this, because "which version produced this number" is the first
 #: question asked of a result years later.
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 
 __all__ = [
+    "APPENDIX_C_MODEL",
     "AbeResult",
+    "FdaHvdResult",
+    "ReplicateAbeModelSpecification",
+    "analyse_replicate_abe",
+    "FullyReplicateTreatmentContrastEstimator",
+    "NotDecidable",
+    "PartialReplicateTreatmentContrastEstimator",
+    "PointEstimateConstraint",
+    "RsabeResult",
+    "ScaledCriterion",
+    "TreatmentContrastResult",
+    "abe_from_log_contrast",
+    "assess_endpoint",
+    "assess_study",
+    "contrast_estimator_for",
+    "estimate_treatment_contrast",
+    "point_estimate_constraint",
+    "satterthwaite_df",
+    "scaled_criterion",
+    "subject_weighted_mean",
     "CAPABILITY_VALIDATION",
     "Capability",
     "Citation",

@@ -86,6 +86,14 @@ class DiagnosticCode(StrEnum):
     REQUIRED_SEQUENCE_HAS_NO_CONTRIBUTING_SUBJECTS = (
         "REQUIRED_SEQUENCE_HAS_NO_CONTRIBUTING_SUBJECTS"
     )
+    #: Fewer residual degrees of freedom than the treatment contrast needs.
+    #: Distinct from INSUFFICIENT_REFERENCE_DF: the two models are fitted on
+    #: different subject sets and can fail independently.
+    INSUFFICIENT_CONTRAST_DF = "INSUFFICIENT_CONTRAST_DF"
+    #: The residual variance of Iij is exactly zero, so the interval has zero
+    #: width. Reported, not refused - the same reasoning as
+    #: ZERO_REFERENCE_VARIANCE.
+    ZERO_CONTRAST_VARIANCE = "ZERO_CONTRAST_VARIANCE"
     #: The model could not be fitted - a singular covariance structure, or a
     #: negative variance component that is not attributable to rounding.
     SINGULAR_MODEL = "SINGULAR_MODEL"
@@ -96,6 +104,11 @@ class DiagnosticCode(StrEnum):
     #: The design is supported and its estimator is not written yet. Distinct
     #: from UNSUPPORTED: the data are fine, the engine is not finished.
     ESTIMATOR_NOT_IMPLEMENTED = "ESTIMATOR_NOT_IMPLEMENTED"
+    #: The endpoint routed to ordinary average BE, and FDA's Appendix C mixed
+    #: model for replicate crossover studies is not implemented. The endpoint
+    #: is NOT decided - deliberately, rather than being decided by a different
+    #: model that would look the same.
+    REPLICATE_ABE_MODEL_NOT_IMPLEMENTED = "REPLICATE_ABE_MODEL_NOT_IMPLEMENTED"
 
 
 class Severity(StrEnum):

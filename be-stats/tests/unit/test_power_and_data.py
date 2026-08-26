@@ -291,9 +291,31 @@ def test_parallel_analysis_reports_between_subject_cv():
     assert result.ci_lower < result.point_estimate < result.ci_upper
 
 
-def test_parallel_refuses_an_unimplemented_method_too():
+def test_parallel_refuses_a_method_that_has_no_fixed_interval():
+    """A parallel study cannot be assessed under the highly-variable method.
+
+    Not because the method is unimplemented - it is, from the highly-variable
+    release - but because reference scaling needs replicate reference
+    measurements, which a parallel design does not collect, and its acceptance
+    region is therefore not a fixed interval.
+    """
     fda_hvd = resolve_be_spec(
         jurisdiction=Jurisdiction.FDA, drug_class=DrugClass.HIGHLY_VARIABLE
+    )
+    study = ParallelStudy(
+        endpoint="AUC", test=[100.0, 110.0, 95.0], reference=[99.0, 108.0, 97.0]
+    )
+    from be_stats.spec import NotApplicable
+
+    with pytest.raises(NotApplicable, match="fixed acceptance interval"):
+        analyse_parallel(study, fda_hvd)
+
+
+def test_an_unimplemented_method_still_refuses_by_name():
+    """The `NotImplementedMethod` path, kept alive by NTI."""
+    fda_nti = resolve_be_spec(
+        jurisdiction=Jurisdiction.FDA,
+        drug_class=DrugClass.NARROW_THERAPEUTIC_INDEX,
     )
     study = ParallelStudy(
         endpoint="AUC", test=[100.0, 110.0, 95.0], reference=[99.0, 108.0, 97.0]
@@ -301,4 +323,4 @@ def test_parallel_refuses_an_unimplemented_method_too():
     from be_stats import NotImplementedMethod
 
     with pytest.raises(NotImplementedMethod):
-        analyse_parallel(study, fda_hvd)
+        analyse_parallel(study, fda_nti)
