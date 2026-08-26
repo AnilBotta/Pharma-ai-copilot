@@ -6,15 +6,36 @@ first question asked of a result years later.
 
 ---
 
-## 0.4.0 — FDA highly variable drugs: the decision
+## 0.4.0 — FDA highly variable drugs: the scaled branch decides
 
-The quantities from 0.2.0/0.3.0 now reach a conclusion. For each PK endpoint:
+For each PK endpoint:
 
 ```
 validated replicate dataset -> sWR -> switch at 0.294
-                                   -> STANDARD ABE or FDA HVD RSABE
-                                   -> endpoint decision, every component shown
+     sWR >= 0.294  ->  FDA HVD RSABE       -> decided, every component shown
+     sWR <  0.294  ->  method selected     -> NOT DECIDED, and here is why
 ```
+
+**Only one of the two branches decides, and that is deliberate.**
+
+Appendix G step 1a routes an endpoint below the threshold to the two one-sided
+tests procedure without naming a model. **Appendix C names one**, and it is not
+the Appendix G intermediate: a mixed model on the subject-period observations
+with fixed effects for sequence, **period** and treatment, an unstructured 2×2
+subject-by-formulation covariance (`RANDOM TRT/TYPE=FA0(2) SUB=SUBJ`),
+treatment-specific residual variances (`REPEATED/GRP=TRT SUB=SUBJ`) and
+Satterthwaite degrees of freedom from all five covariance parameters.
+
+This package has scipy and numpy. No mixed-model fitter here supports
+group-specific residual variances or Satterthwaite df — statsmodels' `MixedLM`
+does neither, and it is not installed — and there is **no oracle available to
+check a from-scratch REML fit against**: no SAS, no R. An unverifiable mixed
+model does not fail loudly; it converges and returns a confidence interval of
+entirely plausible width, which becomes a bioequivalence verdict.
+
+So the unscaled branch refuses, with
+`REPLICATE_ABE_MODEL_NOT_IMPLEMENTED` and the model it would have to fit.
+`replicate_abe.py` records that specification.
 
 **No FDA NTI. No EMA ABEL.** Both remain `NOT_IMPLEMENTED`, and a test asserts
 that implementing the highly-variable route did not turn NTI into a
@@ -94,45 +115,55 @@ legitimately differ, as are `reference_variance_df` and
 variance's** degrees of freedom while the interval behind `bound_x` uses the
 contrast's; one generic `df` would make them equal by construction.
 
-### The standard branch does not reimplement TOST
+### One TOST implementation, and it is now actually shared
 
-`abe.abe_from_log_contrast()` is new: it takes a contrast somebody else
-estimated and forms the interval and the containment decision. Phase 1's
-crossover analysis and the replicate branch now share that one implementation,
-and a structural test asserts `hvd.py` contains no Student-t quantile at all.
+`abe.abe_from_log_contrast()` takes a contrast somebody else estimated and
+forms the interval and the containment decision. `analyse_crossover` and
+`analyse_parallel` were refactored to route through it, so the abstraction is
+live rather than speculative — Phase 1's golden cases confirm no number moved.
+The private `_interval` helper is gone; a structural test asserts there is
+exactly **one** `stats.t.ppf` in the package and none at all in `hvd.py`.
 
-**One open question, recorded rather than resolved.** Appendix G step 1a says
-to use the two one-sided tests procedure below the threshold, without naming a
-model. Appendix C separately specifies average BE for replicate crossover
-studies with a mixed model carrying a subject-by-formulation random effect and
-treatment-specific residual variances — which this package does not fit. What
-is implemented applies TOST to Appendix G's own `ilat` contrast: the same
-estimate FDA's point-estimate constraint uses, at the same alpha. That is
-defensible and it is not Appendix C, so
-`Capability.FDA_HVD_UNSCALED_BRANCH` is `EXPERIMENTAL` — the only thing in the
-package carrying that status.
+It is kept despite the unscaled branch refusing, because Appendix C — when
+implemented — must produce a contrast, an SE and degrees of freedom and hand
+them to it rather than forming an interval of its own.
+
+### `EXPERIMENTAL` was the wrong answer, and it is gone
+
+An earlier draft of this release ran TOST on the Appendix G `ilat` contrast for
+the unscaled branch and marked the capability `EXPERIMENTAL`.
+
+**A status field does not travel with a number.** The caveat sat in
+`CAPABILITY_VALIDATION`; the verdict sat in `standard_abe_result` and looked
+exactly like one computed from the right model. `FDA_HVD_UNSCALED_BRANCH` is
+`NOT_IMPLEMENTED` now, the branch refuses, and no capability in the package
+carries `EXPERIMENTAL` — a test asserts that too.
 
 ### Validation state
 
 | | Status |
 |---|---|
-| `FDA_HVD_RSABE` | `IMPLEMENTED_UNVALIDATED` |
 | `FDA_HVD_METHOD_SELECTION` | `IMPLEMENTED` |
+| `FDA_HVD_RSABE` | `IMPLEMENTED_UNVALIDATED` |
 | `FDA_HVD_TREATMENT_CONTRAST` | `IMPLEMENTED_UNVALIDATED` |
-| `FDA_HVD_UNSCALED_BRANCH` | `EXPERIMENTAL` |
+| `FDA_HVD_UNSCALED_BRANCH` | **`NOT_IMPLEMENTED`** |
 | `FDA_NTI_RSABE` | `NOT_IMPLEMENTED` |
 | `EMA_HVD_ABEL` | `NOT_IMPLEMENTED` |
 
-Tier 1A passes: `FDA-HVD-RSABE-CRITERION-001` covers the criterion, both
+**Tier 1A — passed.** `FDA-HVD-RSABE-CRITERION-001` covers the criterion, both
 boundaries, the conjunction, the chi-square direction and which degrees of
-freedom scale which term. **Tier 1B is still pending** — the guidance has no
-worked dataset. **Tier 3 is empty for RSABE**: PowerTOST would be a reasonable
-implementation oracle and R is not available here, so no cross-implementation
-check has been run on the criterion. A test asserts that gap is recorded.
+freedom scale which term.
+
+**Tier 1B — pending.** The guidance has no worked dataset and cannot close it.
+
+**Tier 3 — pending.** PowerTOST would be a reasonable implementation oracle;
+R is not available here, so no cross-implementation check has been run on the
+criterion. A test asserts that gap is recorded rather than implied. This is the
+next external priority.
 
 `VALIDATED` requires 1B. Nothing here may support a submission.
 
-264 tests pass, 4 skipped.
+270 tests pass, 4 skipped.
 
 ---
 

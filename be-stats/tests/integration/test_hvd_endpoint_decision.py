@@ -71,14 +71,48 @@ def synthetic(
 # --------------------------------------------------------------- switching ---
 
 
-def test_a_low_variability_endpoint_takes_ordinary_average_be():
+def test_a_low_variability_endpoint_selects_standard_abe_and_refuses_to_decide():
+    """The method is selected. The decision is not made, and that is deliberate.
+
+    Appendix G routes here; Appendix C names the model, and this package cannot
+    fit it. An earlier version ran TOST on the Appendix G `ilat` contrast and
+    returned a verdict. That verdict came from a different model than FDA
+    specifies for this branch, and looked identical to one that did not.
+    """
     result = assess_endpoint(synthetic(0.18, 11))
 
-    assert result.decided
     assert result.swr < 0.294
     assert result.selected_method is Method.STANDARD_ABE
-    assert result.standard_abe_result is not None
-    assert result.rsabe_result is None, "the branch not taken stays None"
+
+    assert not result.decided
+    assert result.passes is None, "not decided is not the same as failing"
+    assert result.standard_abe_result is None
+    assert result.rsabe_result is None
+
+    refusal = [
+        d for d in result.diagnostics
+        if d.code is DiagnosticCode.REPLICATE_ABE_MODEL_NOT_IMPLEMENTED
+    ]
+    assert len(refusal) == 1
+    assert refusal[0].severity is Severity.FATAL
+    assert "Appendix C" in refusal[0].detail
+    assert "required_model" in refusal[0].context
+
+
+def test_the_refusal_still_returns_the_quantities_it_did_compute():
+    """Refusing the decision is not refusing to report.
+
+    sWR, CVwR, the selected method and the treatment contrast are all real and
+    all returned. Only the verdict is withheld.
+    """
+    result = assess_endpoint(synthetic(0.18, 11))
+
+    assert result.swr is not None and result.swr > 0.0
+    assert result.cv_wr is not None
+    assert result.treatment_contrast is not None
+    assert result.treatment_contrast.estimable
+    assert result.n_for_swr == 24
+    assert result.reference_variance_df == 21
 
 
 def test_a_high_variability_endpoint_takes_reference_scaling():
@@ -152,7 +186,12 @@ def test_zero_swr_routes_to_standard_abe():
     assert any(
         d.code is DiagnosticCode.ZERO_REFERENCE_VARIANCE for d in result.diagnostics
     )
-    assert result.standard_abe_result is not None
+    # Routed correctly, and then refused for the branch's own reason.
+    assert not result.decided
+    assert any(
+        d.code is DiagnosticCode.REPLICATE_ABE_MODEL_NOT_IMPLEMENTED
+        for d in result.diagnostics
+    )
 
 
 # ------------------------------------------------------- per-endpoint choice ---
@@ -176,10 +215,16 @@ def test_auc_and_cmax_choose_different_methods_in_the_same_study():
     assert results["AUC"].selected_method is Method.STANDARD_ABE
     assert results["Cmax"].selected_method is Method.FDA_HVD_RSABE
 
-    assert results["AUC"].standard_abe_result is not None
-    assert results["AUC"].rsabe_result is None
+    # The scaled endpoint decides; the unscaled one selects its method and
+    # then refuses, because Appendix C is not implemented.
+    assert results["Cmax"].decided
     assert results["Cmax"].rsabe_result is not None
     assert results["Cmax"].standard_abe_result is None
+
+    assert not results["AUC"].decided
+    assert results["AUC"].standard_abe_result is None
+    assert results["AUC"].rsabe_result is None
+    assert results["AUC"].passes is None
 
 
 def test_the_endpoint_travels_with_its_own_result():
@@ -283,12 +328,18 @@ def test_the_scaled_criterion_scales_by_the_reference_variance_df():
 # --------------------------------------------------- the standard branch ---
 
 
-def test_the_standard_branch_does_not_reimplement_tost():
-    """One implementation of the interval, in `abe.py`.
+def test_no_module_forms_its_own_tost_interval():
+    """One implementation of the interval, in `abe.abe_from_log_contrast`.
 
-    Checked structurally rather than by comparing outputs: this module must not
-    contain a Student-t quantile at all. Two implementations of one procedure
-    is how a fourth-decimal disagreement lives for a year.
+    Checked structurally: neither the decision module nor the contrast module
+    may contain a Student-t quantile beyond the contrast's own interval, and
+    `hvd.py` must contain none at all. Two implementations of one procedure is
+    how a fourth-decimal disagreement lives for a year.
+
+    `abe_from_log_contrast` is deliberately kept even though the unscaled
+    branch currently refuses: Appendix C, when implemented, must produce a
+    contrast, an SE and degrees of freedom and then hand them to it rather than
+    forming an interval of its own.
     """
     source = Path(inspect.getfile(hvd)).read_text(encoding="utf-8")
     tree = ast.parse(source)
@@ -303,35 +354,153 @@ def test_the_standard_branch_does_not_reimplement_tost():
     ]
     assert not t_uses, f"hvd.py forms its own t interval: {t_uses}"
 
-    imported = {
-        alias.name
-        for node in ast.walk(tree)
-        if isinstance(node, ast.ImportFrom)
-        for alias in node.names
-    }
-    assert "abe_from_log_contrast" in imported
+    from be_stats import abe
+
+    # A t QUANTILE is what forms an interval. `stats.t.sf` and `stats.t.cdf`
+    # are tail probabilities and belong to `tost_p_values`, which reports the
+    # two one-sided p-values and decides nothing - so the check is on `ppf`.
+    abe_source = Path(inspect.getfile(abe)).read_text(encoding="utf-8")
+    quantile_sites = [
+        node.lineno
+        for node in ast.walk(ast.parse(abe_source))
+        if isinstance(node, ast.Attribute)
+        and node.attr == "ppf"
+        and ast.unparse(node).startswith("stats.t.")
+    ]
+    assert len(quantile_sites) == 1, (
+        f"abe.py forms a t interval at lines {quantile_sites}; there must be "
+        "exactly one such place in the package"
+    )
 
 
-def test_the_standard_branch_still_explains_the_switch():
+def test_phase_one_routes_through_the_shared_core_too():
+    """The abstraction is live, not speculative.
+
+    `analyse_crossover` and `analyse_parallel` build their own contrasts and
+    then call the same function the replicate branch will. If either grew its
+    own interval again, the count above would rise.
+    """
+    from be_stats import abe
+
+    source = Path(inspect.getfile(abe)).read_text(encoding="utf-8")
+    tree = ast.parse(source)
+
+    for name in ("analyse_crossover", "analyse_parallel"):
+        function = next(
+            n for n in ast.walk(tree)
+            if isinstance(n, ast.FunctionDef) and n.name == name
+        )
+        calls = {
+            n.func.id
+            for n in ast.walk(function)
+            if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
+        }
+        assert "abe_from_log_contrast" in calls, name
+
+
+def test_the_unscaled_branch_is_not_implemented_rather_than_experimental():
+    """A status field does not travel with a number.
+
+    Marking this EXPERIMENTAL while returning a bioequivalence verdict put the
+    caveat somewhere the verdict would not carry it. The branch refuses now,
+    and the status says so.
+    """
+    from be_stats import CAPABILITY_VALIDATION, Capability, ValidationStatus
+
+    assert (
+        CAPABILITY_VALIDATION[Capability.FDA_HVD_UNSCALED_BRANCH]
+        is ValidationStatus.NOT_IMPLEMENTED
+    )
+    assert ValidationStatus.EXPERIMENTAL not in CAPABILITY_VALIDATION.values()
+
+
+def test_the_summary_says_the_endpoint_was_not_decided():
     result = assess_endpoint(synthetic(0.18, 11))
     text = result.summary()
     assert "sWR" in text
     assert "0.294" in text
     assert "standard_abe" in text
-    assert result.standard_abe_result is not None
-    assert result.standard_abe_result.acceptance.lower_value == 80.00
-    assert result.standard_abe_result.acceptance.upper_value == 125.00
+    assert "NOT DECIDED" in text
+    assert "REPLICATE_ABE_MODEL_NOT_IMPLEMENTED" in text
 
 
-def test_the_standard_branch_carries_its_experimental_status():
-    """Appendix C specifies a fuller mixed model for average BE on replicate
-    designs than the `ilat` contrast used here. The status says so."""
-    from be_stats import CAPABILITY_VALIDATION, Capability, ValidationStatus
+# ---------------------------------------- the two analyses must stay distinct ---
 
-    assert (
-        CAPABILITY_VALIDATION[Capability.FDA_HVD_UNSCALED_BRANCH]
-        is ValidationStatus.EXPERIMENTAL
+
+def test_appendix_g_and_appendix_c_operate_on_different_data():
+    """The regression that stops a future refactor merging them.
+
+    Both eventually produce a T-R contrast, which makes them look
+    interchangeable. They are not: Appendix G's intermediate is built from
+    `Iij`/`Dij` - within-subject combinations that absorb period - while
+    Appendix C is fitted on the subject-period observations with SEQ, PER and
+    TRT as fixed effects.
+
+    Structural rather than numerical, because the numerical difference is
+    exactly the thing that would not be noticed.
+    """
+    from be_stats import replicate_abe, treatment_contrast
+
+    contrast_source = Path(inspect.getfile(treatment_contrast)).read_text(
+        encoding="utf-8"
     )
+    contrast_tree = ast.parse(contrast_source)
+    contrast_imports = {
+        alias.name
+        for node in ast.walk(contrast_tree)
+        if isinstance(node, ast.ImportFrom)
+        for alias in node.names
+    }
+    assert "treatment_contrasts" in contrast_imports, (
+        "the Appendix G estimator works from Iij"
+    )
+
+    model = replicate_abe.APPENDIX_C_MODEL
+    assert model.operates_on == "subject-period log observations"
+    assert "Iij" not in model.operates_on and "Dij" not in model.operates_on
+    assert set(model.fixed_effects) == {"sequence", "period", "treatment"}
+    assert "period" in model.fixed_effects, (
+        "Appendix G's Iij absorbs period within a subject; Appendix C estimates it"
+    )
+    assert model.n_covariance_parameters == 5
+
+
+def test_the_appendix_c_specification_is_recorded_even_though_it_does_not_run():
+    from be_stats import replicate_abe
+    from be_stats.provenance import ValidationStatus
+
+    assert replicate_abe.VALIDATION_STATUS is ValidationStatus.NOT_IMPLEMENTED
+
+    explained = " ".join(replicate_abe.APPENDIX_C_MODEL.explain())
+    for fragment in ("sequence", "period", "treatment", "FA0(2)", "GRP=TRT",
+                     "Satterthwaite", "Appendix C", "May 2026"):
+        assert fragment in explained
+
+
+def test_calling_the_appendix_c_analysis_raises_with_the_model_it_needs():
+    from be_stats.replicate_abe import analyse_replicate_abe
+    from be_stats.spec import NotImplementedMethod
+
+    with pytest.raises(NotImplementedMethod) as exc:
+        analyse_replicate_abe(synthetic(0.18, 11))
+    message = str(exc.value)
+    assert "Appendix C" in message
+    assert "FA0(2)" in message
+    assert "Satterthwaite" in message
+
+
+def test_the_satterthwaite_collapse_is_not_claimed_for_appendix_c():
+    """The scoping the review asked for, asserted where it will be read.
+
+    "Satterthwaite reduces to the residual df" is true of Appendix G's
+    single-component `ilat = seq` model. Appendix C has five components and its
+    degrees of freedom must come from that model.
+    """
+    from be_stats import treatment_contrast
+
+    doc = treatment_contrast.satterthwaite_df.__doc__ or ""
+    assert "NOT true of Appendix C" in doc
+    assert "five" in doc or "5" in doc
 
 
 # ------------------------------------------------------------- provenance ---

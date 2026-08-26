@@ -33,6 +33,22 @@ Reducing that to one boolean is how the second one quietly disappears - the
 scaled criterion is the elaborate part, and it is easy to treat it as the
 answer. `RsabeResult` exposes each separately and computes `passes` from both.
 
+ONLY ONE OF THE TWO BRANCHES DECIDES
+
+The scaled branch is complete. The unscaled branch is not, and it refuses.
+
+Appendix G step 1a routes an endpoint with `sWR < 0.294` to the two one-sided
+tests procedure without naming a model. Appendix C names one: a mixed model on
+the subject-period observations, with a period term, an unstructured
+subject-by-formulation covariance and treatment-specific residual variances,
+which this package cannot fit and has nothing to check a from-scratch fit
+against. See `replicate_abe.py`.
+
+So an endpoint below the threshold comes back with its sWR, its selected
+method, its treatment contrast - and `decided = False`. It does not come back
+with a bioequivalence verdict computed from the reference-scaled construction's
+intermediate, which is what an earlier version of this module did.
+
 WHAT THIS MODULE DOES NOT DO
 
 FDA narrow therapeutic index drugs (Appendix F) and EMA's ABEL are different
@@ -47,7 +63,7 @@ from dataclasses import dataclass, field
 
 from scipy import stats
 
-from be_stats.abe import AbeResult, abe_from_log_contrast
+from be_stats.abe import AbeResult
 from be_stats.diagnostics import Diagnostic, DiagnosticCode, Severity
 from be_stats.provenance import (
     FDA_STATISTICAL_APPROACHES_APPENDIX_G,
@@ -60,6 +76,7 @@ from be_stats.reference_variance import (
     estimate_reference_variance,
 )
 from be_stats.replicate import ReplicateDataset, ReplicateDesign
+from be_stats.replicate_abe import replicate_abe_unavailable
 from be_stats.spec import (
     FDA_HVD_CONSTANTS,
     BeSpec,
@@ -441,22 +458,27 @@ def assess_endpoint(
         )
 
     if method is Method.STANDARD_ABE:
-        # Reused, not reimplemented: the interval and the containment decision
-        # come from abe.py, which Phase 1 already validated. Only the contrast
-        # is design-specific.
-        abe = abe_from_log_contrast(
-            endpoint=dataset.endpoint,
-            design=str(dataset.design),
-            spec=spec or _hvd_spec(),
-            log_point_estimate=contrast.estimate,
-            log_standard_error=contrast.standard_error,
-            degrees_of_freedom=contrast.degrees_of_freedom,
-            n_subjects=contrast.n_subjects,
-            within_subject_log_variance=variance.variance_wr or 0.0,
-            cv_kind="within-reference (sWR)",
-        )
+        # THE UNSCALED BRANCH REFUSES, AND HERE IS WHY.
+        #
+        # Appendix G step 1a routes here, saying to use the two one-sided tests
+        # procedure. It does not name a model, and Appendix C does: a mixed
+        # model on the subject-period observations with fixed effects for
+        # sequence, PERIOD and treatment, an unstructured subject-by-formulation
+        # covariance, treatment-specific residual variances, and Satterthwaite
+        # degrees of freedom from all five covariance parameters.
+        #
+        # An earlier version of this module ran TOST on the Appendix G `ilat`
+        # contrast instead and marked the capability EXPERIMENTAL. That was the
+        # wrong trade: a status field does not travel with a number, and the
+        # number was a bioequivalence verdict computed from a different model.
+        # `replicate_abe.py` records the model that has to be fitted and why it
+        # is not fitted here.
+        #
+        # The contrast IS still computed and returned - it is a real quantity a
+        # reviewer may want - but it does not become a decision.
+        diagnostics.append(replicate_abe_unavailable(dataset))
         return FdaHvdResult(
-            **common, standard_abe_result=abe, diagnostics=tuple(diagnostics)
+            **common, decided=False, diagnostics=tuple(diagnostics)
         )
 
     rsabe = RsabeResult(

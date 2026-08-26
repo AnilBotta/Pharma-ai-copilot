@@ -144,10 +144,9 @@ class Capability(StrEnum):
     FDA_HVD_TREATMENT_CONTRAST = "fda_hvd_treatment_contrast"
     #: Apply the switching rule at sWR = 0.294 to one endpoint.
     FDA_HVD_METHOD_SELECTION = "fda_hvd_method_selection"
-    #: Ordinary average BE run on a replicate design's contrast. Tracked
-    #: separately from `Method.STANDARD_ABE` because the CONTRAST comes from
-    #: Appendix G's `ilat` model while Appendix C specifies a fuller mixed
-    #: model for average BE on replicate studies - see its status note.
+    #: Ordinary average BE for a replicate design, per FDA Appendix C. Tracked
+    #: separately from `Method.STANDARD_ABE`, which covers the 2x2 crossover
+    #: and parallel designs Phase 1 implements.
     FDA_HVD_UNSCALED_BRANCH = "fda_hvd_unscaled_branch"
 
 
@@ -169,20 +168,19 @@ CAPABILITY_VALIDATION: dict[Capability, ValidationStatus] = {
     #: Structural: the switch either applies 0.294 to the estimated sWR or it
     #: does not, and the tier-1A cases decide that.
     Capability.FDA_HVD_METHOD_SELECTION: ValidationStatus.IMPLEMENTED,
-    #: EXPERIMENTAL, and the only thing in the package carrying that status.
+    #: NOT_IMPLEMENTED, and not an open question.
     #:
-    #: Appendix G step 1a says to use the two one-sided tests procedure when
-    #: sWR < 0.294, without naming a model. Appendix C separately specifies
-    #: average BE for replicate crossover studies with a mixed model carrying a
-    #: subject-by-formulation random effect and treatment-specific residual
-    #: variances - which this package does not fit.
+    #: Appendix G step 1a routes sWR < 0.294 to the two one-sided tests
+    #: procedure without naming a model. Appendix C names one, and it is not
+    #: the Appendix G intermediate: a mixed model on subject-period
+    #: observations with a PERIOD term, an unstructured subject-by-formulation
+    #: covariance and treatment-specific residual variances.
     #:
-    #: What is implemented applies TOST to Appendix G's own `ilat` contrast:
-    #: the same estimate FDA's point-estimate constraint uses, at the same
-    #: alpha. That is defensible and it is NOT Appendix C, so it does not get
-    #: to share `STANDARD_ABE`'s status. Settling which model governs the
-    #: unscaled branch of a replicate study is an open question for review.
-    Capability.FDA_HVD_UNSCALED_BRANCH: ValidationStatus.EXPERIMENTAL,
+    #: An earlier version ran TOST on the `ilat` contrast and called this
+    #: EXPERIMENTAL. A status field does not travel with a number, and the
+    #: number was a bioequivalence verdict from a different model. The branch
+    #: refuses instead. See `replicate_abe.py` for the specification.
+    Capability.FDA_HVD_UNSCALED_BRANCH: ValidationStatus.NOT_IMPLEMENTED,
 }
 
 

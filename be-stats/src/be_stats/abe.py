@@ -110,24 +110,10 @@ class AbeResult:
         )
 
 
-def _interval(
-    log_diff: float,
-    standard_error: float,
-    df: int,
-    spec: BeSpec,
-) -> tuple[float, float, float]:
-    """The point estimate and confidence limits, as percentages."""
-    # Two one-sided tests at `alpha` each => a (1 - 2*alpha) interval. The
-    # quantile is 1 - alpha, not 1 - alpha/2: this is the single place the
-    # TOST structure enters, and getting it wrong would silently widen or
-    # narrow every result the engine produces.
-    t_crit = stats.t.ppf(1.0 - spec.alpha, df)
-    half_width = t_crit * standard_error
-    return (
-        100.0 * math.exp(log_diff),
-        100.0 * math.exp(log_diff - half_width),
-        100.0 * math.exp(log_diff + half_width),
-    )
+# `_interval` used to live here. It has been folded into
+# `abe_from_log_contrast` so that exactly one function in the package forms a
+# TOST interval, rather than one private helper for the designs this module
+# estimates and something else for the designs it does not.
 
 
 #: The one conversion, imported rather than repeated. See conversions.py for
@@ -229,7 +215,11 @@ def abe_from_log_contrast(
 
 def analyse_crossover(study: CrossoverStudy, spec: BeSpec) -> AbeResult:
     """Average bioequivalence from a 2x2 crossover."""
-    acceptance = spec.require_interval()
+    # Called for its refusal, not its value. A spec whose method is not
+    # implemented, or which does not decide by a fixed interval, must stop the
+    # analysis before any arithmetic happens. The interval itself is applied
+    # inside `abe_from_log_contrast`, which is now the only place one is formed.
+    spec.require_interval()
 
     halves: dict[Sequence, list[float]] = {}
     for sequence in Sequence:
@@ -263,25 +253,16 @@ def analyse_crossover(study: CrossoverStudy, spec: BeSpec) -> AbeResult:
     # var(d) = sigma_W^2 / 2, so the within-subject variance is twice it.
     within_subject_log_variance = 2.0 * var_d
 
-    point, lower, upper = _interval(log_diff, standard_error, df, spec)
-
-    return AbeResult(
+    return abe_from_log_contrast(
         endpoint=study.endpoint,
         design="2x2 crossover",
-        regulator=str(spec.jurisdiction),
-        drug_class=str(spec.drug_class),
-        point_estimate=point,
-        ci_lower=lower,
-        ci_upper=upper,
-        confidence_level=spec.confidence_level,
-        cv_percent=_cv_percent_from_log_variance(within_subject_log_variance),
-        cv_kind="within-subject",
-        degrees_of_freedom=df,
-        n_subjects=n_rt + n_tr,
-        acceptance=acceptance,
-        within_acceptance_interval=acceptance.contains(lower, upper),
+        spec=spec,
         log_point_estimate=log_diff,
         log_standard_error=standard_error,
+        degrees_of_freedom=df,
+        n_subjects=n_rt + n_tr,
+        within_subject_log_variance=within_subject_log_variance,
+        cv_kind="within-subject",
     )
 
 
@@ -294,7 +275,7 @@ def analyse_parallel(study: ParallelStudy, spec: BeSpec) -> AbeResult:
     switching between them changes the degrees of freedom and therefore the
     result.
     """
-    acceptance = spec.require_interval()
+    spec.require_interval()  # refuse early; see analyse_crossover
 
     log_test = [math.log(v) for v in study.test]
     log_reference = [math.log(v) for v in study.reference]
@@ -312,25 +293,16 @@ def analyse_parallel(study: ParallelStudy, spec: BeSpec) -> AbeResult:
     _reject_zero_variance(pooled_variance, "pooled between-subject")
     standard_error = math.sqrt(pooled_variance * (1.0 / n_t + 1.0 / n_r))
 
-    point, lower, upper = _interval(log_diff, standard_error, df, spec)
-
-    return AbeResult(
+    return abe_from_log_contrast(
         endpoint=study.endpoint,
         design="parallel",
-        regulator=str(spec.jurisdiction),
-        drug_class=str(spec.drug_class),
-        point_estimate=point,
-        ci_lower=lower,
-        ci_upper=upper,
-        confidence_level=spec.confidence_level,
-        cv_percent=_cv_percent_from_log_variance(pooled_variance),
-        cv_kind="between-subject (pooled)",
-        degrees_of_freedom=df,
-        n_subjects=n_t + n_r,
-        acceptance=acceptance,
-        within_acceptance_interval=acceptance.contains(lower, upper),
+        spec=spec,
         log_point_estimate=log_diff,
         log_standard_error=standard_error,
+        degrees_of_freedom=df,
+        n_subjects=n_t + n_r,
+        within_subject_log_variance=pooled_variance,
+        cv_kind="between-subject (pooled)",
     )
 
 

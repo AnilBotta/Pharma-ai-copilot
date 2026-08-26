@@ -359,7 +359,11 @@ required sequence returns non-estimable with
 | `FDA_HVD_METHOD_SELECTION` | `IMPLEMENTED` |
 | `FDA_HVD_TREATMENT_CONTRAST` | `IMPLEMENTED_UNVALIDATED` |
 | `FDA_HVD_RSABE` (the method) | `IMPLEMENTED_UNVALIDATED` |
-| `FDA_HVD_UNSCALED_BRANCH` | **`EXPERIMENTAL`** — see below |
+| `FDA_HVD_UNSCALED_BRANCH` | **`NOT_IMPLEMENTED`** — see below |
+
+**Only the scaled branch decides.** An endpoint with `sWR < 0.294` gets its
+sWR, its selected method and its treatment contrast, and then
+`decided = False` with `REPLICATE_ABE_MODEL_NOT_IMPLEMENTED`.
 
 ### What the tiers say
 
@@ -371,32 +375,80 @@ degrees of freedom scale which term.
 **Tier 1B — pending, and the guidance cannot close it.** No worked dataset
 exists in the document.
 
-**Tier 3 — empty for RSABE.** PowerTOST would be a reasonable implementation
-oracle for the criterion; R is not available in this environment, so no
-cross-implementation check has been run. The Phase-1 power and sample-size
-figures remain the only tier-3 evidence in the package. A test asserts this gap
-is recorded in the case file rather than left to be noticed.
+**Tier 3 — pending, and the next external priority.** PowerTOST would be a
+reasonable implementation oracle for the criterion; R is not available in this
+environment, so no cross-implementation check has been run. The Phase-1 power
+and sample-size figures remain the only tier-3 evidence in the package. A test
+asserts this gap is recorded in the case file rather than left to be noticed.
 
 `VALIDATED` requires 1B, so `FDA_HVD_RSABE` does not get it from algorithm
 conformance alone.
 
-### The one open question
+| Tier | RSABE |
+|---|---|
+| 1A | **PASSED** |
+| 1B | **PENDING** |
+| 3 | **PENDING** |
 
-Appendix G step 1a says to use the two one-sided tests procedure when
-`sWR < 0.294`, and does not name a model. **Appendix C separately specifies
-average BE for replicate crossover studies** with a mixed model carrying a
-subject-by-formulation random effect (`RANDOM TRT/TYPE=FA0(2) SUB=SUBJ`) and
-treatment-specific residual variances (`REPEATED/GRP=TRT SUB=SUBJ`). This
-package does not fit that model.
+### Why the unscaled branch refuses
 
-What is implemented applies TOST to Appendix G's **own** `ilat` contrast — the
-same estimate FDA's point-estimate constraint is applied to, at the same alpha.
-That is defensible, and it is not Appendix C. So the unscaled branch carries
-`EXPERIMENTAL`, the only such status in the package, and which model governs
-the unscaled branch of a replicate study is an open item for review.
+Appendix G step 1a routes `sWR < 0.294` to the two one-sided tests procedure
+without naming a model. **Appendix C names one**, and it is not the Appendix G
+intermediate:
 
-The scaled branch has no such ambiguity: `x` and `bound_x` come from exactly
-this contrast because Appendix G says so.
+```
+PROC MIXED;
+CLASSES SEQ SUBJ PER TRT;
+MODEL Y = SEQ PER TRT / DDFM=SATTERTH;
+RANDOM TRT / TYPE=FA0(2) SUB=SUBJ G;
+REPEATED / GRP=TRT SUB=SUBJ;
+ESTIMATE 'T vs. R' TRT 1 -1 / CL ALPHA=0.1;
+```
+
+Fitted on the **subject-period observations**, with a **period** term, an
+unstructured 2×2 subject-by-formulation covariance, and **separate residual
+variances for T and R** — five covariance parameters, and Satterthwaite degrees
+of freedom derived from all five.
+
+Appendix G's `Iij` is a different model: no period term, one residual variance,
+no subject-by-formulation covariance. It is the right quantity for the scaled
+criterion — FDA forms `x` and `bound_x` from exactly it — and it is not this.
+
+**Why it is not implemented rather than approximated.** This package has scipy
+and numpy. Fitting the model above means writing a REML objective over five
+parameters, an optimiser that respects the boundary behaviour of a
+factor-analytic structure, the asymptotic covariance of the variance components
+and a Satterthwaite calculation from all of them — with **no oracle available
+here to check it against**. No SAS, no R, no statsmodels (whose `MixedLM`
+supports neither group-specific residual variances nor Satterthwaite df
+anyway).
+
+An unverifiable mixed model does not fail loudly. It converges, and returns an
+interval of entirely plausible width, which becomes a verdict.
+
+**And `EXPERIMENTAL` was not an adequate hedge.** A draft of this release ran
+TOST on the `ilat` contrast and marked the capability `EXPERIMENTAL`. A status
+field does not travel with a number: the caveat sat in `CAPABILITY_VALIDATION`
+while the verdict sat in the result and looked like any other. No capability in
+the package carries `EXPERIMENTAL` now, and a test asserts it.
+
+`replicate_abe.py` records the specification so the next implementer starts
+from the model rather than from the appendix. `analyse_replicate_abe()` raises
+with it. When it is built, it must produce a contrast, an SE and degrees of
+freedom and hand them to `abe_from_log_contrast` — not form an interval of its
+own.
+
+### The Satterthwaite claim is scoped to Appendix G
+
+"Satterthwaite reduces to the residual degrees of freedom" is true of Appendix
+G's `ilat = seq` model, which has **one** variance component — no `RANDOM`, no
+`REPEATED`. `satterthwaite_df` implements the general formula and a test
+asserts the collapse across several coefficients and dfs rather than asserting
+`n − 2`.
+
+It is **not** true of Appendix C, which has five components. Reusing `n − 2`
+there would be wrong in a way that produces a plausible interval, and both the
+docstring and a test say so.
 
 ### Things that would not have raised
 

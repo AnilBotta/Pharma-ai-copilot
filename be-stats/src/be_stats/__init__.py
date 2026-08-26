@@ -37,6 +37,11 @@ from be_stats.hvd import (
     point_estimate_constraint,
     scaled_criterion,
 )
+from be_stats.replicate_abe import (
+    APPENDIX_C_MODEL,
+    ReplicateAbeModelSpecification,
+    analyse_replicate_abe,
+)
 from be_stats.treatment_contrast import (
     FullyReplicateTreatmentContrastEstimator,
     PartialReplicateTreatmentContrastEstimator,
@@ -126,8 +131,11 @@ from be_stats.study import (
 __version__ = "0.4.0"
 
 __all__ = [
+    "APPENDIX_C_MODEL",
     "AbeResult",
     "FdaHvdResult",
+    "ReplicateAbeModelSpecification",
+    "analyse_replicate_abe",
     "FullyReplicateTreatmentContrastEstimator",
     "NotDecidable",
     "PartialReplicateTreatmentContrastEstimator",

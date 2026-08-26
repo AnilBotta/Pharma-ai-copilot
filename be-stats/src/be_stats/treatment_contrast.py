@@ -25,6 +25,18 @@ what makes the period effects cancel. A subject-weighted mean lets whichever
 sequence retained the most subjects pull the estimate toward its own period
 pattern.
 
+THIS IS THE APPENDIX G INTERMEDIATE, NOT AN AVERAGE-BE ANALYSIS
+
+`Iij` exists to build the reference-scaled criterion: FDA forms `x` and
+`bound_x` from exactly this contrast, at exactly this alpha. That is what it is
+for and where it is right.
+
+It is NOT FDA's unscaled average BE analysis for a replicate study. That is
+Appendix C, a different model on different data - subject-period observations,
+a period term, an unstructured subject-by-formulation covariance, and separate
+residual variances for T and R. See `replicate_abe.py`. The two must not be
+made to serve one another simply because both end in a T-R contrast.
+
 TWO DESIGNS, TWO ESTIMATORS - AND THIS TIME IT IS NOT THE SAME FORMULA
 
 Appendix G gives one sWR equation for both designs. It does NOT do the same for
@@ -85,10 +97,22 @@ def satterthwaite_df(components: list[tuple[float, float, int]]) -> float:
 
     Writing it as the general formula rather than returning `n - 2` matters for
     two reasons. It is checkable: a test asserts the collapse rather than
-    asserting a number. And if a future model gains a second variance component
-    - a subject-by-formulation term, or treatment-specific residual variances
-    as in Appendix C - this function keeps working while a hard-coded `n - 2`
-    would silently be wrong.
+    asserting a number. And if a future model gains a second variance
+    component, this function keeps working while a hard-coded `n - 2` would
+    silently be wrong.
+
+    THE SCOPE OF THAT CLAIM, STATED NARROWLY
+
+    "Satterthwaite reduces to the residual degrees of freedom" is true of
+    **Appendix G's `ilat = seq` model and nothing else in this guidance.** It
+    holds because that model has one variance component.
+
+    It is emphatically NOT true of Appendix C, whose model carries five: an
+    unstructured 2x2 subject-by-formulation covariance and two
+    treatment-specific residual variances. Its Satterthwaite degrees of freedom
+    must come from that model's own covariance-parameter estimates and their
+    asymptotic covariance. Reusing `n - 2` there would be wrong, and wrong in a
+    way that produces a plausible interval.
     """
     if not components:
         raise ValueError("Satterthwaite degrees of freedom need a component.")

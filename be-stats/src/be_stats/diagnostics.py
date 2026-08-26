@@ -104,6 +104,11 @@ class DiagnosticCode(StrEnum):
     #: The design is supported and its estimator is not written yet. Distinct
     #: from UNSUPPORTED: the data are fine, the engine is not finished.
     ESTIMATOR_NOT_IMPLEMENTED = "ESTIMATOR_NOT_IMPLEMENTED"
+    #: The endpoint routed to ordinary average BE, and FDA's Appendix C mixed
+    #: model for replicate crossover studies is not implemented. The endpoint
+    #: is NOT decided - deliberately, rather than being decided by a different
+    #: model that would look the same.
+    REPLICATE_ABE_MODEL_NOT_IMPLEMENTED = "REPLICATE_ABE_MODEL_NOT_IMPLEMENTED"
 
 
 class Severity(StrEnum):
