@@ -31,14 +31,17 @@ answers "why 0.90" with something better than "because this file says so".
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 from enum import StrEnum
 
-from be_stats.conversions import HVD_CV_THRESHOLD, HVD_SWR_THRESHOLD
 from be_stats.provenance import (
-    DERIVED_INTERNALLY,
     EMA_BIOEQUIVALENCE,
     FDA_STATISTICAL_APPROACHES,
+    FDA_STATISTICAL_APPROACHES_APPENDIX_F,
+    FDA_STATISTICAL_APPROACHES_APPENDIX_G,
+    FDA_STATISTICAL_APPROACHES_III_C,
+    VIA_STATISTICAL_REVIEW,
     Citation,
     RegulatoryValue,
     ValidationStatus,
@@ -84,9 +87,17 @@ class Method(StrEnum):
 #: How far each method has got. `IMPLEMENTED` is derived from this rather than
 #: maintained beside it, so the two cannot disagree.
 #:
-#: Both runnable methods are IMPLEMENTED_UNVALIDATED rather than VALIDATED:
-#: they reproduce an independent implementation (tier 3) but no tier-1
-#: regulator worked example has been reproduced yet. See validation/README.md.
+#: Both runnable methods are IMPLEMENTED_UNVALIDATED rather than VALIDATED.
+#: The evidence stands at:
+#:
+#:     tier 1A  FDA regulatory ALGORITHM      VERIFIED - attested at review
+#:                                            with section references
+#:     tier 1B  FDA numeric worked DATASET    PENDING - the guidance body has
+#:                                            not been obtainable
+#:     tier 3   independent numeric check     PASSED - two PowerTOST cases
+#:
+#: VALIDATED requires 1B. An attested algorithm is not a reproduced result, and
+#: only the second licenses a filing. See validation/README.md.
 VALIDATION: dict[Method, ValidationStatus] = {
     Method.STANDARD_ABE: ValidationStatus.IMPLEMENTED_UNVALIDATED,
     Method.EMA_NTI_NARROW_ABE: ValidationStatus.IMPLEMENTED_UNVALIDATED,
@@ -179,6 +190,118 @@ _ICH_M13A_LIKE = Citation(
     document="Conventional bioequivalence acceptance interval",
     document_version="current",
 )
+
+
+# ------------------------------------------- FDA highly variable drugs ---
+#
+# TWO ADJACENT NUMBERS THAT MEAN DIFFERENT THINGS
+#
+# FDA defines a highly variable drug by within-subject variability of 30% or
+# greater. Separately, once a replicate study has been run, it selects the
+# analysis by the ESTIMATED within-reference standard deviation:
+#
+#     sWR <  0.294  ->  ordinary ABE / TOST
+#     sWR >= 0.294  ->  reference-scaled ABE, plus a point-estimate constraint
+#
+# It is tempting to notice that sqrt(ln(1 + 0.30^2)) = 0.293560 and conclude
+# that 0.294 is that value rounded, and that an engine should therefore prefer
+# the exact derivation. An earlier version of this package did exactly that.
+# It was wrong: 0.294 is the regulator's rule, applied to an estimate, and
+# replacing it with a self-computed 0.293560 substitutes the package's
+# arithmetic for FDA's criterion. Both are kept, separately, because they
+# answer different questions.
+
+FDA_HVD_CONSTANTS: dict[str, RegulatoryValue] = {
+    "classification_cv": RegulatoryValue(
+        0.30,
+        FDA_STATISTICAL_APPROACHES_III_C,
+        VerificationStatus.VERIFIED,
+        "Defines WHICH DRUGS are highly variable: within-subject variability "
+        "of 30% or greater, and not an NTI drug. Not the analysis switch.",
+        VIA_STATISTICAL_REVIEW,
+    ),
+    "swr_switching_threshold": RegulatoryValue(
+        0.294,
+        FDA_STATISTICAL_APPROACHES_APPENDIX_G,
+        VerificationStatus.VERIFIED,
+        "Selects WHICH ANALYSIS applies, from the estimated sWR. Below it, "
+        "ordinary ABE; at or above it, reference-scaled ABE. Numerically near "
+        "sqrt(ln(1+0.30^2)) = 0.293560 but NOT that quantity - this is the "
+        "regulator's stated criterion and must not be recomputed.",
+        VIA_STATISTICAL_REVIEW,
+    ),
+    "sigma_w0": RegulatoryValue(
+        0.25,
+        FDA_STATISTICAL_APPROACHES_APPENDIX_G,
+        VerificationStatus.VERIFIED,
+        "Reference-scaling constant for highly variable drugs.",
+        VIA_STATISTICAL_REVIEW,
+    ),
+    "point_estimate_lower": RegulatoryValue(
+        0.8000,
+        FDA_STATISTICAL_APPROACHES_APPENDIX_G,
+        VerificationStatus.VERIFIED,
+        "The scaled criterion alone is not sufficient: the T/R point estimate "
+        "must also fall within 0.8000-1.2500.",
+        VIA_STATISTICAL_REVIEW,
+    ),
+    "point_estimate_upper": RegulatoryValue(
+        1.2500,
+        FDA_STATISTICAL_APPROACHES_APPENDIX_G,
+        VerificationStatus.VERIFIED,
+        "",
+        VIA_STATISTICAL_REVIEW,
+    ),
+}
+
+
+def fda_hvd_theta() -> float:
+    """FDA's scaled bioequivalence limit, theta = [ln(1.25) / sigma_w0]^2.
+
+    Computed rather than stored because it is defined by a formula in the
+    guidance, not given as a number - so the formula is the thing to preserve.
+    Its inputs are the verified constants above.
+    """
+    sigma_w0 = FDA_HVD_CONSTANTS["sigma_w0"].value
+    return (math.log(1.25) / sigma_w0) ** 2
+
+
+def fda_hvd_method_for(swr: float) -> Method:
+    """Which analysis FDA's Appendix G selects for an estimated sWR.
+
+    The decision rule, frozen and testable, with nothing yet consuming it -
+    Phase 2A implements the analyses themselves. Boundary handling follows the
+    guidance's inequality exactly: 0.294 itself selects reference scaling.
+    """
+    if swr < 0.0:
+        raise ValueError(f"sWR cannot be negative, got {swr}.")
+    threshold = FDA_HVD_CONSTANTS["swr_switching_threshold"].value
+    return Method.FDA_HVD_RSABE if swr >= threshold else Method.STANDARD_ABE
+
+
+FDA_NTI_CONSTANTS: dict[str, RegulatoryValue] = {
+    "sigma_w0": RegulatoryValue(
+        0.10,
+        FDA_STATISTICAL_APPROACHES_APPENDIX_F,
+        VerificationStatus.VERIFIED,
+        "NTI reference-scaling constant.",
+        VIA_STATISTICAL_REVIEW,
+    ),
+    "delta": RegulatoryValue(
+        1.0 / 0.9,
+        FDA_STATISTICAL_APPROACHES_APPENDIX_F,
+        VerificationStatus.VERIFIED,
+        "Stated as 1/0.9.",
+        VIA_STATISTICAL_REVIEW,
+    ),
+    "variance_ratio_upper_limit": RegulatoryValue(
+        2.5,
+        FDA_STATISTICAL_APPROACHES_APPENDIX_F,
+        VerificationStatus.VERIFIED,
+        "Upper limit on the 90% CI of sigma_WT / sigma_WR.",
+        VIA_STATISTICAL_REVIEW,
+    ),
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -332,26 +455,7 @@ def resolve_be_spec(
                 method=Method.FDA_NTI_RSABE,
                 acceptance=None,
                 required_design="fully replicated crossover",
-                constants={
-                    "sigma_w0": RegulatoryValue(
-                        0.10,
-                        FDA_STATISTICAL_APPROACHES,
-                        VerificationStatus.VERIFIED,
-                        "NTI reference-scaling constant.",
-                    ),
-                    "delta": RegulatoryValue(
-                        1.0 / 0.9,
-                        FDA_STATISTICAL_APPROACHES,
-                        VerificationStatus.VERIFIED,
-                        "Stated as 1/0.9.",
-                    ),
-                    "variance_ratio_upper_limit": RegulatoryValue(
-                        2.5,
-                        FDA_STATISTICAL_APPROACHES,
-                        VerificationStatus.VERIFIED,
-                        "Upper limit on the 90% CI of sigma_WT / sigma_WR.",
-                    ),
-                },
+                constants=FDA_NTI_CONSTANTS,
                 notes=(
                     "FDA requires reference-scaled BE, an additional unscaled "
                     "80.00-125.00 criterion, and a comparison of test and "
@@ -396,38 +500,12 @@ def resolve_be_spec(
                 method=Method.FDA_HVD_RSABE,
                 acceptance=None,
                 required_design="partially or fully replicated crossover",
-                constants={
-                    "sigma_w0": RegulatoryValue(
-                        0.25,
-                        FDA_STATISTICAL_APPROACHES,
-                        VerificationStatus.VERIFIED,
-                        "HVD reference-scaling constant.",
-                    ),
-                    "hvd_cv_threshold": RegulatoryValue(
-                        HVD_CV_THRESHOLD,
-                        FDA_STATISTICAL_APPROACHES,
-                        VerificationStatus.VERIFIED,
-                        "Within-subject variability of 30% or greater defines "
-                        "a highly variable drug.",
-                    ),
-                    # DERIVED, not transcribed. The commonly quoted 0.294 is
-                    # this quantity rounded; the two differ in the fourth
-                    # decimal and disagree for a real range of studies, so the
-                    # package computes it and records that it did.
-                    "swr_switching_threshold": RegulatoryValue(
-                        HVD_SWR_THRESHOLD,
-                        DERIVED_INTERNALLY,
-                        VerificationStatus.DERIVED,
-                        "cv_to_log_sd(0.30). Published as 0.294; whether the "
-                        "rounded figure or the 30% CV is normative is an open "
-                        "question for Phase 2A.",
-                    ),
-                },
+                constants=FDA_HVD_CONSTANTS,
                 notes=(
-                    "FDA switches to reference-scaled ABE above the reference "
-                    "variability threshold and additionally constrains the "
-                    "point estimate to 80.00-125.00. Below it, conventional "
-                    "ABE applies for that endpoint. Phase 2A."
+                    "FDA switches to reference-scaled ABE at an ESTIMATED sWR "
+                    "of 0.294 or above, and additionally constrains the point "
+                    "estimate to 0.8000-1.2500. Below the threshold, "
+                    "conventional ABE applies for that endpoint. Phase 2A."
                 ),
             )
         return spec(

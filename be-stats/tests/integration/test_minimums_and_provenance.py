@@ -19,11 +19,13 @@ from be_stats import (
     resolve_be_spec,
     sample_size_abe,
 )
-from be_stats.minimums import design_family_for, lookup
+from be_stats.minimums import Framework, design_family_for, lookup
 from be_stats.spec import NotValidated
 
 FDA = resolve_be_spec(jurisdiction=Jurisdiction.FDA)
 EMA = resolve_be_spec(jurisdiction=Jurisdiction.EMA)
+
+M13A = Framework.ICH_M13A
 
 
 # ------------------------------------------------------------- minimums ---
@@ -36,8 +38,8 @@ def test_crossover_and_parallel_floors_differ_because_the_rule_differs():
     a parallel design. A jurisdiction-only constant would apply 12 to both and
     be wrong by half for every parallel study.
     """
-    crossover = lookup("EMA", DesignFamily.CROSSOVER)
-    parallel = lookup("EMA", DesignFamily.PARALLEL)
+    crossover = lookup("EMA", DesignFamily.CROSSOVER, framework=M13A)
+    parallel = lookup("EMA", DesignFamily.PARALLEL, framework=M13A)
 
     assert crossover.required_total() == 12
     assert crossover.evaluable_total == 12
@@ -51,16 +53,44 @@ def test_crossover_and_parallel_floors_differ_because_the_rule_differs():
 def test_the_crossover_rule_does_not_leak_into_replicate_designs():
     """M13A's core scope does not cover replicate designs, so the lookup must
     not answer for one merely because the jurisdiction matches."""
-    assert lookup("EMA", DesignFamily.REPLICATE) is None
-    assert lookup("EMA", DesignFamily.PARTIAL_REPLICATE) is None
+    assert lookup("EMA", DesignFamily.REPLICATE, framework=M13A) is None
+    assert lookup("EMA", DesignFamily.PARTIAL_REPLICATE, framework=M13A) is None
 
 
-def test_fda_parallel_is_absent_rather_than_assumed():
-    """Deliberate gap. The FDA figure cited was "not fewer than 12 evaluable
-    subjects"; whether the M13A twelve-per-group rule governs an FDA parallel
-    study was flagged unconfirmed, so no row was registered for it."""
-    assert lookup("FDA", DesignFamily.CROSSOVER) is not None
-    assert lookup("FDA", DesignFamily.PARALLEL) is None
+def test_m13a_is_never_reached_without_being_asked_for():
+    """The scoping correction, asserted at the lookup.
+
+    M13A governs immediate-release solid oral dosage forms. This package is
+    never told the dosage form, so it must not decide that M13A applies. An
+    unstated framework resolves against general guidance only - and EMA has no
+    general row, so EMA answers nothing at all until a framework is named.
+    """
+    assert lookup("EMA", DesignFamily.CROSSOVER) is None
+    assert lookup("EMA", DesignFamily.PARALLEL) is None
+    assert lookup("EMA", DesignFamily.CROSSOVER, framework=M13A) is not None
+
+
+def test_fda_has_two_different_parallel_floors_and_they_do_not_merge():
+    """The specific thing that must not become `FDA_PARALLEL_MIN = 12`.
+
+    Under FDA's general PK BE guidance the floor is twelve evaluable subjects
+    for the study. Under M13A - and only for the dosage forms M13A covers - a
+    parallel study needs twelve *per group*, which is twenty-four. Both are
+    true; neither is "the FDA rule".
+    """
+    general = lookup("FDA", DesignFamily.PARALLEL, framework=Framework.GENERAL)
+    m13a = lookup("FDA", DesignFamily.PARALLEL, framework=M13A)
+
+    assert general.required_total() == 12
+    assert general.evaluable_per_group is None
+    assert "generally" in general.scope
+
+    assert m13a.required_total() == 24
+    assert m13a.evaluable_per_group == 12
+    assert "immediate-release solid oral" in m13a.scope
+
+    # An unstated framework must resolve to the general rule, never to M13A.
+    assert lookup("FDA", DesignFamily.PARALLEL).required_total() == 12
 
 
 def test_highly_variable_products_carry_their_own_floor():
@@ -77,8 +107,12 @@ def test_an_unknown_design_refuses_rather_than_guessing():
 
 def test_sample_size_applies_the_floor_for_the_design_it_was_given():
     """End to end: the same CV under two designs picks up two different rules."""
-    crossover = sample_size_abe(cv_percent=8.0, spec=EMA, design="2x2")
-    parallel = sample_size_abe(cv_percent=8.0, spec=EMA, design="parallel")
+    crossover = sample_size_abe(
+        cv_percent=8.0, spec=EMA, design="2x2", framework=M13A
+    )
+    parallel = sample_size_abe(
+        cv_percent=8.0, spec=EMA, design="parallel", framework=M13A
+    )
 
     assert crossover.regulatory_n == 12
     assert parallel.regulatory_n == 24
@@ -88,17 +122,38 @@ def test_sample_size_applies_the_floor_for_the_design_it_was_given():
     assert "per treatment group" in parallel.regulatory_basis
 
 
-def test_fda_parallel_gets_no_floor_and_says_so():
-    result = sample_size_abe(cv_percent=8.0, spec=FDA, design="parallel")
+def test_an_unstated_framework_gets_no_ema_floor_and_says_so():
+    """The cost of the scoping, made visible rather than papered over.
+
+    A caller who does not name a framework gets `None` for EMA, not twelve.
+    That is a worse answer for an IR tablet study and the right answer for
+    everything else, and the result says which it is.
+    """
+    result = sample_size_abe(cv_percent=8.0, spec=EMA, design="2x2")
     assert result.regulatory_n is None
     assert result.regulatory_rule is None
     assert "no confirmed regulatory minimum" in result.regulatory_basis
     assert result.recommended_n == result.mathematical_n
 
 
+def test_fda_parallel_under_m13a_costs_more_subjects_than_under_general():
+    """The framework changes the answer, end to end, for the same study."""
+    general = sample_size_abe(cv_percent=8.0, spec=FDA, design="parallel")
+    m13a = sample_size_abe(
+        cv_percent=8.0, spec=FDA, design="parallel", framework=M13A
+    )
+
+    assert general.regulatory_n == 12
+    assert m13a.regulatory_n == 24
+    assert m13a.recommended_n > general.recommended_n
+    assert "immediate-release solid oral" in m13a.regulatory_basis
+
+
 def test_the_rule_travels_with_the_result():
     """A floor without its citation is just another magic number."""
-    result = sample_size_abe(cv_percent=8.0, spec=EMA, design="2x2")
+    result = sample_size_abe(
+        cv_percent=8.0, spec=EMA, design="2x2", framework=M13A
+    )
     assert result.regulatory_rule is not None
     assert "ICH" in str(result.regulatory_rule.citation)
     assert result.regulatory_rule.verification is VerificationStatus.VERIFIED
@@ -129,13 +184,20 @@ def test_the_fda_document_version_is_pinned_not_just_the_authority():
     assert "29 May 2026" in text
 
 
-def test_the_derived_threshold_is_marked_derived():
+def test_the_switching_threshold_reaches_the_spec_as_the_regulators_value():
+    """The counterpart of `test_fda_hvd_thresholds.py`, at the spec boundary.
+
+    That file checks the constants table; this one checks that a resolved spec
+    hands the caller the same number, so a future refactor cannot re-derive it
+    on the way out.
+    """
     hvd = resolve_be_spec(
         jurisdiction=Jurisdiction.FDA, drug_class=DrugClass.HIGHLY_VARIABLE
     )
     swr = hvd.constants["swr_switching_threshold"]
-    assert swr.verification is VerificationStatus.DERIVED
-    assert "0.294" in swr.note, "the open question must stay visible"
+    assert swr.value == 0.294
+    assert swr.verification is VerificationStatus.VERIFIED
+    assert "must not be recomputed" in swr.note
 
 
 def test_no_spec_ships_an_unverified_value_silently():

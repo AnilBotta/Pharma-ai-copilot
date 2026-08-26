@@ -1,38 +1,44 @@
 """The canonical conversions between a CV and a log-scale standard deviation.
 
-ONE DEFINITION, USED EVERYWHERE
+PURE MATHEMATICS. NO REGULATORY RULE LIVES HERE.
 
 On the log scale
 
     CV_w = sqrt(exp(s_w^2) - 1)        and        s_w = sqrt(ln(1 + CV_w^2))
 
-so a 30% coefficient of variation does **not** mean s_wR = 0.30. It means
+so a 30% coefficient of variation does **not** equal a log-scale standard
+deviation of 0.30. It gives
 
-    s_wR = sqrt(ln(1 + 0.30^2)) = 0.293560...
+    sqrt(ln(1 + 0.30^2)) = 0.293560...
 
-which is where FDA's 0.294 switching value comes from - it is that quantity,
-rounded for publication.
+A CORRECTION WORTH RECORDING
 
-WHY THIS MATTERS ENOUGH TO HAVE ITS OWN MODULE
+An earlier version of this module exported that 0.293560 as the FDA switching
+threshold, on the reasoning that FDA's published 0.294 was the same quantity
+rounded, and that the package should therefore prefer the exact derivation. The
+arithmetic was right and the conclusion was wrong.
 
-The two numbers differ in the fourth decimal, and the difference is not
-cosmetic: a study whose reference variability falls between 0.293560 and 0.294
-switches to reference scaling under one reading and stays on conventional
-average BE under the other. Those are different tests with different acceptance
-criteria.
+FDA's guidance defines two *different* things that happen to be numerically
+adjacent:
 
-So the threshold is *derived* here from the CV it represents, and never written
-as a literal anywhere in the package. A test asserts that no module reintroduces
-`0.294` as a bare constant.
+    classification    a highly variable drug has within-subject %CV >= 30%
+    method selection  estimated sWR < 0.294  -> ordinary ABE
+                      estimated sWR >= 0.294 -> reference-scaled ABE
+
+0.294 is not a rounded display of the first. It is the normative rule for the
+second, written by the regulator, and applied to an *estimate* of sWR rather
+than to an assumed CV. "Correcting" it to 0.293560 would have replaced FDA's
+criterion with the package's own - which is precisely the failure this codebase
+is organised to avoid, arrived at from the opposite direction.
+
+Both values now live in `spec.py` as separate `RegulatoryValue`s with separate
+citations. This module keeps only the conversion, for the places where a caller
+genuinely needs to move between the two scales.
 """
 
 from __future__ import annotations
 
 import math
-
-#: FDA's definition of a highly variable drug: within-subject variability in
-#: the BE measure of 30% or greater, and not an NTI drug.
-HVD_CV_THRESHOLD = 0.30
 
 
 def cv_to_log_sd(cv: float) -> float:
@@ -58,8 +64,3 @@ def log_variance_to_cv_percent(variance: float) -> float:
     if variance < 0.0:
         raise ValueError(f"A variance cannot be negative, got {variance}.")
     return 100.0 * log_sd_to_cv(math.sqrt(variance))
-
-
-#: The reference-variability value at which FDA switches to reference scaling,
-#: DERIVED from the CV it represents rather than transcribed as 0.294.
-HVD_SWR_THRESHOLD = cv_to_log_sd(HVD_CV_THRESHOLD)

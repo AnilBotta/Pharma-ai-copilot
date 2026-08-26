@@ -90,6 +90,13 @@ class RegulatoryValue:
     #: Free text for anything the citation cannot carry, e.g. what the value
     #: was derived from.
     note: str = ""
+    #: HOW it was checked, which is not the same as whether. A figure read from
+    #: the primary document and one relayed by a qualified reviewer are both
+    #: VERIFIED, and an auditor is entitled to know which. Several constants
+    #: here are the second kind: this package's tooling could not retrieve the
+    #: FDA guidance PDF, so the figures were supplied at statistical review
+    #: together with their section references.
+    verified_by: str = ""
 
     @property
     def is_verified(self) -> bool:
@@ -97,7 +104,8 @@ class RegulatoryValue:
 
     def explain(self) -> str:
         """One line a report can print beside the number it used."""
-        line = f"{self.value} — {self.citation} [{self.verification}]"
+        line = f"{self.value} — {self.citation} [{self.verification}"
+        line += f", via {self.verified_by}]" if self.verified_by else "]"
         return f"{line}. {self.note}" if self.note else line
 
 
@@ -108,8 +116,46 @@ FDA_STATISTICAL_APPROACHES = Citation(
     authority="FDA",
     document="Statistical Approaches to Establishing Bioequivalence",
     document_version="final, 29 May 2026",
-    url="https://www.fda.gov/regulatory-information/search-fda-guidance-documents/statistical-approaches-establishing-bioequivalence",
+    url="https://www.fda.gov/media/163638/download",
 )
+
+#: The same document, cited to the sections that carry the highly-variable and
+#: narrow-therapeutic-index procedures.
+FDA_STATISTICAL_APPROACHES_III_C = Citation(
+    authority="FDA",
+    document="Statistical Approaches to Establishing Bioequivalence",
+    section="III.C",
+    document_version="final, 29 May 2026",
+    url="https://www.fda.gov/media/163638/download",
+)
+
+FDA_STATISTICAL_APPROACHES_APPENDIX_G = Citation(
+    authority="FDA",
+    document="Statistical Approaches to Establishing Bioequivalence",
+    section="Appendix G (highly variable drugs)",
+    document_version="final, 29 May 2026",
+    url="https://www.fda.gov/media/163638/download",
+)
+
+FDA_STATISTICAL_APPROACHES_APPENDIX_F = Citation(
+    authority="FDA",
+    document="Statistical Approaches to Establishing Bioequivalence",
+    section="Appendix F (narrow therapeutic index drugs)",
+    document_version="final, 29 May 2026",
+    url="https://www.fda.gov/media/163638/download",
+)
+
+FDA_M13A_QA = Citation(
+    authority="FDA",
+    document="M13A Bioequivalence for Immediate-Release Solid Oral Dosage Forms: Questions and Answers",
+    section="Q&A 2.1",
+    document_version="FDA guidance for industry",
+    url="https://www.fda.gov/media/183189/download",
+)
+
+#: How the FDA figures in this package were checked. Recorded once so the
+#: chain of custody is identical everywhere it is claimed.
+VIA_STATISTICAL_REVIEW = "statistical review, with section references"
 
 FDA_NASAL_LOCAL_ACTION = Citation(
     authority="FDA",

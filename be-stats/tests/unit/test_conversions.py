@@ -1,25 +1,34 @@
-"""The CV / log-SD conversion, and the constant it is not allowed to become.
+"""The CV / log-SD conversion, and nothing about regulation.
 
 This is the smallest module in the package and the one most likely to be
 quietly duplicated, because writing `math.sqrt(math.log1p(cv**2))` inline is
 easier than importing it. These tests make the duplication fail.
+
+WHAT USED TO BE HERE, AND WHY IT IS GONE
+
+An earlier version of this file contained an AST-level test that failed the
+build if `0.294` appeared anywhere in `src/` as a numeric literal, on the
+reasoning that FDA's switching threshold was `cv_to_log_sd(0.30) = 0.293560`
+rounded, and so ought to be derived rather than stored.
+
+That guard has been deleted, because the reasoning behind it was wrong. FDA's
+`0.294` is not a rounded display of this module's arithmetic - it is the
+regulator's own criterion, applied to an *estimate* of sWR. A test forbidding
+the regulator's number from appearing in the code was, in effect, a test
+requiring the package to substitute its own. The regulatory facts are now
+asserted in `tests/integration/test_fda_hvd_thresholds.py`, against
+`RegulatoryValue`s that carry their citations.
+
+What remains here is arithmetic, which is all this module ever contained.
 """
 
 from __future__ import annotations
 
 import math
-from pathlib import Path
 
 import pytest
 
-from be_stats.conversions import (
-    HVD_CV_THRESHOLD,
-    HVD_SWR_THRESHOLD,
-    cv_to_log_sd,
-    log_sd_to_cv,
-)
-
-SRC = Path(__file__).resolve().parents[2] / "src" / "be_stats"
+from be_stats.conversions import cv_to_log_sd, log_sd_to_cv
 
 
 def test_round_trip():
@@ -35,54 +44,18 @@ def test_a_thirty_percent_cv_is_not_a_log_sd_of_thirty_percent():
     """
     assert cv_to_log_sd(0.30) == pytest.approx(0.293560, abs=5e-7)
     assert cv_to_log_sd(0.30) != 0.30
-    # And the gap is larger than the rounding it is often confused with.
-    assert abs(cv_to_log_sd(0.30) - 0.294) > 1e-4
 
 
-def test_the_hvd_threshold_is_derived_from_the_cv():
-    assert HVD_CV_THRESHOLD == 0.30
-    assert HVD_SWR_THRESHOLD == cv_to_log_sd(HVD_CV_THRESHOLD)
+def test_the_conversion_of_thirty_percent_is_not_fdas_threshold():
+    """The numerical fact, stated without the conclusion once drawn from it.
 
-
-def test_the_rounded_threshold_is_not_a_numeric_literal_in_the_source():
-    """Guards the derivation against being "simplified" back to a constant.
-
-    A study whose reference variability falls between 0.293560 and 0.294
-    switches methods one way under the derived value and the other way under
-    the rounded one. Whichever turns out to be normative, the codebase must not
-    contain both.
-
-    Checked by walking the AST for numeric constants rather than by searching
-    the text. The first version of this test searched for the string and failed
-    on a docstring in `conversions.py` that explains where 0.294 comes from -
-    which is documentation doing its job. Prose may name the number; code may
-    not contain it.
+    `cv_to_log_sd(0.30)` and FDA's 0.294 differ by roughly 4.4e-4. That is a
+    real difference - a study whose estimated sWR falls between them switches
+    method one way under one number and the other way under the other - and it
+    is *not* evidence that either is a rounding of the other. Which of the two
+    governs is a regulatory question, answered in `spec.py`, not here.
     """
-    import ast
-
-    offenders = []
-    for path in SRC.rglob("*.py"):
-        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-        for node in ast.walk(tree):
-            if (
-                isinstance(node, ast.Constant)
-                and isinstance(node.value, float)
-                and abs(node.value - 0.294) < 1e-12
-            ):
-                offenders.append(f"{path.name}:{node.lineno}")
-    assert not offenders, (
-        "0.294 appears as a numeric literal rather than being derived through "
-        "cv_to_log_sd(0.30): " + ", ".join(offenders)
-    )
-
-
-def test_the_derived_and_rounded_values_genuinely_differ():
-    """The premise of the test above, stated so it cannot rot.
-
-    If these two ever became equal the guard would be pointless, and somebody
-    should know.
-    """
-    assert HVD_SWR_THRESHOLD != pytest.approx(0.294, abs=1e-6)
+    assert abs(cv_to_log_sd(0.30) - 0.294) == pytest.approx(4.4e-4, abs=1e-5)
 
 
 def test_monotonic():
@@ -94,6 +67,11 @@ def test_non_positive_cv_is_refused():
     for bad in (0.0, -0.1):
         with pytest.raises(ValueError, match="must be positive"):
             cv_to_log_sd(bad)
+
+
+def test_negative_sd_is_refused():
+    with pytest.raises(ValueError, match="cannot be negative"):
+        log_sd_to_cv(-0.1)
 
 
 def test_small_cv_approaches_the_log_sd():
@@ -109,3 +87,19 @@ def test_conversion_matches_its_own_definition():
         assert cv_to_log_sd(cv) == pytest.approx(
             math.sqrt(math.log(1.0 + cv * cv)), rel=1e-15
         )
+
+
+def test_the_module_exports_no_regulatory_constant():
+    """Provenance is not optional, so a bare float may not live here.
+
+    A regulatory number in this module would be a float without a citation,
+    indistinguishable from a remembered one. Anything regulatory belongs in
+    `spec.py` as a `RegulatoryValue`.
+    """
+    import be_stats.conversions as conversions
+
+    public = [n for n in vars(conversions) if not n.startswith("_")]
+    assert not [n for n in public if n.isupper()], (
+        "conversions.py must export functions only; a constant here would be a "
+        "regulatory value without provenance"
+    )

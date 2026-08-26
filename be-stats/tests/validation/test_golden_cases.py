@@ -19,9 +19,14 @@ WHAT IS AND IS NOT HERE YET
 
 Tier 3 only. The two PowerTOST cases below are an *implementation* oracle: they
 show be-stats agrees with an independently written implementation. They are not
-regulatory validation, which needs a tier-1 regulator worked example, and the
-FDA guidance body has not been obtainable. `test_tier_1_coverage_is_absent`
-asserts that gap out loud so it cannot be forgotten.
+regulatory validation, which needs a regulator-published worked dataset - tier
+1B - and the FDA guidance body has not been obtainable.
+`test_tier_1b_numerical_coverage_is_absent_and_says_so` asserts that gap out
+loud so it cannot be forgotten.
+
+Tier 1A, the regulator's stated ALGORITHM, is a separate suite:
+`test_algorithm_conformance.py`. Holding one without the other is exactly the
+state this package is in, which is why review split the tier in two.
 """
 
 from __future__ import annotations
@@ -149,19 +154,23 @@ def test_achieved_power_matches_within_the_stated_tolerance(case: dict):
     )
 
 
-def test_tier_1_coverage_is_absent_and_says_so():
-    """The gap, asserted rather than left to be noticed.
+def test_tier_1b_numerical_coverage_is_absent_and_says_so():
+    """The gap, asserted rather than left to be noticed - and now named exactly.
 
-    Everything here is tier 3 - an independent implementation. No
-    regulator-published worked example has been reproduced, so no Phase 1
-    method may be marked VALIDATED. When a tier-1 case is added this test
-    should be replaced by one asserting its presence, and the validation
-    statuses raised in the same commit.
+    An earlier version of this test asserted that no tier-1 case existed at
+    all. That became wrong when tier 1A arrived: the FDA highly-variable
+    decision rule is now attested against the guidance section that states it
+    (`tests/validation/test_algorithm_conformance.py`).
+
+    What is still missing is 1B - a regulator-published worked DATASET run
+    through this engine to the published answer. Nothing here is tier 1, and
+    until that changes no method may be marked VALIDATED. The distinction is
+    the whole point: an attested algorithm is not a reproduced result.
     """
     tiers = {c["source"]["tier"] for c in CASES}
     assert 1 not in tiers, (
-        "A tier-1 case now exists. Update the validation statuses in spec.py "
-        "and replace this test with one asserting tier-1 coverage."
+        "A tier-1B numeric case now exists. Update the validation statuses in "
+        "spec.py and replace this test with one asserting 1B coverage."
     )
 
 
