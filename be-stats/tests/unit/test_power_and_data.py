@@ -110,18 +110,26 @@ def test_power_calculation_is_binding_when_it_exceeds_the_floor():
     assert r.power_at_recommended == pytest.approx(r.achieved_power)
 
 
-def test_both_jurisdictions_now_floor_a_crossover_at_twelve():
-    """Updated: EMA's floor is no longer absent.
+def test_both_jurisdictions_floor_an_m13a_crossover_at_twelve():
+    """Updated twice, and the second time is the interesting one.
 
-    An earlier version of this test asserted that EMA had no minimum and that
-    FDA's therefore produced a larger answer. That was true only while EMA's
-    figure was unconfirmed. ICH M13A supplies twelve evaluable subjects for a
-    crossover and is adopted in both regions, so the two now agree - and the
-    interesting assertion is that they arrive there from *different documents*,
-    which is why the registry keys on jurisdiction as well as design.
+    The first version asserted EMA had no minimum at all. The second asserted
+    both regions floor a crossover at twelve, from different documents. This
+    version adds the condition both of those left implicit: that floor is ICH
+    M13A's, so it only reaches a study the caller has said M13A governs.
+
+    Both regions cite their own publication of the same Q&A, which is why the
+    registry keys on jurisdiction as well as framework and design.
     """
-    fda = sample_size_abe(cv_percent=10.0, spec=FDA_SPEC, design="2x2")
-    ema = sample_size_abe(cv_percent=10.0, spec=EMA_SPEC, design="2x2")
+    from be_stats.minimums import Framework
+
+    m13a = Framework.ICH_M13A
+    fda = sample_size_abe(
+        cv_percent=10.0, spec=FDA_SPEC, design="2x2", framework=m13a
+    )
+    ema = sample_size_abe(
+        cv_percent=10.0, spec=EMA_SPEC, design="2x2", framework=m13a
+    )
 
     assert fda.mathematical_n == ema.mathematical_n == 8
     assert fda.regulatory_n == ema.regulatory_n == 12
@@ -133,10 +141,15 @@ def test_both_jurisdictions_now_floor_a_crossover_at_twelve():
 
 def test_recommended_n_is_even_even_when_the_floor_is_odd():
     """Both designs allocate equally to two groups, so an odd total cannot."""
-    from be_stats.minimums import DesignFamily, RegulatoryMinimum, _REGISTRY
+    from be_stats.minimums import (
+        DesignFamily,
+        Framework,
+        RegulatoryMinimum,
+        _REGISTRY,
+    )
     from be_stats.provenance import Citation, VerificationStatus
 
-    key = ("FIXTURE", DesignFamily.CROSSOVER)
+    key = ("FIXTURE", Framework.GENERAL, DesignFamily.CROSSOVER)
     _REGISTRY[key] = RegulatoryMinimum(
         jurisdiction="FIXTURE",
         design_family=DesignFamily.CROSSOVER,

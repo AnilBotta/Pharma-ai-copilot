@@ -34,7 +34,12 @@ from dataclasses import dataclass
 from scipy import stats
 
 from be_stats.conversions import cv_percent_to_log_variance
-from be_stats.minimums import RegulatoryMinimum, design_family_for, lookup
+from be_stats.minimums import (
+    Framework,
+    RegulatoryMinimum,
+    design_family_for,
+    lookup,
+)
 from be_stats.spec import BeSpec, DrugClass
 
 METHOD = "non-central t approximation"
@@ -165,8 +170,15 @@ def sample_size_abe(
     design: str = "2x2",
     target_power: float = 0.80,
     expected_ratio: float = 0.95,
+    framework: Framework | None = None,
 ) -> SampleSizeResult:
-    """The sample size to run: the larger of the arithmetic and the regulation."""
+    """The sample size to run: the larger of the arithmetic and the regulation.
+
+    `framework` names the body of guidance the study is run under. Left unset,
+    only the region's general guidance is consulted - ICH M13A's rules are
+    scoped to immediate-release solid oral dosage forms, which this package
+    cannot infer, so a caller running one must say so to be held to them.
+    """
     acceptance = spec.require_interval()
     if not 0.0 < target_power < 1.0:
         raise ValueError("target_power must be between 0 and 1.")
@@ -205,13 +217,17 @@ def sample_size_abe(
             f"CV {cv_percent}% with an assumed ratio of {expected_ratio}."
         )
 
-    # The floor is a property of the DESIGN as well as the jurisdiction: ICH
-    # M13A gives 12 evaluable subjects for a crossover but 12 PER GROUP for a
-    # parallel design, which is 24. A jurisdiction-only lookup would apply the
-    # wrong one to half of all studies.
+    # The floor is a property of the DESIGN and of the FRAMEWORK, not only of
+    # the jurisdiction: ICH M13A gives 12 evaluable subjects for a crossover but
+    # 12 PER GROUP for a parallel design, which is 24 - and only for
+    # immediate-release solid oral dosage forms. A jurisdiction-only lookup
+    # would apply the wrong one to half of all studies, and a
+    # jurisdiction-and-design lookup would apply M13A to products it never
+    # covered.
     rule = lookup(
         str(spec.jurisdiction),
         design_family_for(design),
+        framework=framework,
         is_highly_variable=spec.drug_class is DrugClass.HIGHLY_VARIABLE,
     )
     regulatory_n = rule.required_total() if rule is not None else None
@@ -241,5 +257,6 @@ def sample_size_abe(
         design=design,
         binding_constraint=binding,
         regulatory_basis=rule.explain() if rule is not None else
-        "no confirmed regulatory minimum for this jurisdiction and design",
+        "no confirmed regulatory minimum for this jurisdiction, framework and "
+        "design",
     )

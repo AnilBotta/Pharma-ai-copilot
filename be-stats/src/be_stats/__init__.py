@@ -28,12 +28,10 @@ from be_stats.power import (
     sample_size_abe,
 )
 from be_stats.conversions import (
-    HVD_CV_THRESHOLD,
-    HVD_SWR_THRESHOLD,
     cv_to_log_sd,
     log_sd_to_cv,
 )
-from be_stats.minimums import DesignFamily, RegulatoryMinimum
+from be_stats.minimums import DesignFamily, Framework, RegulatoryMinimum
 from be_stats.provenance import (
     Citation,
     RegulatoryValue,
@@ -41,6 +39,8 @@ from be_stats.provenance import (
     VerificationStatus,
 )
 from be_stats.spec import (
+    FDA_HVD_CONSTANTS,
+    FDA_NTI_CONSTANTS,
     IMPLEMENTED,
     VALIDATION,
     NotValidated,
@@ -54,6 +54,8 @@ from be_stats.spec import (
     NotImplementedMethod,
     ProductOverride,
     SpecificationRequired,
+    fda_hvd_method_for,
+    fda_hvd_theta,
     resolve_be_spec,
 )
 from be_stats.study import (
@@ -68,14 +70,15 @@ from be_stats.study import (
 #: Bumped on any change that can alter a computed result. An analysis record
 #: stores this, because "which version produced this number" is the first
 #: question asked of a result years later.
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 
 __all__ = [
     "AbeResult",
     "Citation",
     "DesignFamily",
-    "HVD_CV_THRESHOLD",
-    "HVD_SWR_THRESHOLD",
+    "FDA_HVD_CONSTANTS",
+    "FDA_NTI_CONSTANTS",
+    "Framework",
     "NotValidated",
     "RegulatoryMinimum",
     "RegulatoryValue",
@@ -107,6 +110,8 @@ __all__ = [
     "__version__",
     "analyse_crossover",
     "analyse_parallel",
+    "fda_hvd_method_for",
+    "fda_hvd_theta",
     "power_abe",
     "resolve_be_spec",
     "sample_size_abe",

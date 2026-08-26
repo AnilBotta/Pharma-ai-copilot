@@ -1,0 +1,50 @@
+{
+  "case_id": "FDA-HVD-SWITCH-001",
+  "title": "FDA highly variable drug: which analysis applies, by estimated sWR",
+  "case_type": "algorithm_conformance",
+  "subject": "method selection",
+  "jurisdiction": "FDA",
+
+  "rule": {
+    "statement": "Estimate the within-reference standard deviation sWR from the replicate design. If sWR is less than 0.294, analyse by conventional average bioequivalence. If sWR is 0.294 or greater, apply reference-scaled average bioequivalence together with the point-estimate constraint of 80.00-125.00%.",
+    "threshold": 0.294,
+    "comparison": ">=",
+    "applies_to": "the ESTIMATED sWR from the study, not an assumed population CV"
+  },
+
+  "expected": [
+    { "swr": 0.2000, "method": "standard_abe",  "why": "well below the threshold" },
+    { "swr": 0.2937, "method": "standard_abe",  "why": "above sqrt(ln(1+0.30^2)) = 0.293560 and still below 0.294 - the interval where a derived threshold and the guidance figure disagree" },
+    { "swr": 0.2939, "method": "standard_abe",  "why": "one ten-thousandth below the threshold" },
+    { "swr": 0.2940, "method": "fda_hvd_rsabe", "why": "the boundary itself; the criterion is >=, so it scales" },
+    { "swr": 0.2941, "method": "fda_hvd_rsabe", "why": "one ten-thousandth above the threshold" },
+    { "swr": 0.5000, "method": "fda_hvd_rsabe", "why": "well above the threshold" }
+  ],
+
+  "refuses": [
+    { "swr": -0.01, "raises": "ValueError", "why": "a standard deviation cannot be negative; refuse rather than route" }
+  ],
+
+  "separate_and_not_this_rule": {
+    "classification_cv": 0.30,
+    "note": "Within-subject %CV of 30% or greater is how a drug is CLASSIFIED as highly variable. It is a different question from which analysis applies, asked at a different time, of a different quantity. The two numbers are within 0.0005 of each other and must not be merged.",
+    "citation_section": "III.C"
+  },
+
+  "source": {
+    "tier": 1,
+    "subtier": "1A",
+    "type": "regulator-stated algorithm",
+    "authority": "FDA",
+    "document": "Statistical Approaches to Establishing Bioequivalence",
+    "document_version": "final, 29 May 2026",
+    "section": "Appendix G (highly variable drugs)",
+    "url": "https://www.fda.gov/media/163638/download",
+    "verified_by": "statistical review, with section references",
+    "limitation": "This tooling could not retrieve the guidance PDF (every URL tried returned 404 or served a download rather than text), so the algorithm and its constants were supplied at statistical review with the section references above rather than transcribed here from the primary document. That is why this is 1A - the ALGORITHM is attested - and why no 1B numeric case accompanies it: reproducing a worked dataset requires the dataset."
+  },
+
+  "covers": "The decision rule only. This case asserts nothing about the RSABE criterion arithmetic, which is Phase 2A and not implemented.",
+
+  "history": "Added as part of a correction. An earlier version of this package derived the switching threshold as cv_to_log_sd(0.30) = 0.293560, marked it DERIVED, and enforced with an AST-level test that 0.294 must never appear in the source. That inverted the relationship between the package and the regulator: 0.294 is FDA's stated criterion, not a rounded presentation of this package's arithmetic. The row at sWR = 0.2937 is the study the earlier version would have misrouted."
+}

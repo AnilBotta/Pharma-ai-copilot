@@ -10,7 +10,6 @@ from __future__ import annotations
 import pytest
 
 from be_stats import (
-    cv_to_log_sd,
     DrugClass,
     Endpoint,
     Jurisdiction,
@@ -129,9 +128,7 @@ def test_fda_and_ema_take_different_routes_for_highly_variable_drugs():
     assert ema.method is Method.EMA_HVD_ABEL
     assert fda.method is not ema.method
     assert fda.constants["sigma_w0"].value == 0.25
-    assert fda.constants["swr_switching_threshold"].value == pytest.approx(
-        cv_to_log_sd(0.30)
-    )
+    assert fda.constants["swr_switching_threshold"].value == 0.294
     for spec in (fda, ema):
         assert not spec.is_implemented
         with pytest.raises(NotImplementedMethod):
