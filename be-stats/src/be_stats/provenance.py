@@ -51,6 +51,13 @@ class ValidationStatus(StrEnum):
 
     NOT_IMPLEMENTED = "not_implemented"
     EXPERIMENTAL = "experimental"
+    #: Implemented, and there is no external numeric claim to validate against.
+    #: Structural work lives here: a design validator either enforces the
+    #: regulator's design definitions or it does not, and no worked dataset can
+    #: tell you more than the tests already do. Distinct from the status below,
+    #: which names a computed NUMBER that nobody has checked against a
+    #: regulator - that gap is real and this one is not.
+    IMPLEMENTED = "implemented"
     IMPLEMENTED_UNVALIDATED = "implemented_unvalidated"
     VALIDATED = "validated"
 

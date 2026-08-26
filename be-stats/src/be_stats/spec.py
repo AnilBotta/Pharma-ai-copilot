@@ -106,9 +106,62 @@ VALIDATION: dict[Method, ValidationStatus] = {
     Method.EMA_HVD_ABEL: ValidationStatus.NOT_IMPLEMENTED,
 }
 
+#: NOTE: this frozenset and `ValidationStatus.IMPLEMENTED` are unrelated. This
+#: one answers "can this method be run at all"; that one is a status meaning
+#: "implemented, with no external numeric claim to validate".
 IMPLEMENTED: frozenset[Method] = frozenset(
     m for m, s in VALIDATION.items() if s is not ValidationStatus.NOT_IMPLEMENTED
 )
+
+
+class Capability(StrEnum):
+    """Things the engine can do that are not methods.
+
+    A `Method` decides bioequivalence. These do not - they validate a dataset,
+    or estimate a quantity that a method will later use. They are tracked
+    separately rather than added to `Method` for one reason: everything in
+    `Method` is a candidate answer to "which test applies", and putting a data
+    validator in that enum would make it possible for a routing function to
+    return one.
+
+    The separation matters most right now, because this release estimates sWR
+    without being allowed to decide anything with it.
+    """
+
+    #: Recognise a replicate design, validate its structure, construct the
+    #: reference replicates.
+    FDA_HVD_REPLICATE_DATA_VALIDATION = "fda_hvd_replicate_data_validation"
+    #: Estimate the within-subject reference variance and CVwR from a
+    #: validated replicate dataset.
+    FDA_HVD_REFERENCE_VARIANCE = "fda_hvd_reference_variance"
+
+
+#: Capabilities carry their own statuses, on the same ladder.
+#:
+#: Data validation is `IMPLEMENTED` rather than `IMPLEMENTED_UNVALIDATED`
+#: because it produces no number for a regulator to disagree with: it either
+#: enforces the design definitions or it does not, and the tests decide that.
+#: Reference variance is `IMPLEMENTED_UNVALIDATED` because it produces sWR,
+#: and no regulator-published worked dataset has been reproduced.
+CAPABILITY_VALIDATION: dict[Capability, ValidationStatus] = {
+    Capability.FDA_HVD_REPLICATE_DATA_VALIDATION: ValidationStatus.IMPLEMENTED,
+    Capability.FDA_HVD_REFERENCE_VARIANCE: (
+        ValidationStatus.IMPLEMENTED_UNVALIDATED
+    ),
+}
+
+
+def validation_report() -> list[str]:
+    """Every method and capability with its status, for a release note or log.
+
+    One function so the two tables are always shown together; reading either
+    alone gives a misleading picture of what the engine can be trusted with.
+    """
+    lines = ["methods:"]
+    lines += [f"  {m} — {s}" for m, s in VALIDATION.items()]
+    lines += ["capabilities:"]
+    lines += [f"  {c} — {s}" for c, s in CAPABILITY_VALIDATION.items()]
+    return lines
 
 
 class NotApplicable(Exception):

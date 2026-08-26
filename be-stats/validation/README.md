@@ -225,6 +225,72 @@ scoped to M13A.*
 
 ---
 
+## Replicate designs and reference variability (0.2.0)
+
+**Estimation only. No bioequivalence decision is made anywhere in this layer**,
+and `tests/integration/test_no_be_decision_in_this_release.py` enforces it two
+ways: no public result type may carry a verdict-shaped field, and no module in
+the layer may import the switching rule at all. A module that cannot see the
+threshold cannot apply it.
+
+| Capability | Status | Evidence |
+|---|---|---|
+| Replicate design validation | `IMPLEMENTED` | structural; the tests are the evidence |
+| Partial-replicate sWR / CVwR | `IMPLEMENTED_UNVALIDATED` | tier 4 only — see below |
+| Fully-replicate sWR | `NOT_IMPLEMENTED` | design validated, estimator declines |
+
+### Why the fully replicated estimator is absent
+
+FDA analyses the partial replicate through a general linear model and the fully
+replicated design through a mixed model that estimates within-test and
+within-reference variance jointly under a structured covariance. Both designs
+give each subject two reference measurements, which makes it easy — and wrong —
+to run the partial-replicate closed form over a `TRTR` dataset.
+
+`FullyReplicateReferenceVarianceEstimator` therefore validates its data and
+raises. The cost is that a TRTR study gets no sWR from this release. The cost of
+substituting would be an sWR that looks ordinary, is compared against 0.294 in
+the next release, and selects a regulatory method on a number nobody validated.
+
+### Tier-4 evidence, and its limits
+
+Two checks, both tier 4, neither regulatory:
+
+1. **A hand-calculated fixture.** Six subjects, two per sequence, every
+   reference pair expressed as a ratio. The expected variance is derived
+   through the two-point identity `(d₁−d₂)²/2`, which never forms a mean — a
+   different algebraic route than the estimator's, so agreement is evidence
+   rather than a tautology.
+2. **A 1200-study simulation.** Shows the estimator is unbiased for σ²WR, and
+   that the sampling spread of the estimates matches `2σ⁴/df` at the degrees of
+   freedom the result reports. The second is the stronger check: unbiasedness
+   can survive a wrong denominator paired with a compensating error; the
+   sampling variance pins `n − m` directly. Every tolerance is computed from
+   the Monte Carlo standard error at the replicate count used, not chosen by
+   widening until it passed.
+
+Neither shows this is the estimator FDA specifies. That is tier 1B, and it is
+still pending.
+
+### Two things the tests found
+
+**The result depended on how the input file was sorted.** The invariance tests
+assert exact equality — not `approx` — and caught a one-bit difference under row
+shuffling. Floating-point addition is not associative, so summing the same
+reference differences in a different order gives a different last bit. The
+estimator now uses `math.fsum`, which returns the correctly-rounded exact total
+and is therefore permutation-invariant. Without it, a study re-exported with a
+different sort order produces two different sWRs, differing around 1e-16:
+invisible, and reproducible by nobody.
+
+**`m` must be counted, not assumed.** A sequence whose every subject was
+excluded contributes no deviation and absorbs no degree of freedom. Using the
+design's `m = 3` regardless would understate the degrees of freedom and inflate
+the variance, so `m` is the number of sequences that actually contributed and a
+shortfall is recorded as a diagnostic.
+
+---
+
 ## Degeneracy: refuse, do not rescue
 
 For a validation-oriented statistical application, non-estimable is preferable
@@ -238,12 +304,20 @@ to a number obtained by numerical rescue. Currently refused:
 - [x] duplicated subject
 - [x] near-zero variance still analyses — only exact degeneracy is refused
 
-Pending, and belonging to Phase 2 because they concern replicate designs:
+Added in 0.2.0 for replicate designs:
 
-- [ ] singular mixed-model covariance structure
-- [ ] missing reference replicates
-- [ ] a subject with only one usable reference observation where sWR needs
-      replication
+- [x] missing reference replicate — subject excluded, `MISSING_REFERENCE_REPLICATE`
+- [x] a subject with only one usable reference observation — same code; no `Dij`
+      exists for it
+- [x] zero within-reference variance — `estimable = False`, with `swr` and
+      `cv_wr` returned as `None` rather than `0.0`, so nothing downstream can
+      read a zero as precision
+- [x] fewer than one reference degree of freedom — `INSUFFICIENT_REFERENCE_DF`
+
+Still pending, and belonging to the fully replicated estimator:
+
+- [ ] singular mixed-model covariance structure — the code
+      (`SINGULAR_MODEL`) exists; the model it would describe does not
 
 ---
 
@@ -267,7 +341,9 @@ Pending, and belonging to Phase 2 because they concern replicate designs:
 
 **Implemented:** average bioequivalence for 2×2 crossover and parallel designs;
 power and sample size; FDA and EMA standard intervals; EMA narrowed interval for
-NTI **AUC**; product-specific overrides per endpoint.
+NTI **AUC**; product-specific overrides per endpoint. Since 0.2.0: replicate
+design validation for TRR/RTR/RRT and TRTR/RTRT, and partial-replicate sWR and
+CVwR — **estimation only, no decision**.
 
 **Resolved but not implemented** — each raises `NotImplementedMethod` rather
 than returning something plausible:

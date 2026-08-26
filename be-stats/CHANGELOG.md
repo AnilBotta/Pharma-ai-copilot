@@ -6,6 +6,100 @@ first question asked of a result years later.
 
 ---
 
+## 0.2.0 — replicate data and reference variability
+
+**The foundation for FDA highly-variable analysis, and deliberately not the
+analysis.** This release answers one question: given a valid FDA replicate
+dataset, can the engine identify the design, validate its structure, build the
+reference replicates correctly, estimate sWR and CVwR, and say whether those
+quantities are estimable? It contains no bioequivalence verdict, and a test
+fails the build if one appears.
+
+Nothing in Phase 1 moves. `0.2.0` rather than `0.1.2` because the surface grew,
+not because a result changed.
+
+### New
+
+- `ReplicateObservation` / `ReplicateDataset` — one row per measurement, and a
+  dataset that validates subject, sequence, period, treatment, endpoint,
+  duplicates, completeness, reference replication and positivity.
+- `ReplicateSequence` (TRR / RTR / RRT / TRTR / RTRT) and `ReplicateDesign`.
+  **The sequence name is the specification**: `TRR.expected_treatment(2)` reads
+  the letter. Nothing is inferred from row order — not the sequence, not the
+  period, and above all not which reference measurement is R1.
+- `PartialReplicateReferenceVarianceEstimator` — FDA Appendix G:
+  `sWR² = ΣᵢΣⱼ(Dij − D̄ᵢ.)² / 2(n − m)` with `Dij = Rij1 − Rij2` on the log
+  scale. `CVwR` through the package's single canonical conversion.
+- `Iij = Tij − (Rij1 + Rij2)/2` exposed and checkable. **Nothing consumes it**;
+  PR #56 will.
+- `DiagnosticCode` — typed identifiers, not free text. A reason that cannot be
+  counted, filtered or asserted on is not a reason.
+- `Capability` and `CAPABILITY_VALIDATION`, separate from `Method`.
+
+### Refuses rather than approximates
+
+| Situation | Behaviour |
+|---|---|
+| TRTR / RTRT | design validated, dataset built, **estimator raises** |
+| TRT, TRRR, RRTR, mixed designs | `UnsupportedDesign`, naming what *is* supported |
+| sequence/period/treatment mismatch | subject excluded with `SEQUENCE_TREATMENT_MISMATCH` |
+| duplicate period | subject excluded; no winner chosen |
+| sWR² = 0 | `estimable = False`, `swr` and `cv_wr` are **`None`**, not 0.0 |
+
+**The fully replicated estimator is not written, on purpose.** FDA analyses
+that design with a mixed model; the partial-replicate closed form is not that
+model. Running it anyway would produce an sWR that looks ordinary, gets
+compared against 0.294 in the next release, and selects a regulatory method on
+a number nobody validated — the same class of substitution 0.1.1 corrected.
+
+### Every dropped subject is a finding
+
+`subjects_received`, `subjects_used`, `subjects_excluded` and
+`exclusion_reasons` travel on the result and are asserted to add up. Complete-
+case deletion without a record is the quiet failure of every replicate
+analysis: 24 go in, 22 reach the estimator, the report says 24.
+
+A subject missing its **test** measurement is `ADVISORY`, not an exclusion — sWR
+comes from the references alone, and dropping it would discard evidence for a
+contrast this release does not compute. It becomes an exclusion in #56.
+
+### Found while building this
+
+- **The result depended on how the input file was sorted.** The invariance
+  tests assert exact equality and caught a 1-ULP difference under row shuffling:
+  floating-point addition is not associative, so `sum` over the same values in a
+  different order differs in the last bit. Now `math.fsum` throughout, which
+  returns the correctly-rounded exact total and is permutation-invariant. A
+  study re-exported with a different sort order would otherwise have produced
+  two sWRs — invisible, and reproducible by nobody.
+- **`m` is counted, not assumed.** A sequence that contributed no surviving
+  subject absorbs no degree of freedom and contributes no term. Using the
+  design's `m = 3` regardless would understate df and inflate the variance.
+
+### Validation state
+
+| | Status |
+|---|---|
+| `FDA_HVD_REPLICATE_DATA_VALIDATION` | `IMPLEMENTED` |
+| `FDA_HVD_REFERENCE_VARIANCE` | `IMPLEMENTED_UNVALIDATED` |
+| `FDA_HVD_RSABE` | `NOT_IMPLEMENTED` |
+| `FDA_NTI_RSABE` | `NOT_IMPLEMENTED` |
+
+Data validation is `IMPLEMENTED` — a new status meaning "implemented, with no
+external numeric claim to validate": it either enforces the design definitions
+or it does not, and the tests decide that. Reference variance produces a
+number, so it stays `IMPLEMENTED_UNVALIDATED` until tier 1B.
+
+Evidence added: a hand-calculated six-subject fixture (mathematical, tier 4),
+and a 1200-study simulation showing the estimator is unbiased for σ²WR and that
+its sampling spread matches χ² on the degrees of freedom it reports — which
+pins `n − m` rather than merely displaying it. Both tier 4. Neither validates
+anything against a regulator.
+
+161 tests pass.
+
+---
+
 ## 0.1.1 — corrections before the freeze
 
 Applied at statistical review of 0.1.0, before merge. No estimator arithmetic
