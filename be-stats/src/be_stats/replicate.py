@@ -271,14 +271,34 @@ def parse_sequence(label: str) -> ReplicateSequence:
     try:
         return ReplicateSequence(label)
     except ValueError:
-        supported = ", ".join(s.value for s in ReplicateSequence)
+        pass
+
+    supported = ", ".join(s.value for s in ReplicateSequence)
+
+    # A sequence can be a perfectly real replicate design and still be useless
+    # for THIS quantity, and saying only "unsupported" would send someone
+    # looking for a bug in their file. The guidance's own TRR/RTT design is the
+    # case in point: RTT replicates the TEST, so a subject in that sequence has
+    # one reference observation and no within-reference difference at all.
+    if label.count("R") < 2 and set(label) <= {"T", "R"} and label:
         raise UnsupportedDesign(
-            f"{label!r} is not a supported replicate sequence. Supported: "
-            f"{supported}. Sequences outside this list are refused rather than "
-            "parsed, because their estimators are not the ones implemented "
-            "here.",
-            DiagnosticCode.UNKNOWN_SEQUENCE,
+            f"{label!r} contains {label.count('R')} reference period(s). sWR is "
+            "estimated from the difference between a subject's TWO reference "
+            "observations, so a sequence that replicates the test rather than "
+            "the reference contributes nothing to it - this is a statement "
+            "about the design, not about your data. FDA's own TRR/RTT design "
+            "(Appendix A) is of this kind: it is a replicate design, and it is "
+            "not one of the reference-scaled designs. Reference-scaled "
+            f"designs: {supported}.",
+            DiagnosticCode.UNSUPPORTED_REPLICATE_DESIGN,
         ) from None
+
+    raise UnsupportedDesign(
+        f"{label!r} is not a supported replicate sequence. Supported: "
+        f"{supported}. Sequences outside this list are refused rather than "
+        "parsed, because their estimators are not the ones implemented here.",
+        DiagnosticCode.UNKNOWN_SEQUENCE,
+    ) from None
 
 
 def parse_treatment(label: str) -> Treatment:

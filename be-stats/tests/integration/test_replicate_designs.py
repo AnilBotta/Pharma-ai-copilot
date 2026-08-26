@@ -113,12 +113,33 @@ def test_the_full_partial_study_estimates():
 # ---------------------------------------------------------- invalid designs ---
 
 
-@pytest.mark.parametrize("label", ["TRT", "TRRR", "RRTR", "TT", "RR", "TRRT"])
+@pytest.mark.parametrize("label", ["TRRR", "RRTR", "RR", "TRRT"])
 def test_unsupported_sequences_are_refused_by_name(label):
     with pytest.raises(UnsupportedDesign) as exc:
         parse_sequence(label)
     assert exc.value.code is DiagnosticCode.UNKNOWN_SEQUENCE
     assert "TRR" in str(exc.value), "the refusal must name what IS supported"
+
+
+@pytest.mark.parametrize("label", ["RTT", "TRT", "TTR", "TT"])
+def test_a_test_replicated_sequence_is_refused_for_the_right_reason(label):
+    """`RTT` is a real replicate design, and useless for sWR.
+
+    FDA's Appendix A describes a three-period TRR/RTT design. It replicates the
+    TEST, so a subject in the `RTT` sequence has one reference observation and
+    no within-reference difference at all. Refusing it is correct; refusing it
+    as "unknown sequence" would send someone looking for a bug in their file.
+
+    The distinction is the difference between "your data are wrong" and "this
+    design cannot answer this question".
+    """
+    with pytest.raises(UnsupportedDesign) as exc:
+        parse_sequence(label)
+    assert exc.value.code is DiagnosticCode.UNSUPPORTED_REPLICATE_DESIGN
+    message = str(exc.value)
+    assert "reference period" in message
+    assert "TRR/RTT" in message, "name the guidance's own example"
+    assert "not about your data" in message
 
 
 def test_mixing_two_designs_in_one_file_is_refused():
