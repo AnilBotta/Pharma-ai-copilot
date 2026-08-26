@@ -98,6 +98,36 @@ APPENDIX_G: Citation = FDA_STATISTICAL_APPROACHES_APPENDIX_G
 VERIFIED_BY: str = VIA_PRIMARY_DOCUMENT
 
 
+def sum_of_squared_deviations(
+    grouped: dict[ReplicateSequence, list[float]],
+) -> float:
+    """`SUM_i SUM_j (Dij - Dbar_i.)^2` - deviations about the SEQUENCE means.
+
+    Extracted so that sWR and - for the narrow-therapeutic-index procedure -
+    sWT are computed by one function rather than two that look alike. The
+    guidance states the closed form once and applies it to the reference
+    differences; the test differences are the same estimator on the subject's
+    other pair.
+
+    `math.fsum`, not `sum`, and this is not fastidiousness. Floating-point
+    addition is not associative, so `sum` over the same values in a different
+    order can differ in the last bit. The values arrive in whatever order the
+    input file had, which means a study re-exported with a different sort order
+    would produce a variance differing by roughly 1e-16 - invisible,
+    reproducible by nobody, and exactly the kind of thing that surfaces years
+    later as "your tool gave two answers for one dataset".
+
+    `fsum` returns the correctly-rounded exact total, so every permutation
+    gives a bit-identical result. The invariance tests assert equality, not
+    approximate equality, and they are what found this.
+    """
+    deviations: list[float] = []
+    for differences in grouped.values():
+        mean = math.fsum(differences) / len(differences)
+        deviations.extend((d - mean) ** 2 for d in differences)
+    return math.fsum(deviations)
+
+
 class NotEstimable(Exception):
     """The quantity does not exist for these data, or not from this release.
 
@@ -329,25 +359,7 @@ class _ReferenceVarianceEstimator:
                 dataset, diagnostics, n, m, max(df, 0), contributing
             )
 
-        # `math.fsum`, not `sum`, and this is not fastidiousness.
-        #
-        # Floating-point addition is not associative, so `sum` over the same
-        # values in a different order can differ in the last bit. The values
-        # here arrive in whatever order the input file had, which means a
-        # study re-exported with a different sort order would produce an sWR
-        # differing by roughly 1e-16 - invisible, reproducible by nobody, and
-        # exactly the kind of thing that surfaces years later as "your tool
-        # gave two answers for one dataset".
-        #
-        # `fsum` returns the correctly-rounded sum of the exact total, so every
-        # permutation gives a bit-identical result. The invariance tests in
-        # tests/integration/test_replicate_designs.py assert equality, not
-        # approximate equality, and they found this.
-        deviations: list[float] = []
-        for differences in grouped.values():
-            mean = math.fsum(differences) / len(differences)
-            deviations.extend((d - mean) ** 2 for d in differences)
-        sum_squares = math.fsum(deviations)
+        sum_squares = sum_of_squared_deviations(grouped)
 
         # A sum of squares over a positive denominator cannot be negative, in
         # exact arithmetic or in floating point. There is therefore no

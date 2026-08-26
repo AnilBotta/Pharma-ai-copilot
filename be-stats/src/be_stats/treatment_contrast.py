@@ -116,19 +116,40 @@ def satterthwaite_df(components: list[tuple[float, float, int]]) -> float:
     """
     if not components:
         raise ValueError("Satterthwaite degrees of freedom need a component.")
-    numerator = math.fsum(g * s2 for g, s2, _ in components)
+
+    # Each component's contribution `g_i * s_i^2` is formed ONCE and reused in
+    # both the numerator and the denominator. Writing the denominator as
+    # `g_i**2 * 2 * s_i**4 / v_i` instead recomputes the same product by a
+    # different route, and the two disagree in the last bits - which for the
+    # single-component case turned an exact collapse to `v` into 21.999999...
+    # in a report. Same formula, better conditioned.
+    terms = [(g * s2, v) for g, s2, v in components]
+    numerator = math.fsum(term for term, _ in terms)
     if numerator == 0.0:
         raise ValueError(
             "The estimated variance of the contrast is zero, so Satterthwaite "
             "degrees of freedom are undefined."
         )
-    denominator = math.fsum(
-        (g**2) * 2.0 * (s2**2) / v for g, s2, v in components if v > 0
-    )
+    denominator = math.fsum(2.0 * term * term / v for term, v in terms if v > 0)
     if denominator <= 0.0:
         raise ValueError(
             "No component carries degrees of freedom; Satterthwaite is undefined."
         )
+    if len(terms) == 1:
+        # THE COLLAPSE, RETURNED EXACTLY.
+        #
+        # With one component the expression is `2t^2 / (2t^2 / v)`, which is
+        # algebraically `v` for any `t`. In floating point it is not: the
+        # division and its reciprocal disagree in the last bits, and a report
+        # ends up printing 20.999999999999996 degrees of freedom.
+        #
+        # So the identity is applied rather than evaluated. This is not an
+        # assumption standing in for a computation - the algebra is exact, and
+        # `test_the_general_formula_agrees_with_the_exact_collapse` evaluates
+        # the general expression and checks it reproduces `v` to floating-point
+        # tolerance. The claim is verified; only the arithmetic noise is
+        # discarded.
+        return float(terms[0][1])
     return 2.0 * (numerator**2) / denominator
 
 

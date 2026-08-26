@@ -58,19 +58,12 @@ consumed by nothing.
 
 from __future__ import annotations
 
-import math
-from dataclasses import dataclass, field
-
-from scipy import stats
+from dataclasses import dataclass
 
 from be_stats.abe import AbeResult
-from be_stats.diagnostics import Diagnostic, DiagnosticCode, Severity
-from be_stats.provenance import (
-    FDA_STATISTICAL_APPROACHES_APPENDIX_G,
-    VIA_PRIMARY_DOCUMENT,
-    RegulatoryValue,
-    ValidationStatus,
-)
+from be_stats.diagnostics import Diagnostic
+from be_stats.howe import howe_upper_bound
+from be_stats.provenance import RegulatoryValue
 from be_stats.reference_variance import (
     ReferenceVarianceResult,
     estimate_reference_variance,
@@ -92,9 +85,6 @@ from be_stats.treatment_contrast import (
     TreatmentContrastResult,
     estimate_treatment_contrast,
 )
-
-#: Appendix G step 2 asks for a 95% upper confidence bound. Stated once.
-UPPER_BOUND_CONFIDENCE = 0.95
 
 
 class NotDecidable(Exception):
@@ -254,30 +244,32 @@ def scaled_criterion(
     if not reference_variance.estimable or reference_variance.variance_wr is None:
         raise NotDecidable("sWR is not estimable.")
 
-    x = contrast.estimate**2 - contrast.standard_error**2
-    bound_x = max(abs(contrast.ci_lower), abs(contrast.ci_upper)) ** 2
-
-    theta = fda_hvd_theta()
-    sigma_w0 = FDA_HVD_CONSTANTS["sigma_w0"].value
-    s2wr = reference_variance.variance_wr
-    df_d = reference_variance.degrees_of_freedom
-
-    y = -theta * s2wr
-    # stats.chi2.ppf is the inverse CDF, which is what SAS's cinv is.
-    bound_y = y * df_d / stats.chi2.ppf(UPPER_BOUND_CONFIDENCE, df_d)
-
-    critbound = (x + y) + math.sqrt((bound_x - x) ** 2 + (bound_y - y) ** 2)
+    # The arithmetic lives in `howe.py`, shared with the narrow-therapeutic-
+    # index procedure. Shared on evidence rather than resemblance: the two
+    # appendices' SAS were compared line by line and differ only in `theta`,
+    # which each supplies from its own verified constants. This wrapper knows
+    # the highly-variable constants and cites Appendix G; it does not pass a
+    # mode flag to a generic routine.
+    bound = howe_upper_bound(
+        estimate=contrast.estimate,
+        standard_error=contrast.standard_error,
+        ci_lower=contrast.ci_lower,
+        ci_upper=contrast.ci_upper,
+        reference_variance=reference_variance.variance_wr,
+        reference_variance_df=reference_variance.degrees_of_freedom,
+        theta=fda_hvd_theta(),
+    )
 
     return ScaledCriterion(
-        x=x,
-        bound_x=bound_x,
-        y=y,
-        bound_y=bound_y,
-        theta=theta,
-        sigma_w0=sigma_w0,
-        reference_variance=s2wr,
-        reference_variance_df=df_d,
-        upper_confidence_bound=critbound,
+        x=bound.x,
+        bound_x=bound.bound_x,
+        y=bound.y,
+        bound_y=bound.bound_y,
+        theta=bound.theta,
+        sigma_w0=FDA_HVD_CONSTANTS["sigma_w0"].value,
+        reference_variance=bound.reference_variance,
+        reference_variance_df=bound.reference_variance_df,
+        upper_confidence_bound=bound.upper_confidence_bound,
     )
 
 

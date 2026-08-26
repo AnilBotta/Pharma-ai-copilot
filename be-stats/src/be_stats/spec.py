@@ -149,6 +149,19 @@ class Capability(StrEnum):
     #: and parallel designs Phase 1 implements.
     FDA_HVD_UNSCALED_BRANCH = "fda_hvd_unscaled_branch"
 
+    # ------------------------------------ narrow therapeutic index drugs ---
+    #: Enforce that an NTI drug is on a fully replicate design before any
+    #: arithmetic runs.
+    FDA_NTI_DESIGN_VALIDATION = "fda_nti_design_validation"
+    #: Appendix F steps 2 and 5a: the reference-scaled mean criterion.
+    FDA_NTI_REFERENCE_SCALED_CRITERION = "fda_nti_reference_scaled_criterion"
+    #: Appendix F steps 4 and 5c: the 90% equal-tails F interval for
+    #: sigma_WT / sigma_WR against 2.500.
+    FDA_NTI_VARIABILITY_RATIO = "fda_nti_variability_ratio"
+    #: Appendix F step 5b: the ordinary UNSCALED 80.00-125.00% limits, which
+    #: for a fully replicate study means Appendix C's model.
+    FDA_NTI_UNSCALED_ABE = "fda_nti_unscaled_abe"
+
 
 #: Capabilities carry their own statuses, on the same ladder.
 #:
@@ -181,6 +194,20 @@ CAPABILITY_VALIDATION: dict[Capability, ValidationStatus] = {
     #: number was a bioequivalence verdict from a different model. The branch
     #: refuses instead. See `replicate_abe.py` for the specification.
     Capability.FDA_HVD_UNSCALED_BRANCH: ValidationStatus.NOT_IMPLEMENTED,
+    # ------------------------------------ narrow therapeutic index drugs ---
+    #: Structural: the design gate either enforces III.B or it does not.
+    Capability.FDA_NTI_DESIGN_VALIDATION: ValidationStatus.IMPLEMENTED,
+    Capability.FDA_NTI_REFERENCE_SCALED_CRITERION: (
+        ValidationStatus.IMPLEMENTED_UNVALIDATED
+    ),
+    Capability.FDA_NTI_VARIABILITY_RATIO: (
+        ValidationStatus.IMPLEMENTED_UNVALIDATED
+    ),
+    #: Same reason as `FDA_HVD_UNSCALED_BRANCH`: the unscaled analysis of a
+    #: fully replicate study is Appendix C's mixed model, which is not fitted
+    #: here. Two of three NTI criteria are computable; the third is not, so the
+    #: NTI method as a whole stays NOT_IMPLEMENTED.
+    Capability.FDA_NTI_UNSCALED_ABE: ValidationStatus.NOT_IMPLEMENTED,
 }
 
 
@@ -578,6 +605,34 @@ class BeSpec:
             if rv.verification is VerificationStatus.UNVERIFIED
         )
         return names
+
+
+def fda_nti_theta() -> float:
+    """FDA's NTI scaled limit, theta = [ln(Delta) / sigma_W0]^2.
+
+    Computed from the verified constants: `Delta = 1/0.9`, `sigma_W0 = 0.10`.
+
+    A DISCREPANCY IN THE GUIDANCE, AND WHICH SIDE THIS TAKES
+
+    Appendix F's prose gives `Delta = 1/0.9 (approximately=1.11111)`. Its SAS
+    example then writes `theta=((log(1.11111))/0.1)**2` - the rounded decimal,
+    not the exact ratio.
+
+    The two disagree in theta by about 1.9e-05 relative. This uses the exact
+    `1/0.9`, because the prose states the constant and the SAS displays it: a
+    figure typed to five decimal places in an example is a presentation of the
+    rule, not the rule. That is the same reading that made 0.294 normative in
+    the highly-variable procedure - the regulator's stated value governs - and
+    it points the other way here, which is worth noticing. There the stated
+    value WAS the rounded one; here the stated value is the ratio.
+
+    The difference is far too small to move a decision on its own, and it is
+    recorded rather than ignored because "too small to matter" is a judgement
+    somebody should get to check.
+    """
+    delta = FDA_NTI_CONSTANTS["delta"].value
+    sigma_w0 = FDA_NTI_CONSTANTS["sigma_w0"].value
+    return (math.log(delta) / sigma_w0) ** 2
 
 
 def resolve_be_spec(

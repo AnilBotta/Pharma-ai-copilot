@@ -37,6 +37,21 @@ from be_stats.hvd import (
     point_estimate_constraint,
     scaled_criterion,
 )
+from be_stats.howe import HoweUpperBound, howe_upper_bound
+from be_stats.nti import (
+    FdaNtiResult,
+    NtiDesignError,
+    NtiScaledMeanCriterion,
+    NtiUnscaledAbeCriterion,
+    NtiVariabilityRatioCriterion,
+    WithinTestVarianceResult,
+    assess_nti_endpoint,
+    assess_nti_study,
+    estimate_test_variance,
+    require_fully_replicate,
+    scaled_mean_criterion,
+    variability_ratio_criterion,
+)
 from be_stats.replicate_abe import (
     APPENDIX_C_MODEL,
     ReplicateAbeModelSpecification,
@@ -84,6 +99,7 @@ from be_stats.replicate import (
     parse_sequence,
     parse_treatment,
     reference_differences,
+    test_differences,
     treatment_contrasts,
 )
 from be_stats.provenance import (
@@ -113,6 +129,7 @@ from be_stats.spec import (
     SpecificationRequired,
     fda_hvd_method_for,
     fda_hvd_theta,
+    fda_nti_theta,
     resolve_be_spec,
     validation_report,
 )
@@ -128,12 +145,28 @@ from be_stats.study import (
 #: Bumped on any change that can alter a computed result. An analysis record
 #: stores this, because "which version produced this number" is the first
 #: question asked of a result years later.
-__version__ = "0.4.0"
+__version__ = "0.5.0"
 
 __all__ = [
     "APPENDIX_C_MODEL",
     "AbeResult",
     "FdaHvdResult",
+    "FdaNtiResult",
+    "HoweUpperBound",
+    "NtiDesignError",
+    "NtiScaledMeanCriterion",
+    "NtiUnscaledAbeCriterion",
+    "NtiVariabilityRatioCriterion",
+    "WithinTestVarianceResult",
+    "assess_nti_endpoint",
+    "assess_nti_study",
+    "estimate_test_variance",
+    "fda_nti_theta",
+    "howe_upper_bound",
+    "require_fully_replicate",
+    "scaled_mean_criterion",
+    "test_differences",
+    "variability_ratio_criterion",
     "ReplicateAbeModelSpecification",
     "analyse_replicate_abe",
     "FullyReplicateTreatmentContrastEstimator",

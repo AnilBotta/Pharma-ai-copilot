@@ -1,0 +1,145 @@
+{
+  "case_id": "FDA-NTI-CRITERIA-001",
+  "title": "FDA Appendix F: the narrow therapeutic index procedure, three criteria",
+  "case_type": "algorithm_conformance",
+  "subject": "narrow therapeutic index drugs",
+  "jurisdiction": "FDA",
+
+  "rule": {
+    "statement": "For an NTI drug on a fully replicate crossover design, T is bioequivalent to R for a PK parameter only when ALL THREE of the following hold: (a) the 95% upper confidence bound for (mu_T - mu_R)^2 - theta*sigma_WR^2 is <= 0; (b) the regular unscaled BE limits of 80.00%-125.00% are passed; (c) the upper limit of the 90% equal-tails confidence interval for sigma_WT / sigma_WR is <= 2.500.",
+    "sections": ["III.B", "Appendix F steps 1-5"],
+    "not_a_narrowed_interval": "FDA NTI is not ordinary average BE on a narrowed acceptance range. There is no 90.00-111.11% in this procedure at all.",
+    "all_three_required": true
+  },
+
+  "design_gate": {
+    "statement": "For NTI drugs, a fully replicate crossover design should be used.",
+    "section": "III.B",
+    "accepted": ["TRTR", "RTRT"],
+    "refused": ["TR/RT 2x2 crossover", "TRR/RTR/RRT partial replicate", "parallel"],
+    "why_it_is_a_gate": "The procedure has three criteria, one of which compares within-subject test and reference variability and therefore needs TWO test measurements per subject. A partial replicate gives one. Falling back to ordinary average BE would replace a three-criterion procedure with a one-criterion one."
+  },
+
+  "reference_variance": {
+    "formula": "sWR^2 = SUM_i SUM_j (Dij - Dbar_i.)^2 / (2(n - m))",
+    "m": 2,
+    "m_note": "Appendix F step 1: 'm = 2 for fully replicate design: TRTR and RTRT'. The same closed form Appendix G gives, restricted to the fully replicate case.",
+    "shared_estimator": true,
+    "citation_note": "The implementation is shared with the highly variable procedure. The CITATION is not: an NTI decision rests on Appendix F step 1, and the result must not cite Appendix G."
+  },
+
+  "test_variance": {
+    "formula": "sWT^2 = SUM_i SUM_j (DTij - DTbar_i.)^2 / (2(n - m)), with DTij = Tij1 - Tij2",
+    "guidance_states_it": false,
+    "interpretation_note": "Appendix F step 1 gives the closed form for sWR ONLY. Step 4 names sWT - 'the estimate of sigma_WT with v1 as the degree of freedom' - without restating how to compute it. What is implemented is the same estimator applied to the subject's two TEST observations: the symmetric reading, and what Appendix C's REPEATED/GRP=TRT SUB=SUBJ residual structure produces. Recorded as an interpretation, not as transcription."
+  },
+
+  "constants": {
+    "sigma_w0": 0.10,
+    "delta": "1/0.9",
+    "theta": "[ln(Delta) / sigma_W0]^2",
+    "variance_ratio_upper_limit": 2.5,
+    "unscaled_lower_percent": 80.00,
+    "unscaled_upper_percent": 125.00,
+    "delta_discrepancy": {
+      "prose": "Delta = 1/0.9 (approximately=1.11111)",
+      "sas": "theta=((log(1.11111))/0.1)**2",
+      "relative_difference_in_theta": 1.9e-05,
+      "resolution": "the calculation consumes the exact ratio 1/0.9. The prose states the constant; the SAS displays it to five decimal places. A figure typed into an example is a presentation of the rule, not the rule. Note this points the OPPOSITE way to the highly variable case, where the regulator's stated value WAS the rounded one - which is why each is decided from its own text rather than by a general preference for exact arithmetic."
+    }
+  },
+
+  "howe_comparison": {
+    "claim": "Appendix F step 2 and Appendix G step 2 use an identical construction, differing only in theta.",
+    "evidence": [
+      ["x=estimate**2-stderr**2", "x=estimate**2-stderr**2"],
+      ["boundx=(max((abs(lower)),(abs(upper))))**2", "boundx=(max((abs(lower)),(abs(upper))))**2"],
+      ["theta=((log(1.11111))/0.1)**2", "theta=((log(1.25))/0.25)**2"],
+      ["y=-theta*s2wr", "y=-theta*s2wr"],
+      ["boundy=y*dfd/cinv(0.95,dfd)", "boundy=y*dfd/cinv(0.95,dfd)"],
+      ["critbound=(x+y)+sqrt(((boundx-x)**2)+((boundy-y)**2))", "critbound=(x+y)+sqrt(((boundx-x)**2)+((boundy-y)**2))"]
+    ],
+    "consequence": "one shared helper taking theta as an argument, with a wrapper per procedure supplying its own constants and its own citation. NOT a generic routine with a mode flag."
+  },
+
+  "criteria": {
+    "a": {
+      "statement": "The 95% upper confidence bound for (mu_T - mu_R)^2 - theta*sigma_WR^2 must be <= 0",
+      "section": "Appendix F step 5a",
+      "boundary": "closed: exactly 0 passes",
+      "expected": [
+        { "upper_bound": 1e-12, "passes": false },
+        { "upper_bound": 0.0, "passes": true },
+        { "upper_bound": -1e-12, "passes": true }
+      ]
+    },
+    "b": {
+      "statement": "Regular unscaled BE limits of 80.00%-125.00% should be passed.",
+      "section": "Appendix F step 5b",
+      "not_the_ema_interval": "90.00-111.11% is EMA's narrowed interval for the same drug class. FDA does not narrow - it adds criteria. Using the narrowed limits here would be the single most consequential substitution available in this procedure.",
+      "computed": false,
+      "why_not": "the unscaled average BE analysis of a fully replicate study is FDA Appendix C's mixed model, which is not implemented. Appendix F's own ilat interval is a different model - no period term, one residual variance, no subject-by-formulation covariance - and is not substituted.",
+      "expected": [
+        { "ci_lower_percent": 92.0, "ci_upper_percent": 118.0, "passes": true },
+        { "ci_lower_percent": 80.0, "ci_upper_percent": 125.0, "passes": true },
+        { "ci_lower_percent": 79.99, "ci_upper_percent": 118.0, "passes": false }
+      ],
+      "expected_note": "the containment test is written out and tested so that implementing Appendix C is a matter of supplying the interval, not of also deciding what to do with it. It is not exercised by the pipeline in this release."
+    },
+    "c": {
+      "statement": "The upper limit of the 90% equal-tails confidence interval for sigma_WT / sigma_WR must be less than or equal to 2.500",
+      "section": "Appendix F steps 4 and 5c",
+      "interval": "[ (sWT/sWR) / sqrt(F_{alpha/2}(v1,v2)), (sWT/sWR) / sqrt(F_{1-alpha/2}(v1,v2)) ]",
+      "alpha": 0.1,
+      "tail_convention": "F_p(v1, v2) is the value with probability p to its RIGHT - an upper-tail quantile, scipy.stats.f.isf(p, v1, v2), NOT f.ppf. The wrong tail gives an interval that is still ordered and still positive.",
+      "degrees_of_freedom": "v1 belongs to sWT, v2 to sWR. They differ whenever a subject is missing one of its four measurements.",
+      "forbidden": ["normal approximation", "Wald interval on log variance", "bootstrap"],
+      "boundary": "closed: exactly 2.500 passes",
+      "expected": [
+        { "ci_upper": 2.499999, "passes": true },
+        { "ci_upper": 2.500000, "passes": true },
+        { "ci_upper": 2.500001, "passes": false }
+      ]
+    },
+    "conjunction": {
+      "statement": "For T to be bioequivalent to R, the following conditions must be satisfied for each PK parameter tested",
+      "expected": [
+        { "a": true,  "b": true,  "c": true,  "overall": true },
+        { "a": true,  "b": true,  "c": false, "overall": false },
+        { "a": true,  "b": false, "c": true,  "overall": false },
+        { "a": false, "b": true,  "c": true,  "overall": false },
+        { "a": true,  "b": false, "c": false, "overall": false },
+        { "a": false, "b": true,  "c": false, "overall": false },
+        { "a": false, "b": false, "c": true,  "overall": false },
+        { "a": false, "b": false, "c": false, "overall": false }
+      ],
+      "missing_is_not_failure": "a criterion that was not computed yields None, and the overall decision is NOT DECIDED. An endpoint never tested against the unscaled limits is untested under this procedure - neither bioequivalent nor inequivalent."
+    }
+  },
+
+  "zero_reference_sd": {
+    "situation": "sWR = 0 is a legitimate variance estimate and is reported as one; criterion c divides by it.",
+    "handling": "the ratio is undefined. Not infinity, not 'very large therefore fails'. The criterion is unavailable, a REFERENCE_SD_ZERO_VARIANCE_RATIO_UNDEFINED diagnostic is raised, and the endpoint is NOT DECIDED.",
+    "guidance_states_a_rule": false
+  },
+
+  "endpoint_scope": {
+    "statement": "Appendix F step 1 determines sWR 'for the PK parameters including AUC and Cmax', and step 5 applies the conditions 'for each PK parameter tested'.",
+    "consequence": "AUC and Cmax are assessed independently; one endpoint's outcome must not enter the other's arithmetic."
+  },
+
+  "source": {
+    "tier": 1,
+    "subtier": "1A",
+    "type": "regulator-stated algorithm",
+    "authority": "FDA",
+    "document": "Statistical Approaches to Establishing Bioequivalence",
+    "document_version": "final, May 2026",
+    "section": "III.B and Appendix F (steps 1-5 and the SAS example)",
+    "url": "https://www.fda.gov/media/163638/download",
+    "verified_by": "primary document, read at the cited section",
+    "limitation": "The guidance states the algorithm, the constants and the SAS route for steps 1-2, and contains no worked dataset - no input values and no published answer anywhere in the document. So this closes tier 1A for the criteria and cannot close tier 1B. No external numerical oracle has been run either: PowerTOST would be a tier-3 cross-check and R is not available in this environment. Separately, sWT is an interpretation rather than a transcription - Appendix F states the closed form for sWR only."
+  },
+
+  "covers": "The design gate, the two computable criteria, the conjunction of all three, the constants and their discrepancy, and the zero-reference handling. It asserts nothing about EMA ABEL, which is not implemented, and nothing about Appendix C, which criterion b needs."
+}
