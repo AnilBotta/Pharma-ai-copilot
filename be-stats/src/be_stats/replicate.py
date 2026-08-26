@@ -109,8 +109,20 @@ class ReplicateDesign(StrEnum):
         return _DESIGN_SEQUENCES[self]
 
     @property
-    def n_sequences(self) -> int:
-        """`m` in the FDA variance formula: the design's sequence count."""
+    def regulatory_sequence_count(self) -> int:
+        """`m` in the FDA variance formula. A property of the DESIGN.
+
+        Appendix G names it outright - "m = 3 for partially replicate design:
+        TRR, RTR, and RRT; m = 2 for fully replicate design: TRTR and RTRT" -
+        so it is not the number of sequence buckets that still hold subjects
+        after exclusions.
+
+        The distinction has teeth. If one sequence of a three-sequence design
+        contributes nobody, counting `m = 2` would produce an sWR from a design
+        FDA does not describe, on degrees of freedom that belong to a different
+        study. The estimator refuses instead; see
+        `REQUIRED_SEQUENCE_HAS_NO_CONTRIBUTING_SUBJECTS`.
+        """
         return len(self.sequences)
 
 

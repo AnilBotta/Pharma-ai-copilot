@@ -83,6 +83,62 @@ direction.
 been obtained. Both claims are `VERIFIED`; they are not the same claim, and the
 field exists to say which.
 
+### Two rules I invented, removed at independent review
+
+The guidance was reviewed independently against this branch. It confirmed the
+fully-replicate correction, the HVD threshold, the Appendix G constants, the
+NTI criteria and the R1/R2 mappings — and found two places where the estimator
+was enforcing rules Appendix G does not contain. Both are the same failure as
+deriving `0.294` from a 30% CV: locally sensible reasoning substituted for the
+regulator's specification.
+
+**`m` was being computed from the data.** The estimator set
+`m = len(grouped)` — the sequences still holding a subject after exclusions —
+reasoning that an empty sequence absorbs no degree of freedom and that SAS
+would behave the same way on an empty `CLASS` level.
+
+But `m` is not an arithmetic question. Appendix G names it: *"m = 3 for
+partially replicate design: TRR, RTR, and RRT; m = 2 for fully replicate
+design: TRTR and RTRT"*. A three-sequence study in which one sequence
+contributes nobody is **not that design**, and analysing it as a two-sequence
+one reports an sWR for a study that was not run, on degrees of freedom
+belonging to a different design.
+
+`m` now comes from `ReplicateDesign.regulatory_sequence_count`, and a missing
+required sequence returns non-estimable with
+`REQUIRED_SEQUENCE_HAS_NO_CONTRIBUTING_SUBJECTS`. The result carries
+`regulatory_m` and `contributing_sequences` side by side, so a reader sees the
+disagreement without reading diagnostics. The ambiguous `n_sequences` name is
+gone — that name is what allowed the mistake.
+
+**Zero variance was being refused.** `sWR² = 0` returned non-estimable with
+`swr` and `cv_wr` as `None`, so that nobody could read a zero as a perfectly
+reproducible product.
+
+That was a regulatory rejection rule invented inside a measurement. Appendix G
+defines a quantity; for data where every subject's two reference observations
+agree exactly, the quantity is zero. Refusing to report it meant this estimator
+deciding which datasets are allowed an answer.
+
+The estimate is now returned, with a `ZERO_REFERENCE_VARIANCE` diagnostic at a
+new `DATA_QUALITY` severity — arithmetically sound, data suspect, nothing
+excluded and nothing refused. The judgement stays where the evidence is: a
+genuine integrity problem (duplicated subject-period rows) is refused at
+dataset validation on its own grounds, and the downstream average BE analysis
+already refuses its own degenerate variance. Tests now distinguish structurally
+valid references that happen to agree from malformed data, which the old
+behaviour conflated.
+
+Non-estimable is reserved for cases where the quantity genuinely does not
+exist: fewer than one degree of freedom, or a missing required sequence.
+
+### A stale second chain of custody
+
+`spec.py` moved its constants to primary-document verification;
+`reference_variance.py` kept its own string saying the PDF could not be
+retrieved. Two chains for one formula, and the stale one was the false one. It
+now imports `VIA_PRIMARY_DOCUMENT` rather than restating it.
+
 ### Tier 1B is still open, and now for a better reason
 
 The guidance contains **no worked dataset** — no input values and no published
@@ -90,7 +146,7 @@ answer anywhere in 54 pages. It states the algorithm and gives SAS code.
 Obtaining it closed tier 1A and could never have closed 1B. That needs a
 different source, and the gap is no longer "we could not get the document".
 
-182 tests pass, 2 skipped.
+189 tests pass, 2 skipped.
 
 ---
 
@@ -132,7 +188,7 @@ not because a result changed.
 | TRT, TRRR, RRTR, mixed designs | `UnsupportedDesign`, naming what *is* supported |
 | sequence/period/treatment mismatch | subject excluded with `SEQUENCE_TREATMENT_MISMATCH` |
 | duplicate period | subject excluded; no winner chosen |
-| sWR² = 0 | `estimable = False`, `swr` and `cv_wr` are **`None`**, not 0.0 |
+| sWR² = 0 | ~~`estimable = False`~~ **reversed in 0.3.0** — reported, flagged `DATA_QUALITY` |
 
 **The fully replicated estimator is not written, on purpose.** FDA analyses
 that design with a mixed model; the partial-replicate closed form is not that
@@ -160,9 +216,9 @@ contrast this release does not compute. It becomes an exclusion in #56.
   returns the correctly-rounded exact total and is permutation-invariant. A
   study re-exported with a different sort order would otherwise have produced
   two sWRs — invisible, and reproducible by nobody.
-- **`m` is counted, not assumed.** A sequence that contributed no surviving
-  subject absorbs no degree of freedom and contributes no term. Using the
-  design's `m = 3` regardless would understate df and inflate the variance.
+- ~~**`m` is counted, not assumed.**~~ **Reversed in 0.3.0** — `m` is Appendix
+  G's per-design constant, and a missing required sequence refuses rather than
+  becoming a smaller design. See above.
 
 ### Validation state
 

@@ -105,7 +105,7 @@ def test_the_full_partial_study_estimates():
     result = estimate_reference_variance(ReplicateDataset.build(partial_study()))
     assert result.estimable
     assert result.n_subjects == 12
-    assert result.n_sequences == 3
+    assert result.regulatory_m == 3
     assert result.degrees_of_freedom == 9
     assert result.swr > 0.0
 
@@ -344,8 +344,57 @@ def test_the_fully_replicate_estimator_uses_m_equals_two():
     result = estimate_reference_variance(dataset)
     assert result.estimable
     assert result.n_subjects == 6
-    assert result.n_sequences == 2, "TRTR and RTRT: m = 2"
+    assert result.regulatory_m == 2, "TRTR and RTRT: m = 2"
     assert result.degrees_of_freedom == 4, "n - m = 6 - 2"
+
+
+def test_a_partial_study_missing_one_sequence_produces_no_swr():
+    """The regression the review asked for, end to end.
+
+    Twelve subjects across TRR and RTR, none in RRT. Reducing `m` to 2 would
+    have produced a perfectly ordinary-looking sWR on 10 degrees of freedom,
+    for a design FDA does not describe.
+    """
+    observations = []
+    for label in ("TRR", "RTR"):
+        for k in range(6):
+            observations += rows_for(
+                label, f"{label}-{k}", [100.0 + 3 * k, 108.0 - 2 * k, 96.0 + k]
+            )
+    result = estimate_reference_variance(ReplicateDataset.build(observations))
+
+    assert not result.estimable
+    assert result.swr is None and result.cv_wr is None and result.variance_wr is None
+    assert result.regulatory_m == 3
+    assert result.contributing_sequences == 2
+    assert result.n_subjects == 12
+    # The df that a reduced m would have offered, explicitly not reported.
+    assert result.degrees_of_freedom != 12 - 2
+
+    fatal = [
+        d for d in result.diagnostics
+        if d.code is DiagnosticCode.REQUIRED_SEQUENCE_HAS_NO_CONTRIBUTING_SUBJECTS
+    ]
+    assert len(fatal) == 1 and fatal[0].severity is Severity.FATAL
+    assert fatal[0].context["missing_sequences"] == ["RRT"]
+
+
+def test_a_fully_replicate_study_missing_one_sequence_produces_no_swr():
+    """Same rule at m = 2: only TRTR present, so RTRT is missing."""
+    observations = []
+    for k in range(6):
+        observations += rows_for(
+            "TRTR", f"TRTR-{k}", [100.0 + k, 105.0 - k, 98.0 + 2 * k, 103.0 + k]
+        )
+    result = estimate_reference_variance(ReplicateDataset.build(observations))
+
+    assert not result.estimable
+    assert result.regulatory_m == 2
+    assert result.contributing_sequences == 1
+    assert any(
+        d.code is DiagnosticCode.REQUIRED_SEQUENCE_HAS_NO_CONTRIBUTING_SUBJECTS
+        for d in result.diagnostics
+    )
 
 
 def test_the_two_designs_reach_different_degrees_of_freedom_from_the_same_n():
@@ -364,8 +413,8 @@ def test_the_two_designs_reach_different_degrees_of_freedom_from_the_same_n():
     f = estimate_reference_variance(full)
 
     assert p.n_subjects == f.n_subjects == 6
-    assert (p.n_sequences, p.degrees_of_freedom) == (3, 3)
-    assert (f.n_sequences, f.degrees_of_freedom) == (2, 4)
+    assert (p.regulatory_m, p.degrees_of_freedom) == (3, 3)
+    assert (f.regulatory_m, f.degrees_of_freedom) == (2, 4)
 
 
 def test_the_fully_replicate_test_measurements_do_not_enter_swr():
@@ -423,7 +472,8 @@ def _quantities(observations):
         result.cv_wr,
         result.degrees_of_freedom,
         result.n_subjects,
-        result.n_sequences,
+        result.regulatory_m,
+        result.contributing_sequences,
     )
 
 

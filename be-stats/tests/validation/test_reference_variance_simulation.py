@@ -202,7 +202,7 @@ def fully_estimates() -> list[float]:
     for _ in range(REPLICATES):
         result = simulate_one_fully_replicate(rng)
         assert result.estimable
-        assert result.n_sequences == 2, "m = 2 for TRTR/RTRT"
+        assert result.regulatory_m == 2, "m = 2 for TRTR/RTRT"
         assert result.degrees_of_freedom == FULLY_EXPECTED_DF
         values.append(result.variance_wr)
     return values

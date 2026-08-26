@@ -114,7 +114,7 @@ def main() -> None:
     print()
     # An estimate is a draw, and a reader who does not know how wide the draw
     # is will read any gap as an error. sd(s^2) = sigma^2 * sqrt(2/df).
-    if result.estimable:
+    if result.estimable and result.variance_wr:
         spread = TRUE_SIGMA_WR**2 * math.sqrt(2.0 / result.degrees_of_freedom)
         distance = abs(result.variance_wr - TRUE_SIGMA_WR**2) / spread
         print(

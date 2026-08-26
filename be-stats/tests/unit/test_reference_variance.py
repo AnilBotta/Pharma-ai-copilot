@@ -246,7 +246,7 @@ def test_the_hand_calculated_fixture_reproduces_the_variance():
 
     assert result.estimable
     assert result.n_subjects == 6
-    assert result.n_sequences == 3
+    assert result.regulatory_m == 3
     assert result.degrees_of_freedom == 3
 
     expected_variance = _hand_calculated_variance()
@@ -283,8 +283,15 @@ def test_degrees_of_freedom_are_n_minus_m_not_twice_that():
     assert result.degrees_of_freedom != 2 * (6 - 3)
 
 
-def test_m_counts_contributing_sequences_not_the_designs_three():
-    """A sequence with no surviving subject absorbs no degree of freedom."""
+def test_m_is_the_designs_constant_and_is_never_reduced_to_fit():
+    """A missing required sequence refuses. It does not become a smaller design.
+
+    An earlier version set `m = len(grouped)` and reported an sWR here, on the
+    reasoning that an empty sequence absorbs no degree of freedom. Appendix G
+    names `m` as a property of the design - 3 for TRR/RTR/RRT - so a study with
+    no RRT subject is not that design, and analysing it as a two-sequence
+    design would report an sWR for a study that was not run.
+    """
     rows = [
         ("A1", "TRR", 105.0, 110.0, 100.0),
         ("A2", "TRR", 105.0, 130.0, 100.0),
@@ -293,13 +300,66 @@ def test_m_counts_contributing_sequences_not_the_designs_three():
     ]
     result = estimate_reference_variance(build(rows))
 
+    assert not result.estimable
+    assert result.variance_wr is None and result.swr is None
+    assert result.regulatory_m == 3, "the design's m, not the survivors'"
+    assert result.contributing_sequences == 2
     assert result.n_subjects == 4
-    assert result.n_sequences == 2, "RRT contributed nobody"
-    assert result.degrees_of_freedom == 2
-    assert any(
-        d.code is DiagnosticCode.SEQUENCE_CONTRIBUTED_NO_SUBJECTS
-        for d in result.diagnostics
-    )
+
+    fatal = [
+        d for d in result.diagnostics
+        if d.code is DiagnosticCode.REQUIRED_SEQUENCE_HAS_NO_CONTRIBUTING_SUBJECTS
+    ]
+    assert len(fatal) == 1
+    assert fatal[0].severity is Severity.FATAL
+    assert fatal[0].context["missing_sequences"] == ["RRT"]
+    assert fatal[0].context["regulatory_m"] == 3
+
+
+def test_a_fully_replicate_design_missing_a_sequence_also_refuses():
+    """The same rule with m = 2: one sequence missing leaves no design at all."""
+    rows = []
+    for k, values in enumerate([[100.0, 110.0, 95.0, 108.0], [101.0, 90.0, 105.0, 99.0]]):
+        sequence = parse_sequence("TRTR")
+        for period, value in enumerate(values, start=1):
+            rows.append(
+                ReplicateObservation(
+                    f"S{k}", sequence, period,
+                    sequence.expected_treatment(period), "AUC", value,
+                )
+            )
+    result = estimate_reference_variance(ReplicateDataset.build(rows))
+
+    assert not result.estimable
+    assert result.regulatory_m == 2
+    assert result.contributing_sequences == 1
+    fatal = [
+        d for d in result.diagnostics
+        if d.code is DiagnosticCode.REQUIRED_SEQUENCE_HAS_NO_CONTRIBUTING_SUBJECTS
+    ]
+    assert fatal and fatal[0].context["missing_sequences"] == ["RTRT"]
+
+
+def test_a_sequence_emptied_by_exclusions_is_the_same_refusal():
+    """The path that actually happens: subjects drop out, a sequence empties.
+
+    Nothing distinguishes "RRT was never recruited" from "every RRT subject was
+    excluded" at the point the estimator runs, and neither is the design.
+    """
+    rows = [
+        ("A1", "TRR", 105.0, 110.0, 100.0),
+        ("A2", "TRR", 105.0, 130.0, 100.0),
+        ("B1", "RTR", 90.0, 105.0, 100.0),
+        ("B2", "RTR", 120.0, 105.0, 100.0),
+        # The only RRT subject has a non-positive value and is excluded.
+        ("C1", "RRT", 105.0, -1.0, 105.0),
+    ]
+    result = estimate_reference_variance(build(rows))
+
+    assert not result.estimable
+    codes = {d.code for d in result.diagnostics}
+    assert DiagnosticCode.NON_POSITIVE_PK_VALUE in codes
+    assert DiagnosticCode.REQUIRED_SEQUENCE_HAS_NO_CONTRIBUTING_SUBJECTS in codes
 
 
 def test_one_subject_per_sequence_leaves_no_degrees_of_freedom():
@@ -319,63 +379,150 @@ def test_one_subject_per_sequence_leaves_no_degrees_of_freedom():
     )
 
 
-# ---------------------------------------------------------- degeneracy ---
+# -------------------------------------------- zero variance is an estimate ---
+#
+# An earlier version returned non-estimable for sWR^2 = 0, so that nobody could
+# read a zero as a perfectly reproducible product. That was a rejection rule
+# invented inside a measurement: Appendix G defines a quantity, and for data
+# where every subject's two reference observations agree, the quantity is zero.
+#
+# The estimate is reported, flagged hard, and the judgement left to the places
+# entitled to make it.
+
+ZERO_VARIANCE_ROWS = [
+    # Structurally impeccable: three sequences, six subjects, no duplicates, no
+    # missing periods, every value positive. Each subject's two reference
+    # observations simply agree exactly.
+    ("A1", "TRR", 105.0, 100.0, 100.0),
+    ("A2", "TRR", 106.0, 100.0, 100.0),
+    ("B1", "RTR", 100.0, 105.0, 100.0),
+    ("B2", "RTR", 100.0, 107.0, 100.0),
+    ("C1", "RRT", 100.0, 100.0, 105.0),
+    ("C2", "RRT", 100.0, 100.0, 108.0),
+]
 
 
-def test_zero_variance_is_refused_rather_than_reported_as_precision():
-    """Every subject's two references identical: sWR = 0 would read as a
-    perfectly reproducible product, and it means duplicated rows."""
-    rows = [
-        ("A1", "TRR", 105.0, 100.0, 100.0),
-        ("A2", "TRR", 105.0, 100.0, 100.0),
-        ("B1", "RTR", 100.0, 105.0, 100.0),
-        ("B2", "RTR", 100.0, 105.0, 100.0),
-        ("C1", "RRT", 100.0, 100.0, 105.0),
-        ("C2", "RRT", 100.0, 100.0, 105.0),
+def test_zero_variance_is_reported_as_the_estimate_it_is():
+    result = estimate_reference_variance(build(ZERO_VARIANCE_ROWS))
+
+    assert result.estimable, "the quantity exists; it is zero"
+    assert result.variance_wr == 0.0
+    assert result.swr == 0.0
+    assert result.cv_wr == 0.0
+    assert result.degrees_of_freedom == 3
+
+
+def test_zero_variance_carries_a_data_quality_diagnostic():
+    """The number is reported AND the reader is told to look at the dataset."""
+    result = estimate_reference_variance(build(ZERO_VARIANCE_ROWS))
+
+    zero = [
+        d for d in result.diagnostics
+        if d.code is DiagnosticCode.ZERO_REFERENCE_VARIANCE
     ]
-    result = estimate_reference_variance(build(rows))
-
-    assert not result.estimable
-    assert result.variance_wr is None
-    assert result.swr is None
-    assert result.cv_wr is None, "a zero CV is the number this test exists to stop"
-    codes = {d.code for d in result.diagnostics}
-    assert DiagnosticCode.DEGENERATE_REFERENCE_VARIANCE in codes
-    assert any(
-        d.severity is Severity.FATAL for d in result.diagnostics
-    )
+    assert len(zero) == 1
+    assert zero[0].severity is Severity.DATA_QUALITY
+    assert "duplicated rows" in zero[0].detail
+    # Not fatal: nothing was refused and nothing was excluded.
+    assert not any(d.severity is Severity.FATAL for d in result.diagnostics)
 
 
-def test_a_constant_difference_within_each_sequence_is_still_degenerate():
-    """Deviations, not the differences themselves, drive the estimate.
+def test_zero_variance_is_not_the_same_condition_as_malformed_data():
+    """The distinction the correction turns on.
 
-    Every subject having the SAME non-zero D means zero within-sequence spread,
-    which is the same degeneracy arriving by a different route.
+    Structurally valid references that happen to agree give an estimate plus a
+    data-quality flag. Duplicated subject-period rows are a data-integrity
+    problem, refused on their own evidence at dataset validation, and they
+    never reach the estimator at all.
     """
-    rows = [
-        ("A1", "TRR", 105.0, 110.0, 100.0),
-        ("A2", "TRR", 105.0, 110.0, 100.0),
-        ("B1", "RTR", 110.0, 105.0, 100.0),
-        ("B2", "RTR", 110.0, 105.0, 100.0),
-    ]
-    result = estimate_reference_variance(build(rows))
-    assert not result.estimable
-    assert {d.code for d in result.diagnostics} >= {
-        DiagnosticCode.DEGENERATE_REFERENCE_VARIANCE
+    from be_stats.replicate import ReplicateDataset, ReplicateObservation
+
+    valid = estimate_reference_variance(build(ZERO_VARIANCE_ROWS))
+    assert valid.estimable
+    assert valid.subjects_excluded == 0
+
+    rows = []
+    for subject, label, *values in ZERO_VARIANCE_ROWS:
+        sequence = parse_sequence(label)
+        for period, value in enumerate(values, start=1):
+            rows.append(
+                ReplicateObservation(
+                    subject, sequence, period,
+                    sequence.expected_treatment(period), "AUC", float(value),
+                )
+            )
+    # One subject gets a second row for period 2 - malformed, not degenerate.
+    rows.append(
+        ReplicateObservation(
+            "A1", parse_sequence("TRR"), 2,
+            Treatment.REFERENCE, "AUC", 100.0,
+        )
+    )
+    malformed = estimate_reference_variance(ReplicateDataset.build(rows))
+
+    assert malformed.subjects_excluded == 1
+    codes = {d.code for d in malformed.diagnostics}
+    assert DiagnosticCode.DUPLICATE_SUBJECT_PERIOD in codes
+    # The two conditions are reported by different codes, which is the point:
+    # a report can act on one without acting on the other.
+    assert DiagnosticCode.DUPLICATE_SUBJECT_PERIOD not in {
+        d.code for d in valid.diagnostics
     }
 
 
-def test_near_zero_variance_still_estimates():
-    """Matches the rule the rest of the engine already applies.
+def test_a_constant_nonzero_difference_also_gives_zero_variance():
+    """Deviations drive the estimate, not the differences themselves.
 
-    Phase 1 refuses exact degeneracy only; near-zero is a real, if implausible,
-    estimate. Changing that would be a documented tolerance, not a silent one.
+    Every subject having the same non-zero D means zero within-sequence spread.
+    Same arithmetic result, same treatment: reported and flagged.
+    """
+    rows = [
+        ("A1", "TRR", 105.0, 110.0, 100.0),
+        ("A2", "TRR", 106.0, 110.0, 100.0),
+        ("B1", "RTR", 110.0, 105.0, 100.0),
+        ("B2", "RTR", 110.0, 107.0, 100.0),
+        ("C1", "RRT", 110.0, 100.0, 105.0),
+        ("C2", "RRT", 110.0, 100.0, 108.0),
+    ]
+    result = estimate_reference_variance(build(rows))
+
+    assert result.estimable
+    assert result.variance_wr == 0.0
+    assert any(
+        d.code is DiagnosticCode.ZERO_REFERENCE_VARIANCE for d in result.diagnostics
+    )
+
+
+def test_the_estimator_does_not_decide_what_zero_means():
+    """The separation the correction restores.
+
+    sWR = 0 is below FDA's 0.294, so the method selection in a later release
+    routes it to ordinary average BE - whose own analysis already refuses a
+    degenerate within-subject variance on its own grounds. Two independent
+    checks, each on its own evidence, rather than this estimator guessing.
+    """
+    from be_stats.spec import Method, fda_hvd_method_for
+
+    result = estimate_reference_variance(build(ZERO_VARIANCE_ROWS))
+    # Stated here only to show where the decision goes; the estimator itself
+    # cannot import this function - test_no_be_decision_in_this_release.py.
+    assert fda_hvd_method_for(result.swr) is Method.STANDARD_ABE
+
+
+def test_near_zero_variance_estimates_without_the_flag():
+    """The flag is for EXACT zero, which is what indicates duplicated data.
+
+    A tiny but non-zero variance is an ordinary, if implausible, estimate and
+    carries no data-quality diagnostic. No tolerance is applied in either
+    direction - there is no number here to justify.
     """
     rows = [
         ("A1", "TRR", 105.0, 100.000001, 100.0),
         ("A2", "TRR", 105.0, 100.000002, 100.0),
         ("B1", "RTR", 100.000001, 105.0, 100.0),
         ("B2", "RTR", 100.000003, 105.0, 100.0),
+        ("C1", "RRT", 100.000002, 100.0, 105.0),
+        ("C2", "RRT", 100.000004, 100.0, 105.0),
     ]
     result = estimate_reference_variance(build(rows))
 
@@ -383,7 +530,7 @@ def test_near_zero_variance_still_estimates():
     assert result.variance_wr > 0.0
     assert result.swr < 1e-6
     assert not any(
-        d.code is DiagnosticCode.DEGENERATE_REFERENCE_VARIANCE
+        d.code is DiagnosticCode.ZERO_REFERENCE_VARIANCE
         for d in result.diagnostics
     )
 

@@ -44,13 +44,25 @@ So both estimators are implemented, and the class split is retained because the
 sequence count differs and because the analyses genuinely diverge at the next
 step - which belongs to the release that computes the contrast, not this one.
 
-DEGENERACY IS NOT PRECISION
+A ZERO IS REPORTED, AND FLAGGED HARD
 
-A reference variance of zero means every subject's two reference measurements
-were identical. That is duplicated rows or over-rounded data, never a study
-with perfect reproducibility. It returns a non-estimable result with sWR and
-CVwR as `None` rather than 0.0, so no downstream reader can mistake it for a
-very good study.
+A reference variance of exactly zero means every contributing subject's two
+reference measurements were identical - in practice duplicated rows,
+over-rounded values or placeholder data far more often than a reproducible
+product.
+
+An earlier version refused it, returning non-estimable so that no reader could
+mistake a zero for a very good study. That was a regulatory rejection rule
+invented inside a measurement, and Appendix G contains no such rule: it defines
+a quantity, and for those data the quantity is zero. The estimate is now
+reported with a `DATA_QUALITY` diagnostic, and the judgement is left to the
+places entitled to make it - dataset validation refuses genuine integrity
+problems on their own evidence, and the downstream average BE analysis already
+refuses its own degenerate variance.
+
+Non-estimable is reserved for cases where the quantity genuinely does not
+exist: fewer than one degree of freedom, or a design missing a sequence
+Appendix G requires.
 """
 
 from __future__ import annotations
@@ -62,7 +74,7 @@ from be_stats.conversions import log_sd_to_cv
 from be_stats.diagnostics import Diagnostic, DiagnosticCode, Severity
 from be_stats.provenance import (
     FDA_STATISTICAL_APPROACHES_APPENDIX_G,
-    VIA_STATISTICAL_REVIEW,
+    VIA_PRIMARY_DOCUMENT,
     Citation,
     ValidationStatus,
     VerificationStatus,
@@ -74,16 +86,16 @@ from be_stats.replicate import (
     reference_differences,
 )
 
-#: Where the partial-replicate expression comes from. Attached to every result
-#: so a number printed in a report can name its own definition.
+#: Where the sWR expression comes from. Attached to every result so a number
+#: printed in a report can name its own definition.
 APPENDIX_G: Citation = FDA_STATISTICAL_APPROACHES_APPENDIX_G
 
-#: How that definition was checked. This tooling could not retrieve the FDA
-#: guidance PDF, so the formula and its terms were supplied at statistical
-#: review against the primary source, with the section reference above. A
-#: figure read from the document and one relayed by a qualified reviewer are
-#: both VERIFIED, and an auditor is entitled to know which.
-VERIFIED_BY: str = "statistical review against primary FDA source"
+#: How that definition was checked. The SAME object `spec.py` uses for the
+#: constants, imported rather than restated: this module briefly carried its
+#: own string saying the PDF could not be retrieved, which was left behind when
+#: the guidance was obtained. Two chains of custody for one formula is one
+#: chain too many, and the stale one was the false one.
+VERIFIED_BY: str = VIA_PRIMARY_DOCUMENT
 
 
 class NotEstimable(Exception):
@@ -112,8 +124,11 @@ class NotEstimable(Exception):
 class ReferenceVarianceResult:
     """What was estimated, from whom, and whether it means anything.
 
-    `swr` and `cv_wr` are `None` when `estimable` is False. They are not zero.
-    A zero would be read by something, eventually, as a very precise study.
+    `swr` and `cv_wr` are `None` when `estimable` is False, and a real number
+    otherwise - including a real 0.0, which is an estimate and not a refusal.
+    A zero always arrives with a `ZERO_REFERENCE_VARIANCE` diagnostic at
+    `DATA_QUALITY` severity, so a caller can find it without inspecting the
+    value.
     """
 
     design: ReplicateDesign
@@ -126,12 +141,19 @@ class ReferenceVarianceResult:
     #: sqrt(exp(sWR^2) - 1), as a fraction. Multiply by 100 for a percentage.
     cv_wr: float | None
 
-    #: n - m: subjects contributing, less one per contributing sequence.
+    #: n - m.
     degrees_of_freedom: int
     #: `n` in the formula: subjects that contributed a reference difference.
     n_subjects: int
-    #: `m` in the formula, counted as sequences that actually contributed.
-    n_sequences: int
+    #: `m` in the formula. The DESIGN's constant from Appendix G - 3 for the
+    #: partial replicate, 2 for the fully replicated design - never the number
+    #: of sequences that happened to survive exclusion.
+    regulatory_m: int
+    #: How many of the design's sequences actually contributed a subject.
+    #: Reported beside `regulatory_m` rather than replacing it: when the two
+    #: disagree the result is not estimable, and a reader should be able to see
+    #: why without reading the diagnostics.
+    contributing_sequences: int
 
     estimable: bool
     diagnostics: tuple[Diagnostic, ...] = ()
@@ -175,7 +197,7 @@ class ReferenceVarianceResult:
                 f"sWR    = {self.swr:.6f}\n"
                 f"CVwR   = {self.cv_wr_percent:.2f}%\n"
                 f"\nReference degrees of freedom = {self.degrees_of_freedom} "
-                f"(n {self.n_subjects} - m {self.n_sequences})\n"
+                f"(n {self.n_subjects} - m {self.regulatory_m})\n"
             )
         else:
             body = (
@@ -219,20 +241,28 @@ class _ReferenceVarianceEstimator:
     `2(n - m)` recovers sigma_WR^2. The chi-square degrees of freedom of the
     estimate are `n - m`, NOT `2(n - m)` - which is what this result reports.
 
-    `m` IS COUNTED, NOT ASSUMED
+    `m` IS THE DESIGN'S, NOT THE DATA'S - A CORRECTION
 
-    The guidance defines `m` as "number of sequences used in the study" and
-    then brackets the usual values - 3 for the partial replicate, 2 for the
-    fully replicated design. Where every subject in a sequence has been
-    excluded, that sequence was not used: its mean does not exist, it absorbs
-    no degree of freedom, and the sum has no term from it. Counting it anyway
-    would understate the degrees of freedom and inflate the variance.
+    An earlier version of this estimator set `m = len(grouped)`, the number of
+    sequences that still held a subject after exclusions, reasoning that an
+    empty sequence has no mean, absorbs no degree of freedom, and contributes
+    no term - and that SAS would behave the same way on an empty `CLASS` level.
 
-    This also matches how the guidance's own SAS reaches the same number. Both
-    examples fit `dlat = seq` and take the error term from it, and neither
-    `PROC GLM` nor `PROC MIXED` spends a degree of freedom on a `CLASS` level
-    with no observations. A shortfall against the design's expected sequence
-    count is recorded as a diagnostic rather than absorbed silently.
+    That reasoning is about arithmetic, and `m` is not an arithmetic question.
+    Appendix G names it: "m = 3 for partially replicate design: TRR, RTR, and
+    RRT; m = 2 for fully replicate design: TRTR and RTRT". It is a property of
+    the design being analysed.
+
+    The consequence of getting this wrong is not a rounding difference. A
+    three-sequence study in which one sequence contributes nobody is no longer
+    the design Appendix G describes, and quietly analysing it as a two-sequence
+    design produces an sWR for a study that was not run - on degrees of freedom
+    belonging to a different design. So `m` comes from
+    `design.regulatory_sequence_count`, and a missing required sequence makes
+    the result non-estimable rather than adjusting the constant to fit.
+
+    This is the same failure as deriving 0.294 from a 30% CV: locally correct
+    arithmetic substituted for a figure the regulator specified.
     """
 
     #: Set by the subclasses.
@@ -252,21 +282,35 @@ class _ReferenceVarianceEstimator:
         grouped = reference_differences(dataset)
 
         n = sum(len(v) for v in grouped.values())
-        m = len(grouped)
+        #: From the DESIGN, per Appendix G. Never from what survived exclusion.
+        m = self.design.regulatory_sequence_count
+        contributing = len(grouped)
 
-        for sequence in sorted(self.design.sequences, key=lambda s: s.value):
-            if sequence not in grouped:
-                diagnostics.append(
-                    Diagnostic(
-                        DiagnosticCode.SEQUENCE_CONTRIBUTED_NO_SUBJECTS,
-                        Severity.ADVISORY,
-                        None,
-                        f"sequence {sequence.value} contributed no subject, so "
-                        "the estimate rests on fewer sequences than the design "
-                        "defines; m is counted, not assumed",
-                        {"sequence": sequence.value},
-                    )
+        missing = [
+            s.value
+            for s in sorted(self.design.sequences, key=lambda s: s.value)
+            if s not in grouped
+        ]
+        if missing:
+            diagnostics.append(
+                Diagnostic(
+                    DiagnosticCode.REQUIRED_SEQUENCE_HAS_NO_CONTRIBUTING_SUBJECTS,
+                    Severity.FATAL,
+                    None,
+                    f"sequence(s) {', '.join(missing)} contributed no usable "
+                    f"subject, so this is not the {m}-sequence design Appendix "
+                    "G specifies. m is the design's constant and will not be "
+                    "reduced to fit what is left: doing so would report an sWR "
+                    "for a study that was not run, on degrees of freedom "
+                    "belonging to a different design",
+                    {
+                        "missing_sequences": missing,
+                        "regulatory_m": m,
+                        "sequences_contributing": contributing,
+                    },
                 )
+            )
+            return self._not_estimable(dataset, diagnostics, n, m, 0, contributing)
 
         df = n - m
         if df < 1:
@@ -278,10 +322,12 @@ class _ReferenceVarianceEstimator:
                     f"{n} contributing subject(s) across {m} sequence(s) leaves "
                     f"{df} degrees of freedom; at least 1 is needed. Each "
                     "sequence spends one degree of freedom on its own mean",
-                    {"n_subjects": n, "n_sequences": m, "degrees_of_freedom": df},
+                    {"n_subjects": n, "regulatory_m": m, "degrees_of_freedom": df},
                 )
             )
-            return self._not_estimable(dataset, diagnostics, n, m, max(df, 0))
+            return self._not_estimable(
+                dataset, diagnostics, n, m, max(df, 0), contributing
+            )
 
         # `math.fsum`, not `sum`, and this is not fastidiousness.
         #
@@ -319,30 +365,51 @@ class _ReferenceVarianceEstimator:
                     {"sum_of_squares": sum_squares},
                 )
             )
-            return self._not_estimable(dataset, diagnostics, n, m, df)
+            return self._not_estimable(dataset, diagnostics, n, m, df, contributing)
 
         variance = sum_squares / (2.0 * df)
 
-        # Matches the degeneracy rule the rest of the engine already applies:
-        # exact zero is refused, near-zero still estimates. See
-        # abe._reject_zero_variance and validation/README.md - the tolerance is
-        # the engine's established one, not a new number invented here.
-        if variance <= 0.0:
+        # ZERO IS AN ESTIMATE, NOT A REFUSAL - A CORRECTION
+        #
+        # An earlier version returned non-estimable here, with sWR and CVwR as
+        # None, on the reasoning that a zero would eventually be read as a
+        # perfectly reproducible product.
+        #
+        # That was a regulatory rejection rule invented inside a measurement.
+        # Appendix G contains no such rule: it defines a quantity, and for data
+        # where every subject's two reference observations agree exactly, that
+        # quantity is zero. Refusing to report it means this estimator deciding
+        # which datasets are allowed to have an answer.
+        #
+        # So the arithmetic result is preserved and a DATA_QUALITY diagnostic is
+        # attached, because an exact zero really is a strong signal of
+        # duplicated rows, over-rounded values or placeholder data. What to DO
+        # about that belongs elsewhere: a genuine integrity problem is refused
+        # at dataset validation on its own evidence, and the downstream average
+        # BE analysis already refuses its own degenerate variance
+        # (abe._reject_zero_variance). Two independent checks, each on its own
+        # grounds, beats one estimator guessing.
+        if variance == 0.0:
             diagnostics.append(
                 Diagnostic(
-                    DiagnosticCode.DEGENERATE_REFERENCE_VARIANCE,
-                    Severity.FATAL,
+                    DiagnosticCode.ZERO_REFERENCE_VARIANCE,
+                    Severity.DATA_QUALITY,
                     None,
-                    "the estimated within-reference variance is zero: every "
-                    "contributing subject's two reference measurements were "
-                    "identical. That is duplicated rows, over-rounded values or "
-                    "placeholder data - not a perfectly reproducible product. "
-                    "No sWR is reported, because a zero would be read as "
-                    "certainty",
-                    {"sum_of_squares": sum_squares, "degrees_of_freedom": df},
+                    "the estimated within-reference variance is exactly zero: "
+                    "every contributing subject's two reference measurements "
+                    "were identical. The estimate is reported because that is "
+                    "what the data give, but exact zero is far more often "
+                    "duplicated rows, values rounded until the differences "
+                    "vanished, or placeholder data than a perfectly "
+                    "reproducible product. Check the dataset before using this "
+                    "number",
+                    {
+                        "sum_of_squares": sum_squares,
+                        "degrees_of_freedom": df,
+                        "n_subjects": n,
+                    },
                 )
             )
-            return self._not_estimable(dataset, diagnostics, n, m, df)
 
         swr = math.sqrt(variance)
         return self._result(
@@ -355,6 +422,7 @@ class _ReferenceVarianceEstimator:
             m=m,
             df=df,
             estimable=True,
+            contributing_sequences=contributing,
         )
 
     # ------------------------------------------------------------ shared ---
@@ -366,6 +434,7 @@ class _ReferenceVarianceEstimator:
         n: int,
         m: int,
         df: int,
+        contributing_sequences: int,
     ) -> ReferenceVarianceResult:
         return self._result(
             dataset,
@@ -377,6 +446,7 @@ class _ReferenceVarianceEstimator:
             m=m,
             df=df,
             estimable=False,
+            contributing_sequences=contributing_sequences,
         )
 
     def _result(
@@ -391,6 +461,7 @@ class _ReferenceVarianceEstimator:
         m: int,
         df: int,
         estimable: bool,
+        contributing_sequences: int,
     ) -> ReferenceVarianceResult:
         from be_stats.diagnostics import counts_by_code
 
@@ -405,7 +476,8 @@ class _ReferenceVarianceEstimator:
             cv_wr=cv_wr,
             degrees_of_freedom=df,
             n_subjects=n,
-            n_sequences=m,
+            regulatory_m=m,
+            contributing_sequences=contributing_sequences,
             estimable=estimable,
             diagnostics=tuple(diagnostics),
             subjects_received=received,

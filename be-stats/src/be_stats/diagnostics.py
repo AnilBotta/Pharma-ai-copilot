@@ -74,11 +74,18 @@ class DiagnosticCode(StrEnum):
     # -------------------------------------------------------- estimation ---
     #: Fewer residual degrees of freedom than the estimator needs.
     INSUFFICIENT_REFERENCE_DF = "INSUFFICIENT_REFERENCE_DF"
-    #: The estimated reference variance is zero. Not precision - degeneracy.
-    DEGENERATE_REFERENCE_VARIANCE = "DEGENERATE_REFERENCE_VARIANCE"
-    #: A sequence the design defines contributed no subjects, so the estimate
-    #: rests on fewer sequences than the design has.
-    SEQUENCE_CONTRIBUTED_NO_SUBJECTS = "SEQUENCE_CONTRIBUTED_NO_SUBJECTS"
+    #: The estimated reference variance is exactly zero. A legitimate
+    #: arithmetic result, and a strong signal that the reference observations
+    #: are duplicated, over-rounded or otherwise suspect. It does NOT make the
+    #: estimate non-estimable: Appendix G contains no such rule, and inventing
+    #: one here would put a regulatory rejection inside a measurement.
+    ZERO_REFERENCE_VARIANCE = "ZERO_REFERENCE_VARIANCE"
+    #: A sequence the FDA design requires contributed no usable subject. The
+    #: study is then not the design Appendix G specifies, and `m` may not be
+    #: quietly reduced to fit what is left.
+    REQUIRED_SEQUENCE_HAS_NO_CONTRIBUTING_SUBJECTS = (
+        "REQUIRED_SEQUENCE_HAS_NO_CONTRIBUTING_SUBJECTS"
+    )
     #: The model could not be fitted - a singular covariance structure, or a
     #: negative variance component that is not attributable to rounding.
     SINGULAR_MODEL = "SINGULAR_MODEL"
@@ -96,6 +103,13 @@ class Severity(StrEnum):
 
     #: Recorded, changed nothing.
     ADVISORY = "advisory"
+    #: The number is arithmetically sound and the DATA behind it are suspect.
+    #: Nothing was excluded and nothing was refused - this is the engine saying
+    #: "I computed what you asked; look at your dataset before using it".
+    #: Separate from ADVISORY because a reader scanning for problems must not
+    #: have to weigh adjectives, and separate from FATAL because refusing here
+    #: would be a rule the guidance does not contain.
+    DATA_QUALITY = "data_quality"
     #: One subject did not reach the estimator.
     EXCLUSION = "exclusion"
     #: The analysis did not produce an estimate.

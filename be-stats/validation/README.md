@@ -337,11 +337,18 @@ and is therefore permutation-invariant. Without it, a study re-exported with a
 different sort order produces two different sWRs, differing around 1e-16:
 invisible, and reproducible by nobody.
 
-**`m` must be counted, not assumed.** A sequence whose every subject was
-excluded contributes no deviation and absorbs no degree of freedom. Using the
-design's `m = 3` regardless would understate the degrees of freedom and inflate
-the variance, so `m` is the number of sequences that actually contributed and a
-shortfall is recorded as a diagnostic.
+**~~`m` must be counted, not assumed.~~ Reversed in 0.3.0 at independent
+review.** The argument here was that a sequence whose every subject was
+excluded absorbs no degree of freedom, so `m` should be the number that
+actually contributed.
+
+That is an arithmetic argument, and `m` is not an arithmetic question. Appendix
+G names it per design — 3 for TRR/RTR/RRT, 2 for TRTR/RTRT. A three-sequence
+study in which one sequence contributes nobody is **not that design**, and
+analysing it as a two-sequence one reports an sWR for a study that was not run.
+`m` comes from `ReplicateDesign.regulatory_sequence_count`, and a missing
+required sequence returns non-estimable with
+`REQUIRED_SEQUENCE_HAS_NO_CONTRIBUTING_SUBJECTS`.
 
 ---
 
@@ -363,10 +370,41 @@ Added in 0.2.0 for replicate designs:
 - [x] missing reference replicate — subject excluded, `MISSING_REFERENCE_REPLICATE`
 - [x] a subject with only one usable reference observation — same code; no `Dij`
       exists for it
-- [x] zero within-reference variance — `estimable = False`, with `swr` and
-      `cv_wr` returned as `None` rather than `0.0`, so nothing downstream can
-      read a zero as precision
 - [x] fewer than one reference degree of freedom — `INSUFFICIENT_REFERENCE_DF`
+- [x] a required design sequence with no contributing subject —
+      `REQUIRED_SEQUENCE_HAS_NO_CONTRIBUTING_SUBJECTS`. `m` is Appendix G's
+      constant and is never reduced to fit what survived
+- [ ] ~~zero within-reference variance~~ — **not refused, and deliberately so.**
+      See below.
+
+### Zero reference variance is an estimate, not a refusal
+
+0.2.0 returned non-estimable for `sWR² = 0`, with `swr` and `cv_wr` as `None`,
+so that nobody could read a zero as a perfectly reproducible product. That was
+removed at independent review, and rightly.
+
+**Appendix G contains no such rule.** It defines a quantity; for data where
+every contributing subject's two reference observations agree exactly, that
+quantity is zero. Refusing to report it meant the estimator deciding which
+datasets are allowed an answer — a regulatory rejection invented inside a
+measurement, which is the failure this package is organised against.
+
+The estimate is now returned with `ZERO_REFERENCE_VARIANCE` at `DATA_QUALITY`
+severity: arithmetically sound, data suspect, nothing excluded and nothing
+refused. The judgement stays where the evidence is —
+
+- a genuine integrity problem (duplicated subject-period rows, a
+  sequence/treatment mismatch) is refused at **dataset validation** on its own
+  evidence, and never reaches the estimator;
+- the downstream **average BE** analysis already refuses its own degenerate
+  within-subject variance (`abe._reject_zero_variance`).
+
+Two independent checks, each on its own grounds, rather than one estimator
+guessing. Tests distinguish structurally valid references that happen to agree
+from malformed data — a distinction the old behaviour collapsed.
+
+*The rest of this checklist concerns Phase 1's 2×2 crossover analysis, where
+the refusal is on its own evidence and stands.*
 
 Still pending, and belonging to the fully replicated estimator:
 

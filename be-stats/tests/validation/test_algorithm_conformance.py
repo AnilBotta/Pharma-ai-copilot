@@ -201,8 +201,34 @@ def test_the_engine_uses_the_sequence_count_the_guidance_gives():
 
     assert case["rule"]["one_formula_for_both_designs"] is True
     expected = case["rule"]["m_by_design"]
-    assert ReplicateDesign.PARTIAL_REPLICATE.n_sequences == expected["partial_replicate"]
-    assert ReplicateDesign.FULLY_REPLICATE.n_sequences == expected["fully_replicate"]
+    assert (
+        ReplicateDesign.PARTIAL_REPLICATE.regulatory_sequence_count
+        == expected["partial_replicate"]
+    )
+    assert (
+        ReplicateDesign.FULLY_REPLICATE.regulatory_sequence_count
+        == expected["fully_replicate"]
+    )
+
+
+def test_m_comes_from_the_design_and_not_from_the_surviving_data():
+    """The correction, asserted at the conformance layer.
+
+    Appendix G states `m` per design. An estimator that recomputed it from the
+    sequences still holding subjects would silently analyse a depleted
+    three-sequence study as a two-sequence one.
+    """
+    from be_stats.reference_variance import estimator_for
+    from be_stats.replicate import ReplicateDesign
+
+    for design in ReplicateDesign:
+        estimator = estimator_for(design)
+        assert (
+            estimator.design.regulatory_sequence_count
+            == design.regulatory_sequence_count
+        )
+    assert ReplicateDesign.PARTIAL_REPLICATE.regulatory_sequence_count == 3
+    assert ReplicateDesign.FULLY_REPLICATE.regulatory_sequence_count == 2
 
 
 def test_both_designs_have_a_working_estimator_now():
