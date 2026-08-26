@@ -6,6 +6,94 @@ first question asked of a result years later.
 
 ---
 
+## 0.3.0 — the guidance was obtained and read
+
+The FDA guidance had been unreadable through every route this tooling had:
+every URL 404'd or served a download rather than text. It was supplied
+directly, and read section by section. Four things changed, and two of them
+were wrong before.
+
+### The fully replicated estimator was withheld for a bad reason
+
+0.2.0 refused to estimate sWR for `TRTR`/`RTRT`, reasoning that FDA's use of
+`PROC MIXED` for four-period studies implied a different variance estimator,
+and that substituting the partial-replicate closed form would be our arithmetic
+standing in for the regulator's method.
+
+**Appendix G gives the calculation once, for both designs**, distinguished only
+by the sequence count:
+
+> "I = number of sequences m used in the study [m = 3 for partially replicate
+> design: TRR, RTR, and RRT; m = 2 for fully replicate design: TRTR and RTRT]"
+
+The GLM/MIXED distinction is real and applies to the *treatment contrast*,
+where a four-period design needs Satterthwaite degrees of freedom. Not to sWR.
+Both SAS examples reach sWR identically — the partial takes `s2wr = ms/2` from
+a one-way ANOVA of `dlat` on sequence, the fully replicated takes
+`s2wr = estimate/2` from the residual covariance parameter of the same model.
+
+So `FullyReplicateReferenceVarianceEstimator` now estimates, with `m = 2`. A
+`TRTR` study that got nothing from 0.2.0 gets an sWR from 0.3.0. **The caution
+was misplaced**: it was inferred from a sentence about which SAS procedure to
+use, not from the specification of the quantity.
+
+### An over-specific citation
+
+Every FDA citation read `"final, 29 May 2026"`. The document's cover gives only
+**May 2026**, and no page inside names a day. The precise date came from
+recollection. Now `"final, May 2026"` — what the guidance itself says. An
+over-specific citation is worse than a coarse one, because it looks checked.
+
+### The same guidance uses 0.294 twice, with different boundaries
+
+Section III.A, for in vitro permeation testing of topical products:
+
+> "the reference-scaled average BE approach is used for the endpoint only if it
+> has a sWR > 0.294. The regular average BE approach … is used for the endpoint
+> with sWR ≤ 0.294."
+
+Appendix G puts the boundary case on the *other* side. Same number, same
+document, opposite treatment at exactly 0.294, different products. Recorded as
+`FDA_IVPT_NOTE`, consumed by nothing, with a test that stops it being tidied
+away as a duplicate — this is the M13A scoping lesson arriving from a third
+direction.
+
+### Everything else was confirmed
+
+- `sWR < 0.294 → TOST`, `sWR ≥ 0.294 → reference-scaled` — stated in **both**
+  III.C and Appendix G, which agree on the boundary.
+- HVD classification: "%CV … 30 percent or greater and … not considered NTI
+  drugs".
+- σW0 = 0.25, θ = [ln(1.25)/σW0]², point estimate within [0.8000, 1.2500].
+- NTI: σW0 = 0.10, Δ = 1/0.9, and **three** criteria — scaled bound, *plus*
+  unscaled 80.00–125.00%, *plus* the 90% equal-tails CI for σWT/σWR ≤ 2.500.
+  Two constants added for the criteria that were implicit.
+- Minimums: "The number of evaluable subjects in a PK BE study should not be
+  less than 12. For highly variable drug products, a minimum of 24 subjects are
+  recommended" — cited now to II.A rather than to the document at large.
+- The R1/R2 assignment. FDA states it as explicit SAS conditions on sequence
+  and period; the engine derives it from the sequence name in ascending period
+  order. They agree for all five sequences, which is now a test.
+
+### Chain of custody
+
+`verified_by` moves from `"statistical review, with section references"` to
+`"primary document, read at the cited section"` for every FDA constant.
+**The M13A figures do not move** — that is a different document, and it has not
+been obtained. Both claims are `VERIFIED`; they are not the same claim, and the
+field exists to say which.
+
+### Tier 1B is still open, and now for a better reason
+
+The guidance contains **no worked dataset** — no input values and no published
+answer anywhere in 54 pages. It states the algorithm and gives SAS code.
+Obtaining it closed tier 1A and could never have closed 1B. That needs a
+different source, and the gap is no longer "we could not get the document".
+
+182 tests pass, 2 skipped.
+
+---
+
 ## 0.2.0 — replicate data and reference variability
 
 **The foundation for FDA highly-variable analysis, and deliberately not the

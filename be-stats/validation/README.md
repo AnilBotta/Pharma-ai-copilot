@@ -34,24 +34,68 @@ Current state:
 
 | Evidence | Status |
 |---|---|
-| FDA regulatory algorithm source (1A) | **VERIFIED** — attested at statistical review with section references |
-| FDA numeric worked dataset (1B) | **PENDING** — the guidance body has not been obtainable |
+| FDA regulatory algorithm source (1A) | **VERIFIED** — read from the primary document at the cited sections |
+| FDA numeric worked dataset (1B) | **PENDING** — and the guidance does not contain one; see below |
 | Independent numeric cross-check (tier 3) | **PASSED** — two published `PowerTOST` cases |
 
 `VALIDATED` requires 1B. Nothing here may support a submission.
 
-### What "VERIFIED, via statistical review" means, and does not
+### The guidance has now been read
 
-This tooling could not retrieve the FDA guidance PDF — every URL tried returned
-404 or served a download rather than readable text. The FDA constants and the
-highly-variable decision rule were therefore supplied at statistical review
-**together with their section references**, and `RegulatoryValue.verified_by`
-records that chain of custody on every one of them.
+It was supplied directly, after every URL this tooling tried returned 404 or
+served a download rather than readable text. Every FDA constant in the package
+has been checked against the section it cites, and
+`RegulatoryValue.verified_by` now reads **"primary document, read at the cited
+section"** for all of them.
 
-A figure read from the primary document and a figure relayed by a qualified
-reviewer are both `VERIFIED`, and an auditor is entitled to know which. That is
-the entire reason the field exists. Obtaining the document and re-checking each
-constant against it remains an open item.
+**The M13A figures did not move.** ICH/FDA M13A Q&A is a different document and
+has not been obtained, so those minimums still read "statistical review, with
+section references". Both are `VERIFIED`; they are not the same claim, and
+`verified_by` exists precisely so an auditor can tell them apart. A test
+asserts the split rather than trusting this paragraph.
+
+### Why tier 1B is still open — and not for want of the document
+
+**The guidance contains no worked dataset.** Fifty-four pages, the full
+algorithm, the constants and SAS code — and nowhere an input value paired with
+a published answer. Obtaining it closed tier 1A completely and could never have
+closed 1B.
+
+That reframes the open item. It was recorded as "obtain the FDA guidance". It
+should have been "find a source that publishes numbers", which is a different
+search: an FDA product-specific guidance with a worked example, an ICH or EMA
+example dataset, or a peer-reviewed reproduction.
+
+### What reading it changed
+
+Two things in the code were wrong, and neither was caught by the tests:
+
+**The fully replicated estimator was withheld for a bad reason.** 0.2.0 refused
+to estimate sWR for `TRTR`/`RTRT`, inferring from "PROC MIXED should be used
+for fully replicate (four-way) BE studies" that the design needed a different
+variance estimator. Appendix G gives the calculation once for both designs and
+distinguishes them only by `m` — 3 for the partial replicate, 2 for the fully
+replicated. The mixed model applies to the treatment contrast, not to sWR, and
+both SAS examples reach sWR by the same route. Implemented in 0.3.0.
+
+The caution was reasonable; the inference was not. It came from a sentence
+about which procedure to run, not from the specification of the quantity.
+
+**The citations carried a date the document does not.** They read "final, 29
+May 2026"; the cover gives only May 2026 and no page names a day. Now "final,
+May 2026". An over-specific citation is worse than a coarse one because it
+looks checked.
+
+### And one thing found by reading it end to end
+
+Section III.A applies **the same 0.294** to in vitro permeation testing of
+topical products — with a *strict* inequality: scaled only if `sWR > 0.294`,
+unscaled at `sWR ≤ 0.294`. Appendix G puts the boundary case on the other side.
+
+Same number, same document, opposite treatment at exactly 0.294, different
+products. Recorded as `FDA_IVPT_NOTE`, wired into nothing, and guarded by a
+test — because a global "the 0.294 rule" would be wrong for one of the two.
+That is the M13A scoping lesson arriving from a third direction.
 
 **PowerTOST is not the regulatory authority.** It is an independent
 implementation to cross-check against. Its usefulness is partly that its own
@@ -236,21 +280,23 @@ threshold cannot apply it.
 | Capability | Status | Evidence |
 |---|---|---|
 | Replicate design validation | `IMPLEMENTED` | structural; the tests are the evidence |
-| Partial-replicate sWR / CVwR | `IMPLEMENTED_UNVALIDATED` | tier 4 only — see below |
-| Fully-replicate sWR | `NOT_IMPLEMENTED` | design validated, estimator declines |
+| Partial-replicate sWR / CVwR (`m = 3`) | `IMPLEMENTED_UNVALIDATED` | tier 1A + tier 4 — see below |
+| Fully-replicate sWR / CVwR (`m = 2`) | `IMPLEMENTED_UNVALIDATED` | tier 1A + tier 4 |
 
-### Why the fully replicated estimator is absent
+### One formula, two designs
 
-FDA analyses the partial replicate through a general linear model and the fully
-replicated design through a mixed model that estimates within-test and
-within-reference variance jointly under a structured covariance. Both designs
-give each subject two reference measurements, which makes it easy — and wrong —
-to run the partial-replicate closed form over a `TRTR` dataset.
+Appendix G gives the sWR calculation once and distinguishes the designs only by
+the sequence count — `m = 3` for TRR/RTR/RRT, `m = 2` for TRTR/RTRT. The
+`PROC GLM` / `PROC MIXED` split in the guidance applies to the **treatment
+contrast**, where a four-period design needs Satterthwaite degrees of freedom;
+it does not apply to sWR. Both SAS examples reach sWR the same way.
 
-`FullyReplicateReferenceVarianceEstimator` therefore validates its data and
-raises. The cost is that a TRTR study gets no sWR from this release. The cost of
-substituting would be an sWR that looks ordinary, is compared against 0.294 in
-the next release, and selects a regulatory method on a number nobody validated.
+Two estimator classes are kept anyway, because the accepted design differs and
+because the analyses genuinely diverge at the next step — which belongs to the
+release that computes the contrast.
+
+*0.2.0 had the fully replicated estimator decline, on the opposite reading. See
+"What reading it changed" above.*
 
 ### Tier-4 evidence, and its limits
 
@@ -261,16 +307,24 @@ Two checks, both tier 4, neither regulatory:
    through the two-point identity `(d₁−d₂)²/2`, which never forms a mean — a
    different algebraic route than the estimator's, so agreement is evidence
    rather than a tautology.
-2. **A 1200-study simulation.** Shows the estimator is unbiased for σ²WR, and
-   that the sampling spread of the estimates matches `2σ⁴/df` at the degrees of
-   freedom the result reports. The second is the stronger check: unbiasedness
-   can survive a wrong denominator paired with a compensating error; the
-   sampling variance pins `n − m` directly. Every tolerance is computed from
-   the Monte Carlo standard error at the replicate count used, not chosen by
-   widening until it passed.
+2. **Simulations, 1200 studies each, for both designs.** They show each
+   estimator is unbiased for σ²WR, and that the sampling spread matches
+   `2σ⁴/df` at the degrees of freedom the result reports. The second is the
+   stronger check: unbiasedness can survive a wrong denominator paired with a
+   compensating error; the sampling variance pins `n − m` directly. Every
+   tolerance is computed from the Monte Carlo standard error at the replicate
+   count used, not chosen by widening until it passed.
 
-Neither shows this is the estimator FDA specifies. That is tier 1B, and it is
-still pending.
+   The fully replicate simulation gives the **test** measurements twice the
+   within-subject variability of the reference ones. sWR must be blind to them,
+   and an estimator that pooled the two would land far outside the tolerance.
+   That mistake is only possible in the four-period design, which is why the
+   asymmetry is there.
+
+Simulation shows an implementation matches its own definition. Tier 1A now
+shows that definition is the regulator's — including the R1/R2 assignment,
+checked against the explicit SAS conditions for all five sequences. What
+remains missing is 1B: a regulator's *number* to reproduce.
 
 ### Two things the tests found
 

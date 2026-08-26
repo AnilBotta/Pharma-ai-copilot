@@ -14,21 +14,35 @@ applies the regulator's threshold to it is one refactor away from a result
 object carrying a pass. Measuring and deciding are separated so the measurement
 can be checked before anything depends on it.
 
-TWO DESIGNS, TWO ESTIMATORS, NO SHARED SHORTCUT
+ONE FORMULA, TWO DESIGNS - AND A CORRECTION
 
-FDA's appendix analyses the partial replicate through a general linear model
-and the fully replicated design through a mixed model. Both give each subject
-two reference measurements, and it is therefore easy - and wrong - to run the
-partial-replicate formula over a `TRTR` dataset and call the answer sWR. The
-fully replicated design estimates within-test and within-reference variance
-jointly from a structured covariance model; the partial-replicate expression is
-not that model, and this package has no basis for asserting the two agree.
+An earlier version of this module declined to estimate sWR for the fully
+replicated design. The reasoning was that FDA analyses the partial replicate
+through PROC GLM and the fully replicated design through PROC MIXED, so the
+two must need different estimators, and substituting the closed form would be
+our arithmetic standing in for the regulator's method.
 
-So `FullyReplicateReferenceVarianceEstimator` is present, validates its data,
-and then declines. That is the honest state: the design is recognised, the
-estimator is not written. Substituting the partial formula would have been the
-same class of error as deriving FDA's 0.294 from a 30% CV - our arithmetic
-standing in for the regulator's method.
+**That inference was wrong, and reading Appendix G settled it.** The guidance
+gives the sWR calculation ONCE, for both designs, and distinguishes them only
+by the sequence count:
+
+    sWR^2 = SUM_i SUM_j (Dij - Dbar_i.)^2 / (2(n - m))
+
+    "I = number of sequences m used in the study
+     [m = 3 for partially replicate design: TRR, RTR, and RRT;
+      m = 2 for fully replicate design: TRTR and RTRT]"
+
+The GLM/MIXED distinction is real and applies to the *other* intermediate - the
+treatment contrast `ilat`, where a four-period design needs a mixed model with
+Satterthwaite degrees of freedom. It is not about sWR. Both SAS examples reach
+sWR the same way: the partial one takes `s2wr = ms/2` from a one-way ANOVA of
+`dlat` on sequence, and the fully replicated one takes `s2wr = estimate/2` from
+the residual covariance parameter of the same `dlat = seq` model. Those are the
+same quantity, and both equal the closed form above.
+
+So both estimators are implemented, and the class split is retained because the
+sequence count differs and because the analyses genuinely diverge at the next
+step - which belongs to the release that computes the contrast, not this one.
 
 DEGENERACY IS NOT PRECISION
 
@@ -182,13 +196,19 @@ class ReferenceVarianceResult:
 # --------------------------------------------------------------- partial ---
 
 
-class PartialReplicateReferenceVarianceEstimator:
-    """FDA Appendix G, partial replicate (TRR / RTR / RRT).
+class _ReferenceVarianceEstimator:
+    """FDA Appendix G step 1, shared by both replicate designs.
 
         sWR^2 = SUM_i SUM_j (Dij - Dbar_i.)^2 / (2(n - m))
 
     with `Dij = Rij1 - Rij2` on the log scale, `m` the number of sequences and
-    `n` the number of contributing subjects.
+    `n` the total number of subjects used in the study.
+
+    The two subclasses differ only in which design they accept and therefore in
+    what `m` can be. They are separate types rather than a parameter because a
+    caller handing a `TRTR` dataset to the partial-replicate estimator has made
+    a mistake worth failing on, and because the analyses diverge at the next
+    step - the treatment contrast, which is a later release.
 
     THE TWO IN THE DENOMINATOR IS NOT A DEGREES-OF-FREEDOM TERM
 
@@ -201,16 +221,23 @@ class PartialReplicateReferenceVarianceEstimator:
 
     `m` IS COUNTED, NOT ASSUMED
 
-    The design defines three sequences. If one of them contributed no surviving
-    subject, its mean does not exist, it absorbs no degree of freedom, and the
-    sum has no term from it. Using the design's `m = 3` would then understate
-    the degrees of freedom and inflate the variance. So `m` is the number of
-    sequences that actually contributed, and a shortfall against the design is
-    recorded as a diagnostic rather than absorbed silently.
+    The guidance defines `m` as "number of sequences used in the study" and
+    then brackets the usual values - 3 for the partial replicate, 2 for the
+    fully replicated design. Where every subject in a sequence has been
+    excluded, that sequence was not used: its mean does not exist, it absorbs
+    no degree of freedom, and the sum has no term from it. Counting it anyway
+    would understate the degrees of freedom and inflate the variance.
+
+    This also matches how the guidance's own SAS reaches the same number. Both
+    examples fit `dlat = seq` and take the error term from it, and neither
+    `PROC GLM` nor `PROC MIXED` spends a degree of freedom on a `CLASS` level
+    with no observations. A shortfall against the design's expected sequence
+    count is recorded as a diagnostic rather than absorbed silently.
     """
 
-    design = ReplicateDesign.PARTIAL_REPLICATE
-    name = "partial-replicate within-reference variance (FDA Appendix G)"
+    #: Set by the subclasses.
+    design: ReplicateDesign
+    name: str
     validation_status = ValidationStatus.IMPLEMENTED_UNVALIDATED
 
     def estimate(self, dataset: ReplicateDataset) -> ReferenceVarianceResult:
@@ -393,50 +420,42 @@ class PartialReplicateReferenceVarianceEstimator:
 # ----------------------------------------------------------------- fully ---
 
 
-class FullyReplicateReferenceVarianceEstimator:
-    """TRTR / RTRT: recognised, validated, and not estimated.
+class PartialReplicateReferenceVarianceEstimator(_ReferenceVarianceEstimator):
+    """TRR / RTR / RRT, where the guidance's `m` is 3.
 
-    This class exists so the boundary is visible in the architecture rather
-    than in a comment. It accepts a fully replicated dataset, confirms it is
-    one, and raises - it does not fall through to the partial-replicate
-    formula.
+    FDA's SAS example for this design fits `PROC GLM ... model dlat=seq` and
+    takes `s2wr = ms / 2` - the error mean square of a one-way analysis of the
+    reference differences on sequence, halved. That is the closed form in the
+    base class, since `ms = SS / (n - m)`.
+    """
 
-    WHY NOT JUST RUN THE SAME EXPRESSION
+    design = ReplicateDesign.PARTIAL_REPLICATE
+    name = "partial-replicate within-reference variance (FDA Appendix G)"
 
-    Because it would not be the same estimator. FDA's appendix analyses the
-    fully replicated design with a mixed model that estimates within-test and
-    within-reference variance together under a structured covariance, and
-    reports sWR from that fit. The partial-replicate expression is a
-    closed-form calculation on reference differences alone. The two are not
-    interchangeable by assertion, and this package has not obtained the
-    guidance body to establish what the fully replicated specification
-    actually requires.
 
-    The cost of declining is that a TRTR study gets no sWR from this release.
-    The cost of substituting would be an sWR that looks ordinary, gets compared
-    against 0.294 in the next release, and selects a regulatory method on a
-    number nobody validated. That is not a trade worth making.
+class FullyReplicateReferenceVarianceEstimator(_ReferenceVarianceEstimator):
+    """TRTR / RTRT, where the guidance's `m` is 2.
+
+    Implemented in 0.3.0 after the guidance was obtained and read. The previous
+    release declined here, on the reasoning that FDA's use of `PROC MIXED` for
+    fully replicated studies implied a different variance estimator. It does
+    not: Appendix G gives the sWR calculation once for both designs, and the
+    mixed model applies to the treatment contrast rather than to sWR.
+
+    FDA's SAS example for this design takes `s2wr = estimate / 2` from the
+    residual covariance parameter of `PROC MIXED ... model dlat=seq` - the same
+    quantity the partial example takes from `PROC GLM`, and the same as the
+    closed form.
+
+    Caution carried forward: `Dij` here is still `Rij1 - Rij2`, the difference
+    of the subject's TWO reference measurements. The two TEST measurements this
+    design also collects play no part in sWR. They enter `Iij`, which is the
+    mean of the test observations minus the mean of the reference ones, and
+    which nothing in this release consumes.
     """
 
     design = ReplicateDesign.FULLY_REPLICATE
-    name = "fully-replicate within-reference variance (mixed model)"
-    validation_status = ValidationStatus.NOT_IMPLEMENTED
-
-    def estimate(self, dataset: ReplicateDataset) -> ReferenceVarianceResult:
-        if dataset.design is not self.design:
-            raise ValueError(
-                f"{self.name} was handed a {dataset.design} dataset."
-            )
-        raise NotEstimable(
-            "The fully replicated design (TRTR / RTRT) is validated and its "
-            "reference-variance estimator is not implemented. FDA analyses "
-            "this design with a mixed model, not with the partial-replicate "
-            "closed form, and running the partial-replicate expression here "
-            "would substitute one method for another. The dataset is "
-            f"structurally valid: {len(dataset.records)} of "
-            f"{len(dataset.subjects_received)} subjects survived validation.",
-            DiagnosticCode.ESTIMATOR_NOT_IMPLEMENTED,
-        )
+    name = "fully-replicate within-reference variance (FDA Appendix G)"
 
 
 _ESTIMATORS = {

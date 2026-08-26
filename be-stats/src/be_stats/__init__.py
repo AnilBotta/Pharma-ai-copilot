@@ -68,6 +68,7 @@ from be_stats.provenance import (
 from be_stats.spec import (
     CAPABILITY_VALIDATION,
     FDA_HVD_CONSTANTS,
+    FDA_IVPT_NOTE,
     FDA_NTI_CONSTANTS,
     IMPLEMENTED,
     VALIDATION,
@@ -100,7 +101,7 @@ from be_stats.study import (
 #: Bumped on any change that can alter a computed result. An analysis record
 #: stores this, because "which version produced this number" is the first
 #: question asked of a result years later.
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 
 __all__ = [
     "AbeResult",
@@ -111,6 +112,7 @@ __all__ = [
     "Diagnostic",
     "DiagnosticCode",
     "FDA_HVD_CONSTANTS",
+    "FDA_IVPT_NOTE",
     "FDA_NTI_CONSTANTS",
     "Framework",
     "FullyReplicateReferenceVarianceEstimator",

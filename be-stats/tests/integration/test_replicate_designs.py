@@ -306,15 +306,68 @@ def test_the_accounting_adds_up():
 # --------------------------------------------------- the estimator boundary ---
 
 
-def test_the_fully_replicate_estimator_declines_rather_than_substituting():
+def test_the_fully_replicate_estimator_uses_m_equals_two():
+    """The correction that came from reading Appendix G.
+
+    An earlier version of this test asserted that the fully replicate estimator
+    DECLINED, on the reasoning that FDA's use of PROC MIXED for four-period
+    studies implied a different variance estimator. The guidance gives the sWR
+    calculation once for both designs and distinguishes them only by `m`:
+    3 for TRR/RTR/RRT, 2 for TRTR/RTRT. The mixed model applies to the
+    treatment contrast, not to sWR.
+    """
     dataset = ReplicateDataset.build(fully_study())
     assert dataset.design is ReplicateDesign.FULLY_REPLICATE
-    assert len(dataset.records) == 6, "the data are structurally valid"
+    assert len(dataset.records) == 6
 
-    with pytest.raises(NotEstimable) as exc:
-        estimate_reference_variance(dataset)
-    assert exc.value.code is DiagnosticCode.ESTIMATOR_NOT_IMPLEMENTED
-    assert "mixed model" in str(exc.value)
+    result = estimate_reference_variance(dataset)
+    assert result.estimable
+    assert result.n_subjects == 6
+    assert result.n_sequences == 2, "TRTR and RTRT: m = 2"
+    assert result.degrees_of_freedom == 4, "n - m = 6 - 2"
+
+
+def test_the_two_designs_reach_different_degrees_of_freedom_from_the_same_n():
+    """`m` is the only thing that differs, so six subjects give 3 df or 4 df."""
+    partial = ReplicateDataset.build(
+        rows_for("TRR", "A1", [100.0, 110.0, 95.0])
+        + rows_for("TRR", "A2", [100.0, 130.0, 95.0])
+        + rows_for("RTR", "B1", [90.0, 105.0, 100.0])
+        + rows_for("RTR", "B2", [120.0, 105.0, 100.0])
+        + rows_for("RRT", "C1", [105.0, 100.0, 105.0])
+        + rows_for("RRT", "C2", [95.0, 100.0, 105.0])
+    )
+    full = ReplicateDataset.build(fully_study())
+
+    p = estimate_reference_variance(partial)
+    f = estimate_reference_variance(full)
+
+    assert p.n_subjects == f.n_subjects == 6
+    assert (p.n_sequences, p.degrees_of_freedom) == (3, 3)
+    assert (f.n_sequences, f.degrees_of_freedom) == (2, 4)
+
+
+def test_the_fully_replicate_test_measurements_do_not_enter_swr():
+    """`Dij` is the difference of the two REFERENCE observations, full stop.
+
+    A four-period design also collects two test measurements. Changing them
+    must leave sWR untouched - they belong to `Iij`, which nothing in this
+    release consumes.
+    """
+    baseline = estimate_reference_variance(ReplicateDataset.build(fully_study()))
+
+    perturbed = []
+    for o in fully_study():
+        value = o.value * 3.0 if o.treatment is Treatment.TEST else o.value
+        perturbed.append(
+            ReplicateObservation(
+                o.subject_id, o.sequence, o.period, o.treatment, o.endpoint, value
+            )
+        )
+    moved = estimate_reference_variance(ReplicateDataset.build(perturbed))
+
+    assert moved.variance_wr == baseline.variance_wr
+    assert moved.degrees_of_freedom == baseline.degrees_of_freedom
 
 
 def test_the_estimators_refuse_each_others_designs():

@@ -48,7 +48,7 @@ from enum import StrEnum
 from be_stats.provenance import (
     Citation,
     FDA_M13A_QA,
-    FDA_STATISTICAL_APPROACHES,
+    FDA_STATISTICAL_APPROACHES_II_A,
     ICH_M13A_QA,
     VerificationStatus,
 )
@@ -164,15 +164,24 @@ _REGISTRY: dict[tuple[str, Framework, DesignFamily], RegulatoryMinimum] = {
         jurisdiction="FDA", citation=FDA_M13A_QA, **_M13A_PARALLEL
     ),
     # ----------------------------------------- FDA general PK BE guidance ---
-    # "Not fewer than 12 evaluable subjects in a PK BE study" is a floor on the
-    # STUDY, not on a treatment group, and it is not restricted by dosage form.
-    # So it is 12 total for both designs. Where a study is also within M13A's
-    # scope the parallel figure is higher, and a caller who says so gets it.
+    # Section II.A, in the guidance's own words: "The number of evaluable
+    # subjects in a PK BE study should not be less than 12. For highly variable
+    # drug products, a minimum of 24 subjects are recommended for BE
+    # assessment."
+    #
+    # That is a floor on the STUDY, not on a treatment group, and it is not
+    # restricted by dosage form - so it is 12 total for both designs. Where a
+    # study is also within M13A's scope the parallel figure is higher, and a
+    # caller who says so gets it.
+    #
+    # These two rows were VERIFIED by relay until the guidance was obtained;
+    # the wording above is now read from section II.A. The M13A rows are not -
+    # that is a different document, and it has not been obtained.
     ("FDA", Framework.GENERAL, DesignFamily.CROSSOVER): RegulatoryMinimum(
         jurisdiction="FDA",
         design_family=DesignFamily.CROSSOVER,
         framework=Framework.GENERAL,
-        citation=FDA_STATISTICAL_APPROACHES,
+        citation=FDA_STATISTICAL_APPROACHES_II_A,
         evaluable_total=12,
         verification=VerificationStatus.VERIFIED,
         scope="PK bioequivalence studies generally",
@@ -181,7 +190,7 @@ _REGISTRY: dict[tuple[str, Framework, DesignFamily], RegulatoryMinimum] = {
         jurisdiction="FDA",
         design_family=DesignFamily.PARALLEL,
         framework=Framework.GENERAL,
-        citation=FDA_STATISTICAL_APPROACHES,
+        citation=FDA_STATISTICAL_APPROACHES_II_A,
         evaluable_total=12,
         verification=VerificationStatus.VERIFIED,
         scope="PK bioequivalence studies generally",
@@ -198,7 +207,7 @@ _HVD_MINIMUM = RegulatoryMinimum(
     jurisdiction="FDA",
     design_family=DesignFamily.REPLICATE,
     framework=Framework.GENERAL,
-    citation=FDA_STATISTICAL_APPROACHES,
+    citation=FDA_STATISTICAL_APPROACHES_II_A,
     evaluable_total=24,
     verification=VerificationStatus.VERIFIED,
     scope="highly variable drug products",
