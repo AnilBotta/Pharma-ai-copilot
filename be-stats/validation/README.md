@@ -34,24 +34,68 @@ Current state:
 
 | Evidence | Status |
 |---|---|
-| FDA regulatory algorithm source (1A) | **VERIFIED** — attested at statistical review with section references |
-| FDA numeric worked dataset (1B) | **PENDING** — the guidance body has not been obtainable |
+| FDA regulatory algorithm source (1A) | **VERIFIED** — read from the primary document at the cited sections |
+| FDA numeric worked dataset (1B) | **PENDING** — and the guidance does not contain one; see below |
 | Independent numeric cross-check (tier 3) | **PASSED** — two published `PowerTOST` cases |
 
 `VALIDATED` requires 1B. Nothing here may support a submission.
 
-### What "VERIFIED, via statistical review" means, and does not
+### The guidance has now been read
 
-This tooling could not retrieve the FDA guidance PDF — every URL tried returned
-404 or served a download rather than readable text. The FDA constants and the
-highly-variable decision rule were therefore supplied at statistical review
-**together with their section references**, and `RegulatoryValue.verified_by`
-records that chain of custody on every one of them.
+It was supplied directly, after every URL this tooling tried returned 404 or
+served a download rather than readable text. Every FDA constant in the package
+has been checked against the section it cites, and
+`RegulatoryValue.verified_by` now reads **"primary document, read at the cited
+section"** for all of them.
 
-A figure read from the primary document and a figure relayed by a qualified
-reviewer are both `VERIFIED`, and an auditor is entitled to know which. That is
-the entire reason the field exists. Obtaining the document and re-checking each
-constant against it remains an open item.
+**The M13A figures did not move.** ICH/FDA M13A Q&A is a different document and
+has not been obtained, so those minimums still read "statistical review, with
+section references". Both are `VERIFIED`; they are not the same claim, and
+`verified_by` exists precisely so an auditor can tell them apart. A test
+asserts the split rather than trusting this paragraph.
+
+### Why tier 1B is still open — and not for want of the document
+
+**The guidance contains no worked dataset.** Fifty-four pages, the full
+algorithm, the constants and SAS code — and nowhere an input value paired with
+a published answer. Obtaining it closed tier 1A completely and could never have
+closed 1B.
+
+That reframes the open item. It was recorded as "obtain the FDA guidance". It
+should have been "find a source that publishes numbers", which is a different
+search: an FDA product-specific guidance with a worked example, an ICH or EMA
+example dataset, or a peer-reviewed reproduction.
+
+### What reading it changed
+
+Two things in the code were wrong, and neither was caught by the tests:
+
+**The fully replicated estimator was withheld for a bad reason.** 0.2.0 refused
+to estimate sWR for `TRTR`/`RTRT`, inferring from "PROC MIXED should be used
+for fully replicate (four-way) BE studies" that the design needed a different
+variance estimator. Appendix G gives the calculation once for both designs and
+distinguishes them only by `m` — 3 for the partial replicate, 2 for the fully
+replicated. The mixed model applies to the treatment contrast, not to sWR, and
+both SAS examples reach sWR by the same route. Implemented in 0.3.0.
+
+The caution was reasonable; the inference was not. It came from a sentence
+about which procedure to run, not from the specification of the quantity.
+
+**The citations carried a date the document does not.** They read "final, 29
+May 2026"; the cover gives only May 2026 and no page names a day. Now "final,
+May 2026". An over-specific citation is worse than a coarse one because it
+looks checked.
+
+### And one thing found by reading it end to end
+
+Section III.A applies **the same 0.294** to in vitro permeation testing of
+topical products — with a *strict* inequality: scaled only if `sWR > 0.294`,
+unscaled at `sWR ≤ 0.294`. Appendix G puts the boundary case on the other side.
+
+Same number, same document, opposite treatment at exactly 0.294, different
+products. Recorded as `FDA_IVPT_NOTE`, wired into nothing, and guarded by a
+test — because a global "the 0.294 rule" would be wrong for one of the two.
+That is the M13A scoping lesson arriving from a third direction.
 
 **PowerTOST is not the regulatory authority.** It is an independent
 implementation to cross-check against. Its usefulness is partly that its own
@@ -225,6 +269,89 @@ scoped to M13A.*
 
 ---
 
+## Replicate designs and reference variability (0.2.0)
+
+**Estimation only. No bioequivalence decision is made anywhere in this layer**,
+and `tests/integration/test_no_be_decision_in_this_release.py` enforces it two
+ways: no public result type may carry a verdict-shaped field, and no module in
+the layer may import the switching rule at all. A module that cannot see the
+threshold cannot apply it.
+
+| Capability | Status | Evidence |
+|---|---|---|
+| Replicate design validation | `IMPLEMENTED` | structural; the tests are the evidence |
+| Partial-replicate sWR / CVwR (`m = 3`) | `IMPLEMENTED_UNVALIDATED` | tier 1A + tier 4 — see below |
+| Fully-replicate sWR / CVwR (`m = 2`) | `IMPLEMENTED_UNVALIDATED` | tier 1A + tier 4 |
+
+### One formula, two designs
+
+Appendix G gives the sWR calculation once and distinguishes the designs only by
+the sequence count — `m = 3` for TRR/RTR/RRT, `m = 2` for TRTR/RTRT. The
+`PROC GLM` / `PROC MIXED` split in the guidance applies to the **treatment
+contrast**, where a four-period design needs Satterthwaite degrees of freedom;
+it does not apply to sWR. Both SAS examples reach sWR the same way.
+
+Two estimator classes are kept anyway, because the accepted design differs and
+because the analyses genuinely diverge at the next step — which belongs to the
+release that computes the contrast.
+
+*0.2.0 had the fully replicated estimator decline, on the opposite reading. See
+"What reading it changed" above.*
+
+### Tier-4 evidence, and its limits
+
+Two checks, both tier 4, neither regulatory:
+
+1. **A hand-calculated fixture.** Six subjects, two per sequence, every
+   reference pair expressed as a ratio. The expected variance is derived
+   through the two-point identity `(d₁−d₂)²/2`, which never forms a mean — a
+   different algebraic route than the estimator's, so agreement is evidence
+   rather than a tautology.
+2. **Simulations, 1200 studies each, for both designs.** They show each
+   estimator is unbiased for σ²WR, and that the sampling spread matches
+   `2σ⁴/df` at the degrees of freedom the result reports. The second is the
+   stronger check: unbiasedness can survive a wrong denominator paired with a
+   compensating error; the sampling variance pins `n − m` directly. Every
+   tolerance is computed from the Monte Carlo standard error at the replicate
+   count used, not chosen by widening until it passed.
+
+   The fully replicate simulation gives the **test** measurements twice the
+   within-subject variability of the reference ones. sWR must be blind to them,
+   and an estimator that pooled the two would land far outside the tolerance.
+   That mistake is only possible in the four-period design, which is why the
+   asymmetry is there.
+
+Simulation shows an implementation matches its own definition. Tier 1A now
+shows that definition is the regulator's — including the R1/R2 assignment,
+checked against the explicit SAS conditions for all five sequences. What
+remains missing is 1B: a regulator's *number* to reproduce.
+
+### Two things the tests found
+
+**The result depended on how the input file was sorted.** The invariance tests
+assert exact equality — not `approx` — and caught a one-bit difference under row
+shuffling. Floating-point addition is not associative, so summing the same
+reference differences in a different order gives a different last bit. The
+estimator now uses `math.fsum`, which returns the correctly-rounded exact total
+and is therefore permutation-invariant. Without it, a study re-exported with a
+different sort order produces two different sWRs, differing around 1e-16:
+invisible, and reproducible by nobody.
+
+**~~`m` must be counted, not assumed.~~ Reversed in 0.3.0 at independent
+review.** The argument here was that a sequence whose every subject was
+excluded absorbs no degree of freedom, so `m` should be the number that
+actually contributed.
+
+That is an arithmetic argument, and `m` is not an arithmetic question. Appendix
+G names it per design — 3 for TRR/RTR/RRT, 2 for TRTR/RTRT. A three-sequence
+study in which one sequence contributes nobody is **not that design**, and
+analysing it as a two-sequence one reports an sWR for a study that was not run.
+`m` comes from `ReplicateDesign.regulatory_sequence_count`, and a missing
+required sequence returns non-estimable with
+`REQUIRED_SEQUENCE_HAS_NO_CONTRIBUTING_SUBJECTS`.
+
+---
+
 ## Degeneracy: refuse, do not rescue
 
 For a validation-oriented statistical application, non-estimable is preferable
@@ -238,12 +365,51 @@ to a number obtained by numerical rescue. Currently refused:
 - [x] duplicated subject
 - [x] near-zero variance still analyses — only exact degeneracy is refused
 
-Pending, and belonging to Phase 2 because they concern replicate designs:
+Added in 0.2.0 for replicate designs:
 
-- [ ] singular mixed-model covariance structure
-- [ ] missing reference replicates
-- [ ] a subject with only one usable reference observation where sWR needs
-      replication
+- [x] missing reference replicate — subject excluded, `MISSING_REFERENCE_REPLICATE`
+- [x] a subject with only one usable reference observation — same code; no `Dij`
+      exists for it
+- [x] fewer than one reference degree of freedom — `INSUFFICIENT_REFERENCE_DF`
+- [x] a required design sequence with no contributing subject —
+      `REQUIRED_SEQUENCE_HAS_NO_CONTRIBUTING_SUBJECTS`. `m` is Appendix G's
+      constant and is never reduced to fit what survived
+- [ ] ~~zero within-reference variance~~ — **not refused, and deliberately so.**
+      See below.
+
+### Zero reference variance is an estimate, not a refusal
+
+0.2.0 returned non-estimable for `sWR² = 0`, with `swr` and `cv_wr` as `None`,
+so that nobody could read a zero as a perfectly reproducible product. That was
+removed at independent review, and rightly.
+
+**Appendix G contains no such rule.** It defines a quantity; for data where
+every contributing subject's two reference observations agree exactly, that
+quantity is zero. Refusing to report it meant the estimator deciding which
+datasets are allowed an answer — a regulatory rejection invented inside a
+measurement, which is the failure this package is organised against.
+
+The estimate is now returned with `ZERO_REFERENCE_VARIANCE` at `DATA_QUALITY`
+severity: arithmetically sound, data suspect, nothing excluded and nothing
+refused. The judgement stays where the evidence is —
+
+- a genuine integrity problem (duplicated subject-period rows, a
+  sequence/treatment mismatch) is refused at **dataset validation** on its own
+  evidence, and never reaches the estimator;
+- the downstream **average BE** analysis already refuses its own degenerate
+  within-subject variance (`abe._reject_zero_variance`).
+
+Two independent checks, each on its own grounds, rather than one estimator
+guessing. Tests distinguish structurally valid references that happen to agree
+from malformed data — a distinction the old behaviour collapsed.
+
+*The rest of this checklist concerns Phase 1's 2×2 crossover analysis, where
+the refusal is on its own evidence and stands.*
+
+Still pending, and belonging to the fully replicated estimator:
+
+- [ ] singular mixed-model covariance structure — the code
+      (`SINGULAR_MODEL`) exists; the model it would describe does not
 
 ---
 
@@ -267,7 +433,9 @@ Pending, and belonging to Phase 2 because they concern replicate designs:
 
 **Implemented:** average bioequivalence for 2×2 crossover and parallel designs;
 power and sample size; FDA and EMA standard intervals; EMA narrowed interval for
-NTI **AUC**; product-specific overrides per endpoint.
+NTI **AUC**; product-specific overrides per endpoint. Since 0.2.0: replicate
+design validation for TRR/RTR/RRT and TRTR/RTRT, and partial-replicate sWR and
+CVwR — **estimation only, no decision**.
 
 **Resolved but not implemented** — each raises `NotImplementedMethod` rather
 than returning something plausible:

@@ -118,6 +118,44 @@ def test_theta_follows_from_sigma_w0_and_is_not_stored():
     assert fda_hvd_theta() == pytest.approx(0.7967, abs=5e-5)
 
 
+def test_the_same_guidance_uses_0_294_twice_with_different_boundaries():
+    """Found by reading the document end to end, not by looking for it.
+
+    Section III.A applies 0.294 to in vitro permeation testing of topical
+    products with a STRICT inequality - scaling only if sWR > 0.294, unscaled
+    at sWR <= 0.294. Appendix G puts the boundary case on the other side.
+
+    Same number, same document, opposite treatment of the boundary, different
+    products. A study whose estimated sWR is exactly 0.294 is scaled under one
+    and unscaled under the other, so a single global "the 0.294 rule" would be
+    wrong for one of them.
+
+    The note is recorded and consumed by nothing. This test is what stops it
+    being tidied away as a duplicate of the HVD constant.
+    """
+    from be_stats.spec import FDA_IVPT_NOTE
+
+    hvd = FDA_HVD_CONSTANTS["swr_switching_threshold"]
+
+    assert FDA_IVPT_NOTE.value == hvd.value == 0.294
+    assert FDA_IVPT_NOTE.citation.section != hvd.citation.section
+    assert "III.A" in FDA_IVPT_NOTE.citation.section
+    assert FDA_IVPT_NOTE.verification is VerificationStatus.VERIFIED
+    assert "NOT interchangeable" in FDA_IVPT_NOTE.note
+
+
+def test_the_hvd_decision_rule_is_not_reused_for_the_other_context():
+    """The boundary case is exactly where the two rules disagree.
+
+    `fda_hvd_method_for(0.294)` scales. Under III.A the same sWR would not.
+    Nothing here should tempt a caller into using this function for an in
+    vitro permeation study, so the docstring says so and this asserts it.
+    """
+    assert fda_hvd_method_for(0.294) is Method.FDA_HVD_RSABE
+    assert "in vitro permeation" in (fda_hvd_method_for.__doc__ or "")
+    assert "FDA_IVPT_NOTE" in (fda_hvd_method_for.__doc__ or "")
+
+
 def test_the_point_estimate_constraint_is_carried_alongside_the_scaling():
     """RSABE is not the scaled criterion on its own.
 

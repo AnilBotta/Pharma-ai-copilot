@@ -176,12 +176,59 @@ def test_every_acceptance_limit_can_explain_itself():
 
 
 def test_the_fda_document_version_is_pinned_not_just_the_authority():
-    """FDA's 2001 and 2026 guidances share a title and disagree."""
+    """FDA's 2001 and 2026 guidances share a title and disagree.
+
+    The guidance's own first page says it "replaces prior FDA guidance for
+    industry of the same name issued in February 2001", which is exactly why
+    the version is part of the citation.
+
+    The version reads "May 2026" and not "29 May 2026". The precise day was in
+    these citations until the document was obtained; its cover gives only the
+    month, and no page inside names a day. An over-specific citation is worse
+    than a coarse one, because it looks checked.
+    """
     hvd = resolve_be_spec(
         jurisdiction=Jurisdiction.FDA, drug_class=DrugClass.HIGHLY_VARIABLE
     )
     text = " ".join(hvd.provenance())
-    assert "29 May 2026" in text
+    assert "May 2026" in text
+    assert "29 May 2026" not in text, "the day is not in the document"
+    assert "2001" not in text
+
+
+def test_the_fda_constants_say_they_were_read_from_the_document():
+    """Chain of custody, not merely verification status.
+
+    These constants were VERIFIED by relay before the guidance was obtained.
+    They now record that they were read at the cited section. The distinction
+    is the whole reason `verified_by` exists, so it is asserted rather than
+    trusted to a docstring.
+    """
+    from be_stats.provenance import VIA_PRIMARY_DOCUMENT
+    from be_stats.spec import FDA_HVD_CONSTANTS, FDA_NTI_CONSTANTS
+
+    for table in (FDA_HVD_CONSTANTS, FDA_NTI_CONSTANTS):
+        for name, value in table.items():
+            assert value.verified_by == VIA_PRIMARY_DOCUMENT, name
+
+
+def test_the_m13a_figures_still_say_they_were_relayed():
+    """The honest half of the same distinction.
+
+    Obtaining the FDA guidance says nothing about the ICH/FDA M13A Q&A, which
+    is a different document and has NOT been obtained. Those minimums must not
+    inherit the stronger claim just because they sit in the same registry.
+    """
+    from be_stats.minimums import DesignFamily, Framework, lookup
+    from be_stats.provenance import VerificationStatus
+
+    m13a = lookup("FDA", DesignFamily.PARALLEL, framework=Framework.ICH_M13A)
+    assert m13a is not None
+    assert "M13A" in m13a.citation.document
+    assert m13a.verification is VerificationStatus.VERIFIED
+
+    general = lookup("FDA", DesignFamily.CROSSOVER, framework=Framework.GENERAL)
+    assert "Statistical Approaches" in general.citation.document
 
 
 def test_the_switching_threshold_reaches_the_spec_as_the_regulators_value():

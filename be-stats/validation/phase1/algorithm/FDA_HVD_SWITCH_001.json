@@ -37,11 +37,18 @@
     "type": "regulator-stated algorithm",
     "authority": "FDA",
     "document": "Statistical Approaches to Establishing Bioequivalence",
-    "document_version": "final, 29 May 2026",
+    "document_version": "final, May 2026",
     "section": "Appendix G (highly variable drugs)",
     "url": "https://www.fda.gov/media/163638/download",
-    "verified_by": "statistical review, with section references",
-    "limitation": "This tooling could not retrieve the guidance PDF (every URL tried returned 404 or served a download rather than text), so the algorithm and its constants were supplied at statistical review with the section references above rather than transcribed here from the primary document. That is why this is 1A - the ALGORITHM is attested - and why no 1B numeric case accompanies it: reproducing a worked dataset requires the dataset."
+    "verified_by": "primary document, read at the cited section",
+    "limitation": "The guidance has now been read. Both III.C and Appendix G state this rule and agree on the boundary: III.C says 'If the estimated within-subject standard deviation of the reference is < 0.294, the average BE two one-sided test procedure should be used ... Otherwise, the reference-scaled average BE procedure should be used', and Appendix G step 1 says 'a. If sWR < 0.294 ... b. If sWR >= 0.294'. This closes tier 1A. It does not touch tier 1B: the document contains no worked dataset - no input values, no published answer - so there is nothing here to reproduce numerically."
+  },
+
+  "a_second_rule_uses_the_same_number": {
+    "where": "section III.A, in vitro permeation testing for topical drug products",
+    "text": "the reference-scaled average BE approach is used for the endpoint only if it has a sWR > 0.294. The regular average BE approach ... is used for the endpoint with sWR <= 0.294.",
+    "why_recorded": "Same threshold, OPPOSITE treatment of the boundary, different products. A study whose estimated sWR is exactly 0.294 is scaled under Appendix G and unscaled under III.A. Recorded so that fda_hvd_method_for is never reused for an in vitro permeation study - the same scoping lesson the M13A minimums taught, arriving from a third direction.",
+    "consumed_by": "nothing"
   },
 
   "covers": "The decision rule only. This case asserts nothing about the RSABE criterion arithmetic, which is Phase 2A and not implemented.",

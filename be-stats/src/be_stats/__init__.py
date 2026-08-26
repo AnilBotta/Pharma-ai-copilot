@@ -10,6 +10,10 @@ regulatory question that must be settled before any arithmetic happens, and for
 several jurisdiction/class combinations the answer changes the procedure rather
 than the limits.
 
+Measuring and deciding are also separated. The replicate layer estimates sWR
+and CVwR and stops; it cannot see the FDA switching rule, and a test enforces
+that. A quantity should be checkable before anything depends on it.
+
 STATUS: development. Not qualified for use in a regulatory submission. See
 `validation/README.md` for what would have to be true first.
 """
@@ -31,7 +35,30 @@ from be_stats.conversions import (
     cv_to_log_sd,
     log_sd_to_cv,
 )
+from be_stats.diagnostics import Diagnostic, DiagnosticCode, Severity
 from be_stats.minimums import DesignFamily, Framework, RegulatoryMinimum
+from be_stats.reference_variance import (
+    FullyReplicateReferenceVarianceEstimator,
+    NotEstimable,
+    PartialReplicateReferenceVarianceEstimator,
+    ReferenceVarianceResult,
+    estimate_reference_variance,
+    estimator_for,
+    sequence_mean_differences,
+)
+from be_stats.replicate import (
+    ReplicateDataset,
+    ReplicateDesign,
+    ReplicateObservation,
+    ReplicateSequence,
+    SubjectRecord,
+    UnsupportedDesign,
+    identify_design,
+    parse_sequence,
+    parse_treatment,
+    reference_differences,
+    treatment_contrasts,
+)
 from be_stats.provenance import (
     Citation,
     RegulatoryValue,
@@ -39,10 +66,13 @@ from be_stats.provenance import (
     VerificationStatus,
 )
 from be_stats.spec import (
+    CAPABILITY_VALIDATION,
     FDA_HVD_CONSTANTS,
+    FDA_IVPT_NOTE,
     FDA_NTI_CONSTANTS,
     IMPLEMENTED,
     VALIDATION,
+    Capability,
     NotValidated,
     AcceptanceInterval,
     BeSpec,
@@ -57,6 +87,7 @@ from be_stats.spec import (
     fda_hvd_method_for,
     fda_hvd_theta,
     resolve_be_spec,
+    validation_report,
 )
 from be_stats.study import (
     CrossoverObservation,
@@ -70,16 +101,41 @@ from be_stats.study import (
 #: Bumped on any change that can alter a computed result. An analysis record
 #: stores this, because "which version produced this number" is the first
 #: question asked of a result years later.
-__version__ = "0.1.1"
+__version__ = "0.3.0"
 
 __all__ = [
     "AbeResult",
+    "CAPABILITY_VALIDATION",
+    "Capability",
     "Citation",
     "DesignFamily",
+    "Diagnostic",
+    "DiagnosticCode",
     "FDA_HVD_CONSTANTS",
+    "FDA_IVPT_NOTE",
     "FDA_NTI_CONSTANTS",
     "Framework",
+    "FullyReplicateReferenceVarianceEstimator",
+    "NotEstimable",
     "NotValidated",
+    "PartialReplicateReferenceVarianceEstimator",
+    "ReferenceVarianceResult",
+    "ReplicateDataset",
+    "ReplicateDesign",
+    "ReplicateObservation",
+    "ReplicateSequence",
+    "Severity",
+    "SubjectRecord",
+    "UnsupportedDesign",
+    "estimate_reference_variance",
+    "estimator_for",
+    "identify_design",
+    "parse_sequence",
+    "parse_treatment",
+    "reference_differences",
+    "sequence_mean_differences",
+    "treatment_contrasts",
+    "validation_report",
     "RegulatoryMinimum",
     "RegulatoryValue",
     "VALIDATION",

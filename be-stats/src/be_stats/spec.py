@@ -40,8 +40,9 @@ from be_stats.provenance import (
     FDA_STATISTICAL_APPROACHES,
     FDA_STATISTICAL_APPROACHES_APPENDIX_F,
     FDA_STATISTICAL_APPROACHES_APPENDIX_G,
+    FDA_STATISTICAL_APPROACHES_III_A,
     FDA_STATISTICAL_APPROACHES_III_C,
-    VIA_STATISTICAL_REVIEW,
+    VIA_PRIMARY_DOCUMENT,
     Citation,
     RegulatoryValue,
     ValidationStatus,
@@ -106,9 +107,62 @@ VALIDATION: dict[Method, ValidationStatus] = {
     Method.EMA_HVD_ABEL: ValidationStatus.NOT_IMPLEMENTED,
 }
 
+#: NOTE: this frozenset and `ValidationStatus.IMPLEMENTED` are unrelated. This
+#: one answers "can this method be run at all"; that one is a status meaning
+#: "implemented, with no external numeric claim to validate".
 IMPLEMENTED: frozenset[Method] = frozenset(
     m for m, s in VALIDATION.items() if s is not ValidationStatus.NOT_IMPLEMENTED
 )
+
+
+class Capability(StrEnum):
+    """Things the engine can do that are not methods.
+
+    A `Method` decides bioequivalence. These do not - they validate a dataset,
+    or estimate a quantity that a method will later use. They are tracked
+    separately rather than added to `Method` for one reason: everything in
+    `Method` is a candidate answer to "which test applies", and putting a data
+    validator in that enum would make it possible for a routing function to
+    return one.
+
+    The separation matters most right now, because this release estimates sWR
+    without being allowed to decide anything with it.
+    """
+
+    #: Recognise a replicate design, validate its structure, construct the
+    #: reference replicates.
+    FDA_HVD_REPLICATE_DATA_VALIDATION = "fda_hvd_replicate_data_validation"
+    #: Estimate the within-subject reference variance and CVwR from a
+    #: validated replicate dataset.
+    FDA_HVD_REFERENCE_VARIANCE = "fda_hvd_reference_variance"
+
+
+#: Capabilities carry their own statuses, on the same ladder.
+#:
+#: Data validation is `IMPLEMENTED` rather than `IMPLEMENTED_UNVALIDATED`
+#: because it produces no number for a regulator to disagree with: it either
+#: enforces the design definitions or it does not, and the tests decide that.
+#: Reference variance is `IMPLEMENTED_UNVALIDATED` because it produces sWR,
+#: and no regulator-published worked dataset has been reproduced.
+CAPABILITY_VALIDATION: dict[Capability, ValidationStatus] = {
+    Capability.FDA_HVD_REPLICATE_DATA_VALIDATION: ValidationStatus.IMPLEMENTED,
+    Capability.FDA_HVD_REFERENCE_VARIANCE: (
+        ValidationStatus.IMPLEMENTED_UNVALIDATED
+    ),
+}
+
+
+def validation_report() -> list[str]:
+    """Every method and capability with its status, for a release note or log.
+
+    One function so the two tables are always shown together; reading either
+    alone gives a misleading picture of what the engine can be trusted with.
+    """
+    lines = ["methods:"]
+    lines += [f"  {m} — {s}" for m, s in VALIDATION.items()]
+    lines += ["capabilities:"]
+    lines += [f"  {c} — {s}" for c, s in CAPABILITY_VALIDATION.items()]
+    return lines
 
 
 class NotApplicable(Exception):
@@ -210,6 +264,27 @@ _ICH_M13A_LIKE = Citation(
 # replacing it with a self-computed 0.293560 substitutes the package's
 # arithmetic for FDA's criterion. Both are kept, separately, because they
 # answer different questions.
+#
+# NOW READ FROM THE PRIMARY DOCUMENT
+#
+# These were VERIFIED by relay until the guidance itself was obtained. Both
+# statements survive, in the guidance's own words:
+#
+#   III.C     "Highly variable drugs are drugs for which within subject
+#             variability (%CV) in BE measures 30 percent or greater and that
+#             are not considered NTI drugs."
+#
+#   III.C     "If the estimated within-subject standard deviation of the
+#             reference is < 0.294, the average BE two one-sided test procedure
+#             should be used ... Otherwise, the reference-scaled average BE
+#             procedure should be used ... together with a point estimate
+#             constraint ... bounded by 80.00 percent to 125.00 percent."
+#
+#   App. G    "a. If sWR < 0.294, use the two one-sided tests procedure ...
+#              b. If sWR >= 0.294, use the reference-scaled procedure"
+#
+# Both places put the boundary case ON the scaled side, which is what
+# `fda_hvd_method_for` implements.
 
 FDA_HVD_CONSTANTS: dict[str, RegulatoryValue] = {
     "classification_cv": RegulatoryValue(
@@ -217,8 +292,9 @@ FDA_HVD_CONSTANTS: dict[str, RegulatoryValue] = {
         FDA_STATISTICAL_APPROACHES_III_C,
         VerificationStatus.VERIFIED,
         "Defines WHICH DRUGS are highly variable: within-subject variability "
-        "of 30% or greater, and not an NTI drug. Not the analysis switch.",
-        VIA_STATISTICAL_REVIEW,
+        "(%CV) of 30 percent or greater, and not an NTI drug. Not the "
+        "analysis switch.",
+        VIA_PRIMARY_DOCUMENT,
     ),
     "swr_switching_threshold": RegulatoryValue(
         0.294,
@@ -227,32 +303,68 @@ FDA_HVD_CONSTANTS: dict[str, RegulatoryValue] = {
         "Selects WHICH ANALYSIS applies, from the estimated sWR. Below it, "
         "ordinary ABE; at or above it, reference-scaled ABE. Numerically near "
         "sqrt(ln(1+0.30^2)) = 0.293560 but NOT that quantity - this is the "
-        "regulator's stated criterion and must not be recomputed.",
-        VIA_STATISTICAL_REVIEW,
+        "regulator's stated criterion and must not be recomputed. Stated in "
+        "both III.C and Appendix G step 1, which agree on the boundary.",
+        VIA_PRIMARY_DOCUMENT,
     ),
     "sigma_w0": RegulatoryValue(
         0.25,
         FDA_STATISTICAL_APPROACHES_APPENDIX_G,
         VerificationStatus.VERIFIED,
-        "Reference-scaling constant for highly variable drugs.",
-        VIA_STATISTICAL_REVIEW,
+        "Reference-scaling constant for highly variable drugs; Appendix G "
+        "step 2 gives it as 'sigma_W0 = 0.25 (regulatory constant)'.",
+        VIA_PRIMARY_DOCUMENT,
     ),
     "point_estimate_lower": RegulatoryValue(
         0.8000,
         FDA_STATISTICAL_APPROACHES_APPENDIX_G,
         VerificationStatus.VERIFIED,
-        "The scaled criterion alone is not sufficient: the T/R point estimate "
-        "must also fall within 0.8000-1.2500.",
-        VIA_STATISTICAL_REVIEW,
+        "The scaled criterion alone is not sufficient: Appendix G step 3b "
+        "requires the T/R geometric mean ratio to fall within [0.8000, "
+        "1.2500].",
+        VIA_PRIMARY_DOCUMENT,
     ),
     "point_estimate_upper": RegulatoryValue(
         1.2500,
         FDA_STATISTICAL_APPROACHES_APPENDIX_G,
         VerificationStatus.VERIFIED,
         "",
-        VIA_STATISTICAL_REVIEW,
+        VIA_PRIMARY_DOCUMENT,
     ),
 }
+
+
+# ------------------------------- the OTHER rule that uses 0.294 ---
+#
+# Reading the guidance end to end turned up a second threshold at 0.294, in
+# section III.A, for in vitro permeation testing of topical products. It is NOT
+# the highly-variable rule and it does not share its boundary:
+#
+#   III.A     "the reference-scaled average BE approach is used for the
+#             endpoint only if it has a sWR > 0.294. The regular average BE
+#             approach ... is used for the endpoint with sWR <= 0.294."
+#
+#   App. G    sWR >= 0.294 -> reference-scaled
+#
+# Same number, opposite treatment of the boundary, different products. A study
+# whose estimated sWR is exactly 0.294 is scaled under one and unscaled under
+# the other.
+#
+# Recorded, and deliberately NOT wired into anything. The package does not do
+# in vitro permeation testing, and the point of writing it down is that
+# `fda_hvd_method_for` must never be reused for one - which is the same
+# scoping lesson the M13A minimums taught, arriving from a third direction.
+
+FDA_IVPT_NOTE: RegulatoryValue = RegulatoryValue(
+    0.294,
+    FDA_STATISTICAL_APPROACHES_III_A,
+    VerificationStatus.VERIFIED,
+    "IN VITRO PERMEATION TESTING ONLY, and NOT interchangeable with the "
+    "highly-variable rule: here scaling applies when sWR > 0.294 (strictly), "
+    "with sWR <= 0.294 unscaled. Appendix G puts the boundary case on the "
+    "other side. Not consumed by any code path.",
+    VIA_PRIMARY_DOCUMENT,
+)
 
 
 def fda_hvd_theta() -> float:
@@ -272,6 +384,11 @@ def fda_hvd_method_for(swr: float) -> Method:
     The decision rule, frozen and testable, with nothing yet consuming it -
     Phase 2A implements the analyses themselves. Boundary handling follows the
     guidance's inequality exactly: 0.294 itself selects reference scaling.
+
+    APPLIES TO HIGHLY VARIABLE DRUGS AND NOTHING ELSE. Section III.A of the
+    same guidance uses 0.294 with a STRICT inequality for in vitro permeation
+    testing, so this function is wrong for that context by exactly one
+    boundary case. See `FDA_IVPT_NOTE`.
     """
     if swr < 0.0:
         raise ValueError(f"sWR cannot be negative, got {swr}.")
@@ -279,27 +396,59 @@ def fda_hvd_method_for(swr: float) -> Method:
     return Method.FDA_HVD_RSABE if swr >= threshold else Method.STANDARD_ABE
 
 
+# FDA NTI: THREE CRITERIA, ALL OF WHICH MUST HOLD
+#
+# Appendix F step 5 lists them, and reducing the procedure to "narrower limits"
+# would drop two of the three:
+#
+#   a.  95% upper confidence bound for (mu_T - mu_R)^2 - theta*sigma_WR^2 <= 0
+#   b.  the regular unscaled limits of 80.00-125.00% must ALSO be passed
+#   c.  the upper limit of the 90% equal-tails CI for sigma_WT / sigma_WR must
+#       be <= 2.500
+#
+# And III.B requires a FULLY REPLICATE crossover design for an NTI drug, which
+# is why this method cannot be offered for a 2x2 study at any acceptance limit.
 FDA_NTI_CONSTANTS: dict[str, RegulatoryValue] = {
     "sigma_w0": RegulatoryValue(
         0.10,
         FDA_STATISTICAL_APPROACHES_APPENDIX_F,
         VerificationStatus.VERIFIED,
-        "NTI reference-scaling constant.",
-        VIA_STATISTICAL_REVIEW,
+        "NTI reference-scaling constant; Appendix F step 2 gives "
+        "'sigma_W0 = 0.10 (regulatory constant)'.",
+        VIA_PRIMARY_DOCUMENT,
     ),
     "delta": RegulatoryValue(
         1.0 / 0.9,
         FDA_STATISTICAL_APPROACHES_APPENDIX_F,
         VerificationStatus.VERIFIED,
-        "Stated as 1/0.9.",
-        VIA_STATISTICAL_REVIEW,
+        "Stated as 1/0.9 (approximately 1.11111), and used as theta = "
+        "[ln(delta) / sigma_W0]^2.",
+        VIA_PRIMARY_DOCUMENT,
     ),
     "variance_ratio_upper_limit": RegulatoryValue(
         2.5,
         FDA_STATISTICAL_APPROACHES_APPENDIX_F,
         VerificationStatus.VERIFIED,
-        "Upper limit on the 90% CI of sigma_WT / sigma_WR.",
-        VIA_STATISTICAL_REVIEW,
+        "Appendix F step 5c: the upper limit of the 90% EQUAL-TAILS confidence "
+        "interval for sigma_WT / sigma_WR must be less than or equal to 2.500. "
+        "The interval is an F-based one at alpha = 0.1, not a normal "
+        "approximation.",
+        VIA_PRIMARY_DOCUMENT,
+    ),
+    "unscaled_lower_percent": RegulatoryValue(
+        80.00,
+        FDA_STATISTICAL_APPROACHES_APPENDIX_F,
+        VerificationStatus.VERIFIED,
+        "Appendix F step 5b: the regular unscaled limits must ALSO be passed. "
+        "FDA does not narrow the interval for an NTI drug - it adds criteria.",
+        VIA_PRIMARY_DOCUMENT,
+    ),
+    "unscaled_upper_percent": RegulatoryValue(
+        125.00,
+        FDA_STATISTICAL_APPROACHES_APPENDIX_F,
+        VerificationStatus.VERIFIED,
+        "",
+        VIA_PRIMARY_DOCUMENT,
     ),
 }
 

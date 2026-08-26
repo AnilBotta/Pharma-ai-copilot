@@ -14,10 +14,18 @@ anybody has actually checked it.
 PIN THE DOCUMENT, NOT THE AUTHORITY
 
 "FDA" is not a citation. FDA's *Statistical Approaches to Establishing
-Bioequivalence* was issued on 29 May 2026 and replaced the February 2001
-guidance of the same title, which said materially different things. A result
-computed under one and read under the other is a trap, so the version is part
-of the record.
+Bioequivalence* is dated May 2026 and states on its first page that it replaces
+the February 2001 guidance of the same title, which said materially different
+things. A result computed under one and read under the other is a trap, so the
+version is part of the record.
+
+A CORRECTION TO THAT VERSION STRING
+
+These citations previously read "final, 29 May 2026". The document's cover
+gives only **May 2026**, and nothing inside it names a day. The precise date
+came from recollection, not from the document, and an over-specific citation is
+worse than a coarse one: it looks checked. Now "final, May 2026", which is what
+the guidance itself says.
 """
 
 from __future__ import annotations
@@ -51,6 +59,13 @@ class ValidationStatus(StrEnum):
 
     NOT_IMPLEMENTED = "not_implemented"
     EXPERIMENTAL = "experimental"
+    #: Implemented, and there is no external numeric claim to validate against.
+    #: Structural work lives here: a design validator either enforces the
+    #: regulator's design definitions or it does not, and no worked dataset can
+    #: tell you more than the tests already do. Distinct from the status below,
+    #: which names a computed NUMBER that nobody has checked against a
+    #: regulator - that gap is real and this one is not.
+    IMPLEMENTED = "implemented"
     IMPLEMENTED_UNVALIDATED = "implemented_unvalidated"
     VALIDATED = "validated"
 
@@ -115,7 +130,7 @@ class RegulatoryValue:
 FDA_STATISTICAL_APPROACHES = Citation(
     authority="FDA",
     document="Statistical Approaches to Establishing Bioequivalence",
-    document_version="final, 29 May 2026",
+    document_version="final, May 2026",
     url="https://www.fda.gov/media/163638/download",
 )
 
@@ -125,7 +140,7 @@ FDA_STATISTICAL_APPROACHES_III_C = Citation(
     authority="FDA",
     document="Statistical Approaches to Establishing Bioequivalence",
     section="III.C",
-    document_version="final, 29 May 2026",
+    document_version="final, May 2026",
     url="https://www.fda.gov/media/163638/download",
 )
 
@@ -133,7 +148,7 @@ FDA_STATISTICAL_APPROACHES_APPENDIX_G = Citation(
     authority="FDA",
     document="Statistical Approaches to Establishing Bioequivalence",
     section="Appendix G (highly variable drugs)",
-    document_version="final, 29 May 2026",
+    document_version="final, May 2026",
     url="https://www.fda.gov/media/163638/download",
 )
 
@@ -141,7 +156,7 @@ FDA_STATISTICAL_APPROACHES_APPENDIX_F = Citation(
     authority="FDA",
     document="Statistical Approaches to Establishing Bioequivalence",
     section="Appendix F (narrow therapeutic index drugs)",
-    document_version="final, 29 May 2026",
+    document_version="final, May 2026",
     url="https://www.fda.gov/media/163638/download",
 )
 
@@ -153,8 +168,42 @@ FDA_M13A_QA = Citation(
     url="https://www.fda.gov/media/183189/download",
 )
 
-#: How the FDA figures in this package were checked. Recorded once so the
-#: chain of custody is identical everywhere it is claimed.
+#: The same document, cited to the section carrying the general study-design
+#: requirements - including the floor on evaluable subjects.
+FDA_STATISTICAL_APPROACHES_II_A = Citation(
+    authority="FDA",
+    document="Statistical Approaches to Establishing Bioequivalence",
+    section="II.A (study design)",
+    document_version="final, May 2026",
+    url="https://www.fda.gov/media/163638/download",
+)
+
+#: The same document, cited to the in vitro section. Present for one reason:
+#: it contains a SECOND rule using 0.294, with a different inequality. See
+#: `spec.FDA_IVPT_NOTE`.
+FDA_STATISTICAL_APPROACHES_III_A = Citation(
+    authority="FDA",
+    document="Statistical Approaches to Establishing Bioequivalence",
+    section="III.A (in vitro BE and population BE)",
+    document_version="final, May 2026",
+    url="https://www.fda.gov/media/163638/download",
+)
+
+# ------------------------------------------------------ chains of custody ---
+#
+# HOW a number was checked, which is not the same as whether. Recorded once
+# each so the claim is identical everywhere it is made, and so the two cannot
+# be confused when an auditor asks.
+
+#: Read from the cited document. The guidance PDF was supplied and its text
+#: extracted and read section by section, so these figures are transcribed from
+#: the primary source rather than relayed.
+VIA_PRIMARY_DOCUMENT = "primary document, read at the cited section"
+
+#: Relayed by a qualified reviewer together with a section reference, without
+#: this tooling having seen the document. A weaker claim, and still VERIFIED.
+#: Retained because it remains true of the ICH/FDA M13A Q&A figures, which come
+#: from a different document that has NOT been obtained.
 VIA_STATISTICAL_REVIEW = "statistical review, with section references"
 
 FDA_NASAL_LOCAL_ACTION = Citation(
