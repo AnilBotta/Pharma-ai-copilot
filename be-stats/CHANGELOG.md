@@ -92,16 +92,40 @@ with a wrapper per procedure supplying its own constants and its own citation.
 Not a generic routine with a `mode="nti"` flag. The comparison is recorded in
 the validation case, and a test asserts exactly one line differs.
 
-### A discrepancy inside Appendix F
+### A precision discrepancy — not a contradiction
 
-Its prose gives `Δ = 1/0.9 (approximately=1.11111)`; its SAS writes
-`theta=((log(1.11111))/0.1)**2`. The two differ in θ by **1.9 × 10⁻⁵** relative.
+Appendix F's prose states `Δ = 1/0.9 (approximately=1.11111)`, and its SAS
+example writes `theta=((log(1.11111))/0.1)**2` — the five-decimal approximation
+the prose itself offers.
 
-The calculation consumes the exact ratio: the prose *states* the constant, the
-SAS *displays* it. Worth noticing that this points the opposite way to the
-highly-variable case, where the regulator's stated value was itself the rounded
-one — which is why each is decided from its own text rather than from a general
-preference for exact arithmetic.
+**This is not the guidance contradicting itself, and it does not affect the
+algorithm**, which is identical either way. It is example code printing a
+constant to five places. Two values are now kept, in different roles:
+
+```
+normative_constant_source:  Appendix F prose — Delta = 1/0.9
+example_code_literal:       Appendix F SAS   — 1.11111
+implementation_choice:      use normative 1/0.9
+```
+
+`FDA_NTI_CONSTANTS["delta"]` holds the ratio. `FDA_NTI_SAS_EXAMPLE_DELTA` holds
+the literal, deliberately **outside** the constants dict so it can never be
+iterated as a regulatory value, and `fda_nti_theta_sas_example()` computes what
+the example would give. Neither is rounded into the other.
+
+Carried through θ the difference is **1.898 × 10⁻⁵** relative — small enough to
+sound like rounding. Criterion (a) has a boundary, so "too small to matter" is a
+claim rather than a fact, and a near-boundary test exhibits a case where it
+matters: at `sWR² = 0.0020272284` the same data **pass** under the prose
+constant and **fail** under the example literal. The band is about 4 × 10⁻⁸ wide
+in sWR², so the case is contrived on purpose — which is what makes the assertion
+sharp. A structural test also confirms no decision path can reach the example
+value.
+
+Worth noting this points the opposite way to the highly-variable case, where the
+regulator's stated value was itself the rounded one (`sWR = 0.294`, not the
+derived `0.293560`). Each constant is decided from its own text rather than from
+a general preference for exact arithmetic.
 
 ### Citations do not travel with implementations
 

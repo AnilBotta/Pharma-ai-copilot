@@ -358,22 +358,192 @@ def test_an_unestimable_test_variance_also_yields_no_criterion():
 # -------------------------------------------------- criterion a and theta ---
 
 
-def test_theta_comes_from_the_exact_ratio_not_the_rounded_decimal():
-    """Appendix F's prose gives `Delta = 1/0.9`; its SAS writes `1.11111`.
+def test_the_two_thetas_and_the_measured_difference_between_them():
+    """The prose constant and the example-code literal, both computed here.
 
-    The two disagree in theta by about 1.9e-05 relative. The calculation
-    consumes the exact ratio, and this test records both the choice and the
-    size of what was chosen against.
+    A PRECISION DISCREPANCY, NOT A CONTRADICTION
+
+    Appendix F states `Delta = 1/0.9 (approximately=1.11111)` and its SAS
+    example writes `theta=((log(1.11111))/0.1)**2` - the five-decimal
+    approximation the prose itself offers. The algorithm is identical either
+    way; only the constant's precision differs.
+
+    Neither is rounded into the other, and the size of the difference is
+    measured rather than described.
     """
-    assert FDA_NTI_CONSTANTS["delta"].value == 1.0 / 0.9
-    assert FDA_NTI_CONSTANTS["sigma_w0"].value == 0.10
+    from be_stats.spec import FDA_NTI_SAS_EXAMPLE_DELTA, fda_nti_theta_sas_example
 
-    exact = fda_nti_theta()
-    assert exact == pytest.approx((math.log(1.0 / 0.9) / 0.10) ** 2, rel=1e-15)
+    theta_regulatory = fda_nti_theta()
+    theta_sas_example = fda_nti_theta_sas_example()
 
-    rounded = (math.log(1.11111) / 0.10) ** 2
-    assert exact != pytest.approx(rounded, rel=1e-9)
-    assert abs(exact - rounded) / exact == pytest.approx(1.9e-05, rel=0.1)
+    # Both restated longhand, so the assertion does not lean on the functions.
+    assert theta_regulatory == pytest.approx(
+        (math.log(1.0 / 0.9) / 0.10) ** 2, rel=1e-15
+    )
+    assert theta_sas_example == pytest.approx(
+        (math.log(1.11111) / 0.10) ** 2, rel=1e-15
+    )
+
+    assert theta_regulatory != theta_sas_example
+    assert theta_regulatory > theta_sas_example, (
+        "1/0.9 exceeds 1.11111, so the prose constant gives the larger theta "
+        "and is very slightly the more permissive of the two"
+    )
+
+    relative = abs(theta_regulatory - theta_sas_example) / theta_regulatory
+    assert relative == pytest.approx(1.898e-05, rel=0.01)
+    assert 1e-05 < relative < 1e-04, "small, and not zero"
+
+    # The values themselves, pinned.
+    assert theta_regulatory == pytest.approx(1.1100838260, abs=1e-9)
+    assert theta_sas_example == pytest.approx(1.1100627540, abs=1e-9)
+
+    # Provenance: same document and section, different roles.
+    delta = FDA_NTI_CONSTANTS["delta"]
+    literal = FDA_NTI_SAS_EXAMPLE_DELTA
+
+    assert delta.value == 1.0 / 0.9
+    assert literal.value == 1.11111
+    assert delta.citation == literal.citation, "both are Appendix F"
+    assert delta.verified_by == literal.verified_by
+
+    assert "NORMATIVE" in delta.note
+    assert "IMPLEMENTATION REFERENCE, NOT THE REGULATORY CONSTANT" in literal.note
+    assert "Consumed by nothing in the decision path" in literal.note
+
+
+def test_the_example_literal_is_not_a_regulatory_constant():
+    """It sits outside `FDA_NTI_CONSTANTS` so it cannot be iterated as one."""
+    from be_stats.spec import FDA_NTI_SAS_EXAMPLE_DELTA
+
+    assert FDA_NTI_SAS_EXAMPLE_DELTA not in FDA_NTI_CONSTANTS.values()
+    assert not any(
+        v.value == 1.11111 for v in FDA_NTI_CONSTANTS.values()
+    ), "1.11111 must not appear among the regulatory constants"
+
+
+def test_no_decision_path_calls_the_sas_example_theta():
+    """Structural: `nti.py` must not be able to decide with the display value."""
+    import ast
+    import inspect
+    from pathlib import Path
+
+    from be_stats import nti
+
+    source = Path(inspect.getfile(nti)).read_text(encoding="utf-8")
+    tree = ast.parse(source)
+
+    called = {
+        node.func.id
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+    }
+    imported = {
+        alias.name
+        for node in ast.walk(tree)
+        if isinstance(node, ast.ImportFrom)
+        for alias in node.names
+    }
+
+    assert "fda_nti_theta" in called
+    assert "fda_nti_theta_sas_example" not in called
+    assert "fda_nti_theta_sas_example" not in imported
+    assert "FDA_NTI_SAS_EXAMPLE_DELTA" not in imported
+
+    literals = [
+        node.lineno
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Constant)
+        and isinstance(node.value, float)
+        and abs(node.value - 1.11111) < 1e-12
+    ]
+    assert not literals, f"1.11111 appears as a literal at {literals}"
+
+
+def test_the_production_decision_uses_the_prose_constant():
+    """A study the two thetas would decide differently, decided the right way.
+
+    THE POINT OF THIS TEST
+
+    The difference is 1.9e-05 relative, which sounds like rounding. Criterion
+    (a) has a boundary, so "too small to matter" is a claim rather than a fact.
+    This exhibits a case where it matters: the same data pass under the prose
+    constant and fail under the example-code literal.
+
+    The inputs were found by solving for the sWR^2 at which the regulatory
+    criterion sits exactly at zero, then taking a point between that root and
+    the example-code root. They are contrived on purpose - the band is about
+    4e-08 wide in sWR^2 - and the contrivance is what makes the assertion sharp.
+    """
+    from be_stats.howe import howe_upper_bound
+    from be_stats.nti import scaled_mean_criterion
+    from be_stats.replicate import ReplicateDesign
+    from be_stats.spec import fda_nti_theta_sas_example
+    from be_stats.treatment_contrast import TreatmentContrastResult
+    from scipy import stats as scipy_stats
+
+    estimate, standard_error, df = 0.02, 0.015, 22
+    half_width = scipy_stats.t.ppf(0.95, df) * standard_error
+    s2wr = 0.002027228447992814
+
+    contrast = TreatmentContrastResult(
+        design=ReplicateDesign.FULLY_REPLICATE,
+        endpoint="AUC",
+        estimate=estimate,
+        standard_error=standard_error,
+        degrees_of_freedom=float(df),
+        degrees_of_freedom_basis="fixture",
+        ci_lower=estimate - half_width,
+        ci_upper=estimate + half_width,
+        alpha=0.10,
+        point_estimate=math.exp(estimate),
+        n_subjects=24,
+        n_by_sequence={},
+        sequence_weights={},
+        mean_square_error=0.0,
+    )
+    reference = ReferenceVarianceResult(
+        design=ReplicateDesign.FULLY_REPLICATE,
+        endpoint="AUC",
+        variance_wr=s2wr,
+        swr=math.sqrt(s2wr),
+        cv_wr=0.0,
+        degrees_of_freedom=df,
+        n_subjects=24,
+        regulatory_m=2,
+        contributing_sequences=2,
+        estimable=True,
+    )
+
+    # The production path.
+    produced = scaled_mean_criterion(
+        contrast=contrast, reference_variance=reference
+    )
+
+    # The same construction with the example-code theta, for comparison only.
+    with_sas_theta = howe_upper_bound(
+        estimate=contrast.estimate,
+        standard_error=contrast.standard_error,
+        ci_lower=contrast.ci_lower,
+        ci_upper=contrast.ci_upper,
+        reference_variance=s2wr,
+        reference_variance_df=df,
+        theta=fda_nti_theta_sas_example(),
+    )
+
+    assert produced.theta == fda_nti_theta()
+    assert produced.upper_confidence_bound < 0.0
+    assert produced.passes is True
+
+    assert with_sas_theta.upper_confidence_bound > 0.0
+    assert (with_sas_theta.upper_confidence_bound <= 0.0) is False
+
+    # The two really do straddle zero, by roughly 3.7e-08.
+    assert produced.upper_confidence_bound < 0.0 < (
+        with_sas_theta.upper_confidence_bound
+    )
+    gap = with_sas_theta.upper_confidence_bound - produced.upper_confidence_bound
+    assert gap == pytest.approx(3.7e-08, rel=0.2)
 
 
 def test_nti_theta_is_not_the_hvd_theta():

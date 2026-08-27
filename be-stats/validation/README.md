@@ -424,15 +424,41 @@ checked before anything was shared, it is recorded as evidence in
 takes `theta` as an argument; each procedure wraps it with its own constants and
 its own citation. There is no `mode="nti"` flag.
 
-### A discrepancy inside Appendix F
+### A precision discrepancy in Appendix F — not a contradiction
 
-Prose: `Δ = 1/0.9 (approximately=1.11111)`. SAS:
-`theta=((log(1.11111))/0.1)**2`. The two differ in θ by 1.9 × 10⁻⁵ relative.
+The prose states `Δ = 1/0.9 (approximately=1.11111)`; the SAS example writes
+`theta=((log(1.11111))/0.1)**2`, which is the approximation the prose itself
+offers.
 
-The exact ratio is used — prose states, SAS displays. Note this points the
-*opposite* way to the highly-variable case, where the regulator's stated value
-was itself the rounded one. Each is decided from its own text, not from a
-general preference for exact arithmetic.
+**This is not the guidance contradicting itself and it does not affect the
+algorithm**, which is the same either way. Calling it a contradiction would
+misrepresent the document. It is a precision discrepancy between a stated
+constant and an example-code approximation, and both are kept, in different
+roles:
+
+| | |
+|---|---|
+| `normative_constant_source` | Appendix F prose — Δ = 1/0.9 |
+| `example_code_literal` | Appendix F SAS — 1.11111 |
+| `implementation_choice` | use normative 1/0.9 |
+
+`FDA_NTI_CONSTANTS["delta"]` is the ratio. `FDA_NTI_SAS_EXAMPLE_DELTA` is the
+literal, held **outside** the constants dict so it cannot be iterated as a
+regulatory value, with `fda_nti_theta_sas_example()` beside it. Neither is
+rounded into the other, and a structural test confirms no decision path can
+reach the example value.
+
+**Why it is recorded rather than waved through.** The difference in θ is
+1.898 × 10⁻⁵ relative, which sounds like rounding. Criterion (a) has a
+boundary, so "too small to matter" is a claim, not a fact — and a near-boundary
+test exhibits a case where it is false: at `sWR² = 0.0020272284` the same data
+pass under the prose constant and fail under the example literal. The band is
+roughly 4 × 10⁻⁸ wide in sWR², so the case is contrived; the contrivance is
+what makes the assertion sharp.
+
+Note this points the *opposite* way to the highly-variable case, where the
+regulator's stated value was itself the rounded one. Each is decided from its
+own text, not from a general preference for exact arithmetic.
 
 ### Citations do not travel with implementations
 

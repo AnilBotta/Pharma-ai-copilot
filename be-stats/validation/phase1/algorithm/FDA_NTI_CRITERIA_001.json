@@ -41,11 +41,21 @@
     "variance_ratio_upper_limit": 2.5,
     "unscaled_lower_percent": 80.00,
     "unscaled_upper_percent": 125.00,
-    "delta_discrepancy": {
-      "prose": "Delta = 1/0.9 (approximately=1.11111)",
-      "sas": "theta=((log(1.11111))/0.1)**2",
-      "relative_difference_in_theta": 1.9e-05,
-      "resolution": "the calculation consumes the exact ratio 1/0.9. The prose states the constant; the SAS displays it to five decimal places. A figure typed into an example is a presentation of the rule, not the rule. Note this points the OPPOSITE way to the highly variable case, where the regulator's stated value WAS the rounded one - which is why each is decided from its own text rather than by a general preference for exact arithmetic."
+    "delta_precision_discrepancy": {
+      "classification": "precision discrepancy between the stated constant and the example-code approximation",
+      "not_a_contradiction": "This is NOT the guidance contradicting itself and it does not affect the algorithm, which is identical either way. Appendix F's prose states the constant and offers its own five-decimal approximation in the same sentence; the SAS example then prints that approximation, which is what example code does. Recording it as a contradiction would misrepresent the document.",
+
+      "normative_constant_source": "Appendix F prose — Delta = 1/0.9",
+      "example_code_literal": "Appendix F SAS — 1.11111",
+      "implementation_choice": "use normative 1/0.9",
+
+      "theta_regulatory": "[ln(1/0.9)/0.1]^2 = 1.1100838259683068",
+      "theta_sas_example": "[ln(1.11111)/0.1]^2 = 1.1100627539546393",
+      "relative_difference_in_theta": 1.898e-05,
+
+      "why_it_is_still_recorded": "Criterion (a) has a boundary, so 'too small to matter' is a claim rather than a fact. A synthetic near-boundary case exists in which the same data pass under the prose constant and fail under the example-code literal - the band is about 4e-08 wide in sWR^2. Neither value is rounded into the other, and the example literal is stored outside FDA_NTI_CONSTANTS so it can never be iterated as a regulatory constant.",
+
+      "compare_with_the_highly_variable_case": "There the regulator's stated value WAS the rounded one (sWR = 0.294, not the derived 0.293560). The two point opposite ways, which is why each constant is decided from its own text rather than from a general preference for exact arithmetic."
     }
   },
 

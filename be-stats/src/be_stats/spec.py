@@ -480,8 +480,10 @@ FDA_NTI_CONSTANTS: dict[str, RegulatoryValue] = {
         1.0 / 0.9,
         FDA_STATISTICAL_APPROACHES_APPENDIX_F,
         VerificationStatus.VERIFIED,
-        "Stated as 1/0.9 (approximately 1.11111), and used as theta = "
-        "[ln(delta) / sigma_W0]^2.",
+        "THE NORMATIVE CONSTANT, stated in Appendix F's prose as 1/0.9 "
+        "(approximately 1.11111), and used as theta = [ln(delta)/sigma_W0]^2. "
+        "The exact ratio is kept: the prose states the constant and the SAS "
+        "example displays it to five places. See FDA_NTI_SAS_EXAMPLE_DELTA.",
         VIA_PRIMARY_DOCUMENT,
     ),
     "variance_ratio_upper_limit": RegulatoryValue(
@@ -607,32 +609,73 @@ class BeSpec:
         return names
 
 
+# ------------------------- the Appendix F example-code literal ---
+#
+# A PRECISION DISCREPANCY, NOT A CONTRADICTION
+#
+# Appendix F states the constant in prose as `Delta = 1/0.9
+# (approximately=1.11111)`, and its SAS example then writes
+# `theta=((log(1.11111))/0.1)**2` - the five-decimal approximation the prose
+# itself offers, not a second rule.
+#
+# This is worth being careful about in both directions. It is NOT the guidance
+# contradicting itself, and it says nothing about the algorithm, which is
+# identical either way. It is an example printing a constant to five decimal
+# places, which is what example code does. Calling it a contradiction would
+# misrepresent the document.
+#
+# It is also not nothing: carried through theta it is a relative difference of
+# about 1.9e-05, and criterion (a) has a boundary, so there exist studies the
+# two would decide differently. `test_the_production_decision_uses_the_prose_
+# constant` exhibits one.
+#
+# So the normative constant is the prose ratio, the example literal is kept
+# beside it as an implementation reference, and neither is rounded into the
+# other.
+
+#: The literal that appears in Appendix F's SAS. NOT a regulatory constant, and
+#: deliberately outside `FDA_NTI_CONSTANTS` so it can never be iterated as one.
+#: Kept so the comparison is reproducible from the package rather than from
+#: somebody's memory of the PDF.
+FDA_NTI_SAS_EXAMPLE_DELTA: RegulatoryValue = RegulatoryValue(
+    1.11111,
+    FDA_STATISTICAL_APPROACHES_APPENDIX_F,
+    VerificationStatus.VERIFIED,
+    "IMPLEMENTATION REFERENCE, NOT THE REGULATORY CONSTANT. This is the "
+    "five-decimal approximation written in Appendix F's SAS example; the "
+    "normative value is the prose ratio Delta = 1/0.9. Verified as appearing "
+    "in the document, which is a claim about the example code and not about "
+    "the rule. Consumed by nothing in the decision path.",
+    VIA_PRIMARY_DOCUMENT,
+)
+
+
 def fda_nti_theta() -> float:
     """FDA's NTI scaled limit, theta = [ln(Delta) / sigma_W0]^2.
 
-    Computed from the verified constants: `Delta = 1/0.9`, `sigma_W0 = 0.10`.
+    THE ONE THE ENGINE DECIDES WITH.
 
-    A DISCREPANCY IN THE GUIDANCE, AND WHICH SIDE THIS TAKES
+    Computed from the verified regulatory constants: `Delta = 1/0.9` as stated
+    in Appendix F's prose, and `sigma_W0 = 0.10`.
 
-    Appendix F's prose gives `Delta = 1/0.9 (approximately=1.11111)`. Its SAS
-    example then writes `theta=((log(1.11111))/0.1)**2` - the rounded decimal,
-    not the exact ratio.
-
-    The two disagree in theta by about 1.9e-05 relative. This uses the exact
-    `1/0.9`, because the prose states the constant and the SAS displays it: a
-    figure typed to five decimal places in an example is a presentation of the
-    rule, not the rule. That is the same reading that made 0.294 normative in
-    the highly-variable procedure - the regulator's stated value governs - and
-    it points the other way here, which is worth noticing. There the stated
-    value WAS the rounded one; here the stated value is the ratio.
-
-    The difference is far too small to move a decision on its own, and it is
-    recorded rather than ignored because "too small to matter" is a judgement
-    somebody should get to check.
+    See `fda_nti_theta_sas_example` for the value Appendix F's example code
+    would give, and the comment above it for why they differ and why the prose
+    constant governs.
     """
     delta = FDA_NTI_CONSTANTS["delta"].value
     sigma_w0 = FDA_NTI_CONSTANTS["sigma_w0"].value
     return (math.log(delta) / sigma_w0) ** 2
+
+
+def fda_nti_theta_sas_example() -> float:
+    """Theta as Appendix F's SAS example would compute it. NOT the rule.
+
+    Provided so the difference can be measured from the package rather than
+    re-derived by hand, and so a test can assert that no decision path calls
+    this. Nothing in `nti.py` does, and a structural test enforces it.
+    """
+    sigma_w0 = FDA_NTI_CONSTANTS["sigma_w0"].value
+    return (math.log(FDA_NTI_SAS_EXAMPLE_DELTA.value) / sigma_w0) ** 2
 
 
 def resolve_be_spec(

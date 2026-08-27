@@ -410,22 +410,43 @@ def test_the_nti_case_drives_all_three_criteria_and_their_conjunction():
         assert result.passes is row["overall"], row
 
 
-def test_the_nti_case_records_the_delta_discrepancy_and_which_side_was_taken():
-    """The guidance disagrees with itself by 1.9e-05, and the file says so."""
-    from be_stats.spec import FDA_NTI_CONSTANTS, fda_nti_theta
+def test_the_nti_case_records_the_delta_precision_discrepancy():
+    """The three metadata fields, and the measurement behind them.
+
+    Classified as a PRECISION DISCREPANCY between a stated constant and an
+    example-code approximation - not as a contradiction, and not as something
+    affecting the algorithm, which is identical either way.
+    """
+    from be_stats.spec import (
+        FDA_NTI_CONSTANTS,
+        FDA_NTI_SAS_EXAMPLE_DELTA,
+        fda_nti_theta,
+        fda_nti_theta_sas_example,
+    )
 
     case = _case("FDA-NTI-CRITERIA-001")
-    discrepancy = case["constants"]["delta_discrepancy"]
+    record = case["constants"]["delta_precision_discrepancy"]
 
-    assert discrepancy["prose"].startswith("Delta = 1/0.9")
-    assert "1.11111" in discrepancy["sas"]
+    assert record["normative_constant_source"] == "Appendix F prose — Delta = 1/0.9"
+    assert record["example_code_literal"] == "Appendix F SAS — 1.11111"
+    assert record["implementation_choice"] == "use normative 1/0.9"
+
+    assert "precision discrepancy" in record["classification"]
+    assert "NOT the guidance contradicting itself" in record["not_a_contradiction"]
+    assert "does not affect the algorithm" in record["not_a_contradiction"]
+
+    # The engine agrees with what the file records.
     assert FDA_NTI_CONSTANTS["delta"].value == 1.0 / 0.9
+    assert FDA_NTI_SAS_EXAMPLE_DELTA.value == 1.11111
 
-    exact = fda_nti_theta()
-    rounded = (math.log(1.11111) / 0.10) ** 2
-    measured = abs(exact - rounded) / exact
+    theta_regulatory = fda_nti_theta()
+    theta_sas_example = fda_nti_theta_sas_example()
+    assert str(theta_regulatory) in record["theta_regulatory"]
+    assert str(theta_sas_example) in record["theta_sas_example"]
+
+    measured = abs(theta_regulatory - theta_sas_example) / theta_regulatory
     assert measured == pytest.approx(
-        discrepancy["relative_difference_in_theta"], rel=0.05
+        record["relative_difference_in_theta"], rel=0.01
     )
 
 
@@ -458,6 +479,13 @@ def test_the_two_appendices_were_compared_line_by_line_before_sharing():
     assert "1.11111" in differing[0][0], "Appendix F"
     assert "1.25" in differing[0][1], "Appendix G"
     assert "mode flag" in case["howe_comparison"]["consequence"]
+
+    # The Appendix F side of that line is the EXAMPLE literal. The engine
+    # decides with the prose constant, so the SAS line and the implementation
+    # legitimately differ here - which is the precision discrepancy recorded
+    # separately, not a conformance failure.
+    record = case["constants"]["delta_precision_discrepancy"]
+    assert record["implementation_choice"] == "use normative 1/0.9"
 
 
 def test_tier_1a_does_not_promote_a_method_to_validated():
