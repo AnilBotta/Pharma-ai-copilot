@@ -58,11 +58,29 @@ and EMA's published result can only be reproduced by **keeping** them — which
 is how the difference between FDA's inclusion rule and EMA's stopped being a
 matter of opinion.
 
+## What this evidence establishes
+
+Three capabilities are `VALIDATED` on the strength of it — the first in the
+package:
+
+| capability | evidence |
+|---|---|
+| `ema_hvd_reference_variability` | CVwR 47.0% and 11.2% |
+| `ema_replicate_method_a` | both point estimates and both 90% intervals |
+| `ema_abel_limit_calculation` | all five rows of the 4.1.10 table |
+
 ## What is still not established
 
-- **The cap reading.** The guideline states the maximum as the pair
-  69.84 – 143.19%; the formula at CVwR = 50% gives 69.83678 – 143.19102. The
-  stated pair is applied. See `validation/findings/VAL-EMA-ABEL-002.md`.
+- **The end-to-end decision.** No EMA publication carries one highly variable
+  Cmax example running CVwR > 30% → widened limits → Method A 90% CI → GMR
+  within 80–125% → a stated PASS or FAIL. Every *part* is validated; the wiring
+  between them is not, so `ema_hvd_endpoint_decision` and the method stay
+  `IMPLEMENTED_UNVALIDATED`.
+- **The cap reading, as against the oracle.** The guideline states the maximum
+  as the pair 69.84 – 143.19%; PowerTOST recomputes 69.83678 – 143.19102. The
+  stated pair is applied, and the table above is what confirms that reading.
+  Resolved as an accepted oracle divergence —
+  `validation/findings/VAL-EMA-ABEL-002.md`.
 - **Tier 3 for the whole procedure.** PowerTOST's `scABEL` is a deterministic
   check of the limits; its power functions report a quantity that is not the
   one it appears to be. See `validation/findings/VAL-EMA-ABEL-001.md`.

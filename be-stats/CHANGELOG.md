@@ -91,11 +91,60 @@ stored twice on purpose.
   routes. And `power.scABEL` routes for EMA to `power.scABEL1`, which documents
   four "purely empirical" adaptations. A tuned approximation is not an oracle,
   so **`scABEL` — which is deterministic** — is the primary one instead.
-- **`VAL-EMA-ABEL-002`** (`ACCEPTED_ORACLE_DIVERGENCE`). EMA states the cap as
-  the pair 69.84–143.19; the formula at CVwR = 50% gives 69.83678–143.19102.
-  `be-stats` applies the stated pair, as it does for FDA's 0.294. The 0.0032
-  percentage-point divergence was **predicted before the comparison ran**, and
-  the capped cases assert it rather than widening a tolerance to absorb it.
+- **`VAL-EMA-ABEL-002`** — status `RESOLVED`, classification
+  `ACCEPTED_ORACLE_DIVERGENCE`. EMA states the cap as the pair 69.84–143.19 and
+  its table gives the ≥50% row as exactly that; the formula at CVwR = 50% gives
+  69.83678–143.19102. `be-stats` applies the stated pair, as it does for FDA's
+  0.294. The 0.0032 percentage-point divergence was **predicted before the
+  comparison ran**, and the capped cases assert it rather than widening a
+  tolerance to absorb it.
+
+### Status and classification are separate fields
+
+They answer different questions:
+
+| field | question |
+|---|---|
+| `status` | does anyone still need to work on this — `OPEN` / `PREEMPTED` / `RESOLVED` |
+| `classification` | what turned out to be true, when `RESOLVED` |
+
+**`RESOLVED` is not the same as "the numbers now agree."** An
+`ACCEPTED_ORACLE_DIVERGENCE` is understood, decided, and *permanent*. So a
+resolved finding still qualifies its method's tier-3 row: `open_findings` on a
+case is now `standing_findings`, and the report says `STANDING FINDING` rather
+than `OPEN FINDING`. Calling a resolved divergence "open" made the report claim
+an investigation was outstanding when none was.
+
+The old field name is **refused** rather than silently accepted — a case left
+on it would quietly stop qualifying its method, which is a silent upgrade from
+`PASSED_WITH_FINDING` to `PASSED`.
+
+### The first `VALIDATED` capabilities in the package
+
+The EMA stages live in the existing `Capability` enum rather than a table of
+their own. Three are `VALIDATED` on tier-1B evidence:
+
+| capability | evidence |
+|---|---|
+| `ema_hvd_reference_variability` | CVwR 47.0% and 11.2%, both reproduced |
+| `ema_replicate_method_a` | 115.66 (107.11, 124.89) and 102.26 (97.32, 107.46) |
+| `ema_abel_limit_calculation` | all five rows of the 4.1.10 table |
+
+`VAL-EMA-ABEL-002` does **not** qualify the limit calculation: the tier-1B
+table is what *confirms* the stated reading, since all five rows reproduce
+under it. The finding records a difference from an **oracle**, and an oracle
+does not outrank the regulator.
+
+**`ema_hvd_endpoint_decision` and the method itself stay
+`IMPLEMENTED_UNVALIDATED`.** Every part has tier-1B evidence and the whole does
+not: no EMA publication carries one end-to-end highly variable Cmax example
+running CVwR > 30% → widened limits → Method A 90% CI → GMR constraint → a
+stated verdict. Validated components assembled by unvalidated wiring is exactly
+the failure this ladder exists to make visible.
+
+A test also asserts that **no FDA capability claims `VALIDATED`**, so the
+asymmetry stays a fact about the documents rather than something a later edit
+erodes.
 
 ### Tier 3 is deterministic for this method
 
