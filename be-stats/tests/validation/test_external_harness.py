@@ -523,3 +523,24 @@ def test_the_r_side_reports_the_versions_it_actually_resolved():
     r_side = (EXTERNAL / "run_powertost.R").read_text(encoding="utf-8")
     assert "r_packages_resolved" in r_side
     assert "packageVersion" in r_side
+
+
+def test_the_version_pin_is_compared_as_a_version_not_a_string():
+    """The bug the second CI build found.
+
+    CRAN writes PowerTOST's version as `1.5-7`; R's `package_version`
+    normalises the separator, so `as.character(packageVersion(...))` is
+    `1.5.7`. A string comparison fails on the very version it asked for -
+    which is what happened, immediately after PowerTOST 1.5-7 installed
+    successfully.
+
+    Comparing through `package_version` on both sides makes the check correct
+    rather than lenient: `1.5-7` and `1.5.7` match, `1.5.8` still does not.
+    """
+    for name in ("install_r_packages.R", "run_powertost.R"):
+        script = (EXTERNAL / name).read_text(encoding="utf-8")
+        assert "package_version(" in script, name
+        assert 'gsub("-", ".",' in script, name
+        # The string comparison that broke it must not return.
+        assert "identical(as.character(lock$powertost_version)" not in script
+        assert "if (!identical(got, want))" not in script

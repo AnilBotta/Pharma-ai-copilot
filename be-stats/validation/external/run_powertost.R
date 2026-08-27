@@ -38,7 +38,11 @@ lock_path <- file.path(dirname(normalizePath(sub("--file=", "", grep("--file=",
   commandArgs(trailingOnly = FALSE), value = TRUE)[1]))), "environment.lock.json")
 if (file.exists(lock_path)) {
   lock <- jsonlite::fromJSON(lock_path)
-  if (!identical(as.character(lock$powertost_version), powertost_version)) {
+  # Version comparison, not string comparison - CRAN's "1.5-7" normalises to
+  # "1.5.7" through package_version. See install_r_packages.R.
+  pinned <- package_version(gsub("-", ".", as.character(lock$powertost_version),
+                                 fixed = TRUE))
+  if (utils::packageVersion("PowerTOST") != pinned) {
     stop(sprintf(
       paste0("PowerTOST %s is installed but environment.lock.json pins %s. ",
              "An unpinned oracle is not an oracle: fix the environment or ",

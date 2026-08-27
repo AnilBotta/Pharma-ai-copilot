@@ -48,16 +48,29 @@ install.packages(direct, dependencies = c("Depends", "Imports"))
 # relax for the wrong reason.
 enforced <- list(PowerTOST = "1.5-7")
 
+# COMPARE VERSIONS, NOT STRINGS.
+#
+# CRAN writes PowerTOST's version as "1.5-7"; R's package_version normalises the
+# separator, so as.character(packageVersion("PowerTOST")) is "1.5.7". A string
+# comparison therefore fails on the very version it asked for - which is exactly
+# what the second build attempt did, after correctly installing PowerTOST 1.5-7.
+#
+# `package_version()` on both sides compares them as versions, so "1.5-7" and
+# "1.5.7" match while 1.5.8 still does not. This makes the check correct, not
+# lenient.
 problems <- character(0)
 for (pkg in names(enforced)) {
   if (!requireNamespace(pkg, quietly = TRUE)) {
     problems <- c(problems, sprintf("%s is not installed", pkg))
     next
   }
-  got <- as.character(utils::packageVersion(pkg))
-  want <- enforced[[pkg]]
-  if (!identical(got, want)) {
-    problems <- c(problems, sprintf("%s: wanted %s, got %s", pkg, want, got))
+  got <- utils::packageVersion(pkg)
+  want <- package_version(gsub("-", ".", enforced[[pkg]], fixed = TRUE))
+  if (got != want) {
+    problems <- c(problems, sprintf(
+      "%s: wanted %s (normalised %s), got %s",
+      pkg, enforced[[pkg]], as.character(want), as.character(got)
+    ))
   }
 }
 
