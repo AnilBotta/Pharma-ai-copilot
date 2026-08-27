@@ -1,12 +1,9 @@
 {
   "_comment": "Pinned versions for the external validation environment. Read by run_powertost.R (which refuses to run against a different PowerTOST) and by harness.py (which records declared alongside observed). An oracle whose version drifts is not an oracle.",
-
   "_two_tiers": "ENFORCED entries stop the build if unmet: their version can change a number. RECORDED entries are resolved by the snapshot and reported into the results JSON, so the report captures what actually ran. Pinning a transitive patch bump that cannot affect a result creates noise rather than confidence, and is a check somebody eventually relaxes for the wrong reason.",
-
   "enforced": {
     "PowerTOST": "1.5-7"
   },
-
   "recorded": {
     "_source": "Taken from the .environment.r_packages_resolved block of a green CI run, not declared by hand. R normalises CRAN's 1.5-7 to 1.5.7; both forms name the same version, which is why the pin is compared as a version rather than as a string.",
     "r_version": "4.5.1",
@@ -16,26 +13,22 @@
     "mvtnorm": "1.3.3",
     "cubature": "2.1.4"
   },
-
   "r_version": "4.5.1",
   "r_base_image": "rocker/r-ver:4.5.1",
   "r_repository_snapshot": "https://packagemanager.posit.co/cran/2025-10-01",
-  "r_install_dependencies": "c(\"Depends\", \"Imports\") — NOT TRUE. See install_r_packages.R: TRUE also installs Suggests, which is what broke the first build.",
-
+  "r_install_dependencies": "c(\"Depends\", \"Imports\") \u2014 NOT TRUE. See install_r_packages.R: TRUE also installs Suggests, which is what broke the first build.",
   "powertost_version": "1.5-7",
   "powertost_source": "CRAN",
   "powertost_date": "2025-09-16",
   "powertost_cran_published": "2025-09-23",
   "powertost_manual_dated": "2026-05-07",
-
   "python_version": "3.13",
   "python_packages": {
     "scipy": ">=1.11",
     "pytest": ">=8"
   },
-
   "verification_status": {
-    "state": "GREEN — built and run in CI, PowerTOST 1.5-7 resolved as pinned",
+    "state": "GREEN \u2014 built and run in CI, PowerTOST 1.5-7 resolved as pinned",
     "history": [
       {
         "when": "first CI run of validation-r",
@@ -56,10 +49,23 @@
         "what": "green in 3m30s; 18 comparisons ran, 18 passed, 0 skipped",
         "why": "",
         "fix": "",
-        "note": "Tier 3 PASSED for standard_abe, fda_hvd_rsabe and fda_nti. One FINDING recorded - see detail."
+        "note": "Tier 3 PASSED for standard_abe and fda_nti, PASSED_WITH_FINDING for fda_hvd_rsabe. One FINDING recorded - see detail."
+      },
+      {
+        "when": "VAL-FDA-HVD-001 investigation, be-stats 0.5.2",
+        "what": "the RSABE boundary-near FINDING was explained",
+        "why": "PowerTOST's p(BE-sABEc) is counts['BEul'], the MIXED decision - conventional ABE below the switch - not the scaled criterion alone. The harness compared it against the scaled criterion applied to every simulated study. Both implementations were correct; the comparison was not. Classified RESOLVED_POWERTOST_CONFIGURATION_ERROR.",
+        "fix": "RSABE cases now drive PowerTOST with reg_const('USER', CVswitch = 0, ...), keeping FDA's r_const and the 'fda' criterion and disabling only the routing, so p(BE-sABEc) is the scaled criterion alone. simulate_scaled_power refuses an RSABE case that does not ask for it. No tolerance was changed and no production logic was touched.",
+        "note": "Experiment A - the same quantity on both sides - puts be-stats at 0.87055 against 0.87098, 0.17 sigma, using the identical 0.87055 that was flagged."
       }
     ],
-    "detail": "The image builds, PowerTOST 1.5-7 installs and matches the pin, and all 18 comparisons ran. Tier 3 is PASSED for all three methods. One comparison is flagged as a FINDING: RSABE-002-BOUNDARY-NEAR/p_be_sabec agreed within tolerance at 4.61 standard errors, which sampling error does not explain. See the README.",
-    "what_would_change_this": "Nothing further for the build. The open item is the RSABE boundary-near finding, and replacing `recorded` with the versions the container resolved, taken from the `.environment.r_packages_resolved` block of powertost_results.json."
+    "detail": "The image builds, PowerTOST 1.5-7 installs and matches the pin, and all 18 comparisons ran. Tier 3 is PASSED for standard_abe and fda_nti, and PASSED_WITH_FINDING for fda_hvd_rsabe. One comparison was flagged as a FINDING: RSABE-002-BOUNDARY-NEAR/p_be_sabec agreed within tolerance at 4.61 standard errors, which sampling error does not explain. That is VAL-FDA-HVD-001, RESOLVED in 0.5.2 as a mismatch of quantities rather than of implementations. The standing finding is VAL-FDA-HVD-002, an accepted divergence in the switching threshold that no run will close.",
+    "what_would_change_this": "Nothing further for the build. VAL-FDA-HVD-001 is resolved; VAL-FDA-HVD-002 stays open by design. The remaining item is replacing `recorded` with the versions the container resolved, taken from the `.environment.r_packages_resolved` block of powertost_results.json.",
+    "open_findings": [
+      "VAL-FDA-HVD-002"
+    ],
+    "resolved_findings": [
+      "VAL-FDA-HVD-001"
+    ]
   }
 }

@@ -1,0 +1,222 @@
+{
+  "finding_id": "VAL-FDA-HVD-001",
+  "title": "PowerTOST's p(BE-sABEc) is the mixed decision, not the scaled criterion alone",
+  "raised_by": "be-stats external validation harness, first run, PR #58",
+  "raised_on": "2026-08-27",
+  "resolved_on": "2026-08-28",
+  "status": "RESOLVED_POWERTOST_CONFIGURATION_ERROR",
+  "method": "fda_hvd_rsabe",
+  "severity": "harness_defect_no_production_impact",
+
+  "observation": {
+    "case_id": "RSABE-002-BOUNDARY-NEAR",
+    "quantity": "p_be_sabec",
+    "be_stats_value": 0.87055,
+    "powertost_value": 0.85817,
+    "absolute_difference": 0.01238,
+    "declared_absolute_tolerance": 0.01549,
+    "outcome": "PASS",
+    "monte_carlo_sigmas": 4.61,
+    "why_it_was_flagged": "Inside a tolerance evaluated at the worst case p = 0.5, and 4.61 of its own standard errors out at the observed p = 0.86. The harness reports that combination as a FINDING rather than as a pass, which is the only reason it was noticed.",
+    "cases_that_agreed": [
+      "RSABE-001-CENTRAL, CVwR 0.40",
+      "RSABE-003-HIGH-VARIABILITY, CVwR 0.60"
+    ],
+    "discriminating_feature": "Only the boundary-near case has a substantial share of simulated studies below the sWR switch - about 43.5 percent at CVwR 0.31, against about 6 percent at 0.40 and under 1e-6 at 0.60."
+  },
+
+  "root_cause": {
+    "summary": "The two sides were computing different quantities, and each was computing its own correctly. PowerTOST's element named p(BE-sABEc) is the MIXED decision - the scaled criterion above the switch, conventional ABE below it, without the point-estimate constraint. The be-stats harness computed the scaled criterion ALONE for every simulated study.",
+    "oracle": {
+      "package": "PowerTOST",
+      "version": "1.5-7",
+      "cran_published": "2025-09-23",
+      "source_obtained_from": "https://cran.r-project.org/src/contrib/PowerTOST_1.5-7.tar.gz",
+      "entry_point": "power.RSABE, R/power_RSABE.R line 18",
+      "delegates_to": ".power.RSABE, R/power_RSABE2L_isc.R line 287",
+      "implemented_in": ".pwr.SABE.isc, R/power_RSABE2L_isc.R lines 149-283, with SABE_test = \"fda\""
+    },
+    "decisive_lines": [
+      {
+        "file": "R/power_RSABE.R",
+        "line": "names(p) <- c(\"p(BE)\", \"p(BE-sABEc)\", \"p(BE-pe)\", \"p(BE-ABE)\")",
+        "note": "The second element is named p(BE-sABEc)."
+      },
+      {
+        "file": "R/power_RSABE2L_isc.R",
+        "line": "names(counts) <- c(\"BE\", \"BEul\", \"BEpe\", \"BEabe\")",
+        "line_number": 161,
+        "note": "The second element is BEul. The name sABEc appears nowhere in the implementation; it is applied to BEul on the way out."
+      },
+      {
+        "file": "R/power_RSABE2L_isc.R",
+        "line": "BE <- ifelse(s2wRs>s2switch, BE_RSABE, BE_ABE)",
+        "line_number": 257,
+        "note": "BE is the MIXED decision."
+      },
+      {
+        "file": "R/power_RSABE2L_isc.R",
+        "line": "counts[\"BEul\"] <- counts[\"BEul\"] + sum(BE)",
+        "line_number": 273,
+        "note": "BEul accumulates the mixed decision, so p(BE-sABEc) is the mixed decision without the point-estimate constraint."
+      }
+    ],
+    "why_the_shape_of_the_error_matches_the_data": "Below the switch PowerTOST reports conventional ABE, which at CVwR 0.31 with n = 36 is harder to pass than the scaled criterion. The larger the share below the switch, the lower PowerTOST's value relative to the scaled criterion alone - which is exactly the ordering and the CV dependence observed."
+  },
+
+  "confirmed_against_the_real_oracle": {
+    "what": "The experiments below use a Python transcription of PowerTOST, which cannot corroborate PowerTOST. This block is the corroboration: the corrected case files driving the actual package in CI.",
+    "run": "validation-r, PR #59, PowerTOST 1.5-7 in the pinned image",
+    "decisive_line": {
+      "case": "RSABE-002-BOUNDARY-NEAR/p_be_sabec",
+      "before": {"python": 0.87055, "powertost": 0.85817, "sigmas": 4.61,
+                 "r_setting": "regulator = \"FDA\""},
+      "after": {"python": 0.87055, "powertost": 0.87104, "sigmas": 0.19,
+                "r_setting": "reg_const(\"USER\", CVswitch = 0, ...)"},
+      "reading": "THE PYTHON VALUE IS UNCHANGED - 0.87055 in both runs. Nothing on the be-stats side moved. Only which quantity PowerTOST was asked for changed, and the 4.61 sigma became 0.19."
+    },
+    "all_rsabe_comparisons": [
+      {"quantity": "RSABE-001-CENTRAL/p_be_sabec", "python": 0.8163, "powertost": 0.81682, "sigmas": 0.17},
+      {"quantity": "RSABE-001-CENTRAL/p_be_pe", "python": 0.9316, "powertost": 0.93267, "sigmas": 0.55},
+      {"quantity": "RSABE-001-CENTRAL/p_below_switch", "python": 0.06205, "powertost": 0.06173421462476501, "sigmas": 0.19},
+      {"quantity": "RSABE-002-BOUNDARY-NEAR/p_be_sabec", "python": 0.87055, "powertost": 0.87104, "sigmas": 0.19},
+      {"quantity": "RSABE-002-BOUNDARY-NEAR/p_be_pe", "python": 0.9902, "powertost": 0.9904, "sigmas": 0.26},
+      {"quantity": "RSABE-002-BOUNDARY-NEAR/p_below_switch", "python": 0.43255, "powertost": 0.4354185945387868, "sigmas": 0.82},
+      {"quantity": "RSABE-003-HIGH-VARIABILITY/p_be_sabec", "python": 0.8934, "powertost": 0.89215, "sigmas": 0.52},
+      {"quantity": "RSABE-003-HIGH-VARIABILITY/p_be_pe", "python": 0.8477, "powertost": 0.8489, "sigmas": 0.43},
+      {"quantity": "RSABE-004-BOUNDARY-RESEEDED/p_be_sabec", "python": 0.875, "powertost": 0.870911, "sigmas": 1.71},
+      {"quantity": "RSABE-004-BOUNDARY-RESEEDED/p_below_switch", "python": 0.4311, "powertost": 0.4354185945387868, "sigmas": 1.23}
+    ],
+    "whole_run": "22 passed, 0 failed, 0 skipped, 0 errored. The largest Monte Carlo distance anywhere in the run is 1.71 sigma; no comparison is flagged as a FINDING. Before this PR the same suite raised one at 4.61.",
+    "instrument_was_also_right": "The transcription predicted 0.87098 for this quantity; the real package returned 0.87104. The instrument is corroborated by the oracle here rather than the other way round.",
+    "p_below_switch_reading": "0.19, 0.82 and 1.23 sigma against a CLOSED FORM rather than another simulation. That is the sWR estimator and the switching rule checked independently of the criterion - the separation the power comparison alone could not give."
+  },
+
+  "confirming_experiments": {
+    "experiment_a": {
+      "what": "the scaled criterion alone, with switching disabled on both sides",
+      "be_stats": 0.87055,
+      "instrument": 0.87098,
+      "difference": -0.00043,
+      "sigmas": 0.17,
+      "reading": "The be-stats value is identical to the one flagged in CI. Compared against the same quantity, it agrees."
+    },
+    "experiment_b": {
+      "what": "the mixed procedure - what PowerTOST actually reports as p(BE-sABEc)",
+      "be_stats_side": 0.85620,
+      "instrument": 0.85672,
+      "difference": -0.00052,
+      "sigmas": 0.19,
+      "reading": "Against PowerTOST's CI value of 0.85817 at nsims 1e5, the instrument's 0.85672 sits about 1.3 standard errors away - ordinary sampling variation. The mixed quantity is reproduced, so the 0.01238 is fully accounted for by which quantity was named.",
+      "caveat": "The be-stats side of experiment B uses the INSTRUMENT's unscaled branch, because be-stats refuses the unscaled replicate branch until Appendix C is implemented. It explains the oracle's number; it does not validate be-stats, and it is not a case file."
+    },
+    "sweep": {
+      "what": "the gap between the scaled criterion alone and the mixed decision, across the switch",
+      "nsims": 8000,
+      "rows": [
+        {"cv_wr": 0.27, "fraction_below_switch": 0.8315, "gap": -0.04187},
+        {"cv_wr": 0.28, "fraction_below_switch": 0.7412, "gap": -0.01975},
+        {"cv_wr": 0.29, "fraction_below_switch": 0.6394, "gap": 0.00062},
+        {"cv_wr": 0.30, "fraction_below_switch": 0.5349, "gap": 0.00912},
+        {"cv_wr": 0.31, "fraction_below_switch": 0.4271, "gap": 0.01362},
+        {"cv_wr": 0.32, "fraction_below_switch": 0.3367, "gap": 0.01350},
+        {"cv_wr": 0.33, "fraction_below_switch": 0.2574, "gap": 0.01337},
+        {"cv_wr": 0.35, "fraction_below_switch": 0.1411, "gap": 0.01212},
+        {"cv_wr": 0.40, "fraction_below_switch": 0.0238, "gap": 0.00150},
+        {"cv_wr": 0.60, "fraction_below_switch": 0.0000, "gap": 0.00000}
+      ],
+      "reading": "The gap vanishes exactly where the switching fraction vanishes - 0.0015 at CVwR 0.40 and identically zero at 0.60, which is why those two cases agreed in CI while the boundary case did not. It also CHANGES SIGN near CVwR 0.29: far below the switch, conventional ABE is easier than a barely widened scaled limit, so the mixed decision passes more often rather than less. A constant offset, a wrong scaling constant or a wrong degrees-of-freedom count could not produce a sign change located at the switch."
+    }
+  },
+
+  "hypotheses_eliminated": [
+    {
+      "hypothesis": "Monte Carlo variation",
+      "verdict": "ELIMINATED",
+      "evidence": "At nsims = 50000 and three independent seeds the gap between the scaled criterion alone and the mixed decision was 0.01344, 0.01452 and 0.01414 - a range of 0.00108 around the 0.01238 originally observed at nsims = 20000. It neither moves with the seed nor shrinks with nsims, which is what separates a difference of definitions from sampling noise."
+    },
+    {
+      "hypothesis": "The two sides simulate different studies",
+      "verdict": "ELIMINATED",
+      "evidence": "PowerTOST draws the deciding statistics directly (pes ~ Normal, sd2s and s2wRs ~ scaled chi-square); be-stats simulates subject-level data and estimates them. verify_data_generating_process checks the be-stats sWR^2 against the exact scaled chi-square: mean 0.091796 against 0.091758 exact, and a Kolmogorov-Smirnov p of 0.958 at nsims = 20000. Same study, same distribution."
+    },
+    {
+      "hypothesis": "A defect in the be-stats scaled criterion itself",
+      "verdict": "ELIMINATED",
+      "evidence": "Experiment A - the scaled criterion alone, with switching disabled on both sides - puts be-stats at 0.87055 against 0.87098, a difference of 0.00043 or 0.17 of its own standard errors. The be-stats figure is the same 0.87055 the harness produced in CI, so the criterion that was flagged is the criterion that agrees."
+    },
+    {
+      "hypothesis": "A defect in the be-stats Howe criterion",
+      "verdict": "ELIMINATED",
+      "evidence": "Algebraically identical term by term. See algorithm_comparison below."
+    },
+    {
+      "hypothesis": "est_method = \"ISC\" selects a legacy estimation route",
+      "verdict": "ELIMINATED",
+      "evidence": "reg_const(\"FDA\") does carry est_method = \"ISC\" (R/scABEL.R line 18), but power.RSABE never reads it: it takes CVswitch, r_const, pe_constr and CVcap from the regSet (R/power_RSABE.R lines 44-46) and calls .power.RSABE directly. est_method is consulted only in the ABEL family - power_scABEL.R line 17, samplesize_scABEL.R lines 19 and 26, and the sdsims guards - none of which is on this path. It is therefore descriptive here, and a USER regSet defaulting to \"ANOVA\" cannot change a power.RSABE result."
+    },
+    {
+      "hypothesis": "The switching threshold difference (VAL-FDA-HVD-002)",
+      "verdict": "REAL BUT NOT THE CAUSE",
+      "evidence": "PowerTOST switches at sWR = sqrt(log(1+0.30^2)) = 0.293560; FDA Appendix G states 0.294. On this scenario that moves the switching probability by about 0.005 and the mixed power by under 0.001 - roughly a twentieth of the observed 0.01238. It also cannot be the cause of a discrepancy in a quantity the be-stats side computed without reference to any switch."
+    }
+  ],
+
+  "algorithm_comparison": {
+    "note": "be-stats' Appendix G implementation against PowerTOST .pwr.SABE.isc with SABE_test = \"fda\". Design 2x2x4 throughout.",
+    "rows": [
+      {"step": "reference variance sWR^2", "be_stats": "sum-of-squares of Dij about sequence means over 2(n-m), from data", "powertost": "s2wR * rchisq(nsims, dfRR) / dfRR, sampled", "verdict": "NUMERICALLY_EQUIVALENT", "basis": "identical sampling distribution under the shared model; checked by KS test"},
+      {"step": "dfRR", "be_stats": "n - m, m = 2", "powertost": "n - 2", "verdict": "IDENTICAL"},
+      {"step": "treatment contrast", "be_stats": "equally weighted sequence means of Iij", "powertost": "rnorm(nsims, mlog, sdm), sdm^2 = Emse * C3", "verdict": "NUMERICALLY_EQUIVALENT"},
+      {"step": "contrast df", "be_stats": "n - 2 (Satterthwaite collapses to the residual)", "powertost": "n - 2", "verdict": "IDENTICAL"},
+      {"step": "critical t", "be_stats": "t(1 - alpha, df)", "powertost": "qt(1 - alpha, df)", "verdict": "IDENTICAL"},
+      {"step": "Howe x", "be_stats": "estimate^2 - SE^2", "powertost": "Em = pes^2, then Em <- Em - SEs^2 for SABE_test = \"fda\"", "verdict": "IDENTICAL"},
+      {"step": "Howe bound_x", "be_stats": "max(|log CI limits|)^2", "powertost": "Cm = (abs(pes) + hw)^2", "verdict": "IDENTICAL", "basis": "the larger absolute limit of a symmetric interval is |centre| + half-width"},
+      {"step": "Howe y", "be_stats": "-theta * sWR^2, theta = (ln 1.25 / 0.25)^2", "powertost": "Es = r2const * s2wRs, r_const = log(1.25)/0.25", "verdict": "IDENTICAL"},
+      {"step": "Howe bound_y", "be_stats": "y * dfRR / chi2(alpha, dfRR)", "powertost": "Cs = Es * dfRR / qchisq(1 - alpha, dfRR)", "verdict": "IDENTICAL"},
+      {"step": "criterion bound", "be_stats": "(x + y) + sqrt((bound_x - x)^2 + (bound_y - y)^2)", "powertost": "SABEc95 = Em - Es + sqrt((Cm - Em)^2 + (Cs - Es)^2)", "verdict": "IDENTICAL"},
+      {"step": "criterion decision", "be_stats": "bound <= 0", "powertost": "SABEc95 <= 0", "verdict": "IDENTICAL"},
+      {"step": "point estimate constraint", "be_stats": "0.8000 <= point estimate <= 1.2500", "powertost": "BEpe <- (pes >= ln_lBEL & pes <= ln_uBEL)", "verdict": "IDENTICAL"},
+      {"step": "switching threshold", "be_stats": "sWR >= 0.294 (Appendix G, normative)", "powertost": "s2wRs > log(CVswitch^2 + 1) with CVswitch = 0.3, i.e. sWR > 0.293560", "verdict": "DIFFERENT", "basis": "recorded separately as VAL-FDA-HVD-002"},
+      {"step": "below-switch branch", "be_stats": "NOT_IMPLEMENTED; refuses, citing Appendix C's mixed model", "powertost": "TOST on the same intra-subject contrast", "verdict": "DIFFERENT", "basis": "FDA specifies a five-parameter mixed model there; PowerTOST's convention is not FDA's and be-stats does not adopt it"},
+      {"step": "quantity reported as p(BE-sABEc)", "be_stats_harness": "the scaled criterion alone, over all simulations", "powertost": "the mixed decision, over all simulations", "verdict": "DIFFERENT", "basis": "THE ROOT CAUSE"}
+    ]
+  },
+
+  "matched_synthetic_datasets": {
+    "attempted": false,
+    "reason": "PowerTOST 1.5-7 exposes no dataset-level entry point for the FDA scaled procedures. power.RSABE and power.NTID take a scenario - CV, theta0, design, n - and return probabilities; nothing in the package accepts subject-level observations and returns sWR, a treatment contrast, or a criterion value. There is therefore no argument list that would make a matched-dataset comparison possible, and this is a property of the oracle rather than of the harness.",
+    "closest_available_substitute": "The switching probability, which both sides can state for the same scenario without simulating a dataset: sWR^2 * dfRR / sigma_wR^2 is chi-square on dfRR, so the R side computes P(sWR < 0.294) in closed form and the Python side reports the observed fraction. Now asserted as p_below_switch on RSABE-001, RSABE-002 and RSABE-004."
+  },
+
+  "resolution": {
+    "classification": "RESOLVED_POWERTOST_CONFIGURATION_ERROR",
+    "in_words": "The harness drove the oracle with a component definition that does not mean what its name suggested. Neither be-stats nor PowerTOST was wrong.",
+    "changes_made": [
+      "RSABE cases now set inputs.experiment = \"scaled_criterion_isolated\", which drives PowerTOST with reg_const(\"USER\", r_const = log(1.25)/0.25, CVswitch = 0, CVcap = Inf, pe_constr = TRUE). With CVswitch = 0 every study takes the BE_RSABE branch, so p(BE-sABEc) becomes the scaled criterion alone. FDA's regulatory constant and the \"fda\" criterion, bias correction included, are untouched; only the routing is disabled, on the side that has routing.",
+      "simulate.simulate_scaled_power now REFUSES an RSABE case that does not request that experiment, rather than quietly comparing the wrong pair again.",
+      "A new comparison, p_below_switch, checks the be-stats switching fraction against the exact chi-square probability - the one quantity that separates the sWR estimator and the switch from the criterion.",
+      "RSABE-004-BOUNDARY-RESEEDED repeats the scenario at an independent seed with a ten-times larger oracle count.",
+      "Tier-3 status gained PASSED_WITH_FINDING, and cases gained open_findings, so no method with a standing finding can render as a bare PASSED."
+    ],
+    "changes_deliberately_not_made": [
+      "No production statistical logic was changed. The finding was in the comparison, not in be-stats.",
+      "No tolerance was altered retrospectively. RSABE-002 keeps 0.01549, derived before the first run. Retrofitting a tolerance to a resolved finding would leave the tolerance meaning nothing.",
+      "PowerTOST's below-switch convention was NOT adopted as be-stats' unscaled branch. It is a TOST on the intra-subject contrast; FDA specifies Appendix C's mixed model. Matching the oracle by copying it is the failure this whole directory exists to prevent."
+    ]
+  },
+
+  "engineering_observations": [
+    {
+      "id": "ENG-001",
+      "what": "One pytest failure was observed once in the local suite during PR #58 and did not reproduce in eight subsequent full runs (383 tests, 0 failures).",
+      "status": "EXPLAINED_AND_FIXED",
+      "explanation": "It was never intermittent. tests/validation/test_algorithm_conformance.py imports make_criterion from tests.unit.test_rsabe_criterion, which resolves only when the working directory is be-stats/. Invoked as `pytest be-stats/tests` from the repository root, the same two tests fail with ModuleNotFoundError: No module named 'tests'. Deterministic given the invocation, and invisible whenever the suite is run the usual way - which is exactly the shape of a failure that appears once and then will not reproduce.",
+      "fix": "pythonpath = [\".\"] under [tool.pytest.ini_options] in be-stats/pyproject.toml. rootdir resolves to that file under either invocation, so one relative entry covers both. Verified green from the repository root and from be-stats/.",
+      "why_it_is_recorded_here_but_kept_apart": "It is an engineering observation about the test suite, not a numerical finding about a statistical method. It was found while re-running the suite during this investigation, and it is separated so it cannot be mistaken for evidence about the discrepancy. The brief asked that it not be pursued; the cause was visible in the first full run and the fix is one line, so it was taken rather than left."
+    }
+  ],
+
+  "evidence": "VAL-FDA-HVD-001-evidence.json, produced by validation/external/investigate_val_fda_hvd_001.py",
+  "related_findings": ["VAL-FDA-HVD-002"]
+}

@@ -45,7 +45,14 @@ Two things behaved correctly while failing, which was the design intent:
 half-installed environment through, and the report step refused to invent a
 report it did not have.
 
-## The finding: RSABE near the switching threshold
+## The finding: RSABE near the switching threshold — RESOLVED
+
+> **Resolved in 0.5.2.** The two sides were computing different quantities:
+> PowerTOST's `p(BE-sABEc)` is the *mixed* decision, not the scaled criterion
+> alone. Both implementations were correct. Full record in
+> [`validation/findings/VAL-FDA-HVD-001.md`](../findings/VAL-FDA-HVD-001.md);
+> the speculation kept below is left in place, marked, because being wrong
+> about the cause is part of what the record is for.
 
 `RSABE-002-BOUNDARY-NEAR/p_be_sabec` agreed **within the declared tolerance**
 and is **4.61 standard errors apart**:
@@ -69,20 +76,31 @@ in units of its own standard error and flags anything beyond 4 as a
 `FINDING` — visible on every run, changing no pass or fail, so a person
 decides.
 
-**What it might be, none of which is established:**
+**What it was thought to be — recorded, and wrong:**
 
-- PowerTOST's FDA setting uses `est_method = "ISC"` (intra-subject contrasts)
-  per `reg_const("FDA")`, which need not estimate sWR identically to Appendix
-  G's closed form near the switch.
-- `power.RSABE`'s documentation says its linearized criterion follows the SAS in
-  FDA's **progesterone** guidance; this package follows *Statistical Approaches*
-  Appendix G. Same constants, different documents.
+- ~~PowerTOST's FDA setting uses `est_method = "ISC"` per `reg_const("FDA")`,
+  which need not estimate sWR identically to Appendix G's closed form.~~
+  `power.RSABE` never reads `est_method`; it is consulted only in the ABEL
+  family.
+- ~~`power.RSABE`'s linearized criterion follows the SAS in FDA's
+  **progesterone** guidance; this package follows *Statistical Approaches*
+  Appendix G. Same constants, different documents.~~ The criterion is identical
+  term by term — `Em`, `Cm`, `Es`, `Cs`, `SABEc95` map one-to-one onto `x`,
+  `bound_x`, `y`, `bound_y` and the criterion bound, bias correction included.
 - The scenario sits just above the 30% classification CV, so a large share of
-  simulated studies land either side of `sWR = 0.294` — the region where any
-  difference in how sWR is estimated has the most leverage.
+  simulated studies land either side of `sWR = 0.294`. **This one was right,
+  for the wrong reason.** The leverage is not in how sWR is estimated but in
+  what happens to a study below the switch: PowerTOST reports conventional ABE
+  there and calls the result `p(BE-sABEc)`.
 
-**This should be resolved before FDA HVD RSABE is relied on**, notwithstanding
-that its tier 3 reads PASSED.
+The last of those is worth keeping in view. The correct explanation was
+adjacent to a plausible wrong one, and the difference between them is the
+difference between changing an estimator and changing a comparison.
+
+**Now `PASSED_WITH_FINDING`,** which is not the same as `PASSED`. The remaining
+finding is [`VAL-FDA-HVD-002`](../findings/VAL-FDA-HVD-002.md): PowerTOST
+switches at `sWR > 0.293560`, FDA states `sWR ≥ 0.294`, and no run will ever
+close that.
 
 ## Two Phase-1 numbers were wrong, and the real agreement is far better
 

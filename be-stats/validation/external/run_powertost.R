@@ -105,6 +105,71 @@ eval_constant <- function(case) {
   )
 }
 
+# WHAT `p(BE-sABEc)` ACTUALLY IS - VAL-FDA-HVD-001
+#
+# It is NOT the scaled criterion applied to every simulated study. In
+# PowerTOST 1.5-7, `R/power_RSABE2L_isc.R`, `power.RSABE` names its second
+# element "p(BE-sABEc)" and fills it from `counts["BEul"]` (line 273), which
+# accumulates
+#
+#     BE <- ifelse(s2wRs > s2switch, BE_RSABE, BE_ABE)          # line 257
+#
+# - the MIXED procedure without the point-estimate constraint. Below the
+# switch it reports conventional ABE, not the scaled criterion.
+#
+# be-stats cannot produce that quantity: it refuses the unscaled replicate
+# branch until Appendix C is implemented. Comparing the two as if they were
+# the same thing is what produced the 4.61-sigma finding in PR #58.
+#
+# THE FIX, AND WHY IT IS NOT A FUDGE
+#
+# `reg_const("USER", CVswitch = 0, ...)` makes `s2switch <- log(0^2+1) = 0`
+# (line 156), and `s2wRs` is a scaled chi-square draw, so it exceeds 0 with
+# probability one. Every study therefore takes the `BE_RSABE` branch and
+# `p(BE-sABEc)` becomes the scaled criterion ALONE - the quantity be-stats
+# computes. `CVcap = Inf` leaves `is.finite(CVcap)` false, so the capping
+# block at line 260 does not run, and FDA imposes no cap anyway.
+#
+# Nothing about the criterion changes: r_const is FDA's log(1.25)/0.25 and
+# SABE_test is still "fda", including its `Em <- Em - SEs^2` bias correction.
+# Only the routing is switched off, on the side that has routing.
+#
+# `est_method` differs between the two regSets - "ISC" for FDA, "ANOVA" for a
+# USER set (`R/scABEL.R` lines 17 and 51). `power.RSABE` never reads it: it
+# takes CVswitch, r_const, pe_constr and CVcap from the regSet (lines 44-46)
+# and calls `.power.RSABE` directly. `est_method` selects an ESTIMATION route
+# in the functions that analyse data, of which this is not one.
+experiment_regulator <- function(experiment) {
+  if (is.null(experiment) || identical(experiment, "fda_mixed_procedure")) {
+    return("FDA")
+  }
+  if (identical(experiment, "scaled_criterion_isolated")) {
+    return(PowerTOST::reg_const(
+      "USER",
+      r_const = log(1.25) / 0.25,
+      CVswitch = 0,
+      CVcap = Inf,
+      pe_constr = TRUE
+    ))
+  }
+  stop(sprintf("unknown experiment '%s'", experiment), call. = FALSE)
+}
+
+# P(a study lands below a given sWR switch), exactly.
+#
+# sWR^2 * dfRR / sigma^2_wR is chi-square on dfRR degrees of freedom under the
+# model both sides simulate, so this needs no simulation. It is the one place
+# the two switching RULES can be compared as rules rather than as outcomes.
+exact_p_below_switch <- function(swr_threshold, cv_wr, n, design) {
+  df_rr <- switch(design,
+    "2x2x4" = n - 2,
+    "2x3x3" = n - 3,
+    stop(sprintf("no dfRR for design '%s'", design), call. = FALSE)
+  )
+  s2wr <- log(cv_wr^2 + 1)
+  stats::pchisq(df_rr * swr_threshold^2 / s2wr, df = df_rr)
+}
+
 eval_power <- function(case) {
   i <- case$inputs
   design <- if (!is.null(i$powertost_design)) i$powertost_design else i$design
@@ -112,22 +177,43 @@ eval_power <- function(case) {
 
   if (identical(case$method, "fda_hvd_rsabe")) {
     cv <- if (isTRUE(all.equal(i$cv_wt, i$cv_wr))) i$cv_wr else c(i$cv_wt, i$cv_wr)
+    regulator <- experiment_regulator(i$experiment)
     res <- PowerTOST::power.RSABE(
       CV = cv,
       theta0 = i$theta0,
       n = i$n,
       design = design,
-      regulator = "FDA",
+      regulator = regulator,
       nsims = nsims_r,
       details = TRUE,
       setseed = TRUE
     )
-    return(list(
+    fda <- PowerTOST::reg_const("FDA")
+    out <- list(
       p_be_sabec = as.numeric(res[["p(BE-sABEc)"]]),
       p_be_pe = as.numeric(res[["p(BE-pe)"]]),
       .p_be = as.numeric(res[["p(BE)"]]),
-      .p_be_abe = as.numeric(res[["p(BE-ABE)"]])
-    ))
+      .p_be_abe = as.numeric(res[["p(BE-ABE)"]]),
+      .experiment = if (is.null(i$experiment)) "fda_mixed_procedure"
+                    else i$experiment,
+      # The oracle's own switch, on the sWR scale, so the divergence recorded
+      # as VAL-FDA-HVD-002 is a number in the report rather than a claim in a
+      # comment: PowerTOST converts CVswitch = 0.3 to sqrt(log(1.09)) =
+      # 0.293560..., where FDA Appendix G states 0.294.
+      .powertost_swr_switch = sqrt(log(as.numeric(fda$CVswitch)^2 + 1))
+    )
+    # Only where the case asks for it: the comparison needs cv_wt == cv_wr and
+    # a stated be-stats threshold, and asserting it elsewhere would be a
+    # tolerance applied to a quantity nobody chose to compare.
+    if (!is.null(i$be_stats_swr_switch)) {
+      out$p_below_switch <- exact_p_below_switch(
+        i$be_stats_swr_switch, i$cv_wr, i$n, design
+      )
+      out$.p_below_switch_powertost <- exact_p_below_switch(
+        out$.powertost_swr_switch, i$cv_wr, i$n, design
+      )
+    }
+    return(out)
   }
 
   if (identical(case$method, "fda_nti")) {

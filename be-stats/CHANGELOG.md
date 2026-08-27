@@ -6,6 +6,98 @@ first question asked of a result years later.
 
 ---
 
+## 0.5.2 — VAL-FDA-HVD-001 explained
+
+**No new regulatory methods. No engine behaviour changed, and none needed to
+change.** This release is an investigation and its result.
+
+### The 4.61-sigma finding was a mismatch of quantities
+
+`RSABE-002-BOUNDARY-NEAR/p_be_sabec` had be-stats at 0.87055 and PowerTOST at
+0.85817. Both were right. They were not computing the same thing.
+
+PowerTOST's element named `p(BE-sABEc)` is `counts["BEul"]`, which accumulates
+
+```r
+BE <- ifelse(s2wRs > s2switch, BE_RSABE, BE_ABE)     # power_RSABE2L_isc.R:257
+```
+
+— the **mixed decision**, conventional ABE below the switch, without the
+point-estimate constraint. The harness compared it against the **scaled
+criterion alone**, computed for every simulated study. At CVwR 0.31 about 43.5%
+of studies fall below the switch; at 0.40 about 2%; at 0.60 none. Which is
+exactly why one case disagreed and two agreed.
+
+Classified `RESOLVED_POWERTOST_CONFIGURATION_ERROR`: the harness drove the
+oracle with a component definition that did not mean what its name suggested.
+
+### The evidence
+
+- **Experiment A** — the scaled criterion alone, switching disabled on both
+  sides: 0.87055 against 0.87098, **0.17 sigma**. The be-stats figure is the
+  same one that was flagged.
+- **Across the switch**, the gap tracks the switching fraction to zero — 0.0015
+  at CVwR 0.40, exactly 0.00000 at 0.60 — and *changes sign* near CVwR 0.29,
+  where conventional ABE becomes easier than a barely widened scaled limit. No
+  constant offset or wrong constant produces a sign change located at the switch.
+- **Not noise**: at nsims 50 000 across three seeds the gap was 0.01344, 0.01452
+  and 0.01414. It neither moves with the seed nor shrinks with nsims.
+- **Same study on both sides**: be-stats' `sWR²` against the exact scaled
+  chi-square gives a Kolmogorov–Smirnov *p* of 0.958.
+
+### The criterion itself is identical, term by term
+
+`x`, `bound_x`, `y`, `bound_y`, the criterion bound and the decision all map
+one-to-one onto PowerTOST's `Em`, `Cm`, `Es`, `Cs` and `SABEc95`, bias
+correction included, with `dfRR = n − 2` on both sides. Recorded as a table in
+`VAL-FDA-HVD-001.md`.
+
+### What changed
+
+- RSABE cases run PowerTOST with `reg_const("USER", CVswitch = 0, …)`, keeping
+  FDA's `r_const` and the `"fda"` criterion and disabling only the routing, so
+  `p(BE-sABEc)` is the scaled criterion alone.
+- `simulate_scaled_power` **refuses** an RSABE case that does not ask for that.
+- New comparison `p_below_switch`, against the exact chi-square rather than
+  against another simulation — the one check that separates the `sWR` estimator
+  and the switch from the criterion.
+- New case `RSABE-004-BOUNDARY-RESEEDED`: same scenario, independent seed, ten
+  times the oracle count.
+- `validation/findings/` — frozen, machine-readable finding records, with the
+  investigation script that reproduces them.
+- Tier 3 gained **`PASSED_WITH_FINDING`**; cases gained `open_findings`; the
+  report cannot render a qualified pass as a plain one, and a test asserts the
+  phrase "fully validated" appears nowhere in it, not even inside a negation.
+
+### What deliberately did not change
+
+- **No production statistical logic.** The finding was in the comparison.
+- **No tolerance was altered retrospectively.** `RSABE-002` keeps the 0.01549
+  derived before the first run.
+- **PowerTOST's below-switch convention was not adopted.** It is a TOST on the
+  intra-subject contrast; FDA specifies Appendix C's mixed model, which
+  `replicate_abe.py` still records and still refuses to approximate.
+
+### A second, permanent divergence: VAL-FDA-HVD-002
+
+PowerTOST derives the switch as `log(CVswitch² + 1)` with `CVswitch = 0.3`,
+i.e. **sWR > 0.293560**. FDA Appendix G states **sWR ≥ 0.294**. This is the
+exact distinction settled in 0.1.1, and be-stats follows the regulator.
+
+Worth about 0.005 in switching probability and under 0.001 in power — roughly a
+twentieth of the difference that raised `VAL-FDA-HVD-001`, and never a candidate
+explanation for it. It is `ACCEPTED_ORACLE_DIVERGENCE`: no run will close it,
+and it is what keeps the FDA HVD tier-3 row at `PASSED_WITH_FINDING`.
+
+### ENG-001 was not intermittent
+
+The pytest failure seen once in 0.5.1 and never reproduced depends on the
+invocation, not on chance: `test_algorithm_conformance.py` imports from
+`tests.unit.test_rsabe_criterion`, which resolves only when the working
+directory is `be-stats/`. Fixed with `pythonpath = ["."]`.
+
+---
+
 ## 0.5.1 — a reproducible external validation environment
 
 **No new regulatory methods. No engine behaviour changed.** `validation/external/`
@@ -17,7 +109,14 @@ make validate          # Docker + R + PowerTOST
 make validate-python   # no R: every comparison reports SKIPPED
 ```
 
-### Tier 3 is PASSED for all three methods
+### Tier 3: PASSED for ABE and NTI, PASSED_WITH_FINDING for FDA HVD
+
+> **Corrected in 0.5.2.** This entry originally read "Tier 3 is PASSED for all
+> three methods", with the finding noted underneath. For a 4.61-sigma
+> difference the qualification belongs in the heading, not below it — a reader
+> skimming headings would have taken away the wrong summary. `PASSED_WITH_FINDING`
+> is now a status the harness can express, and the FDA HVD row carries it.
+> See `VAL-FDA-HVD-001`.
 
 `18 passed, 0 failed, 0 skipped` in CI. The image builds, PowerTOST 1.5-7 runs,
 and the job fails on any skip — so green means the comparisons happened.
