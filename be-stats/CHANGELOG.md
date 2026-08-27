@@ -6,6 +6,116 @@ first question asked of a result years later.
 
 ---
 
+## 0.5.1 — a reproducible external validation environment
+
+**No new regulatory methods. No engine behaviour changed.** `validation/external/`
+is a Docker-based tier-3 cross-check against R and PowerTOST 1.5-7, driven from
+one case definition read by both sides.
+
+```bash
+make validate          # Docker + R + PowerTOST
+make validate-python   # no R: every comparison reports SKIPPED
+```
+
+### Nothing has been cross-checked yet, and the report says so
+
+Neither Docker nor R was available where this was written. The image has never
+been built and `run_powertost.R` has never run. Every comparison currently
+reports `SKIPPED`; every method's tier 3 is `PENDING`.
+
+That is the correct output for this state, and it is why `SKIPPED` and `PASS`
+are different words. A harness that went green because it had nothing to
+compare would be worse than no harness. A test asserts a missing R side is
+never reported as a pass, and in the CI job a skip is a *failure* — there, a
+missing R means a broken image.
+
+The Python half of every case does run, and 29 tests of the harness itself run
+in the ordinary suite.
+
+### The scaled procedures cannot be compared directly — at all
+
+The finding that shaped the design. `PowerTOST` 1.5-7 offers, for the FDA
+scaled procedures, only **simulation-based power** functions: `power.RSABE` and
+`power.NTID` take assumed inputs and return the probability of a BE decision
+over `nsims` studies. Neither takes a dataset; neither exposes sWR, a treatment
+contrast, or a criterion value. `be-stats` does only the opposite.
+
+So the comparison happens at the highest layer both expose — the probability
+the criterion passes — with the Python side simulating studies and applying the
+be-stats decision to each. That exercises the whole pipeline, and it is weaker
+than comparing a criterion against a criterion. Both facts are recorded.
+
+Per-component comparison is possible and is what the cases do:
+`p(BE-sABEc)` and `p(BE-pe)` for RSABE; `p(BE-sABEc)` and `p(BE-sratio)` for
+NTI — PowerTOST's `power.NTID` implements all three NTI criteria and reports
+each separately.
+
+What each case **cannot** establish is recorded in `not_cross_checkable`:
+
+- the overall `p(BE)` for either method — RSABE's is the mixed procedure and
+  NTI's needs criterion (b); both are Appendix C;
+- the Howe intermediates, which PowerTOST does not expose — checked against the
+  FDA SAS in the tier-1A case instead;
+- the sWR switching threshold: PowerTOST's `CVswitch` is on the CV scale and
+  FDA's 0.294 is on the sWR scale. Conflating them is the confusion 0.1.1 had
+  to correct, so no comparison is attempted.
+
+### Tolerances are derived before the comparison, never widened after
+
+Every comparison carries a mandatory `tolerance_basis`; a case without one is
+rejected at load. Sample size is exact. ABE power uses the differences actually
+measured. Monte Carlo power uses `4 × sqrt(p(1−p)(1/n₁ + 1/n₂))` at the worst
+case `p = 0.5`, so the tolerance does not depend on the answer.
+
+### Re-measuring corrected a Phase-1 attribution
+
+Phase 1 recorded a 6.0 × 10⁻⁶ power difference on the narrowed-limits scenario
+and put it down to the non-central t approximation against exact Owen's Q.
+**That was wrong.** The Phase-1 case uses `upper_limit = 1.1111`, truncated to
+four places, and the truncation dominates. With the exact `1/0.9`, be-stats
+gives 0.8002181715 against the same published 0.800218 — a difference of
+**1.7 × 10⁻⁷**, the same order as the other case's 1.9 × 10⁻⁷, which is what
+the same approximation should produce.
+
+Nothing was ever failing: the Phase-1 tolerance of 1e-4 covered either value.
+The *explanation* was wrong, and a claim about where a numerical difference
+comes from is exactly the kind of thing this package is supposed to get right.
+The Phase-1 case is left alone — a truncated limit is a legitimate scenario —
+with the correction recorded beside it, and a test now computes both numbers so
+the attribution cannot drift again.
+
+### Tier 3 needs more than one agreeing case
+
+`TIER3_REQUIRED_ROLES` names the roles each method needs — central,
+boundary-near, high-variability, unequal-variability — and all must **PASS**,
+not merely not fail. Tests assert every required role has a case and that one
+passing role does not promote a method.
+
+### Appendix C: investigated, still blocked
+
+`APPENDIX_C_FEASIBILITY.md` records what was checked. `nlme` 3.1-170 expresses
+the covariance structure exactly (`pdSymm` random, `varIdent` residuals) but
+**the word "Satterthwaite" does not appear anywhere in its manual** — it uses
+containment df, which lands directly on the CI width that criterion (b) tests.
+`lme4`+`lmerTest` has Satterthwaite but one residual variance; `glmmTMB` has
+both structures but not Satterthwaite inference.
+
+No package examined meets all four requirements, so **Appendix C stays
+blocked** and nothing is implemented in Python on the strength of a near miss.
+
+### Also
+
+- `.github/workflows/validation-r.yml` — an optional `validation-r` job. The
+  ordinary suite stays pure Python and needs neither Docker nor R.
+- A `Makefile`, so the cross-check is one command.
+- A PowerShell scripting bug wrote the oracle call for five cases as an empty
+  array (`$args` is an automatic variable). Caught by the harness's own test
+  asserting every case names its oracle arguments.
+
+375 tests collected, 0 failures, 6 skipped.
+
+---
+
 ## 0.5.0 — FDA narrow therapeutic index: two criteria of three
 
 FDA's NTI procedure from Appendix F. **No EMA ABEL.** **No Appendix C.**

@@ -1,0 +1,89 @@
+# External validation: be-stats against PowerTOST.
+#
+# SEPARATE FROM THE ORDINARY TEST JOB, ON PURPOSE.
+#
+# `be_stats` depends on scipy and nothing else. Making the unit suite require
+# Docker or R would make a pure Python package's tests unrunnable for anyone
+# without them, to check something that is not part of the package.
+#
+# So this job is optional and slow, and the ordinary suite stays fast. What the
+# ordinary suite DOES cover is the harness itself - see
+# tests/validation/test_external_harness.py, which runs with no R at all and
+# asserts that a missing environment reports SKIPPED rather than PASS.
+
+name: validation-r
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "be-stats/src/**"
+      - "be-stats/validation/external/**"
+      - ".github/workflows/validation-r.yml"
+  schedule:
+    # Weekly. The oracle is pinned, so a change here means the pins drifted or
+    # something in be-stats moved - both worth hearing about without waiting
+    # for someone to remember to run it.
+    - cron: "0 4 * * 1"
+
+jobs:
+  powertost-cross-check:
+    name: PowerTOST cross-check
+    runs-on: ubuntu-latest
+    # Generous: the Monte Carlo cases simulate 20,000 studies each through the
+    # full be-stats pipeline, and PowerTOST runs 100,000 per case on its side.
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build the pinned validation image
+        run: docker build -t be-stats-validation be-stats/validation/external
+
+      - name: Run the cross-check
+        # --require-r makes a missing R a failure INSIDE the image, where a
+        # missing R means the image is broken. Outside it, absence is SKIPPED.
+        run: |
+          docker run --rm -v "$PWD:/work" be-stats-validation
+
+      - name: Show the report
+        if: always()
+        run: |
+          if [ -f be-stats/validation/external/report.txt ]; then
+            cat be-stats/validation/external/report.txt
+          else
+            echo "no report was produced — the run failed before comparing"
+            exit 1
+          fi
+
+      - name: Fail if anything was skipped
+        # A skipped comparison in THIS job is a broken environment, not an
+        # acceptable outcome. The distinction only exists for local runs.
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import json, sys, pathlib
+          path = pathlib.Path("be-stats/validation/external/report.json")
+          if not path.exists():
+              print("no report.json"); sys.exit(1)
+          report = json.loads(path.read_text())
+          bad = [c for c in report["comparisons"]
+                 if c["outcome"] in ("SKIPPED", "ERROR", "FAIL")]
+          for c in bad:
+              print(f"{c['outcome']:<8} {c['case_id']}/{c['quantity']}  {c['detail']}")
+          print()
+          for method, status in report["tier3"].items():
+              print(f"tier3 {method:<20} {status['tier3']}")
+          sys.exit(1 if bad else 0)
+          PY
+
+      - name: Upload the report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: external-validation-report
+          path: |
+            be-stats/validation/external/report.json
+            be-stats/validation/external/report.txt
+            be-stats/validation/external/powertost_results.json
+          if-no-files-found: warn

@@ -1,0 +1,32 @@
+{
+  "_comment": "Pinned versions for the external validation environment. Read by both run_powertost.R (which refuses to run against a different PowerTOST) and harness.py (which records declared alongside observed). An oracle whose version drifts is not an oracle.",
+
+  "r_version": "4.5.1",
+  "r_base_image": "rocker/r-ver:4.5.1",
+  "r_repository_snapshot": "https://packagemanager.posit.co/cran/2025-10-01",
+
+  "powertost_version": "1.5-7",
+  "powertost_source": "CRAN",
+  "powertost_date": "2025-09-16",
+  "powertost_cran_published": "2025-09-23",
+  "powertost_manual_dated": "2026-05-07",
+
+  "r_packages": {
+    "PowerTOST": "1.5-7",
+    "jsonlite": "2.0.0",
+    "mvtnorm": "1.3-3",
+    "cubature": "2.1.4"
+  },
+
+  "python_version": "3.13",
+  "python_packages": {
+    "scipy": ">=1.11",
+    "pytest": ">=8"
+  },
+
+  "verification_status": {
+    "state": "DECLARED, NOT YET EXERCISED",
+    "detail": "Neither Docker nor R was available on the machine where this harness was written, so the image has never been built and run_powertost.R has never executed. The pins were taken from the PowerTOST CRAN manual (version 1.5-7, dated 2025-09-16, published 2025-09-23), which was read directly. Everything on the Python side has been run. Until someone builds the image, every comparison reports SKIPPED - which is the point of distinguishing SKIPPED from PASS.",
+    "what_would_change_this": "One successful `docker build` plus one run of `make validate` producing a report with no SKIPPED rows. At that point r_version and the transitive package versions should be replaced with the ones the build actually resolved, taken from the container rather than from this file."
+  }
+}

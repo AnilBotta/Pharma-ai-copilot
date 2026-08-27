@@ -97,6 +97,26 @@ products. Recorded as `FDA_IVPT_NOTE`, wired into nothing, and guarded by a
 test — because a global "the 0.294 rule" would be wrong for one of the two.
 That is the M13A scoping lesson arriving from a third direction.
 
+### The tier-3 harness now exists (0.5.1)
+
+`validation/external/` holds a Docker-based cross-check against R and
+PowerTOST 1.5-7, driven from one canonical case definition read by both sides.
+See its own README for the design; the parts that matter here:
+
+- **Nothing has been cross-checked yet.** No Docker and no R were available
+  where it was written, so every comparison reports `SKIPPED` and every
+  method's tier 3 is `PENDING`. That is the correct output for this state.
+- **`SKIPPED` is not `PASS`**, and a test asserts it. In the CI job a skip is a
+  *failure*, because there a missing R means a broken image.
+- **The scaled procedures cannot be compared directly at all.** PowerTOST's
+  `power.RSABE` and `power.NTID` are simulation-based *power* functions; they
+  analyse no dataset and expose no criterion value. The comparison is made at
+  the highest common layer — the probability the criterion passes — with the
+  Python side simulating studies and applying the be-stats decision to each.
+- **Tier 3 needs more than one agreeing case.** Each method names required case
+  roles (central, boundary-near, high-variability, unequal-variability) and all
+  must pass before it may be marked `PASSED`.
+
 **PowerTOST is not the regulatory authority.** It is an independent
 implementation to cross-check against. Its usefulness is partly that its own
 validation traces back to published tables — its `ct5.1` fixture corresponds to
@@ -140,6 +160,19 @@ Measured on those two cases, and the basis for the stated tolerances:
 |---|---|---|---|
 | CV 0.20, ratio 0.95, 2x2, 80% | n=20, power 0.834680 | n=20, 0.834680 | 1.9e-07 |
 | CV 12.5%, ratio 0.975, 90-111.11 | n=32, power 0.800218 | n=32, 0.800212 | 6.0e-06 |
+
+**The second row's difference was misattributed, and 0.5.1 corrected it.** The
+6.0e-06 was ascribed to the non-central t approximation. It is not: that case
+uses `upper_limit = 1.1111`, truncated to four places, and the truncation
+dominates. Re-run with the exact `1/0.9`, be-stats gives 0.8002181715 against
+the same published 0.800218 — a difference of **1.7e-07**, the same order as
+the first row, which is what the same approximation should produce.
+
+The case file is left as it stands: a truncated limit is a legitimate scenario
+and its tolerance (1e-4) always covered the difference, so nothing was ever
+failing. What was wrong was the explanation. The external case
+`ABE-002-NARROW-LIMITS` uses the exact ratio and records the re-measured
+figure.
 
 Sample sizes agree exactly; the power deltas are this package's non-central t
 approximation against PowerTOST's exact Owen's Q. The tolerance was set from

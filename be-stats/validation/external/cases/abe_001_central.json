@@ -1,0 +1,48 @@
+{
+  "case_id": "ABE-001-CENTRAL",
+  "title": "Ordinary ABE, 2x2 crossover, CV 20%, ratio 0.95, 80% power",
+  "method": "standard_abe",
+  "comparison_kind": "direct",
+
+  "inputs": {
+    "role": "central",
+    "design": "2x2",
+    "powertost_design": "2x2",
+    "cv": 0.20,
+    "theta0": 0.95,
+    "alpha": 0.05,
+    "target_power": 0.80,
+    "lower_limit": 0.80,
+    "upper_limit": 1.25
+  },
+
+  "oracle": {
+    "tool": "PowerTOST",
+    "function": "sampleN.TOST",
+    "secondary_function": "power.TOST",
+    "arguments": "CV=0.20, theta0=0.95, targetpower=0.80, theta1=0.80, theta2=1.25, design=\"2x2\", method=\"exact\"",
+    "method_note": "PowerTOST's default is the EXACT method (Owen's Q). be-stats uses the non-central t approximation. Sample size must agree exactly; power is compared within a measured tolerance.",
+    "regulatory_setting": "none — this is the conventional interval, not a scaled procedure"
+  },
+
+  "comparisons": [
+    {
+      "quantity": "sample_size",
+      "absolute_tolerance": 0.0,
+      "relative_tolerance": 0.0,
+      "tolerance_basis": "EXACT. Sample size is an integer produced by stepping an even total until the target power is reached. The two implementations differ in how power is computed, not in the stepping, so any disagreement means the power curves cross the target at different n - a real difference, never rounding. Zero tolerance."
+    },
+    {
+      "quantity": "achieved_power",
+      "absolute_tolerance": 1e-05,
+      "relative_tolerance": 1e-05,
+      "tolerance_basis": "MEASURED, not chosen. This scenario was already compared during Phase 1: be-stats gave 0.834680 against PowerTOST's published 0.834680, a difference of 1.9e-07. The tolerance is ~50x that measured difference, which leaves room for a different PowerTOST build without admitting a real method change. The residual difference is the non-central t approximation against exact Owen's Q, which is a known and documented method difference rather than an error."
+    }
+  ],
+
+  "not_cross_checkable": [
+    "Nothing. Both implementations expose sample size and power directly, so this case compares like with like at the same layer."
+  ],
+
+  "notes": "One of the two scenarios established in Phase 1. It exists first so the harness itself can be checked: if this does not reproduce, nothing downstream is trustworthy, whatever it reports."
+}
