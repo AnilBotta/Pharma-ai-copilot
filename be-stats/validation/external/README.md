@@ -18,16 +18,38 @@ PYTHONPATH=src python validation/external/harness.py
 
 ## Status, plainly
 
-**Nothing here has been cross-checked yet.** Neither Docker nor R was available
-where this was written, so the image has never been built and
-`run_powertost.R` has never executed. Every comparison currently reports
-`SKIPPED` and every method's tier 3 is `PENDING`.
+**Nothing here has been cross-checked yet.** Every comparison reports `SKIPPED`
+and every method's tier 3 is `PENDING`.
 
 That is the correct output for this state, and it is the reason `SKIPPED` and
 `PASS` are different words. A harness that reported green because it had
 nothing to compare would be worse than no harness.
 
-What *has* been run: the Python side of every case, and 29 tests of the harness
+### The first build attempt, and what it found
+
+The image was written without Docker or R available, so it went to CI unbuilt.
+The first `validation-r` run **failed after 3m24s**, and the reason was a bug
+worth recording:
+
+`install_r_packages.R` used `install.packages(..., dependencies = TRUE)`.
+`TRUE` also installs **Suggests**. PowerTOST suggests `emmeans`, whose
+dependency chain reaches `s2`, which needs Abseil C++ and cmake to compile.
+Three minutes of build time spent failing on a geospatial library that nothing
+here uses.
+
+Fixed: `dependencies = c("Depends", "Imports")`, and only the two packages
+`run_powertost.R` actually calls installed by name. A test now asserts
+`dependencies = TRUE` does not reappear.
+
+Two things behaved correctly while failing, which is worth noting because it is
+the whole design intent: `warn = 2` turned the install warning into an error
+rather than letting a half-installed environment through, and the report step
+refused to invent a report it did not have.
+
+**The build has not yet gone green.** Until it does, this directory is
+infrastructure with no results.
+
+What *has* been run: the Python side of every case, and 32 tests of the harness
 itself in the ordinary suite.
 
 ## The hierarchy this must not invert
@@ -126,6 +148,24 @@ widened afterwards to accommodate what it produced:
 - **Monte Carlo power** — `4 × sqrt(p(1−p)(1/n₁ + 1/n₂))`, evaluated at the
   worst case `p = 0.5` so it does not depend on the answer:
   `4 × sqrt(0.25 × (1/20000 + 1/100000)) = 0.01549`.
+
+## Version pins: two tiers, on purpose
+
+`environment.lock.json` separates them.
+
+**Enforced** — `PowerTOST`. Its version can change a number, and a different
+version is a different oracle. `install_r_packages.R` stops the build if the
+snapshot resolves anything else.
+
+**Recorded** — R itself and the transitive packages. Their versions come from
+the dated snapshot and are reported into `powertost_results.json` under
+`.environment.r_packages_resolved`, so the report captures what actually ran
+rather than what was asked for.
+
+Pinning every transitive patch version as well would fail builds over bumps
+that cannot affect a result — a check that produces noise instead of
+confidence, and one somebody eventually relaxes for the wrong reason. The
+lockfile says which tier each entry is in and why.
 
 ## When may tier 3 be marked PASSED?
 

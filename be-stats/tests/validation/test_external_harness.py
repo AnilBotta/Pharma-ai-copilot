@@ -483,6 +483,43 @@ def test_the_environment_lockfile_declares_the_pins_and_its_own_status():
     assert lock["powertost_version"] == "1.5-7"
     assert lock["r_version"]
     assert lock["r_repository_snapshot"].startswith("https://")
+
+    # The oracle is enforced; transitive versions are recorded, not pinned.
+    assert lock["enforced"] == {"PowerTOST": "1.5-7"}
+    assert "jsonlite" in lock["recorded"]
+
     status = lock["verification_status"]
-    assert "NOT YET EXERCISED" in status["state"]
+    assert "NOT YET GREEN" in status["state"]
     assert status["what_would_change_this"]
+    assert status["history"], (
+        "a build has been attempted; the lockfile must say what happened"
+    )
+
+
+def test_the_r_install_does_not_pull_suggests():
+    """The bug the first CI build found, guarded so it cannot come back.
+
+    `install.packages(..., dependencies = TRUE)` also installs Suggests.
+    PowerTOST suggests `emmeans`, whose chain reaches `s2`, which needs Abseil
+    C++ and cmake. The build spent three minutes failing on a geospatial
+    library that nothing here uses.
+    """
+    script = (EXTERNAL / "install_r_packages.R").read_text(encoding="utf-8")
+
+    assert 'dependencies = c("Depends", "Imports")' in script
+    assert "dependencies = TRUE" not in script
+
+    # And only the two packages `run_powertost.R` actually calls are installed
+    # by name, so a future addition is a deliberate edit.
+    assert 'direct <- c("PowerTOST", "jsonlite")' in script
+
+    r_side = (EXTERNAL / "run_powertost.R").read_text(encoding="utf-8")
+    for package in ("jsonlite", "PowerTOST"):
+        assert f"library({package})" in r_side
+
+
+def test_the_r_side_reports_the_versions_it_actually_resolved():
+    """The lockfile says what was asked for; the run must say what ran."""
+    r_side = (EXTERNAL / "run_powertost.R").read_text(encoding="utf-8")
+    assert "r_packages_resolved" in r_side
+    assert "packageVersion" in r_side

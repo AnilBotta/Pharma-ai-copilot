@@ -171,9 +171,21 @@ for (path in files) {
   results[[case$case_id]] <- value
 }
 
+# Every version that could bear on a number, as RESOLVED rather than as
+# declared. The lockfile says what was asked for; this says what ran.
+resolved <- list()
+for (pkg in c("PowerTOST", "jsonlite", "mvtnorm", "cubature")) {
+  resolved[[pkg]] <- if (requireNamespace(pkg, quietly = TRUE)) {
+    as.character(utils::packageVersion(pkg))
+  } else {
+    "absent"
+  }
+}
+
 results[[".environment"]] <- list(
   r_version = r_version,
   powertost_version = powertost_version,
+  r_packages_resolved = resolved,
   platform = R.version$platform,
   generated = format(Sys.time(), "%Y-%m-%dT%H:%M:%S%z")
 )

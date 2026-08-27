@@ -19,9 +19,7 @@ make validate-python   # no R: every comparison reports SKIPPED
 
 ### Nothing has been cross-checked yet, and the report says so
 
-Neither Docker nor R was available where this was written. The image has never
-been built and `run_powertost.R` has never run. Every comparison currently
-reports `SKIPPED`; every method's tier 3 is `PENDING`.
+Every comparison reports `SKIPPED`; every method's tier 3 is `PENDING`.
 
 That is the correct output for this state, and it is why `SKIPPED` and `PASS`
 are different words. A harness that went green because it had nothing to
@@ -29,8 +27,42 @@ compare would be worse than no harness. A test asserts a missing R side is
 never reported as a pass, and in the CI job a skip is a *failure* — there, a
 missing R means a broken image.
 
-The Python half of every case does run, and 29 tests of the harness itself run
+The Python half of every case does run, and 32 tests of the harness itself run
 in the ordinary suite.
+
+### The first build attempt failed, and the failure was informative
+
+The image went to CI unbuilt, because neither Docker nor R was available where
+it was written. The first `validation-r` run **failed after 3m24s**:
+
+`install_r_packages.R` used `install.packages(..., dependencies = TRUE)`, and
+`TRUE` also installs **Suggests**. PowerTOST suggests `emmeans`, whose chain
+reaches `s2`, which needs Abseil C++ and cmake. Three minutes spent failing on
+a geospatial library nothing here uses.
+
+Fixed: `dependencies = c("Depends", "Imports")`, with only the two packages
+`run_powertost.R` calls installed by name. A test asserts `dependencies = TRUE`
+does not come back.
+
+Two things behaved correctly while failing, which was the design intent:
+`warn = 2` turned the install warning into an error rather than letting a
+half-installed environment through, and the report step refused to invent a
+report. The CI job also produced three red steps for one root cause; "Show the
+report" is now informational so the actual error is not buried.
+
+**The build has still not gone green.**
+
+### Version pins now have two tiers
+
+`PowerTOST` is **enforced** — its version can change a number, and a different
+version is a different oracle. R and the transitive packages are **recorded**:
+resolved by the dated snapshot and reported into the results JSON under
+`.environment.r_packages_resolved`, so the report captures what ran rather than
+what was requested.
+
+Pinning every transitive patch would fail builds over bumps that cannot affect
+a result — noise rather than confidence, and a check somebody eventually
+relaxes for the wrong reason.
 
 ### The scaled procedures cannot be compared directly — at all
 
@@ -112,7 +144,7 @@ blocked** and nothing is implemented in Python on the strength of a near miss.
   array (`$args` is an automatic variable). Caught by the harness's own test
   asserting every case names its oracle arguments.
 
-375 tests collected, 0 failures, 6 skipped.
+377 tests collected, 0 failures, 6 skipped.
 
 ---
 

@@ -47,13 +47,16 @@ jobs:
           docker run --rm -v "$PWD:/work" be-stats-validation
 
       - name: Show the report
+        # Informational only. If the build or the run failed, that step is
+        # already red and the enforcement below will fail too - three red steps
+        # for one root cause is noise that buries the actual error.
         if: always()
+        continue-on-error: true
         run: |
           if [ -f be-stats/validation/external/report.txt ]; then
             cat be-stats/validation/external/report.txt
           else
             echo "no report was produced — the run failed before comparing"
-            exit 1
           fi
 
       - name: Fail if anything was skipped
