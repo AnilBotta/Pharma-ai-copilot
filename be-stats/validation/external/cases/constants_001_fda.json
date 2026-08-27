@@ -1,0 +1,53 @@
+{
+  "case_id": "CONSTANTS-001-FDA",
+  "title": "FDA regulatory constants, be-stats against PowerTOST's reg_const(\"FDA\")",
+  "method": "regulatory_constants",
+  "comparison_kind": "constant",
+
+  "inputs": {
+    "role": "constants",
+    "regulator": "FDA"
+  },
+
+  "oracle": {
+    "tool": "PowerTOST",
+    "function": "reg_const",
+    "arguments": "reg_const(\"FDA\")",
+    "method_note": "Returns an object of class 'regSet' with components CVswitch, r_const, CVcap, pe_constr and est_method. These are PowerTOST's encoding of the FDA settings, read independently of this package.",
+    "regulatory_setting": "FDA"
+  },
+
+  "comparisons": [
+    {
+      "quantity": "hvd_r_const",
+      "absolute_tolerance": 1e-12,
+      "relative_tolerance": 1e-12,
+      "tolerance_basis": "EXACT to floating point. Both sides compute ln(1.25)/0.25 from the same two exact inputs, so the only permissible difference is the last bit of a division. A larger difference would mean one side is using a different sigma_w0, which is a substantive disagreement and not rounding."
+    },
+    {
+      "quantity": "hvd_point_estimate_lower",
+      "absolute_tolerance": 0.0,
+      "relative_tolerance": 0.0,
+      "tolerance_basis": "EXACT. 0.8000 is a decimal literal on both sides; there is no arithmetic between them to lose a bit."
+    },
+    {
+      "quantity": "hvd_point_estimate_upper",
+      "absolute_tolerance": 0.0,
+      "relative_tolerance": 0.0,
+      "tolerance_basis": "EXACT, for the same reason as the lower limit: 1.2500 is a decimal literal on both sides with no arithmetic between them to lose a bit."
+    },
+    {
+      "quantity": "nti_variance_ratio_upper_limit",
+      "absolute_tolerance": 0.0,
+      "relative_tolerance": 0.0,
+      "tolerance_basis": "EXACT. 2.5 is a decimal literal on both sides."
+    }
+  ],
+
+  "not_cross_checkable": [
+    "PowerTOST's `CVswitch` for FDA is a CV, while FDA Appendix G states the switch on the estimated sWR (0.294). The two are adjacent quantities on different scales and are NOT the same constant - the highly variable release corrected exactly this confusion. So `hvd_swr_switching_threshold` is deliberately absent from the comparisons above: there is no PowerTOST value that means the same thing.",
+    "`CVcap` has no counterpart here. FDA does not cap the widening; the parameter exists in PowerTOST to serve EMA and Health Canada settings."
+  ],
+
+  "notes": "A cheap, deterministic check that two independent readings of the FDA settings agree. It is the only case in this directory that compares constants rather than computed results, and it is worth having precisely because a wrong constant would make every downstream comparison agree on the wrong answer."
+}

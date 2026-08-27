@@ -1,0 +1,46 @@
+{
+    "case_id":  "RSABE-002-BOUNDARY-NEAR",
+    "title":  "FDA RSABE, fully replicate, CVwR 31%, ratio 0.90, n=36",
+    "method":  "fda_hvd_rsabe",
+    "comparison_kind":  "monte_carlo_power",
+    "inputs":  {
+                   "role":  "boundary_near",
+                   "design":  "2x2x4",
+                   "powertost_design":  "2x2x4",
+                   "cv_wr":  0.31,
+                   "cv_wt":  0.31,
+                   "theta0":  0.9,
+                   "n":  36,
+                   "nsims":  20000,
+                   "nsims_r":  100000,
+                   "seed":  20260828
+               },
+    "oracle":  {
+                   "tool":  "PowerTOST",
+                   "function":  "power.RSABE",
+                   "arguments":  "power.RSABE(CV=0.31, theta0=0.90, n=36, design=\"2x2x4\", regulator=\"FDA\", details=TRUE, nsims=1e5)",
+                   "method_note":  "PowerTOST computes empirical power by simulating nsims studies from the distributional properties of the deciding statistics. be-stats analyses datasets, so the Python side simulates studies and applies the be-stats criterion to each. Two Monte Carlo estimates of one probability, compared at the only layer both expose.",
+                   "regulatory_setting":  "FDA",
+                   "version_pinned_in":  "environment.lock.json"
+               },
+    "comparisons":  [
+                        {
+                            "quantity":  "p_be_sabec",
+                            "absolute_tolerance":  0.01549,
+                            "relative_tolerance":  0,
+                            "tolerance_basis":  "DERIVED, and independent of the answer. Both sides estimate the same probability by simulation, so the difference between them has standard deviation sqrt(p(1-p)(1/n_python + 1/n_R)). Evaluated at the WORST CASE p = 0.5, which maximises p(1-p), and taken at four standard deviations: 4 * sqrt(0.25 * (1/20000 + 1/100000)) = 0.01549. Using worst-case p rather than the observed p means the tolerance was fixed before either side was run. Wide enough that two agreeing implementations pass essentially always; narrow enough that a procedural difference of more than about 1.5 percentage points fails."
+                        },
+                        {
+                            "quantity":  "p_be_pe",
+                            "absolute_tolerance":  0.01549,
+                            "relative_tolerance":  0,
+                            "tolerance_basis":  "DERIVED, and independent of the answer. Both sides estimate the same probability by simulation, so the difference between them has standard deviation sqrt(p(1-p)(1/n_python + 1/n_R)). Evaluated at the WORST CASE p = 0.5, which maximises p(1-p), and taken at four standard deviations: 4 * sqrt(0.25 * (1/20000 + 1/100000)) = 0.01549. Using worst-case p rather than the observed p means the tolerance was fixed before either side was run. Wide enough that two agreeing implementations pass essentially always; narrow enough that a procedural difference of more than about 1.5 percentage points fails."
+                        }
+                    ],
+    "not_cross_checkable":  [
+                                "The overall p(BE). PowerTOST applies the MIXED procedure - conventional ABE below the switch, scaled above it - and be-stats does not implement the unscaled branch for a replicate design (see replicate_abe.py). Only the two components are compared.",
+                                "The intermediate Howe quantities x, bound_x, y and bound_y. PowerTOST does not expose them for a dataset; it exposes only the probability that the criterion passed. They are checked instead against the FDA SAS in the tier-1A case FDA-HVD-RSABE-CRITERION-001.",
+                                "sWR and the treatment contrast for any individual study. PowerTOST analyses no dataset, so there is nothing to compare them with."
+                            ],
+    "notes":  "Sits just above the 30 percent classification CV, so a substantial share of simulated studies land on either side of the sWR = 0.294 switch. That makes the overall p(BE) especially not comparable, and makes the COMPONENT comparison especially worth having: it is where a wrong switching direction or a wrong scaling constant would show."
+}

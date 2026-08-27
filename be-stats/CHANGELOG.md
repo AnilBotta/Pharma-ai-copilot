@@ -6,6 +6,189 @@ first question asked of a result years later.
 
 ---
 
+## 0.5.1 — a reproducible external validation environment
+
+**No new regulatory methods. No engine behaviour changed.** `validation/external/`
+is a Docker-based tier-3 cross-check against R and PowerTOST 1.5-7, driven from
+one case definition read by both sides.
+
+```bash
+make validate          # Docker + R + PowerTOST
+make validate-python   # no R: every comparison reports SKIPPED
+```
+
+### Tier 3 is PASSED for all three methods
+
+`18 passed, 0 failed, 0 skipped` in CI. The image builds, PowerTOST 1.5-7 runs,
+and the job fails on any skip — so green means the comparisons happened.
+
+**With one finding.** See below; it is not a failure and it is not noise.
+
+A missing R environment still reports `SKIPPED`, never `PASS`, and a test
+asserts it. That is what a local run without Docker produces.
+
+### Three build attempts, each failure informative
+
+The image went to CI unbuilt, because neither Docker nor R was available where
+it was written.
+
+1. **Failed, 3m24s.** `install.packages(..., dependencies = TRUE)` also
+   installs **Suggests**; PowerTOST suggests `emmeans`, whose chain reaches
+   `s2`, needing Abseil C++ and cmake. Three minutes spent failing on a
+   geospatial library nothing here uses. Fixed to `c("Depends", "Imports")`.
+2. **Failed, 1m27s.** PowerTOST 1.5-7 installed correctly and the version check
+   then rejected it: *wanted 1.5-7, got 1.5.7*. CRAN writes `1.5-7`; R's
+   `package_version` normalises the separator, so a string comparison fails on
+   the exact version requested. Fixed to compare as versions — correct rather
+   than lenient, since `1.5.8` still fails.
+3. **Green, 3m30s.**
+
+Two things behaved correctly while failing: `warn = 2` turned the install
+warning into an error rather than letting a half-installed environment through,
+and the report step refused to invent a report. The job also produced three red
+steps for one root cause; "Show the report" is now informational so the real
+error is not buried.
+
+### The finding: RSABE near the switching threshold
+
+`RSABE-002-BOUNDARY-NEAR/p_be_sabec` agreed **within tolerance** and is
+**4.61 standard errors apart**:
+
+```
+py = 0.87055   r = 0.85817   diff = 1.238e-02   tol = 1.549e-02   [4.61 sigma]
+```
+
+Every other Monte Carlo comparison sits between 0.23 and 2.09 sigma. This one
+is not sampling error.
+
+It passed because the declared tolerance is evaluated at the worst case
+`p = 0.5` — a legitimate bound fixed before any run, and about 40% wider than a
+comparison at `p ≈ 0.86` deserves.
+
+**The tolerance was not tightened in response.** Narrowing a tolerance because
+of what it produced is how a tolerance stops meaning anything. Instead the
+report now states each Monte Carlo comparison's distance in units of its own
+standard error and flags anything beyond 4 as a `FINDING` — visible on every
+run, changing no pass or fail.
+
+Candidate explanations, none established: PowerTOST's FDA setting uses
+`est_method = "ISC"`; its `power.RSABE` follows the SAS in FDA's *progesterone*
+guidance rather than Appendix G; and the scenario straddles `sWR = 0.294`,
+where any difference in estimating sWR has most leverage.
+
+**This should be resolved before FDA HVD RSABE is relied on**, notwithstanding
+the PASSED tier 3.
+
+### Two Phase-1 numbers were wrong, and the agreement is far better
+
+Comparing at full precision rather than against six-decimal published figures:
+
+| | Phase 1 recorded | Actually measured |
+|---|---|---|
+| ABE-001 power | 1.9 × 10⁻⁷ | **1.4 × 10⁻¹⁰** |
+| ABE-002 power | 6.0 × 10⁻⁶ | **1.7 × 10⁻¹³** |
+
+be-stats' non-central t approximation agrees with PowerTOST's exact Owen's Q to
+about **1e-10** — three orders better than this package's own documentation
+claimed. The tolerances were left conservative; one run is not a reason to
+tighten them.
+
+### Version pins now have two tiers
+
+`PowerTOST` is **enforced** — its version can change a number, and a different
+version is a different oracle. R and the transitive packages are **recorded**:
+resolved by the dated snapshot and reported into the results JSON under
+`.environment.r_packages_resolved`, so the report captures what ran rather than
+what was requested.
+
+Pinning every transitive patch would fail builds over bumps that cannot affect
+a result — noise rather than confidence, and a check somebody eventually
+relaxes for the wrong reason.
+
+### The scaled procedures cannot be compared directly — at all
+
+The finding that shaped the design. `PowerTOST` 1.5-7 offers, for the FDA
+scaled procedures, only **simulation-based power** functions: `power.RSABE` and
+`power.NTID` take assumed inputs and return the probability of a BE decision
+over `nsims` studies. Neither takes a dataset; neither exposes sWR, a treatment
+contrast, or a criterion value. `be-stats` does only the opposite.
+
+So the comparison happens at the highest layer both expose — the probability
+the criterion passes — with the Python side simulating studies and applying the
+be-stats decision to each. That exercises the whole pipeline, and it is weaker
+than comparing a criterion against a criterion. Both facts are recorded.
+
+Per-component comparison is possible and is what the cases do:
+`p(BE-sABEc)` and `p(BE-pe)` for RSABE; `p(BE-sABEc)` and `p(BE-sratio)` for
+NTI — PowerTOST's `power.NTID` implements all three NTI criteria and reports
+each separately.
+
+What each case **cannot** establish is recorded in `not_cross_checkable`:
+
+- the overall `p(BE)` for either method — RSABE's is the mixed procedure and
+  NTI's needs criterion (b); both are Appendix C;
+- the Howe intermediates, which PowerTOST does not expose — checked against the
+  FDA SAS in the tier-1A case instead;
+- the sWR switching threshold: PowerTOST's `CVswitch` is on the CV scale and
+  FDA's 0.294 is on the sWR scale. Conflating them is the confusion 0.1.1 had
+  to correct, so no comparison is attempted.
+
+### Tolerances are derived before the comparison, never widened after
+
+Every comparison carries a mandatory `tolerance_basis`; a case without one is
+rejected at load. Sample size is exact. ABE power uses the differences actually
+measured. Monte Carlo power uses `4 × sqrt(p(1−p)(1/n₁ + 1/n₂))` at the worst
+case `p = 0.5`, so the tolerance does not depend on the answer.
+
+### Re-measuring corrected a Phase-1 attribution
+
+Phase 1 recorded a 6.0 × 10⁻⁶ power difference on the narrowed-limits scenario
+and put it down to the non-central t approximation against exact Owen's Q.
+**That was wrong.** The Phase-1 case uses `upper_limit = 1.1111`, truncated to
+four places, and the truncation dominates. With the exact `1/0.9`, be-stats
+gives 0.8002181715 against the same published 0.800218 — a difference of
+**1.7 × 10⁻⁷**, the same order as the other case's 1.9 × 10⁻⁷, which is what
+the same approximation should produce.
+
+Nothing was ever failing: the Phase-1 tolerance of 1e-4 covered either value.
+The *explanation* was wrong, and a claim about where a numerical difference
+comes from is exactly the kind of thing this package is supposed to get right.
+The Phase-1 case is left alone — a truncated limit is a legitimate scenario —
+with the correction recorded beside it, and a test now computes both numbers so
+the attribution cannot drift again.
+
+### Tier 3 needs more than one agreeing case
+
+`TIER3_REQUIRED_ROLES` names the roles each method needs — central,
+boundary-near, high-variability, unequal-variability — and all must **PASS**,
+not merely not fail. Tests assert every required role has a case and that one
+passing role does not promote a method.
+
+### Appendix C: investigated, still blocked
+
+`APPENDIX_C_FEASIBILITY.md` records what was checked. `nlme` 3.1-170 expresses
+the covariance structure exactly (`pdSymm` random, `varIdent` residuals) but
+**the word "Satterthwaite" does not appear anywhere in its manual** — it uses
+containment df, which lands directly on the CI width that criterion (b) tests.
+`lme4`+`lmerTest` has Satterthwaite but one residual variance; `glmmTMB` has
+both structures but not Satterthwaite inference.
+
+No package examined meets all four requirements, so **Appendix C stays
+blocked** and nothing is implemented in Python on the strength of a near miss.
+
+### Also
+
+- `.github/workflows/validation-r.yml` — an optional `validation-r` job. The
+  ordinary suite stays pure Python and needs neither Docker nor R.
+- A `Makefile`, so the cross-check is one command.
+- A PowerShell scripting bug wrote the oracle call for five cases as an empty
+  array (`$args` is an automatic variable). Caught by the harness's own test
+  asserting every case names its oracle arguments.
+
+383 tests collected, 0 failures, 6 skipped.
+
+---
+
 ## 0.5.0 — FDA narrow therapeutic index: two criteria of three
 
 FDA's NTI procedure from Appendix F. **No EMA ABEL.** **No Appendix C.**

@@ -1,0 +1,48 @@
+{
+  "case_id": "ABE-002-NARROW-LIMITS",
+  "title": "Ordinary ABE, 2x2 crossover, CV 12.5%, ratio 0.975, narrowed 90.00-111.11% limits",
+  "method": "standard_abe",
+  "comparison_kind": "direct",
+
+  "inputs": {
+    "role": "narrow_limits",
+    "design": "2x2",
+    "powertost_design": "2x2",
+    "cv": 0.125,
+    "theta0": 0.975,
+    "alpha": 0.05,
+    "target_power": 0.80,
+    "lower_limit": 0.90,
+    "upper_limit": 1.1111111111111112
+  },
+
+  "oracle": {
+    "tool": "PowerTOST",
+    "function": "sampleN.TOST",
+    "secondary_function": "power.TOST",
+    "arguments": "CV=0.125, theta0=0.975, targetpower=0.80, theta1=0.90, theta2=1/0.90, design=\"2x2\", method=\"exact\"",
+    "method_note": "Same exact-vs-approximate method difference as ABE-001.",
+    "regulatory_setting": "none — the narrowed interval here is EMA's for NTI drugs. It is used as an ARITHMETIC scenario to exercise the interval machinery at limits other than 80-125, and carries no FDA meaning. FDA NTI does not narrow the interval."
+  },
+
+  "comparisons": [
+    {
+      "quantity": "sample_size",
+      "absolute_tolerance": 0.0,
+      "relative_tolerance": 0.0,
+      "tolerance_basis": "EXACT, for the same reason as ABE-001: sample size is an integer reached by stepping an even total until the target power is met, so the two implementations can only disagree if their power curves cross the target at different n. That is a real difference, never rounding. Zero tolerance."
+    },
+    {
+      "quantity": "achieved_power",
+      "absolute_tolerance": 1e-05,
+      "relative_tolerance": 1e-05,
+      "tolerance_basis": "MEASURED, not chosen - and re-measured while building this harness, which corrected the earlier figure. Phase 1 recorded a difference of 6.0e-06 here and attributed it to the non-central t approximation. That attribution was wrong: the Phase-1 case used upper_limit = 1.1111 truncated to four places, and the truncation dominated. With the exact 1/0.9 this case uses, be-stats gives 0.8002181715 against PowerTOST's published 0.800218 - a difference of 1.7e-07, the same order as ABE-001's 1.9e-07, which is what one would expect since it is the same approximation. The tolerance is ~58x the re-measured difference and matches ABE-001's, because the two differences are now known to be the same size."
+    }
+  ],
+
+  "not_cross_checkable": [
+    "Nothing at this layer."
+  ],
+
+  "notes": "The second Phase-1 scenario, with one deliberate change: the upper limit is the exact 1/0.9 rather than Phase 1's truncated 1.1111. Building this harness is what exposed the difference - see the tolerance_basis. Its role is `narrow_limits` because a harness that only ever tested 80-125 would not exercise the acceptance limits as an input at all."
+}

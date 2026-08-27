@@ -2,3 +2,9 @@
 __pycache__/
 *.egg-info/
 .pytest_cache/
+
+# External validation run artefacts. The report is produced by a run;
+# committing one would make a stale result look current.
+validation/external/report.json
+validation/external/report.txt
+validation/external/powertost_results.json

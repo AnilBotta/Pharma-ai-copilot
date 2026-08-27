@@ -1,0 +1,46 @@
+{
+    "case_id":  "NTI-002-UNEQUAL-VARIABILITY",
+    "title":  "FDA NTI, fully replicate, CVwT 25% against CVwR 10%, ratio 0.975, n=32",
+    "method":  "fda_nti",
+    "comparison_kind":  "monte_carlo_power",
+    "inputs":  {
+                   "role":  "unequal_variability",
+                   "design":  "2x2x4",
+                   "powertost_design":  "2x2x4",
+                   "cv_wr":  0.1,
+                   "cv_wt":  0.25,
+                   "theta0":  0.975,
+                   "n":  32,
+                   "nsims":  20000,
+                   "nsims_r":  100000,
+                   "seed":  20260831
+               },
+    "oracle":  {
+                   "tool":  "PowerTOST",
+                   "function":  "power.NTID",
+                   "arguments":  "power.NTID(CV=c(0.25, 0.10), theta0=0.975, n=32, design=\"2x2x4\", details=TRUE, nsims=1e5)",
+                   "method_note":  "PowerTOST computes empirical power by simulating nsims studies from the distributional properties of the deciding statistics. be-stats analyses datasets, so the Python side simulates studies and applies the be-stats criterion to each. Two Monte Carlo estimates of one probability, compared at the only layer both expose.",
+                   "regulatory_setting":  "FDA",
+                   "version_pinned_in":  "environment.lock.json"
+               },
+    "comparisons":  [
+                        {
+                            "quantity":  "p_be_sabec",
+                            "absolute_tolerance":  0.01549,
+                            "relative_tolerance":  0,
+                            "tolerance_basis":  "DERIVED, and independent of the answer. Both sides estimate the same probability by simulation, so the difference between them has standard deviation sqrt(p(1-p)(1/n_python + 1/n_R)). Evaluated at the WORST CASE p = 0.5, which maximises p(1-p), and taken at four standard deviations: 4 * sqrt(0.25 * (1/20000 + 1/100000)) = 0.01549. Using worst-case p rather than the observed p means the tolerance was fixed before either side was run. Wide enough that two agreeing implementations pass essentially always; narrow enough that a procedural difference of more than about 1.5 percentage points fails."
+                        },
+                        {
+                            "quantity":  "p_be_sratio",
+                            "absolute_tolerance":  0.01549,
+                            "relative_tolerance":  0,
+                            "tolerance_basis":  "DERIVED, and independent of the answer. Both sides estimate the same probability by simulation, so the difference between them has standard deviation sqrt(p(1-p)(1/n_python + 1/n_R)). Evaluated at the WORST CASE p = 0.5, which maximises p(1-p), and taken at four standard deviations: 4 * sqrt(0.25 * (1/20000 + 1/100000)) = 0.01549. Using worst-case p rather than the observed p means the tolerance was fixed before either side was run. Wide enough that two agreeing implementations pass essentially always; narrow enough that a procedural difference of more than about 1.5 percentage points fails."
+                        }
+                    ],
+    "not_cross_checkable":  [
+                                "The overall p(BE). It requires criterion (b), the unscaled 80.00-125.00% test, which for a fully replicate study is FDA Appendix C\u0027s mixed model and is not implemented.",
+                                "p(BE-ABE), PowerTOST\u0027s conventional ABE component. That is the same missing criterion (b) seen from the other side - PowerTOST computes it, be-stats cannot, so the comparison has one operand.",
+                                "The Howe intermediates, for the same reason as the RSABE cases."
+                            ],
+    "notes":  "The test product is markedly less reproducible than the reference. This is the axis criterion (c) exists to police, and the one a central case cannot exercise at all. Note PowerTOST takes CV as c(CVwT, CVwR) in that order."
+}
