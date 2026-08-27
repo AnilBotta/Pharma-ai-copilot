@@ -743,6 +743,11 @@ FINDINGS = Path(__file__).resolve().parents[2] / "validation" / "findings"
 #: nobody can query, and "mostly resolved" is not a category.
 FINDING_STATUSES = {
     "OPEN",
+    #: Recorded BEFORE any comparison was written, so the wrong comparison was
+    #: never run. VAL-FDA-HVD-001 established that verifying what an oracle's
+    #: reported quantity actually counts must precede writing a fixture;
+    #: VAL-EMA-ABEL-001 is the first finding raised by doing that first.
+    "PREEMPTED",
     "RESOLVED_MONTE_CARLO_VARIATION",
     "RESOLVED_SIMULATION_MODEL_DIFFERENCE",
     "RESOLVED_POWERTOST_LEGACY_METHOD_DIFFERENCE",

@@ -274,7 +274,8 @@ def test_implemented_is_derived_from_the_validation_table():
     from be_stats.spec import Method
 
     assert Method.STANDARD_ABE in IMPLEMENTED
-    assert Method.EMA_HVD_ABEL not in IMPLEMENTED
+    assert Method.EMA_HVD_ABEL in IMPLEMENTED
+    assert Method.FDA_NTI_RSABE not in IMPLEMENTED
     for method in Method:
         expected = VALIDATION[method] is not ValidationStatus.NOT_IMPLEMENTED
         assert (method in IMPLEMENTED) is expected

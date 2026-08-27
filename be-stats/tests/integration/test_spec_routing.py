@@ -129,14 +129,20 @@ def test_fda_and_ema_take_different_routes_for_highly_variable_drugs():
     assert fda.method is not ema.method
     assert fda.constants["sigma_w0"].value == 0.25
     assert fda.constants["swr_switching_threshold"].value == 0.294
-    # FDA's route is implemented from the highly-variable release onward; EMA's
-    # ABEL is a different procedure and is not.
+
+    # Both are implemented now, and the constants they resolve to are what
+    # proves they did not converge into one method. EMA carries a regulatory
+    # constant k and a cap; FDA carries sigma_w0 and a switching threshold.
+    # Neither table contains the other's keys.
+    assert ema.constants["regulatory_constant_k"].value == 0.760
+    assert ema.constants["cap_upper_percent"].value == 143.19
+    assert "sigma_w0" not in ema.constants
+    assert "regulatory_constant_k" not in fda.constants
+
     assert fda.is_implemented
     fda.require_implemented()
-
-    assert not ema.is_implemented
-    with pytest.raises(NotImplementedMethod):
-        ema.require_implemented()
+    assert ema.is_implemented
+    ema.require_implemented()
 
 
 def test_an_implemented_hvd_method_still_has_no_fixed_acceptance_interval():
@@ -164,11 +170,12 @@ def test_unimplemented_methods_are_not_in_the_implemented_set():
     assert Method.EMA_NTI_NARROW_ABE in IMPLEMENTED
     assert Method.FDA_HVD_RSABE in IMPLEMENTED
 
-    # NTI and ABEL are separate procedures with their own constants and their
-    # own criteria. Implementing FDA's highly-variable route deliberately did
-    # not generalise into either.
-    for method in (Method.FDA_NTI_RSABE, Method.EMA_HVD_ABEL):
-        assert method not in IMPLEMENTED
+    assert Method.EMA_HVD_ABEL in IMPLEMENTED
+
+    # FDA's NTI route remains a separate procedure with its own constants and
+    # its own criteria, and neither of the highly-variable implementations
+    # generalised into it.
+    assert Method.FDA_NTI_RSABE not in IMPLEMENTED
 
 
 def test_implementing_hvd_did_not_turn_nti_into_a_configuration_flag():

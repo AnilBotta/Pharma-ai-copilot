@@ -477,10 +477,31 @@ def test_the_nti_method_stays_not_implemented_while_a_criterion_is_missing():
         assert status is not ValidationStatus.VALIDATED
 
 
-def test_ema_abel_is_still_absent():
-    from be_stats import VALIDATION, Method, ValidationStatus
+def test_ema_abel_did_not_arrive_through_the_nti_module():
+    """ABEL is implemented now, and NOT by anything in here.
 
-    assert VALIDATION[Method.EMA_HVD_ABEL] is ValidationStatus.NOT_IMPLEMENTED
+    This guard used to assert ABEL was absent. It is present as of the EMA
+    release, so the useful thing to pin is what has not changed: FDA's NTI
+    route and EMA's highly-variable route remain separate procedures in
+    separate modules, and implementing one did not generalise into the other.
+    """
+    from be_stats import VALIDATION, Method, ValidationStatus
+    from be_stats import ema_hvd, nti
+
+    assert VALIDATION[Method.EMA_HVD_ABEL] is (
+        ValidationStatus.IMPLEMENTED_UNVALIDATED
+    )
+    assert VALIDATION[Method.FDA_NTI_RSABE] is ValidationStatus.NOT_IMPLEMENTED
+
+    assert not hasattr(nti, "assess_ema_endpoint")
+    assert not hasattr(ema_hvd, "assess_nti_endpoint")
+
+    # The EMA module states its own exclusion. Asserted on the PROSE only:
+    # whether the CODE reaches FDA logic is checked in
+    # tests/integration/test_regulator_separation.py, because a docstring that
+    # says "no sigma_w0" contains the string "sigma_w0" and a text search
+    # cannot tell a disclaimer from a use.
+    assert "no NTI logic" in ema_hvd.__doc__
 
 
 # ------------------------------------------------------------- invariance ---

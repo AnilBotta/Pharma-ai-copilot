@@ -14,6 +14,12 @@ dependencies = [
     # reference values" is a far easier position to defend than "we wrote our
     # own incomplete beta function".
     "scipy>=1.11",
+    # numpy arrived with scipy from the start and was used through it. EMA's
+    # Method A needs a design matrix and a least-squares solve directly, so it
+    # is now imported by name and therefore declared by name. Depending on a
+    # transitive dependency is depending on someone else's decision not to
+    # change theirs.
+    "numpy>=1.24",
 ]
 
 [project.optional-dependencies]
