@@ -745,6 +745,28 @@ def test_the_root_cause_finding_cites_the_oracle_precisely():
     assert any(entry.get("line_number") for entry in lines)
 
 
+def test_the_resolution_is_confirmed_against_the_real_oracle_not_the_instrument():
+    """The investigation transcribes PowerTOST, so it cannot corroborate it.
+
+    The record has to carry the corrected cases run against the actual package,
+    and the one line that settles the question: the be-stats value is the SAME
+    in both runs, so nothing on the Python side moved.
+    """
+    confirmed = _findings()["VAL-FDA-HVD-001"]["confirmed_against_the_real_oracle"]
+    decisive = confirmed["decisive_line"]
+
+    assert decisive["before"]["python"] == decisive["after"]["python"] == 0.87055
+    assert decisive["before"]["sigmas"] > harness.SIGMA_FINDING
+    assert decisive["after"]["sigmas"] < 1.0
+
+    # And the whole suite, not just the case that raised it.
+    assert all(
+        row["sigmas"] < harness.SIGMA_FINDING
+        for row in confirmed["all_rsabe_comparisons"]
+    )
+    assert "0 failed" in confirmed["whole_run"]
+
+
 def test_the_root_cause_finding_records_what_was_not_changed():
     """The brief's constraint, kept where it can be checked.
 

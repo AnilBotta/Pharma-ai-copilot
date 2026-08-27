@@ -67,6 +67,46 @@ conventional ABE is harder there than the scaled criterion. At CVwR 0.40 about
 2%; at 0.60, effectively none. The disagreement is therefore large at the
 boundary and absent elsewhere — which is exactly what the first run showed.
 
+## Confirmed against the real oracle
+
+The experiments further down use a Python transcription of PowerTOST, which
+cannot corroborate PowerTOST. This is the corroboration: the corrected case
+files driving the actual package in CI.
+
+| `RSABE-002-BOUNDARY-NEAR/p_be_sabec` | be-stats | PowerTOST | sigmas |
+|---|---:|---:|---:|
+| before — `regulator = "FDA"` | 0.87055 | 0.85817 | **4.61** |
+| after — `reg_const("USER", CVswitch = 0, …)` | 0.87055 | 0.87104 | **0.19** |
+
+**The be-stats value is unchanged.** Nothing on the Python side moved. Only
+which quantity PowerTOST was asked for changed.
+
+Every RSABE comparison in that run:
+
+| quantity | be-stats | PowerTOST | sigmas |
+|---|---:|---:|---:|
+| RSABE-001/`p_be_sabec` | 0.81630 | 0.81682 | 0.17 |
+| RSABE-001/`p_be_pe` | 0.93160 | 0.93267 | 0.55 |
+| RSABE-001/`p_below_switch` | 0.06205 | 0.061734 | 0.19 |
+| RSABE-002/`p_be_sabec` | 0.87055 | 0.87104 | 0.19 |
+| RSABE-002/`p_be_pe` | 0.99020 | 0.99040 | 0.26 |
+| RSABE-002/`p_below_switch` | 0.43255 | 0.435419 | 0.82 |
+| RSABE-003/`p_be_sabec` | 0.89340 | 0.89215 | 0.52 |
+| RSABE-003/`p_be_pe` | 0.84770 | 0.84890 | 0.43 |
+| RSABE-004/`p_be_sabec` | 0.87500 | 0.870911 | 1.71 |
+| RSABE-004/`p_below_switch` | 0.43110 | 0.435419 | 1.23 |
+
+`22 passed, 0 failed, 0 skipped, 0 errored`. The largest distance anywhere in
+the run is 1.71 sigma and nothing is flagged as a `FINDING`; the same suite
+raised one at 4.61 before this PR.
+
+The three `p_below_switch` rows are against a **closed form**, not another
+simulation — the `sWR` estimator and the switching rule checked independently
+of the criterion, which is the separation a power comparison alone cannot give.
+
+The transcription predicted 0.87098; the real package returned 0.87104. The
+instrument is corroborated by the oracle here, not the other way round.
+
 ## The evidence
 
 Reproduced by `validation/external/investigate_val_fda_hvd_001.py`, frozen in

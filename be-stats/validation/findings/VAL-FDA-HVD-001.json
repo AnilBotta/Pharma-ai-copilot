@@ -64,6 +64,34 @@
     "why_the_shape_of_the_error_matches_the_data": "Below the switch PowerTOST reports conventional ABE, which at CVwR 0.31 with n = 36 is harder to pass than the scaled criterion. The larger the share below the switch, the lower PowerTOST's value relative to the scaled criterion alone - which is exactly the ordering and the CV dependence observed."
   },
 
+  "confirmed_against_the_real_oracle": {
+    "what": "The experiments below use a Python transcription of PowerTOST, which cannot corroborate PowerTOST. This block is the corroboration: the corrected case files driving the actual package in CI.",
+    "run": "validation-r, PR #59, PowerTOST 1.5-7 in the pinned image",
+    "decisive_line": {
+      "case": "RSABE-002-BOUNDARY-NEAR/p_be_sabec",
+      "before": {"python": 0.87055, "powertost": 0.85817, "sigmas": 4.61,
+                 "r_setting": "regulator = \"FDA\""},
+      "after": {"python": 0.87055, "powertost": 0.87104, "sigmas": 0.19,
+                "r_setting": "reg_const(\"USER\", CVswitch = 0, ...)"},
+      "reading": "THE PYTHON VALUE IS UNCHANGED - 0.87055 in both runs. Nothing on the be-stats side moved. Only which quantity PowerTOST was asked for changed, and the 4.61 sigma became 0.19."
+    },
+    "all_rsabe_comparisons": [
+      {"quantity": "RSABE-001-CENTRAL/p_be_sabec", "python": 0.8163, "powertost": 0.81682, "sigmas": 0.17},
+      {"quantity": "RSABE-001-CENTRAL/p_be_pe", "python": 0.9316, "powertost": 0.93267, "sigmas": 0.55},
+      {"quantity": "RSABE-001-CENTRAL/p_below_switch", "python": 0.06205, "powertost": 0.06173421462476501, "sigmas": 0.19},
+      {"quantity": "RSABE-002-BOUNDARY-NEAR/p_be_sabec", "python": 0.87055, "powertost": 0.87104, "sigmas": 0.19},
+      {"quantity": "RSABE-002-BOUNDARY-NEAR/p_be_pe", "python": 0.9902, "powertost": 0.9904, "sigmas": 0.26},
+      {"quantity": "RSABE-002-BOUNDARY-NEAR/p_below_switch", "python": 0.43255, "powertost": 0.4354185945387868, "sigmas": 0.82},
+      {"quantity": "RSABE-003-HIGH-VARIABILITY/p_be_sabec", "python": 0.8934, "powertost": 0.89215, "sigmas": 0.52},
+      {"quantity": "RSABE-003-HIGH-VARIABILITY/p_be_pe", "python": 0.8477, "powertost": 0.8489, "sigmas": 0.43},
+      {"quantity": "RSABE-004-BOUNDARY-RESEEDED/p_be_sabec", "python": 0.875, "powertost": 0.870911, "sigmas": 1.71},
+      {"quantity": "RSABE-004-BOUNDARY-RESEEDED/p_below_switch", "python": 0.4311, "powertost": 0.4354185945387868, "sigmas": 1.23}
+    ],
+    "whole_run": "22 passed, 0 failed, 0 skipped, 0 errored. The largest Monte Carlo distance anywhere in the run is 1.71 sigma; no comparison is flagged as a FINDING. Before this PR the same suite raised one at 4.61.",
+    "instrument_was_also_right": "The transcription predicted 0.87098 for this quantity; the real package returned 0.87104. The instrument is corroborated by the oracle here rather than the other way round.",
+    "p_below_switch_reading": "0.19, 0.82 and 1.23 sigma against a CLOSED FORM rather than another simulation. That is the sWR estimator and the switching rule checked independently of the criterion - the separation the power comparison alone could not give."
+  },
+
   "confirming_experiments": {
     "experiment_a": {
       "what": "the scaled criterion alone, with switching disabled on both sides",
