@@ -97,15 +97,27 @@ products. Recorded as `FDA_IVPT_NOTE`, wired into nothing, and guarded by a
 test — because a global "the 0.294 rule" would be wrong for one of the two.
 That is the M13A scoping lesson arriving from a third direction.
 
-### The tier-3 harness now exists (0.5.1)
+### Tier 3 has been run (0.5.1)
 
 `validation/external/` holds a Docker-based cross-check against R and
 PowerTOST 1.5-7, driven from one canonical case definition read by both sides.
 See its own README for the design; the parts that matter here:
 
-- **Nothing has been cross-checked yet.** No Docker and no R were available
-  where it was written, so every comparison reports `SKIPPED` and every
-  method's tier 3 is `PENDING`. That is the correct output for this state.
+| Method | Tier 1A | Tier 1B | Tier 3 |
+|---|---|---|---|
+| `standard_abe` | — | pending | **PASSED** |
+| `fda_hvd_rsabe` | passed | pending | **PASSED**, with a finding |
+| `fda_nti` | passed | pending | **PASSED** |
+
+`18 passed, 0 failed, 0 skipped`. **Tier 3 is not tier 1B**: an independent
+implementation agreeing is not a regulator-published number reproduced, and
+`VALIDATED` still needs the latter.
+
+- **One finding.** `RSABE-002-BOUNDARY-NEAR/p_be_sabec` agreed within tolerance
+  at **4.61 standard errors** — more than sampling error explains, where every
+  other comparison sits between 0.23 and 2.09. The tolerance was *not* tightened
+  after the fact; the report now flags it on every run. It should be resolved
+  before FDA HVD RSABE is relied upon.
 - **`SKIPPED` is not `PASS`**, and a test asserts it. In the CI job a skip is a
   *failure*, because there a missing R means a broken image.
 - **The scaled procedures cannot be compared directly at all.** PowerTOST's
@@ -161,18 +173,26 @@ Measured on those two cases, and the basis for the stated tolerances:
 | CV 0.20, ratio 0.95, 2x2, 80% | n=20, power 0.834680 | n=20, 0.834680 | 1.9e-07 |
 | CV 12.5%, ratio 0.975, 90-111.11 | n=32, power 0.800218 | n=32, 0.800212 | 6.0e-06 |
 
-**The second row's difference was misattributed, and 0.5.1 corrected it.** The
-6.0e-06 was ascribed to the non-central t approximation. It is not: that case
-uses `upper_limit = 1.1111`, truncated to four places, and the truncation
-dominates. Re-run with the exact `1/0.9`, be-stats gives 0.8002181715 against
-the same published 0.800218 — a difference of **1.7e-07**, the same order as
-the first row, which is what the same approximation should produce.
+**Both figures in that table are artefacts, and 0.5.1 established the real
+ones.** They were computed against published values quoted to six decimal
+places, and the second additionally truncates the upper limit to `1.1111`.
+Neither measured the method difference.
 
-The case file is left as it stands: a truncated limit is a legitimate scenario
-and its tolerance (1e-4) always covered the difference, so nothing was ever
-failing. What was wrong was the explanation. The external case
-`ABE-002-NARROW-LIMITS` uses the exact ratio and records the re-measured
-figure.
+Run against PowerTOST at full precision:
+
+| | recorded above | actually measured |
+|---|---|---|
+| CV 0.20 case | 1.9 × 10⁻⁷ | **1.4 × 10⁻¹⁰** |
+| CV 12.5% case | 6.0 × 10⁻⁶ | **1.7 × 10⁻¹³** |
+
+So the non-central t approximation agrees with exact Owen's Q to about
+**1e-10** — three orders better than the 6.0e-06 this file used to attribute to
+it.
+
+The case files are left as they stand: a truncated limit is a legitimate
+scenario and the 1e-4 tolerance always covered it, so nothing was ever failing.
+What was wrong was the explanation. `validation/external/cases/` carries the
+re-measured figures.
 
 Sample sizes agree exactly; the power deltas are this package's non-central t
 approximation against PowerTOST's exact Owen's Q. The tolerance was set from

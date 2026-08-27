@@ -8,10 +8,13 @@
   },
 
   "recorded": {
+    "_source": "Taken from the .environment.r_packages_resolved block of a green CI run, not declared by hand. R normalises CRAN's 1.5-7 to 1.5.7; both forms name the same version, which is why the pin is compared as a version rather than as a string.",
     "r_version": "4.5.1",
-    "jsonlite": "resolved by snapshot",
-    "mvtnorm": "resolved by snapshot",
-    "cubature": "resolved by snapshot"
+    "platform": "x86_64-pc-linux-gnu",
+    "PowerTOST": "1.5.7",
+    "jsonlite": "2.0.0",
+    "mvtnorm": "1.3.3",
+    "cubature": "2.1.4"
   },
 
   "r_version": "4.5.1",
@@ -32,7 +35,7 @@
   },
 
   "verification_status": {
-    "state": "BUILD ATTEMPTED, FAILED, ROOT CAUSE FIXED — NOT YET GREEN",
+    "state": "GREEN — built and run in CI, PowerTOST 1.5-7 resolved as pinned",
     "history": [
       {
         "when": "first CI run of validation-r",
@@ -40,9 +43,23 @@
         "why": "install.packages(..., dependencies = TRUE) also installs Suggests. PowerTOST suggests emmeans, whose chain reaches s2, which needs Abseil C++ and cmake. Nothing in run_powertost.R uses any of it.",
         "fix": "dependencies = c(\"Depends\", \"Imports\"), and only the two directly-used packages installed by name.",
         "note": "The build failing here is the harness behaving correctly: warn = 2 turned the install warning into an error rather than letting a half-installed environment through, and the report step then refused to invent a report."
+      },
+      {
+        "when": "second CI run of validation-r",
+        "what": "docker build failed after 1m27s, immediately after PowerTOST installed successfully",
+        "why": "the pin was compared as a string. CRAN writes 1.5-7; R's package_version normalises the separator to 1.5.7, so as.character(packageVersion(...)) never equals the requested form. The check rejected the exact version it asked for.",
+        "fix": "compare through package_version() on both sides, in install_r_packages.R and in run_powertost.R's lockfile check. Correct rather than lenient: 1.5-7 and 1.5.7 match, 1.5.8 still does not.",
+        "note": "Dropping Suggests took the build from 3m24s to 1m27s and confirmed the snapshot date resolves the pinned version."
+      },
+      {
+        "when": "third CI run of validation-r",
+        "what": "green in 3m30s; 18 comparisons ran, 18 passed, 0 skipped",
+        "why": "",
+        "fix": "",
+        "note": "Tier 3 PASSED for standard_abe, fda_hvd_rsabe and fda_nti. One FINDING recorded - see detail."
       }
     ],
-    "detail": "The Python side of every case runs and is covered by tests. The R side has never completed. Until a build goes green, every comparison reports SKIPPED — which is the point of distinguishing SKIPPED from PASS.",
-    "what_would_change_this": "One green `validation-r` run producing a report with no SKIPPED rows. At that point `recorded` should be replaced with the versions the container actually resolved, taken from the `.environment.r_packages_resolved` block of powertost_results.json rather than from this file."
+    "detail": "The image builds, PowerTOST 1.5-7 installs and matches the pin, and all 18 comparisons ran. Tier 3 is PASSED for all three methods. One comparison is flagged as a FINDING: RSABE-002-BOUNDARY-NEAR/p_be_sabec agreed within tolerance at 4.61 standard errors, which sampling error does not explain. See the README.",
+    "what_would_change_this": "Nothing further for the build. The open item is the RSABE boundary-near finding, and replacing `recorded` with the versions the container resolved, taken from the `.environment.r_packages_resolved` block of powertost_results.json."
   }
 }

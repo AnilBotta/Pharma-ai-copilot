@@ -16,41 +16,91 @@ PYTHONPATH=src python validation/external/harness.py
 
 ---
 
-## Status, plainly
+## Status
 
-**Nothing here has been cross-checked yet.** Every comparison reports `SKIPPED`
-and every method's tier 3 is `PENDING`.
+**Tier 3 is PASSED for all three methods.** `18 passed, 0 failed, 0 skipped`.
+The image builds, PowerTOST 1.5-7 runs, and the CI job fails on any skip — so a
+green run means the comparisons genuinely happened.
 
-That is the correct output for this state, and it is the reason `SKIPPED` and
-`PASS` are different words. A harness that reported green because it had
-nothing to compare would be worse than no harness.
+**With one finding that is not a failure and is not noise. See below.**
 
-### The first build attempt, and what it found
+### It took three attempts, and each failure was informative
 
-The image was written without Docker or R available, so it went to CI unbuilt.
-The first `validation-r` run **failed after 3m24s**, and the reason was a bug
-worth recording:
+The image went to CI unbuilt, because neither Docker nor R was available where
+it was written.
 
-`install_r_packages.R` used `install.packages(..., dependencies = TRUE)`.
-`TRUE` also installs **Suggests**. PowerTOST suggests `emmeans`, whose
-dependency chain reaches `s2`, which needs Abseil C++ and cmake to compile.
-Three minutes of build time spent failing on a geospatial library that nothing
-here uses.
+1. **Failed after 3m24s** — `install.packages(..., dependencies = TRUE)`. `TRUE`
+   also installs **Suggests**; PowerTOST suggests `emmeans`, whose chain reaches
+   `s2`, which needs Abseil C++ and cmake. Three minutes spent failing on a
+   geospatial library nothing here uses. Fixed to
+   `c("Depends", "Imports")`.
+2. **Failed after 1m27s** — PowerTOST 1.5-7 installed correctly, and the version
+   check then rejected it: *wanted 1.5-7, got 1.5.7*. CRAN writes `1.5-7`; R's
+   `package_version` normalises the separator. A string comparison fails on the
+   exact version it asked for. Fixed to compare as versions.
+3. **Green in 3m30s.**
 
-Fixed: `dependencies = c("Depends", "Imports")`, and only the two packages
-`run_powertost.R` actually calls installed by name. A test now asserts
-`dependencies = TRUE` does not reappear.
+Two things behaved correctly while failing, which was the design intent:
+`warn = 2` turned the install warning into an error rather than letting a
+half-installed environment through, and the report step refused to invent a
+report it did not have.
 
-Two things behaved correctly while failing, which is worth noting because it is
-the whole design intent: `warn = 2` turned the install warning into an error
-rather than letting a half-installed environment through, and the report step
-refused to invent a report it did not have.
+## The finding: RSABE near the switching threshold
 
-**The build has not yet gone green.** Until it does, this directory is
-infrastructure with no results.
+`RSABE-002-BOUNDARY-NEAR/p_be_sabec` agreed **within the declared tolerance**
+and is **4.61 standard errors apart**:
 
-What *has* been run: the Python side of every case, and 32 tests of the harness
-itself in the ordinary suite.
+```
+py = 0.87055   r = 0.85817   diff = 1.238e-02   tol = 1.549e-02   [4.61 sigma]
+```
+
+Every other Monte Carlo comparison sits between 0.23 and 2.09 sigma — ordinary
+sampling noise. This one is not.
+
+It passed because the declared tolerance is evaluated at the worst case
+`p = 0.5`, which is a legitimate bound fixed before any run, and is about 40%
+wider than a comparison at `p ≈ 0.86` deserves. A real procedural difference
+can sit inside it.
+
+**The tolerance was not tightened in response.** Retroactively narrowing a
+tolerance because of what it produced is how a tolerance stops meaning
+anything. Instead the report now states each Monte Carlo comparison's distance
+in units of its own standard error and flags anything beyond 4 as a
+`FINDING` — visible on every run, changing no pass or fail, so a person
+decides.
+
+**What it might be, none of which is established:**
+
+- PowerTOST's FDA setting uses `est_method = "ISC"` (intra-subject contrasts)
+  per `reg_const("FDA")`, which need not estimate sWR identically to Appendix
+  G's closed form near the switch.
+- `power.RSABE`'s documentation says its linearized criterion follows the SAS in
+  FDA's **progesterone** guidance; this package follows *Statistical Approaches*
+  Appendix G. Same constants, different documents.
+- The scenario sits just above the 30% classification CV, so a large share of
+  simulated studies land either side of `sWR = 0.294` — the region where any
+  difference in how sWR is estimated has the most leverage.
+
+**This should be resolved before FDA HVD RSABE is relied on**, notwithstanding
+that its tier 3 reads PASSED.
+
+## Two Phase-1 numbers were wrong, and the real agreement is far better
+
+Comparing at full precision rather than against rounded published figures:
+
+| | Phase 1 recorded | Actually measured |
+|---|---|---|
+| ABE-001 power | 1.9 × 10⁻⁷ | **1.4 × 10⁻¹⁰** |
+| ABE-002 power | 6.0 × 10⁻⁶ | **1.7 × 10⁻¹³** |
+
+Phase 1 compared against values quoted to six decimal places, and its second
+case additionally truncated the upper limit to `1.1111`. Neither figure was a
+measurement of the method difference.
+
+So be-stats' non-central t approximation agrees with PowerTOST's exact Owen's Q
+to about **1e-10** — three orders better than the package's own documentation
+claimed. The tolerances here are still the conservative ones; there was no
+reason to tighten them on one run.
 
 ## The hierarchy this must not invert
 

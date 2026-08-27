@@ -17,40 +17,81 @@ make validate          # Docker + R + PowerTOST
 make validate-python   # no R: every comparison reports SKIPPED
 ```
 
-### Nothing has been cross-checked yet, and the report says so
+### Tier 3 is PASSED for all three methods
 
-Every comparison reports `SKIPPED`; every method's tier 3 is `PENDING`.
+`18 passed, 0 failed, 0 skipped` in CI. The image builds, PowerTOST 1.5-7 runs,
+and the job fails on any skip — so green means the comparisons happened.
 
-That is the correct output for this state, and it is why `SKIPPED` and `PASS`
-are different words. A harness that went green because it had nothing to
-compare would be worse than no harness. A test asserts a missing R side is
-never reported as a pass, and in the CI job a skip is a *failure* — there, a
-missing R means a broken image.
+**With one finding.** See below; it is not a failure and it is not noise.
 
-The Python half of every case does run, and 32 tests of the harness itself run
-in the ordinary suite.
+A missing R environment still reports `SKIPPED`, never `PASS`, and a test
+asserts it. That is what a local run without Docker produces.
 
-### The first build attempt failed, and the failure was informative
+### Three build attempts, each failure informative
 
 The image went to CI unbuilt, because neither Docker nor R was available where
-it was written. The first `validation-r` run **failed after 3m24s**:
+it was written.
 
-`install_r_packages.R` used `install.packages(..., dependencies = TRUE)`, and
-`TRUE` also installs **Suggests**. PowerTOST suggests `emmeans`, whose chain
-reaches `s2`, which needs Abseil C++ and cmake. Three minutes spent failing on
-a geospatial library nothing here uses.
+1. **Failed, 3m24s.** `install.packages(..., dependencies = TRUE)` also
+   installs **Suggests**; PowerTOST suggests `emmeans`, whose chain reaches
+   `s2`, needing Abseil C++ and cmake. Three minutes spent failing on a
+   geospatial library nothing here uses. Fixed to `c("Depends", "Imports")`.
+2. **Failed, 1m27s.** PowerTOST 1.5-7 installed correctly and the version check
+   then rejected it: *wanted 1.5-7, got 1.5.7*. CRAN writes `1.5-7`; R's
+   `package_version` normalises the separator, so a string comparison fails on
+   the exact version requested. Fixed to compare as versions — correct rather
+   than lenient, since `1.5.8` still fails.
+3. **Green, 3m30s.**
 
-Fixed: `dependencies = c("Depends", "Imports")`, with only the two packages
-`run_powertost.R` calls installed by name. A test asserts `dependencies = TRUE`
-does not come back.
+Two things behaved correctly while failing: `warn = 2` turned the install
+warning into an error rather than letting a half-installed environment through,
+and the report step refused to invent a report. The job also produced three red
+steps for one root cause; "Show the report" is now informational so the real
+error is not buried.
 
-Two things behaved correctly while failing, which was the design intent:
-`warn = 2` turned the install warning into an error rather than letting a
-half-installed environment through, and the report step refused to invent a
-report. The CI job also produced three red steps for one root cause; "Show the
-report" is now informational so the actual error is not buried.
+### The finding: RSABE near the switching threshold
 
-**The build has still not gone green.**
+`RSABE-002-BOUNDARY-NEAR/p_be_sabec` agreed **within tolerance** and is
+**4.61 standard errors apart**:
+
+```
+py = 0.87055   r = 0.85817   diff = 1.238e-02   tol = 1.549e-02   [4.61 sigma]
+```
+
+Every other Monte Carlo comparison sits between 0.23 and 2.09 sigma. This one
+is not sampling error.
+
+It passed because the declared tolerance is evaluated at the worst case
+`p = 0.5` — a legitimate bound fixed before any run, and about 40% wider than a
+comparison at `p ≈ 0.86` deserves.
+
+**The tolerance was not tightened in response.** Narrowing a tolerance because
+of what it produced is how a tolerance stops meaning anything. Instead the
+report now states each Monte Carlo comparison's distance in units of its own
+standard error and flags anything beyond 4 as a `FINDING` — visible on every
+run, changing no pass or fail.
+
+Candidate explanations, none established: PowerTOST's FDA setting uses
+`est_method = "ISC"`; its `power.RSABE` follows the SAS in FDA's *progesterone*
+guidance rather than Appendix G; and the scenario straddles `sWR = 0.294`,
+where any difference in estimating sWR has most leverage.
+
+**This should be resolved before FDA HVD RSABE is relied on**, notwithstanding
+the PASSED tier 3.
+
+### Two Phase-1 numbers were wrong, and the agreement is far better
+
+Comparing at full precision rather than against six-decimal published figures:
+
+| | Phase 1 recorded | Actually measured |
+|---|---|---|
+| ABE-001 power | 1.9 × 10⁻⁷ | **1.4 × 10⁻¹⁰** |
+| ABE-002 power | 6.0 × 10⁻⁶ | **1.7 × 10⁻¹³** |
+
+be-stats' non-central t approximation agrees with PowerTOST's exact Owen's Q to
+about **1e-10** — three orders better than this package's own documentation
+claimed. The tolerances were left conservative; one run is not a reason to
+tighten them.
 
 ### Version pins now have two tiers
 
@@ -144,7 +185,7 @@ blocked** and nothing is implemented in Python on the strength of a near miss.
   array (`$args` is an automatic variable). Caught by the harness's own test
   asserting every case names its oracle arguments.
 
-377 tests collected, 0 failures, 6 skipped.
+383 tests collected, 0 failures, 6 skipped.
 
 ---
 

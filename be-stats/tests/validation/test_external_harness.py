@@ -205,7 +205,12 @@ def test_relative_tolerance_alone_can_carry_agreement():
 
 
 def test_tier3_is_pending_when_everything_is_skipped():
-    """The state this repository is actually in."""
+    """Without an R environment, no method may be promoted.
+
+    This is what a local run produces. CI has since gone green and marks all
+    three PASSED; here there is no R, and the absence must not read as
+    agreement.
+    """
     cases = harness.load_cases()
     results = harness.compare(
         cases, {c.case_id: {} for c in cases}, None
@@ -457,6 +462,81 @@ def test_the_power_cases_use_the_worst_case_tolerance():
 # ----------------------------------------------------------- the report ---
 
 
+def test_a_monte_carlo_comparison_reports_how_many_sigmas_apart_it_is():
+    """A difference inside the tolerance can still be too big for chance.
+
+    The declared tolerance is evaluated at the worst case p = 0.5, which is a
+    legitimate pre-declared bound and is wider than a comparison at extreme p
+    deserves. The sigma figure says how far apart two estimates are in units of
+    THEIR OWN sampling error.
+    """
+    case = next(
+        c for c in harness.load_cases()
+        if c.comparison_kind == harness.COMPARISON_POWER
+    )
+    quantity = case.comparisons[0].quantity
+
+    results = harness.compare(
+        [case],
+        {case.case_id: {quantity: 0.87055}},
+        {case.case_id: {quantity: 0.85817}},
+    )
+    assert results[0].outcome == harness.PASS
+    assert results[0].monte_carlo_sigmas == pytest.approx(4.61, abs=0.05)
+    assert results[0].is_finding
+
+
+def test_a_closed_form_comparison_has_no_sigma():
+    """There is no sampling error to measure against."""
+    case = next(
+        c for c in harness.load_cases()
+        if c.comparison_kind == harness.COMPARISON_DIRECT
+    )
+    results = harness.compare(
+        [case],
+        {case.case_id: {"sample_size": 20.0, "achieved_power": 0.83}},
+        {case.case_id: {"sample_size": 20.0, "achieved_power": 0.83}},
+    )
+    for result in results:
+        assert result.monte_carlo_sigmas is None
+        assert not result.is_finding
+
+
+def test_an_ordinary_monte_carlo_agreement_is_not_a_finding():
+    case = next(
+        c for c in harness.load_cases()
+        if c.comparison_kind == harness.COMPARISON_POWER
+    )
+    quantity = case.comparisons[0].quantity
+    results = harness.compare(
+        [case],
+        {case.case_id: {quantity: 0.8163}},
+        {case.case_id: {quantity: 0.81351}},
+    )
+    assert results[0].outcome == harness.PASS
+    assert results[0].monte_carlo_sigmas < harness.SIGMA_FINDING
+    assert not results[0].is_finding
+
+
+def test_a_finding_is_shown_loudly_in_the_report():
+    """It passed, and the report must not let that be the whole story."""
+    case = next(
+        c for c in harness.load_cases()
+        if c.comparison_kind == harness.COMPARISON_POWER
+    )
+    quantity = case.comparisons[0].quantity
+    results = harness.compare(
+        [case],
+        {case.case_id: {quantity: 0.87055}},
+        {case.case_id: {quantity: 0.85817}},
+    )
+    text = harness.render(results, {}, harness.environment())
+
+    assert "FINDING" in text
+    assert "4.61 sigma" in text
+    assert "must not be treated as noise" in text
+
+
 def test_the_report_distinguishes_skipped_from_passed_in_its_counts():
     cases = harness.load_cases()
     results = harness.compare(cases, {c.case_id: {} for c in cases}, None)
@@ -489,10 +569,33 @@ def test_the_environment_lockfile_declares_the_pins_and_its_own_status():
     assert "jsonlite" in lock["recorded"]
 
     status = lock["verification_status"]
-    assert "NOT YET GREEN" in status["state"]
+    assert "GREEN" in status["state"]
     assert status["what_would_change_this"]
-    assert status["history"], (
-        "a build has been attempted; the lockfile must say what happened"
+    assert len(status["history"]) >= 3, (
+        "three build attempts; the lockfile must say what happened in each"
+    )
+    # The versions came from a run, not from someone typing them.
+    assert lock["recorded"]["PowerTOST"] == "1.5.7"
+    assert "green CI run" in lock["recorded"]["_source"]
+
+
+def test_the_boundary_near_finding_is_recorded_not_buried():
+    """A comparison that passed and should not simply be forgotten.
+
+    `RSABE-002-BOUNDARY-NEAR/p_be_sabec` agreed within the declared tolerance
+    at 4.61 standard errors. It is the one comparison sampling error does not
+    explain, and the documentation has to carry it or it disappears the moment
+    the report is regenerated.
+    """
+    lock = json.loads((EXTERNAL / "environment.lock.json").read_text(encoding="utf-8"))
+    assert "FINDING" in lock["verification_status"]["detail"]
+    assert "4.61" in lock["verification_status"]["detail"]
+
+    readme = (EXTERNAL / "README.md").read_text(encoding="utf-8")
+    assert "RSABE-002-BOUNDARY-NEAR" in readme
+    assert "4.61" in readme
+    assert "was not tightened" in readme, (
+        "the README must say the tolerance was not adjusted after the fact"
     )
 
 

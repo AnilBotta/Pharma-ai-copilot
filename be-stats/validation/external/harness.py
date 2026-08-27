@@ -91,6 +91,21 @@ FAIL = "FAIL"
 SKIPPED = "SKIPPED"
 ERROR = "ERROR"
 
+#: A Monte Carlo comparison further apart than this many standard errors is a
+#: FINDING even when it passes.
+#:
+#: The declared tolerance is evaluated at the worst case p = 0.5, which is a
+#: legitimate bound fixed before any run - but for a comparison at p = 0.86 it
+#: is roughly 40% wider than that comparison's own sampling error justifies. A
+#: real procedural difference can therefore sit inside it.
+#:
+#: So the report also states how many of ITS OWN standard errors each
+#: comparison is out, and calls anything beyond this a finding. It does not
+#: change pass or fail: retroactively tightening a tolerance because of what it
+#: produced is how a tolerance stops meaning anything. It makes the thing
+#: visible so a person decides.
+SIGMA_FINDING = 4.0
+
 
 class CaseError(ValueError):
     """A case file is malformed. Loud, because a bad case silently ignored is
@@ -393,6 +408,18 @@ class ComparisonResult:
     relative_tolerance: float | None = None
     tolerance_basis: str = ""
     detail: str = ""
+    #: For Monte Carlo comparisons: the difference in units of ITS OWN sampling
+    #: standard error, at the pooled observed proportion. See `SIGMA_FINDING`.
+    monte_carlo_sigmas: float | None = None
+
+    @property
+    def is_finding(self) -> bool:
+        """Agreed within tolerance, and further apart than chance explains."""
+        return (
+            self.outcome == PASS
+            and self.monte_carlo_sigmas is not None
+            and self.monte_carlo_sigmas > SIGMA_FINDING
+        )
 
     def as_dict(self) -> dict:
         return {
@@ -405,6 +432,8 @@ class ComparisonResult:
             "relative_difference": self.relative_difference,
             "absolute_tolerance": self.absolute_tolerance,
             "relative_tolerance": self.relative_tolerance,
+            "monte_carlo_sigmas": self.monte_carlo_sigmas,
+            "is_finding": self.is_finding,
             "tolerance_basis": self.tolerance_basis,
             "detail": self.detail,
         }
@@ -471,9 +500,30 @@ def compare(
                     absolute_tolerance=comparison.absolute_tolerance,
                     relative_tolerance=comparison.relative_tolerance,
                     tolerance_basis=comparison.tolerance_basis,
+                    monte_carlo_sigmas=_sigmas(case, python_value, r_value),
                 )
             )
     return results
+
+
+def _sigmas(case: Case, python_value: float, r_value: float) -> float | None:
+    """How many of its own standard errors apart two proportions are.
+
+    Only meaningful for Monte Carlo comparisons, where both sides are
+    estimates. `None` everywhere else - a closed-form comparison has no
+    sampling error to measure against.
+    """
+    if case.comparison_kind != COMPARISON_POWER:
+        return None
+    n_python = case.inputs.get("nsims")
+    n_r = case.inputs.get("nsims_r")
+    if not n_python or not n_r:
+        return None
+    pooled = (python_value * n_python + r_value * n_r) / (n_python + n_r)
+    variance = pooled * (1.0 - pooled) * (1.0 / n_python + 1.0 / n_r)
+    if variance <= 0.0:
+        return None
+    return abs(python_value - r_value) / math.sqrt(variance)
 
 
 # ---------------------------------------------- tier-3 evidence policy ---
@@ -588,6 +638,12 @@ def render(results: list[ComparisonResult], tier3: dict, env: dict) -> str:
         if result.outcome in (SKIPPED, ERROR):
             lines.append(f"{label}  {result.outcome:<7} {result.detail}")
             continue
+        sigma = (
+            f" [{result.monte_carlo_sigmas:.2f} sigma]"
+            if result.monte_carlo_sigmas is not None
+            else ""
+        )
+        flag = "  <-- FINDING" if result.is_finding else ""
         lines.append(
             f"{label}  {result.outcome:<7} "
             f"py={result.python_value!r} r={result.r_value!r} "
@@ -595,16 +651,43 @@ def render(results: list[ComparisonResult], tier3: dict, env: dict) -> str:
             f"rel={result.relative_difference:.3e} "
             f"(tol abs={result.absolute_tolerance:.3e} "
             f"rel={result.relative_tolerance:.3e})"
+            f"{sigma}{flag}"
         )
 
     counts = {
         outcome: sum(1 for r in results if r.outcome == outcome)
         for outcome in (PASS, FAIL, SKIPPED, ERROR)
     }
+    findings = [r for r in results if r.is_finding]
     lines += [
         "-" * 78,
         f"{counts[PASS]} passed, {counts[FAIL]} failed, "
         f"{counts[SKIPPED]} skipped, {counts[ERROR]} errored",
+    ]
+
+    if findings:
+        lines += [
+            "",
+            f"FINDINGS: {len(findings)} comparison(s) agreed within the declared",
+            f"tolerance and are further apart than sampling error explains",
+            f"(> {SIGMA_FINDING:.0f} of their own standard errors).",
+            "",
+        ]
+        for result in findings:
+            lines.append(
+                f"  {result.case_id}/{result.quantity}: "
+                f"{result.monte_carlo_sigmas:.2f} sigma "
+                f"(diff {result.absolute_difference:.3e})"
+            )
+        lines += [
+            "",
+            "  These are not failures and must not be treated as noise either.",
+            "  The declared tolerance is evaluated at the worst case p = 0.5,",
+            "  which is wider than a comparison at extreme p deserves. Each one",
+            "  needs a reason before the method it belongs to is relied upon.",
+        ]
+
+    lines += [
         "",
         "Tier 3 status by method",
         "-" * 78,
