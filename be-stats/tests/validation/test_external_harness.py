@@ -541,6 +541,58 @@ def test_a_monte_carlo_comparison_reports_how_many_sigmas_apart_it_is():
     assert results[0].is_finding
 
 
+def test_the_sigma_bands_classify_but_never_gate():
+    """Three bands, and none of them changes an outcome.
+
+    A single threshold at 4 answered "is this a finding" as a yes or no. The
+    bands say how close to the line a comparison sits, which is the difference
+    between "look at this" and "this is fine" - without giving anyone a new
+    number to tune.
+    """
+    assert harness.sigma_band(None) is None
+    assert harness.sigma_band(0.19) == harness.SIGMA_COMPATIBLE
+    assert harness.sigma_band(2.99) == harness.SIGMA_COMPATIBLE
+    assert harness.sigma_band(3.01) == harness.SIGMA_WORTH_REVIEW
+    assert harness.sigma_band(4.00) == harness.SIGMA_WORTH_REVIEW
+    assert harness.sigma_band(4.61) == harness.SIGMA_IS_FINDING
+
+    # Only the top band is a finding, and a finding is still a PASS.
+    case = next(
+        c for c in harness.load_cases()
+        if c.comparison_kind == harness.COMPARISON_POWER
+    )
+    quantity = case.comparisons[0].quantity
+    for python_value, expected_band in (
+        (0.87104, harness.SIGMA_COMPATIBLE),
+        (0.85817, harness.SIGMA_IS_FINDING),
+    ):
+        results = harness.compare(
+            [case],
+            {case.case_id: {quantity: python_value}},
+            {case.case_id: {quantity: 0.87055}},
+        )
+        assert results[0].outcome == harness.PASS
+        assert results[0].band == expected_band
+        assert results[0].is_finding == (expected_band == harness.SIGMA_IS_FINDING)
+
+
+def test_the_report_tallies_the_bands():
+    case = next(
+        c for c in harness.load_cases()
+        if c.comparison_kind == harness.COMPARISON_POWER
+    )
+    quantity = case.comparisons[0].quantity
+    results = harness.compare(
+        [case],
+        {case.case_id: {quantity: 0.87055}},
+        {case.case_id: {quantity: 0.87104}},
+    )
+    text = harness.render(results, {}, harness.environment())
+    assert "Monte Carlo distance:" in text
+    assert "1 compatible" in text
+    assert "no band changes pass or fail" in text
+
+
 def test_a_closed_form_comparison_has_no_sigma():
     """There is no sampling error to measure against."""
     case = next(

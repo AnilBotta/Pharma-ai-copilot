@@ -106,6 +106,33 @@ ERROR = "ERROR"
 #: visible so a person decides.
 SIGMA_FINDING = 4.0
 
+#: Below this, a difference is what two Monte Carlo estimates of one
+#: probability ordinarily look like. Between this and `SIGMA_FINDING` it is
+#: worth a look without being remarkable.
+SIGMA_REVIEW = 3.0
+
+#: The bands, named. DIAGNOSTIC ONLY - none of them changes pass or fail.
+#:
+#: They exist because "1.238e-02, tolerance 1.549e-02" tells a reader the
+#: comparison passed and nothing about whether it should have. A single
+#: threshold at 4 answered that as a yes or no; three bands say how close to
+#: the line a comparison sits, which is the difference between "look at this"
+#: and "this is fine".
+SIGMA_COMPATIBLE = "compatible"
+SIGMA_WORTH_REVIEW = "review"
+SIGMA_IS_FINDING = "finding"
+
+
+def sigma_band(sigmas: float | None) -> str | None:
+    """Which band a Monte Carlo distance falls in. Never gates anything."""
+    if sigmas is None:
+        return None
+    if sigmas > SIGMA_FINDING:
+        return SIGMA_IS_FINDING
+    if sigmas > SIGMA_REVIEW:
+        return SIGMA_WORTH_REVIEW
+    return SIGMA_COMPATIBLE
+
 
 class CaseError(ValueError):
     """A case file is malformed. Loud, because a bad case silently ignored is
@@ -434,6 +461,11 @@ class ComparisonResult:
             and self.monte_carlo_sigmas > SIGMA_FINDING
         )
 
+    @property
+    def band(self) -> str | None:
+        """`compatible`, `review` or `finding`. Diagnostic only."""
+        return sigma_band(self.monte_carlo_sigmas)
+
     def as_dict(self) -> dict:
         return {
             "case_id": self.case_id,
@@ -446,6 +478,7 @@ class ComparisonResult:
             "absolute_tolerance": self.absolute_tolerance,
             "relative_tolerance": self.relative_tolerance,
             "monte_carlo_sigmas": self.monte_carlo_sigmas,
+            "monte_carlo_band": self.band,
             "is_finding": self.is_finding,
             "tolerance_basis": self.tolerance_basis,
             "detail": self.detail,
@@ -710,7 +743,7 @@ def render(results: list[ComparisonResult], tier3: dict, env: dict) -> str:
             lines.append(f"{label}  {result.outcome:<7} {result.detail}")
             continue
         sigma = (
-            f" [{result.monte_carlo_sigmas:.2f} sigma]"
+            f" [{result.monte_carlo_sigmas:.2f} sigma, {result.band}]"
             if result.monte_carlo_sigmas is not None
             else ""
         )
@@ -735,6 +768,22 @@ def render(results: list[ComparisonResult], tier3: dict, env: dict) -> str:
         f"{counts[PASS]} passed, {counts[FAIL]} failed, "
         f"{counts[SKIPPED]} skipped, {counts[ERROR]} errored",
     ]
+
+    banded = [r for r in results if r.band is not None]
+    if banded:
+        tally = {
+            band: sum(1 for r in banded if r.band == band)
+            for band in (SIGMA_COMPATIBLE, SIGMA_WORTH_REVIEW, SIGMA_IS_FINDING)
+        }
+        worst = max(r.monte_carlo_sigmas for r in banded)
+        lines.append(
+            f"Monte Carlo distance: {tally[SIGMA_COMPATIBLE]} compatible "
+            f"(<={SIGMA_REVIEW:.0f}), {tally[SIGMA_WORTH_REVIEW]} worth review "
+            f"({SIGMA_REVIEW:.0f}-{SIGMA_FINDING:.0f}), "
+            f"{tally[SIGMA_IS_FINDING]} findings (>{SIGMA_FINDING:.0f}); "
+            f"largest {worst:.2f} sigma. Diagnostic only - no band changes "
+            "pass or fail."
+        )
 
     if findings:
         lines += [
