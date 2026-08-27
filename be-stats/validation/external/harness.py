@@ -196,10 +196,16 @@ class Case:
     oracle: dict
     #: What this case explicitly does NOT establish.
     not_cross_checkable: tuple[str, ...] = ()
-    #: Validation finding ids that remain open against this case. A method
-    #: whose cases all pass but which carries one of these is reported
+    #: Validation finding ids that STAND against this case. A method whose
+    #: cases all pass but which carries one of these is reported
     #: `PASSED_WITH_FINDING`, never bare `PASSED` - see `tier3_status`.
-    open_findings: tuple[str, ...] = ()
+    #:
+    #: "Standing", not "open". A finding can be RESOLVED and still stand: an
+    #: ACCEPTED_ORACLE_DIVERGENCE is understood, decided, and permanent, so
+    #: nobody needs to investigate it again AND every run will keep showing
+    #: the difference. Calling those entries "open" made the report claim an
+    #: investigation was outstanding when none was.
+    standing_findings: tuple[str, ...] = ()
     notes: str = ""
 
     @staticmethod
@@ -260,6 +266,16 @@ class Case:
                     f"{data['case_id']}: oracle is missing '{field_name}'"
                 )
 
+        if "open_findings" in data:
+            # Refused rather than accepted silently: the rename carried a
+            # meaning change, and a case file still using the old name would
+            # quietly stop qualifying its method's tier-3 row.
+            raise CaseError(
+                f"{data['case_id']}: 'open_findings' was renamed to "
+                "'standing_findings'. A finding can be RESOLVED and still "
+                "stand against a case - see validation/findings/README.md."
+            )
+
         return Case(
             case_id=data["case_id"],
             title=data["title"],
@@ -269,7 +285,7 @@ class Case:
             comparisons=tuple(comparisons),
             oracle=oracle,
             not_cross_checkable=tuple(data.get("not_cross_checkable", ())),
-            open_findings=tuple(data.get("open_findings", ())),
+            standing_findings=tuple(data.get("standing_findings", ())),
             notes=data.get("notes", ""),
         )
 
@@ -718,9 +734,10 @@ def tier3_status(
     Two things can qualify a pass, and they are kept apart because they mean
     different things:
 
-        open_findings   declared on the case, standing questions about what
-                        the comparison establishes. They survive a green run,
-                        because a green run is not what closes them.
+        standing_findings   declared on the case. They survive a green run,
+                        because a green run is not what closes them - and a
+                        RESOLVED finding can still stand, when what it records
+                        is a permanent divergence rather than an open question.
 
         run_findings    raised BY this run: a comparison that agreed within
                         tolerance but sits further out than sampling error
@@ -748,8 +765,8 @@ def tier3_status(
             else:
                 role_status[role] = PASS
 
-        open_findings = sorted(
-            {f for case in method_cases for f in case.open_findings}
+        standing_findings = sorted(
+            {f for case in method_cases for f in case.standing_findings}
         )
         run_findings = sorted(
             {
@@ -764,7 +781,7 @@ def tier3_status(
         )
         if not all_required_pass:
             tier3 = TIER3_PENDING
-        elif open_findings or run_findings:
+        elif standing_findings or run_findings:
             tier3 = TIER3_PASSED_WITH_FINDING
         else:
             tier3 = TIER3_PASSED
@@ -773,7 +790,7 @@ def tier3_status(
             "required_roles": list(required),
             "missing_roles": missing_roles,
             "role_status": role_status,
-            "open_findings": open_findings,
+            "standing_findings": standing_findings,
             "run_findings": run_findings,
             "tier3": tier3,
         }
@@ -906,8 +923,8 @@ def render(results: list[ComparisonResult], tier3: dict, env: dict) -> str:
             lines.append(f"      {role:<18} {got}")
         if status["missing_roles"]:
             lines.append(f"      missing roles: {', '.join(status['missing_roles'])}")
-        for finding in status.get("open_findings", ()):
-            lines.append(f"      OPEN FINDING       {finding}")
+        for finding in status.get("standing_findings", ()):
+            lines.append(f"      STANDING FINDING   {finding}")
         for finding in status.get("run_findings", ()):
             lines.append(f"      RAISED THIS RUN    {finding}")
 
@@ -923,7 +940,9 @@ def render(results: list[ComparisonResult], tier3: dict, env: dict) -> str:
             "",
         ]
         for method in qualified:
-            names = tier3[method]["open_findings"] + tier3[method]["run_findings"]
+            names = (
+                tier3[method]["standing_findings"] + tier3[method]["run_findings"]
+            )
             lines.append(f"  {method}: {', '.join(names)}")
 
     lines += [
@@ -985,7 +1004,9 @@ def main(argv: list[str] | None = None) -> int:
         # Hoisted to the top level so a consumer reading the report
         # programmatically cannot render a green summary without stepping over
         # them. See `validation/findings/`.
-        "open_findings": sorted({f for case in cases for f in case.open_findings}),
+        "standing_findings": sorted(
+            {f for case in cases for f in case.standing_findings}
+        ),
     }
     args.json_out.write_text(json.dumps(report, indent=2), encoding="utf-8")
 

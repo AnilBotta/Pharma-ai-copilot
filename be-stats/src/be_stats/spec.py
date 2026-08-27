@@ -109,44 +109,20 @@ VALIDATION: dict[Method, ValidationStatus] = {
     #: is not, and this package's policy is that an attested algorithm is not a
     #: reproduced result.
     Method.FDA_HVD_RSABE: ValidationStatus.IMPLEMENTED_UNVALIDATED,
-    #: EMA ABEL. IMPLEMENTED_UNVALIDATED at the method level even though this
-    #: is the FIRST method in the package with genuine tier-1B evidence —
-    #: EMA's own Data set I and Data set II, published with results, both
-    #: reproduced. See `EMA_HVD_STAGE_VALIDATION` below for why the method as a
-    #: whole is not VALIDATED when two of its parts arguably are.
+    #: EMA ABEL. IMPLEMENTED_UNVALIDATED at the METHOD level even though three
+    #: of its capabilities are VALIDATED on tier-1B evidence — the first in
+    #: this package to reach that bar.
+    #:
+    #: A method status is the status of the whole procedure, and the whole
+    #: procedure is more than its parts: no EMA publication carries one
+    #: end-to-end highly variable Cmax example running CVwR > 30% -> widened
+    #: limits -> Method A 90% CI -> GMR constraint -> a stated verdict.
+    #: Validated components assembled by unvalidated wiring is precisely the
+    #: failure this ladder exists to make visible, so the method stays below
+    #: its parts rather than inheriting their best status.
+    #:
+    #: See `CAPABILITY_VALIDATION` for the per-capability picture.
     Method.EMA_HVD_ABEL: ValidationStatus.IMPLEMENTED_UNVALIDATED,
-}
-
-#: EMA ABEL, stage by stage.
-#:
-#: A single status per method is too coarse here. The limit calculation is
-#: checkable against a table the regulator printed; the analysis model is
-#: checkable against two data sets the regulator published; the design gate and
-#: the endpoint rule are prose with no number to reproduce. Those are different
-#: evidentiary situations and collapsing them into one word loses the thing a
-#: reviewer needs.
-#:
-#: `IMPLEMENTED` means "implemented, and there is no external numeric claim to
-#: validate" — a gate that either routes correctly or does not.
-#: `IMPLEMENTED_UNVALIDATED` means "implemented, and a numeric claim exists
-#: that tier 3 has not yet confirmed".
-EMA_HVD_STAGE_VALIDATION: dict[str, ValidationStatus] = {
-    #: Which designs 4.1.10 permits. Prose, no arithmetic.
-    "EMA_HVD_DESIGN_GATE": ValidationStatus.IMPLEMENTED,
-    #: CVwR > 30%, strict, on the CV scale. A comparison, not a computation.
-    "EMA_HVD_VARIABILITY_ELIGIBILITY": ValidationStatus.IMPLEMENTED,
-    #: exp(+/- k.sWR) with the stated cap. Reproduces all five rows of the
-    #: guideline's own table to the two decimals it publishes — tier 1B — but
-    #: the cap READING (stated pair versus recomputed pair) is a live question
-    #: recorded as VAL-EMA-ABEL-002, so not VALIDATED.
-    "EMA_ABEL_LIMIT_CALCULATION": ValidationStatus.IMPLEMENTED_UNVALIDATED,
-    #: GMR within 80.00-125.00%. A containment test on a number produced
-    #: elsewhere.
-    "EMA_ABEL_PE_CONSTRAINT": ValidationStatus.IMPLEMENTED_UNVALIDATED,
-    #: Method A, and the combination of both criteria into one decision.
-    #: Reproduces EMA's published point estimates and 90% intervals for both
-    #: annexed data sets.
-    "EMA_HVD_ENDPOINT_DECISION": ValidationStatus.IMPLEMENTED_UNVALIDATED,
 }
 
 #: NOTE: this frozenset and `ValidationStatus.IMPLEMENTED` are unrelated. This
@@ -200,6 +176,24 @@ class Capability(StrEnum):
     #: for a fully replicate study means Appendix C's model.
     FDA_NTI_UNSCALED_ABE = "fda_nti_unscaled_abe"
 
+    # ------------------------------ EMA highly variable drugs (ABEL) ---
+    #: Which replicate designs 4.1.10 permits, classified with a reason.
+    EMA_HVD_DESIGN_GATE = "ema_hvd_design_gate"
+    #: CVwR > 30%, strictly, on the CV scale, and Cmax only.
+    EMA_HVD_VARIABILITY_ELIGIBILITY = "ema_hvd_variability_eligibility"
+    #: CVwR from the reference measurements alone, by the model
+    #: EMA/618604/2008 Rev. 13 section 3.4 specifies.
+    EMA_HVD_REFERENCE_VARIABILITY = "ema_hvd_reference_variability"
+    #: Method A: the all-fixed-effects ANOVA the Q&A calls "guideline
+    #: recommended", giving mu_T - mu_R and its 90% interval.
+    EMA_REPLICATE_METHOD_A = "ema_replicate_method_a"
+    #: exp(+/- k.sWR) with the cap 4.1.10 states.
+    EMA_ABEL_LIMIT_CALCULATION = "ema_abel_limit_calculation"
+    #: The GMR within 80.00-125.00%, required in addition to the interval.
+    EMA_ABEL_PE_CONSTRAINT = "ema_abel_pe_constraint"
+    #: The two criteria combined into one endpoint verdict.
+    EMA_HVD_ENDPOINT_DECISION = "ema_hvd_endpoint_decision"
+
 
 #: Capabilities carry their own statuses, on the same ladder.
 #:
@@ -246,6 +240,65 @@ CAPABILITY_VALIDATION: dict[Capability, ValidationStatus] = {
     #: here. Two of three NTI criteria are computable; the third is not, so the
     #: NTI method as a whole stays NOT_IMPLEMENTED.
     Capability.FDA_NTI_UNSCALED_ABE: ValidationStatus.NOT_IMPLEMENTED,
+    # ------------------------------ EMA highly variable drugs (ABEL) ---
+    #
+    # THE FIRST `VALIDATED` ENTRIES IN THIS TABLE, AND WHY THEY EARN IT
+    #
+    # Everything above is IMPLEMENTED_UNVALIDATED at best, because FDA has
+    # published no worked dataset and the package's policy is that an attested
+    # algorithm is not a reproduced result. EMA has published one — two, in
+    # fact, plus a table — so three EMA capabilities clear the bar that no FDA
+    # capability can currently clear.
+    #
+    # The evidence is TIER 1B: a regulator's own numbers, reproduced. Not tier
+    # 3, which is an independent implementation agreeing, and not tier 1A,
+    # which is an algorithm attested against prose.
+    #: Structural: the gate either permits the designs 4.1.10 permits or it
+    #: does not. No number for a regulator to disagree with.
+    Capability.EMA_HVD_DESIGN_GATE: ValidationStatus.IMPLEMENTED,
+    #: Structural: a strict comparison against 30 on the CV scale.
+    Capability.EMA_HVD_VARIABILITY_ELIGIBILITY: ValidationStatus.IMPLEMENTED,
+    #: VALIDATED — tier 1B. EMA/618604/2008 Rev. 13 section 3.4 publishes the
+    #: reference within-subject CV for both annexed data sets under the Model
+    #: A/B column: 47.0% and 11.2%. This package's estimator, run on the raw
+    #: data from the same annex, gives 46.96% and 11.17% — agreement to the
+    #: one decimal EMA printed. See tests/validation/test_ema_tier1b.py.
+    Capability.EMA_HVD_REFERENCE_VARIABILITY: ValidationStatus.VALIDATED,
+    #: VALIDATED — tier 1B. The same Q&A publishes Method A's point estimate
+    #: and 90% confidence interval for both data sets: 115.66 (107.11, 124.89)
+    #: and 102.26 (97.32, 107.46). Both reproduce to the two decimals printed,
+    #: INCLUDING the unbalanced four-period set whose eight incomplete subjects
+    #: must be retained for the published result to come out.
+    Capability.EMA_REPLICATE_METHOD_A: ValidationStatus.VALIDATED,
+    #: VALIDATED — tier 1B. Section 4.1.10 prints its own table of widened
+    #: limits at CVwR 30, 35, 40, 45 and >=50 percent. All five rows reproduce
+    #: to the two decimals published, and the stated cap 69.84 - 143.19% is
+    #: applied as stated.
+    #:
+    #: VAL-EMA-ABEL-002 does not qualify this. It is RESOLVED: PowerTOST keeps
+    #: the unrounded formula where EMA states a rounded pair, which is a
+    #: documented divergence between an oracle and a regulator and not an open
+    #: question about the rule. be-stats follows the regulator, and the tier-1B
+    #: table is what confirms that reading.
+    Capability.EMA_ABEL_LIMIT_CALCULATION: ValidationStatus.VALIDATED,
+    #: A containment test on a number produced elsewhere. No regulator-published
+    #: example exercises the constraint on its own, so it stays unvalidated even
+    #: though the limits either side of it are validated.
+    Capability.EMA_ABEL_PE_CONSTRAINT: (
+        ValidationStatus.IMPLEMENTED_UNVALIDATED
+    ),
+    #: DELIBERATELY NOT VALIDATED, and the reason is worth stating.
+    #:
+    #: Every PART of the endpoint decision now has tier-1B evidence, and the
+    #: whole does not. No EMA publication carries one end-to-end highly
+    #: variable Cmax example running CVwR > 30% -> widened limits -> Method A
+    #: 90% CI -> GMR within 80-125% -> a stated PASS or FAIL. Validating the
+    #: components does not validate the wiring between them, and this is
+    #: exactly the place where a package could assemble correct pieces into a
+    #: wrong verdict.
+    Capability.EMA_HVD_ENDPOINT_DECISION: (
+        ValidationStatus.IMPLEMENTED_UNVALIDATED
+    ),
 }
 
 

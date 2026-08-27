@@ -4,6 +4,7 @@
   "raised_by": "source inspection during PR #60, before any comparison fixture was written",
   "raised_on": "2026-08-27",
   "status": "PREEMPTED",
+  "status_note": "No classification, because nothing was resolved: the wrong comparison was never written, so there was no discrepancy to explain. PREEMPTED is what the VAL-FDA-HVD-001 rule produces when it works.",
   "method": "ema_hvd_abel",
   "severity": "oracle_selection_no_wrong_comparison_was_run",
 

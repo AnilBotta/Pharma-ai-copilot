@@ -6,7 +6,8 @@
 |---|---|
 | Raised | PR #58, first external validation run, 2026-08-27 |
 | Resolved | 2026-08-28 |
-| Status | `RESOLVED_POWERTOST_CONFIGURATION_ERROR` |
+| Status | `RESOLVED` |
+| Classification | `RESOLVED_POWERTOST_CONFIGURATION_ERROR` |
 | Method | `fda_hvd_rsabe` |
 | Impact on `be-stats` | None. No production statistical logic was wrong, and none was changed. |
 

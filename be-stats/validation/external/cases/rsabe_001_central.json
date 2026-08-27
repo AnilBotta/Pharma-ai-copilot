@@ -52,7 +52,7 @@
         "The intermediate Howe quantities x, bound_x, y and bound_y. PowerTOST does not expose them for a dataset; it exposes only the probability that the criterion passed. They are checked instead against the FDA SAS in the tier-1A case FDA-HVD-RSABE-CRITERION-001.",
         "sWR and the treatment contrast for any individual study. PowerTOST analyses no dataset, so there is nothing to compare them with. This is not a gap that can be closed by choosing different arguments: PowerTOST 1.5-7 exposes no dataset-level entry point for the FDA scaled procedures at all."
     ],
-    "open_findings": [
+    "standing_findings": [
         "VAL-FDA-HVD-002"
     ],
     "notes": "A comfortably highly variable scenario where reference scaling is doing real work and few simulated studies fall below the switch."

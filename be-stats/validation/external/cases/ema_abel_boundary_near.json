@@ -41,7 +41,7 @@
     "Method A itself. PowerTOST simulates studies; it does not fit an ANOVA to a supplied dataset and return a contrast. Again tier 1B covers it, and covers it better: a regulator's published result beats an independent implementation's agreement.",
     "p(BE-ABEL) from power.scABEL. Two reasons, both established from the source before any fixture was written (VAL-EMA-ABEL-001): it is the MIXED decision rather than the ABEL criterion, and for EMA it routes to power.scABEL1, which documents four 'purely empirical' adaptations. A tuned approximation cannot serve as an oracle."
   ],
-  "open_findings": [
+  "standing_findings": [
     "VAL-EMA-ABEL-002"
   ],
   "notes": "Just past CVwR > 30%, where widening begins and the limits are barely wider than the conventional range. At exactly 30% the formula gives 80.0030 - 124.9953, so this is the region where a wrong boundary operator or a threshold expressed on the sWR scale instead of the CV scale would be invisible in the limits but wrong in the routing. The routing itself is asserted in tests/unit/test_ema_abel.py."

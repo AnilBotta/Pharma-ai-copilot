@@ -492,20 +492,84 @@ def test_the_pe_constraint_is_checked_against_80_125_even_when_limits_widen():
     assert passes is False
 
 
-def test_the_stage_validation_table_covers_every_stage_the_brief_names():
-    from be_stats.provenance import ValidationStatus
-    from be_stats.spec import EMA_HVD_STAGE_VALIDATION
+def test_every_ema_stage_is_tracked_as_a_capability():
+    """The EMA stages live in `Capability`, not a table of their own.
 
-    assert set(EMA_HVD_STAGE_VALIDATION) == {
+    An earlier draft carried a parallel `EMA_HVD_STAGE_VALIDATION` dict keyed
+    by string. Two registries answering the same question is how they come to
+    disagree, and `Capability` already existed for exactly this.
+    """
+    from be_stats.spec import CAPABILITY_VALIDATION, Capability
+
+    for name in (
         "EMA_HVD_DESIGN_GATE",
         "EMA_HVD_VARIABILITY_ELIGIBILITY",
+        "EMA_HVD_REFERENCE_VARIABILITY",
+        "EMA_REPLICATE_METHOD_A",
         "EMA_ABEL_LIMIT_CALCULATION",
         "EMA_ABEL_PE_CONSTRAINT",
         "EMA_HVD_ENDPOINT_DECISION",
-    }
-    # Nothing may claim VALIDATED: package policy requires tier 1B AND no open
-    # question, and VAL-EMA-ABEL-002 is open.
-    assert ValidationStatus.VALIDATED not in EMA_HVD_STAGE_VALIDATION.values()
+    ):
+        capability = getattr(Capability, name)
+        assert capability in CAPABILITY_VALIDATION, name
+
+    import be_stats.spec as spec_module
+
+    assert not hasattr(spec_module, "EMA_HVD_STAGE_VALIDATION")
+
+
+def test_the_tier_1b_backed_capabilities_are_validated():
+    """The first VALIDATED entries in the package, and they are earned.
+
+    EMA published the numbers; this package reproduces them. Everything FDA
+    rests on tier 1A and tier 3, neither of which is a regulator's own result.
+    """
+    from be_stats.provenance import ValidationStatus
+    from be_stats.spec import CAPABILITY_VALIDATION, Capability
+
+    for capability in (
+        Capability.EMA_ABEL_LIMIT_CALCULATION,
+        Capability.EMA_REPLICATE_METHOD_A,
+        Capability.EMA_HVD_REFERENCE_VARIABILITY,
+    ):
+        assert CAPABILITY_VALIDATION[capability] is ValidationStatus.VALIDATED
+
+
+def test_the_endpoint_decision_stays_below_its_validated_parts():
+    """Validated components assembled by unvalidated wiring.
+
+    No EMA publication carries one end-to-end highly variable Cmax example
+    running CVwR > 30% -> widened limits -> Method A 90% CI -> GMR constraint
+    -> a stated verdict. So the decision that combines them is not validated,
+    and neither is the method, even though three of its capabilities are.
+    """
+    from be_stats.provenance import ValidationStatus
+    from be_stats.spec import CAPABILITY_VALIDATION, VALIDATION, Capability, Method
+
+    assert CAPABILITY_VALIDATION[Capability.EMA_HVD_ENDPOINT_DECISION] is (
+        ValidationStatus.IMPLEMENTED_UNVALIDATED
+    )
+    assert VALIDATION[Method.EMA_HVD_ABEL] is (
+        ValidationStatus.IMPLEMENTED_UNVALIDATED
+    )
+    # And no method anywhere claims VALIDATED yet.
+    assert ValidationStatus.VALIDATED not in VALIDATION.values()
+
+
+def test_no_fda_capability_claims_validated():
+    """The asymmetry is a fact about the documents, not about the code.
+
+    FDA has published no worked dataset for these procedures, so nothing on the
+    FDA side can clear the bar the EMA capabilities just cleared. If an FDA
+    capability ever turns VALIDATED, it should be because a worked example
+    arrived - not because this test was deleted.
+    """
+    from be_stats.provenance import ValidationStatus
+    from be_stats.spec import CAPABILITY_VALIDATION
+
+    for capability, status in CAPABILITY_VALIDATION.items():
+        if str(capability).startswith("fda_"):
+            assert status is not ValidationStatus.VALIDATED, capability
 
 
 def test_the_dataset_refuses_a_file_spanning_two_endpoints():

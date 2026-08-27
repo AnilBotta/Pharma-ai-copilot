@@ -3,7 +3,10 @@
   "title": "EMA states the ABEL cap as a limit pair; the formula at CVwR = 50% gives a fractionally wider one",
   "raised_by": "PR #60, while implementing the cap",
   "raised_on": "2026-08-27",
-  "status": "ACCEPTED_ORACLE_DIVERGENCE",
+  "resolved_on": "2026-08-27",
+  "status": "RESOLVED",
+  "classification": "ACCEPTED_ORACLE_DIVERGENCE",
+  "status_note": "RESOLVED means the question is answered, not that the numbers converged. EMA states the maximum widened range as 69.84 - 143.19% and its table gives the >=50% row as exactly that pair; PowerTOST preserves the unrounded formula. That is a documented divergence between an oracle and a regulator - not a regulatory ambiguity, and not a be-stats defect. The 0.0032 percentage-point difference is permanent and will appear in every run.",
   "method": "ema_hvd_abel",
   "severity": "oracle_divergence_be_stats_follows_the_regulator",
 
@@ -42,7 +45,9 @@
     "how_the_cases_handle_it": "The below-cap case uses a tolerance at floating-point scale. The capped case asserts the divergence IS the predicted one rather than widening a tolerance to absorb it. A difference predicted in advance is evidence that both implementations are understood; the same difference found afterwards would be a finding."
   },
 
-  "why_it_stays_open": "No run closes it. Both readings are defensible and will keep differing for as long as EMA prints a rounded pair and PowerTOST recomputes it. Carried on the EMA cases so the ema_hvd_abel tier-3 row reads PASSED_WITH_FINDING rather than PASSED.",
+  "why_it_still_qualifies_the_tier_3_row": "Resolved is not absent. The divergence is permanent - it will appear in every run for as long as EMA prints a rounded pair and PowerTOST recomputes it - so the ema_hvd_abel tier-3 row reads PASSED_WITH_FINDING rather than PASSED. The qualification records that the comparison is not unconditional; the RESOLVED status records that nobody needs to investigate it again. Those are different facts and the report carries both.",
+
+  "what_would_reopen_it": "EMA restating the cap - for example in the future ICH M13C - or a PowerTOST release that adopts the stated pair. Neither is an action for this package.",
 
   "action_required": "None in be-stats. Revisit if EMA restates the cap, for example in the future ICH M13C.",
   "related_findings": ["VAL-EMA-ABEL-001", "VAL-FDA-HVD-002"]

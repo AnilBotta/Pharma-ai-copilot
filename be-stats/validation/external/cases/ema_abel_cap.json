@@ -47,7 +47,7 @@
     "Method A itself. PowerTOST simulates studies; it does not fit an ANOVA to a supplied dataset and return a contrast. Again tier 1B covers it, and covers it better: a regulator's published result beats an independent implementation's agreement.",
     "p(BE-ABEL) from power.scABEL. Two reasons, both established from the source before any fixture was written (VAL-EMA-ABEL-001): it is the MIXED decision rather than the ABEL criterion, and for EMA it routes to power.scABEL1, which documents four 'purely empirical' adaptations. A tuned approximation cannot serve as an oracle."
   ],
-  "open_findings": [
+  "standing_findings": [
     "VAL-EMA-ABEL-002"
   ],
   "notes": "The guideline's table ends '>=50 | 69.84 | 143.19', so this is the row where the stated cap and the computed cap are the same number printed to different precision. The 0.0032 percentage point difference between be-stats and PowerTOST here is VAL-EMA-ABEL-002 and was predicted, not discovered."

@@ -6,9 +6,18 @@ very slightly wider one. `be-stats` applies the stated pair.**
 | | |
 |---|---|
 | Raised | PR #60, while implementing the cap |
-| Status | `ACCEPTED_ORACLE_DIVERGENCE` |
+| Status | **`RESOLVED`** |
+| Classification | `ACCEPTED_ORACLE_DIVERGENCE` |
 | Method | `ema_hvd_abel` |
 | Action in `be-stats` | none — the regulator's stated numbers decide |
+
+> **`RESOLVED` means the question is answered, not that the numbers
+> converged.** EMA states the maximum widened range as 69.84 – 143.19% and its
+> table gives the ≥50% row as exactly that pair. PowerTOST preserves the
+> unrounded formula. That is a documented divergence between an oracle and a
+> regulator — not a regulatory ambiguity, and not a `be-stats` defect. The
+> 0.0032 percentage-point difference is permanent and appears in every run,
+> which is why the tier-3 row stays qualified.
 
 ## The two readings
 
@@ -67,9 +76,30 @@ Recording it before the comparison ran is the practice `VAL-FDA-HVD-001`
 established. A difference you predicted is evidence that you understand both
 implementations; the same difference found afterwards is a finding.
 
-## Why it stays open
+## Why a resolved finding still qualifies the tier-3 row
 
-No run closes it. Both readings are defensible and will keep differing for as
-long as EMA prints a rounded pair and PowerTOST recomputes it. It is carried on
-the EMA cases so the `ema_hvd_abel` tier-3 row reads `PASSED_WITH_FINDING`
-rather than `PASSED`.
+Resolved is not absent. The divergence is permanent — it appears in every run
+for as long as EMA prints a rounded pair and PowerTOST recomputes it — so the
+`ema_hvd_abel` tier-3 row reads `PASSED_WITH_FINDING` rather than `PASSED`.
+
+Two different facts, and the report carries both:
+
+- **`RESOLVED`** — nobody needs to investigate this again.
+- **the row stays qualified** — the comparison against the oracle is not
+  unconditional, and a reader should know that before relying on it.
+
+Collapsing them would mean either hiding a real numerical difference behind a
+green tick, or leaving a closed question permanently open. Neither is honest.
+
+## What would reopen it
+
+EMA restating the cap — in the future ICH M13C, say — or a PowerTOST release
+that adopts the stated pair. Neither is an action for this package.
+
+## What this finding does *not* qualify
+
+`EMA_ABEL_LIMIT_CALCULATION` is `VALIDATED`. This finding is not a reservation
+about the limit calculation: the tier-1B table is what *confirms* the stated
+reading, since all five of the guideline's own rows reproduce under it. The
+finding records a difference between this package and an **oracle**, and an
+oracle does not outrank the regulator.
