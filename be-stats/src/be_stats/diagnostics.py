@@ -110,6 +110,21 @@ class DiagnosticCode(StrEnum):
     #: model that would look the same.
     REPLICATE_ABE_MODEL_NOT_IMPLEMENTED = "REPLICATE_ABE_MODEL_NOT_IMPLEMENTED"
 
+    # ------------------------------------ narrow therapeutic index drugs ---
+    #: An NTI drug was submitted on a design FDA does not accept for it. NTI
+    #: requires a fully replicate crossover; nothing else reaches the criteria.
+    NTI_REQUIRES_FULLY_REPLICATE_DESIGN = "NTI_REQUIRES_FULLY_REPLICATE_DESIGN"
+    #: sWR is exactly zero, so sigma_WT / sigma_WR has no value. Not infinity,
+    #: and not a pass.
+    REFERENCE_SD_ZERO_VARIANCE_RATIO_UNDEFINED = (
+        "REFERENCE_SD_ZERO_VARIANCE_RATIO_UNDEFINED"
+    )
+    #: No subject contributed two test measurements, so sWT cannot be
+    #: estimated and the variability comparison has no numerator.
+    MISSING_TEST_REPLICATE = "MISSING_TEST_REPLICATE"
+    #: Fewer than one degree of freedom for the within-test variance.
+    INSUFFICIENT_TEST_DF = "INSUFFICIENT_TEST_DF"
+
 
 class Severity(StrEnum):
     """What the condition actually did to the analysis."""

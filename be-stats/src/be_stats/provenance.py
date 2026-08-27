@@ -152,6 +152,26 @@ FDA_STATISTICAL_APPROACHES_APPENDIX_G = Citation(
     url="https://www.fda.gov/media/163638/download",
 )
 
+FDA_STATISTICAL_APPROACHES_III_B = Citation(
+    authority="FDA",
+    document="Statistical Approaches to Establishing Bioequivalence",
+    section="III.B (statistical method for narrow therapeutic index drugs)",
+    document_version="final, May 2026",
+    url="https://www.fda.gov/media/163638/download",
+)
+
+#: Appendix F steps 4 and 5 specifically: the within-subject variability
+#: comparison and the three conditions. Cited separately from the appendix at
+#: large because the variance-ratio interval is the part most likely to be
+#: reached for from somewhere else.
+FDA_STATISTICAL_APPROACHES_APPENDIX_F_STEPS_4_5 = Citation(
+    authority="FDA",
+    document="Statistical Approaches to Establishing Bioequivalence",
+    section="Appendix F, steps 4-5 (variability comparison and the three conditions)",
+    document_version="final, May 2026",
+    url="https://www.fda.gov/media/163638/download",
+)
+
 FDA_STATISTICAL_APPROACHES_APPENDIX_F = Citation(
     authority="FDA",
     document="Statistical Approaches to Establishing Bioequivalence",

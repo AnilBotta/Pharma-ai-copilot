@@ -149,6 +149,19 @@ class Capability(StrEnum):
     #: and parallel designs Phase 1 implements.
     FDA_HVD_UNSCALED_BRANCH = "fda_hvd_unscaled_branch"
 
+    # ------------------------------------ narrow therapeutic index drugs ---
+    #: Enforce that an NTI drug is on a fully replicate design before any
+    #: arithmetic runs.
+    FDA_NTI_DESIGN_VALIDATION = "fda_nti_design_validation"
+    #: Appendix F steps 2 and 5a: the reference-scaled mean criterion.
+    FDA_NTI_REFERENCE_SCALED_CRITERION = "fda_nti_reference_scaled_criterion"
+    #: Appendix F steps 4 and 5c: the 90% equal-tails F interval for
+    #: sigma_WT / sigma_WR against 2.500.
+    FDA_NTI_VARIABILITY_RATIO = "fda_nti_variability_ratio"
+    #: Appendix F step 5b: the ordinary UNSCALED 80.00-125.00% limits, which
+    #: for a fully replicate study means Appendix C's model.
+    FDA_NTI_UNSCALED_ABE = "fda_nti_unscaled_abe"
+
 
 #: Capabilities carry their own statuses, on the same ladder.
 #:
@@ -181,6 +194,20 @@ CAPABILITY_VALIDATION: dict[Capability, ValidationStatus] = {
     #: number was a bioequivalence verdict from a different model. The branch
     #: refuses instead. See `replicate_abe.py` for the specification.
     Capability.FDA_HVD_UNSCALED_BRANCH: ValidationStatus.NOT_IMPLEMENTED,
+    # ------------------------------------ narrow therapeutic index drugs ---
+    #: Structural: the design gate either enforces III.B or it does not.
+    Capability.FDA_NTI_DESIGN_VALIDATION: ValidationStatus.IMPLEMENTED,
+    Capability.FDA_NTI_REFERENCE_SCALED_CRITERION: (
+        ValidationStatus.IMPLEMENTED_UNVALIDATED
+    ),
+    Capability.FDA_NTI_VARIABILITY_RATIO: (
+        ValidationStatus.IMPLEMENTED_UNVALIDATED
+    ),
+    #: Same reason as `FDA_HVD_UNSCALED_BRANCH`: the unscaled analysis of a
+    #: fully replicate study is Appendix C's mixed model, which is not fitted
+    #: here. Two of three NTI criteria are computable; the third is not, so the
+    #: NTI method as a whole stays NOT_IMPLEMENTED.
+    Capability.FDA_NTI_UNSCALED_ABE: ValidationStatus.NOT_IMPLEMENTED,
 }
 
 
@@ -453,8 +480,10 @@ FDA_NTI_CONSTANTS: dict[str, RegulatoryValue] = {
         1.0 / 0.9,
         FDA_STATISTICAL_APPROACHES_APPENDIX_F,
         VerificationStatus.VERIFIED,
-        "Stated as 1/0.9 (approximately 1.11111), and used as theta = "
-        "[ln(delta) / sigma_W0]^2.",
+        "THE NORMATIVE CONSTANT, stated in Appendix F's prose as 1/0.9 "
+        "(approximately 1.11111), and used as theta = [ln(delta)/sigma_W0]^2. "
+        "The exact ratio is kept: the prose states the constant and the SAS "
+        "example displays it to five places. See FDA_NTI_SAS_EXAMPLE_DELTA.",
         VIA_PRIMARY_DOCUMENT,
     ),
     "variance_ratio_upper_limit": RegulatoryValue(
@@ -578,6 +607,75 @@ class BeSpec:
             if rv.verification is VerificationStatus.UNVERIFIED
         )
         return names
+
+
+# ------------------------- the Appendix F example-code literal ---
+#
+# A PRECISION DISCREPANCY, NOT A CONTRADICTION
+#
+# Appendix F states the constant in prose as `Delta = 1/0.9
+# (approximately=1.11111)`, and its SAS example then writes
+# `theta=((log(1.11111))/0.1)**2` - the five-decimal approximation the prose
+# itself offers, not a second rule.
+#
+# This is worth being careful about in both directions. It is NOT the guidance
+# contradicting itself, and it says nothing about the algorithm, which is
+# identical either way. It is an example printing a constant to five decimal
+# places, which is what example code does. Calling it a contradiction would
+# misrepresent the document.
+#
+# It is also not nothing: carried through theta it is a relative difference of
+# about 1.9e-05, and criterion (a) has a boundary, so there exist studies the
+# two would decide differently. `test_the_production_decision_uses_the_prose_
+# constant` exhibits one.
+#
+# So the normative constant is the prose ratio, the example literal is kept
+# beside it as an implementation reference, and neither is rounded into the
+# other.
+
+#: The literal that appears in Appendix F's SAS. NOT a regulatory constant, and
+#: deliberately outside `FDA_NTI_CONSTANTS` so it can never be iterated as one.
+#: Kept so the comparison is reproducible from the package rather than from
+#: somebody's memory of the PDF.
+FDA_NTI_SAS_EXAMPLE_DELTA: RegulatoryValue = RegulatoryValue(
+    1.11111,
+    FDA_STATISTICAL_APPROACHES_APPENDIX_F,
+    VerificationStatus.VERIFIED,
+    "IMPLEMENTATION REFERENCE, NOT THE REGULATORY CONSTANT. This is the "
+    "five-decimal approximation written in Appendix F's SAS example; the "
+    "normative value is the prose ratio Delta = 1/0.9. Verified as appearing "
+    "in the document, which is a claim about the example code and not about "
+    "the rule. Consumed by nothing in the decision path.",
+    VIA_PRIMARY_DOCUMENT,
+)
+
+
+def fda_nti_theta() -> float:
+    """FDA's NTI scaled limit, theta = [ln(Delta) / sigma_W0]^2.
+
+    THE ONE THE ENGINE DECIDES WITH.
+
+    Computed from the verified regulatory constants: `Delta = 1/0.9` as stated
+    in Appendix F's prose, and `sigma_W0 = 0.10`.
+
+    See `fda_nti_theta_sas_example` for the value Appendix F's example code
+    would give, and the comment above it for why they differ and why the prose
+    constant governs.
+    """
+    delta = FDA_NTI_CONSTANTS["delta"].value
+    sigma_w0 = FDA_NTI_CONSTANTS["sigma_w0"].value
+    return (math.log(delta) / sigma_w0) ** 2
+
+
+def fda_nti_theta_sas_example() -> float:
+    """Theta as Appendix F's SAS example would compute it. NOT the rule.
+
+    Provided so the difference can be measured from the package rather than
+    re-derived by hand, and so a test can assert that no decision path calls
+    this. Nothing in `nti.py` does, and a structural test enforces it.
+    """
+    sigma_w0 = FDA_NTI_CONSTANTS["sigma_w0"].value
+    return (math.log(FDA_NTI_SAS_EXAMPLE_DELTA.value) / sigma_w0) ** 2
 
 
 def resolve_be_spec(

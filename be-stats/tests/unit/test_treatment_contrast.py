@@ -214,6 +214,25 @@ def test_satterthwaite_collapses_to_the_residual_df_for_one_component():
             ) == pytest.approx(float(residual_df), rel=1e-12)
 
 
+def test_the_general_formula_agrees_with_the_exact_collapse():
+    """Verifies the identity the single-component shortcut relies on.
+
+    `satterthwaite_df` returns `v` directly for one component, because
+    evaluating `2t^2 / (2t^2 / v)` in floating point yields 20.999999999999996
+    and a report should not print that. The shortcut is legitimate only if the
+    general expression really does reproduce `v`, so here it is evaluated
+    longhand and compared.
+    """
+    for g in (0.0417, 1.0, 7.5):
+        for s2 in (1e-6, 0.0371, 12.5):
+            for v in (2, 21, 22, 97):
+                numerator = g * s2
+                denominator = (g**2) * 2.0 * (s2**2) / v
+                general = 2.0 * (numerator**2) / denominator
+                assert general == pytest.approx(float(v), rel=1e-12)
+                assert satterthwaite_df([(g, s2, v)]) == float(v)
+
+
 def test_satterthwaite_is_between_the_component_dfs_for_two_components():
     """The general behaviour, so the collapse above is not a coincidence of
     the implementation returning its last argument."""

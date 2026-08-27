@@ -6,6 +6,171 @@ first question asked of a result years later.
 
 ---
 
+## 0.5.0 — FDA narrow therapeutic index: two criteria of three
+
+FDA's NTI procedure from Appendix F. **No EMA ABEL.** **No Appendix C.**
+
+**FDA NTI is not a narrowed acceptance interval.** There is no 90.00–111.11%
+anywhere in it — that is EMA's approach to the same drug class. FDA requires a
+fully replicate study and *three separate criteria*, all of which must pass:
+
+| | Appendix F | Status |
+|---|---|---|
+| a | 95% upper bound for `(μT−μR)² − θσ²WR` ≤ 0, with σw0 = 0.10 | **computed** |
+| b | the **unscaled** 80.00–125.00% limits must also pass | **not computed** |
+| c | upper limit of the 90% equal-tails CI for σWT/σWR ≤ 2.500 | **computed** |
+
+So every endpoint comes back `NOT DECIDED`, however comfortably (a) and (c)
+pass. Criterion (b) is the unscaled analysis of a fully replicate study, which
+is Appendix C's mixed model — the same refusal as the previous release, for the
+same reason. **Two of three criteria are not a verdict**: an endpoint never
+tested against the unscaled limits is untested under this procedure, neither
+bioequivalent nor inequivalent.
+
+### The design gate runs first
+
+III.B: *"For NTI drugs, a fully replicate crossover design should be used."* A
+2×2, a partial replicate or a parallel study raises `NtiDesignError` before any
+arithmetic — there is no fallback to ordinary average BE. A structural test
+asserts the gate is literally the first call in `assess_nti_endpoint`.
+
+A partial replicate gives each subject *one* test measurement, so criterion (c)
+would have no numerator at all.
+
+### sWT, and one estimator
+
+The reference variance is #55's, unchanged, with `m = 2`. sWT is the same
+estimator applied to the subject's two **test** observations — the shared
+`sum_of_squared_deviations` now serves both, so there is one implementation of
+the formula rather than two that look alike. A test asserts it by swapping the
+roles: a study whose test differences equal another's reference differences
+gives the same number from the two estimators.
+
+**sWT is an interpretation, and is recorded as one.** Appendix F step 1 states
+the closed form for sWR only; step 4 names sWT without restating how to compute
+it. The symmetric reading is what Appendix C's `REPEATED / GRP=TRT` residual
+structure produces, and it is flagged in the provenance rather than presented
+as transcription.
+
+### Criterion c: the F interval, not an approximation
+
+```
+[ (sWT/sWR) / sqrt(F_{α/2}(v1,v2)), (sWT/sWR) / sqrt(F_{1−α/2}(v1,v2)) ]
+```
+
+`F_p(v1,v2)` has probability `p` to its **right** — `scipy.stats.f.isf`, not
+`f.ppf`. The wrong tail gives an interval that is still ordered, still positive
+and roughly the reciprocal of the right answer. `v1` belongs to sWT and `v2` to
+sWR; they differ whenever a subject is missing one of its four measurements.
+
+No normal approximation, no Wald interval on log variance, no bootstrap.
+
+**`sWR = 0` makes the ratio undefined, not infinite.** The previous release
+established that a zero reference variance is a legitimate estimate. It is also
+a denominator here. The criterion becomes unavailable with
+`REFERENCE_SD_ZERO_VARIANCE_RATIO_UNDEFINED`, and the endpoint is not decided —
+rather than reporting infinity, or "very large, therefore fails", which the
+guidance does not authorise.
+
+### One Howe helper, shared on evidence
+
+`howe.py` is new, and the two procedures were compared line by line before
+sharing anything. Appendix F's and Appendix G's SAS are **identical except for
+`theta`**:
+
+```
+x=estimate**2-stderr**2                     ← same
+boundx=(max((abs(lower)),(abs(upper))))**2  ← same
+theta=((log(1.11111))/0.1)**2               ← DIFFERS from ((log(1.25))/0.25)**2
+y=-theta*s2wr                               ← same
+boundy=y*dfd/cinv(0.95,dfd)                 ← same
+critbound=(x+y)+sqrt(((boundx-x)**2)+((boundy-y)**2))  ← same
+```
+
+So the helper takes `theta` as an argument and knows nothing about drug class,
+with a wrapper per procedure supplying its own constants and its own citation.
+Not a generic routine with a `mode="nti"` flag. The comparison is recorded in
+the validation case, and a test asserts exactly one line differs.
+
+### A precision discrepancy — not a contradiction
+
+Appendix F's prose states `Δ = 1/0.9 (approximately=1.11111)`, and its SAS
+example writes `theta=((log(1.11111))/0.1)**2` — the five-decimal approximation
+the prose itself offers.
+
+**This is not the guidance contradicting itself, and it does not affect the
+algorithm**, which is identical either way. It is example code printing a
+constant to five places. Two values are now kept, in different roles:
+
+```
+normative_constant_source:  Appendix F prose — Delta = 1/0.9
+example_code_literal:       Appendix F SAS   — 1.11111
+implementation_choice:      use normative 1/0.9
+```
+
+`FDA_NTI_CONSTANTS["delta"]` holds the ratio. `FDA_NTI_SAS_EXAMPLE_DELTA` holds
+the literal, deliberately **outside** the constants dict so it can never be
+iterated as a regulatory value, and `fda_nti_theta_sas_example()` computes what
+the example would give. Neither is rounded into the other.
+
+Carried through θ the difference is **1.898 × 10⁻⁵** relative — small enough to
+sound like rounding. Criterion (a) has a boundary, so "too small to matter" is a
+claim rather than a fact, and a near-boundary test exhibits a case where it
+matters: at `sWR² = 0.0020272284` the same data **pass** under the prose
+constant and **fail** under the example literal. The band is about 4 × 10⁻⁸ wide
+in sWR², so the case is contrived on purpose — which is what makes the assertion
+sharp. A structural test also confirms no decision path can reach the example
+value.
+
+Worth noting this points the opposite way to the highly-variable case, where the
+regulator's stated value was itself the rounded one (`sWR = 0.294`, not the
+derived `0.293560`). Each constant is decided from its own text rather than from
+a general preference for exact arithmetic.
+
+### Citations do not travel with implementations
+
+The sWR estimator is shared with the highly-variable procedure and its own
+`provenance()` cites Appendix G. An NTI decision does not rest on Appendix G, so
+`FdaNtiResult.provenance()` does not delegate — it cites **Appendix F step 1**,
+which states the same closed form. A test caught this and now prevents it,
+checking the citation form rather than the words, since the provenance
+legitimately explains in prose that the estimator is shared.
+
+### Also
+
+- `satterthwaite_df` returns the single-component collapse exactly. Evaluating
+  `2t²/(2t²/v)` in floating point printed `21.999999999999996` degrees of
+  freedom in a report. The identity is applied instead, and a test evaluates
+  the general expression and confirms it reproduces `v`.
+- `TestVarianceResult` → `WithinTestVarianceResult`: pytest was collecting it
+  as a test class.
+
+### Validation state
+
+| | Status |
+|---|---|
+| `FDA_NTI_DESIGN_VALIDATION` | `IMPLEMENTED` |
+| `FDA_NTI_REFERENCE_SCALED_CRITERION` | `IMPLEMENTED_UNVALIDATED` |
+| `FDA_NTI_VARIABILITY_RATIO` | `IMPLEMENTED_UNVALIDATED` |
+| `FDA_NTI_UNSCALED_ABE` | **`NOT_IMPLEMENTED`** |
+| `FDA_NTI_RSABE` (the method) | **`NOT_IMPLEMENTED`** |
+| `EMA_HVD_ABEL` | `NOT_IMPLEMENTED` |
+
+The method stays `NOT_IMPLEMENTED` while one criterion is structurally
+unavailable — a test asserts that too.
+
+**Tier 1A — passed.** `FDA-NTI-CRITERIA-001` covers the design gate, all three
+criteria, all eight combinations, both closed boundaries, the F-tail
+convention, the constants and their discrepancy, and the zero-reference case.
+
+**Tier 1B — pending.** No worked dataset in the guidance.
+
+**Tier 3 — pending.** R is not available here.
+
+336 tests pass, 6 skipped.
+
+---
+
 ## 0.4.0 — FDA highly variable drugs: the scaled branch decides
 
 For each PK endpoint:

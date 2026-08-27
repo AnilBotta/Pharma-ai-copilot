@@ -27,6 +27,7 @@ independent implementation checks it next.
 from __future__ import annotations
 
 import json
+import math
 from pathlib import Path
 
 import pytest
@@ -45,6 +46,7 @@ _RUNNERS = {
     "FDA-HVD-SWITCH-001": fda_hvd_method_for,
     "FDA-HVD-SWR-FORMULA-001": None,
     "FDA-HVD-RSABE-CRITERION-001": None,
+    "FDA-NTI-CRITERIA-001": None,
 }
 
 
@@ -336,6 +338,154 @@ def test_no_external_numerical_oracle_has_been_run_and_the_case_says_so():
     limitation = case["source"]["limitation"].lower()
     assert "no external numerical oracle" in limitation
     assert "powertost" in limitation
+
+
+def test_the_nti_case_drives_all_three_criteria_and_their_conjunction():
+    """Every boundary and every combination, read from the case file."""
+    from be_stats.howe import HoweUpperBound
+    from be_stats.nti import (
+        FdaNtiResult,
+        NtiScaledMeanCriterion,
+        NtiUnscaledAbeCriterion,
+        NtiVariabilityRatioCriterion,
+    )
+    from be_stats.replicate import ReplicateDesign
+    from be_stats.spec import fda_nti_theta
+
+    case = _case("FDA-NTI-CRITERIA-001")
+
+    def scaled(passes: bool | float) -> NtiScaledMeanCriterion:
+        bound = passes if isinstance(passes, float) else (-0.01 if passes else 0.01)
+        return NtiScaledMeanCriterion(
+            bound=HoweUpperBound(
+                x=0.001, bound_x=0.01, y=-0.02, bound_y=-0.013,
+                theta=fda_nti_theta(), reference_variance=0.018,
+                reference_variance_df=22, upper_confidence_bound=bound,
+            ),
+            sigma_w0=0.10, delta=1.0 / 0.9,
+            estimate=0.03, standard_error=0.02, ci_lower=-0.01, ci_upper=0.07,
+        )
+
+    for row in case["criteria"]["a"]["expected"]:
+        assert scaled(float(row["upper_bound"])).passes is row["passes"], row
+
+    for row in case["criteria"]["b"]["expected"]:
+        criterion = NtiUnscaledAbeCriterion(
+            lower_limit_percent=case["constants"]["unscaled_lower_percent"],
+            upper_limit_percent=case["constants"]["unscaled_upper_percent"],
+            computed=True,
+            reason="from case",
+            ci_lower_percent=row["ci_lower_percent"],
+            ci_upper_percent=row["ci_upper_percent"],
+        )
+        assert criterion.passes is row["passes"], row
+
+    for row in case["criteria"]["c"]["expected"]:
+        criterion = NtiVariabilityRatioCriterion(
+            swt=0.2, swr=0.15, ratio=1.33, df_test=22, df_reference=22,
+            ci_lower=0.9, ci_upper=row["ci_upper"],
+            limit=case["constants"]["variance_ratio_upper_limit"],
+        )
+        assert criterion.passes is row["passes"], row
+
+    for row in case["criteria"]["conjunction"]["expected"]:
+        result = FdaNtiResult(
+            endpoint="AUC",
+            design=ReplicateDesign.FULLY_REPLICATE,
+            scaled_mean_criterion=scaled(row["a"]),
+            unscaled_abe_criterion=NtiUnscaledAbeCriterion(
+                80.0, 125.0, computed=True, reason="",
+                ci_lower_percent=92.0 if row["b"] else 74.0,
+                ci_upper_percent=118.0,
+            ),
+            variability_ratio_criterion=NtiVariabilityRatioCriterion(
+                swt=0.2, swr=0.15, ratio=1.33, df_test=22, df_reference=22,
+                ci_lower=0.9, ci_upper=2.0 if row["c"] else 3.1, limit=2.5,
+            ),
+            reference_variance=None,  # type: ignore[arg-type]
+            test_variance=None,  # type: ignore[arg-type]
+            treatment_contrast=None,
+            decided=True,
+        )
+        assert result.passes is row["overall"], row
+
+
+def test_the_nti_case_records_the_delta_precision_discrepancy():
+    """The three metadata fields, and the measurement behind them.
+
+    Classified as a PRECISION DISCREPANCY between a stated constant and an
+    example-code approximation - not as a contradiction, and not as something
+    affecting the algorithm, which is identical either way.
+    """
+    from be_stats.spec import (
+        FDA_NTI_CONSTANTS,
+        FDA_NTI_SAS_EXAMPLE_DELTA,
+        fda_nti_theta,
+        fda_nti_theta_sas_example,
+    )
+
+    case = _case("FDA-NTI-CRITERIA-001")
+    record = case["constants"]["delta_precision_discrepancy"]
+
+    assert record["normative_constant_source"] == "Appendix F prose — Delta = 1/0.9"
+    assert record["example_code_literal"] == "Appendix F SAS — 1.11111"
+    assert record["implementation_choice"] == "use normative 1/0.9"
+
+    assert "precision discrepancy" in record["classification"]
+    assert "NOT the guidance contradicting itself" in record["not_a_contradiction"]
+    assert "does not affect the algorithm" in record["not_a_contradiction"]
+
+    # The engine agrees with what the file records.
+    assert FDA_NTI_CONSTANTS["delta"].value == 1.0 / 0.9
+    assert FDA_NTI_SAS_EXAMPLE_DELTA.value == 1.11111
+
+    theta_regulatory = fda_nti_theta()
+    theta_sas_example = fda_nti_theta_sas_example()
+    assert str(theta_regulatory) in record["theta_regulatory"]
+    assert str(theta_sas_example) in record["theta_sas_example"]
+
+    measured = abs(theta_regulatory - theta_sas_example) / theta_regulatory
+    assert measured == pytest.approx(
+        record["relative_difference_in_theta"], rel=0.01
+    )
+
+
+def test_the_nti_case_records_that_swt_is_an_interpretation():
+    """Appendix F states the closed form for sWR only."""
+    case = _case("FDA-NTI-CRITERIA-001")
+    assert case["test_variance"]["guidance_states_it"] is False
+    assert "symmetric reading" in case["test_variance"]["interpretation_note"]
+    assert "sWT is an interpretation" in case["source"]["limitation"]
+
+
+def test_the_nti_case_forbids_the_ema_narrowed_interval():
+    case = _case("FDA-NTI-CRITERIA-001")
+    assert case["constants"]["unscaled_lower_percent"] == 80.00
+    assert case["constants"]["unscaled_upper_percent"] == 125.00
+    assert "90.00-111.11" in case["criteria"]["b"]["not_the_ema_interval"]
+
+
+def test_the_two_appendices_were_compared_line_by_line_before_sharing():
+    """The evidence for one shared Howe helper, in the case file.
+
+    Every SAS line matches but `theta`, which is why the helper takes theta as
+    an argument and knows nothing about drug class.
+    """
+    case = _case("FDA-NTI-CRITERIA-001")
+    evidence = case["howe_comparison"]["evidence"]
+    differing = [pair for pair in evidence if pair[0] != pair[1]]
+    assert len(differing) == 1
+    assert "theta" in differing[0][0] and "theta" in differing[0][1]
+    assert "1.11111" in differing[0][0], "Appendix F"
+    assert "1.25" in differing[0][1], "Appendix G"
+    assert "mode flag" in case["howe_comparison"]["consequence"]
+
+    # The Appendix F side of that line is the EXAMPLE literal. The engine
+    # decides with the prose constant, so the SAS line and the implementation
+    # legitimately differ here - which is the precision discrepancy recorded
+    # separately, not a conformance failure.
+    record = case["constants"]["delta_precision_discrepancy"]
+    assert record["implementation_choice"] == "use normative 1/0.9"
 
 
 def test_tier_1a_does_not_promote_a_method_to_validated():

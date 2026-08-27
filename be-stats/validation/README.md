@@ -352,6 +352,132 @@ required sequence returns non-estimable with
 
 ---
 
+## FDA narrow therapeutic index drugs (0.5.0)
+
+| Capability | Status |
+|---|---|
+| `FDA_NTI_DESIGN_VALIDATION` | `IMPLEMENTED` |
+| `FDA_NTI_REFERENCE_SCALED_CRITERION` | `IMPLEMENTED_UNVALIDATED` |
+| `FDA_NTI_VARIABILITY_RATIO` | `IMPLEMENTED_UNVALIDATED` |
+| `FDA_NTI_UNSCALED_ABE` | **`NOT_IMPLEMENTED`** |
+| `FDA_NTI_RSABE` (the method) | **`NOT_IMPLEMENTED`** |
+
+**No endpoint is decided.** Two of the three criteria are computed; the third
+needs Appendix C. The method stays `NOT_IMPLEMENTED` while a criterion is
+structurally unavailable, and `passes` is `None` rather than `False` — an
+endpoint never tested against the unscaled limits is untested under this
+procedure, not failing it.
+
+### FDA NTI is not a narrowed interval
+
+The most consequential thing to get wrong here. **90.00–111.11% is EMA's**
+approach to the same drug class. FDA does not narrow the acceptance range; it
+requires a fully replicate design and adds criteria:
+
+| | Appendix F step 5 |
+|---|---|
+| a | 95% upper bound for `(μT−μR)² − θσ²WR` ≤ 0, σw0 = 0.10, Δ = 1/0.9 |
+| b | the **unscaled 80.00–125.00%** limits must ALSO pass |
+| c | upper limit of the 90% equal-tails CI for σWT/σWR ≤ 2.500 |
+
+A test asserts the limits carried are 80.00 and 125.00 and explicitly not 90.00
+and 111.11.
+
+### The design gate
+
+III.B requires a fully replicate crossover. A 2×2, a partial replicate or a
+parallel study raises before any arithmetic, with no fallback to ordinary
+average BE — a structural test asserts the gate is the first call in
+`assess_nti_endpoint`. A partial replicate gives each subject one test
+measurement, so criterion (c) would have no numerator.
+
+### sWT is an interpretation
+
+Appendix F step 1 gives the closed form for **sWR only**. Step 4 names sWT
+without restating how to compute it. What is implemented is the same estimator
+applied to the subject's two test observations — the symmetric reading, and
+what Appendix C's `REPEATED / GRP=TRT SUB=SUBJ` residual structure produces.
+
+Recorded as an interpretation in the provenance and in the case file's
+`limitation`, not presented as transcription. It is the one place in this
+procedure where the engine is reading between two lines of the guidance.
+
+### Criterion c, and the tail that is easy to get wrong
+
+```
+[ (sWT/sWR) / sqrt(F_{α/2}(v1,v2)),  (sWT/sWR) / sqrt(F_{1−α/2}(v1,v2)) ]
+```
+
+`F_p(v1,v2)` has probability `p` to its **right** — `scipy.stats.f.isf`, not
+`f.ppf`. The wrong tail yields an interval that is still ordered, still
+positive, and roughly the reciprocal of the right one.
+
+`sWR = 0` makes the ratio undefined. Not infinite, not "very large therefore
+fails" — the criterion becomes unavailable and the endpoint is not decided.
+The guidance states no rule for this case, so the engine does not invent one.
+
+### One Howe helper, shared only after a line-by-line comparison
+
+Appendix F's and Appendix G's SAS are identical except for `theta`. That was
+checked before anything was shared, it is recorded as evidence in
+`FDA-NTI-CRITERIA-001`, and a test asserts exactly one line differs. The helper
+takes `theta` as an argument; each procedure wraps it with its own constants and
+its own citation. There is no `mode="nti"` flag.
+
+### A precision discrepancy in Appendix F — not a contradiction
+
+The prose states `Δ = 1/0.9 (approximately=1.11111)`; the SAS example writes
+`theta=((log(1.11111))/0.1)**2`, which is the approximation the prose itself
+offers.
+
+**This is not the guidance contradicting itself and it does not affect the
+algorithm**, which is the same either way. Calling it a contradiction would
+misrepresent the document. It is a precision discrepancy between a stated
+constant and an example-code approximation, and both are kept, in different
+roles:
+
+| | |
+|---|---|
+| `normative_constant_source` | Appendix F prose — Δ = 1/0.9 |
+| `example_code_literal` | Appendix F SAS — 1.11111 |
+| `implementation_choice` | use normative 1/0.9 |
+
+`FDA_NTI_CONSTANTS["delta"]` is the ratio. `FDA_NTI_SAS_EXAMPLE_DELTA` is the
+literal, held **outside** the constants dict so it cannot be iterated as a
+regulatory value, with `fda_nti_theta_sas_example()` beside it. Neither is
+rounded into the other, and a structural test confirms no decision path can
+reach the example value.
+
+**Why it is recorded rather than waved through.** The difference in θ is
+1.898 × 10⁻⁵ relative, which sounds like rounding. Criterion (a) has a
+boundary, so "too small to matter" is a claim, not a fact — and a near-boundary
+test exhibits a case where it is false: at `sWR² = 0.0020272284` the same data
+pass under the prose constant and fail under the example literal. The band is
+roughly 4 × 10⁻⁸ wide in sWR², so the case is contrived; the contrivance is
+what makes the assertion sharp.
+
+Note this points the *opposite* way to the highly-variable case, where the
+regulator's stated value was itself the rounded one. Each is decided from its
+own text, not from a general preference for exact arithmetic.
+
+### Citations do not travel with implementations
+
+The sWR estimator is shared with the highly-variable procedure and cites
+Appendix G in its own record. An NTI decision rests on Appendix F step 1, which
+states the same form, so `FdaNtiResult.provenance()` does not delegate. A test
+caught this — checking the citation form rather than the words, since the
+provenance legitimately explains in prose that the estimator is shared.
+
+### Tiers
+
+| Tier | FDA NTI |
+|---|---|
+| 1A | **PASSED** — `FDA-NTI-CRITERIA-001` |
+| 1B | **PENDING** — no worked dataset in the guidance |
+| 3 | **PENDING** — R unavailable |
+
+---
+
 ## FDA highly variable drugs: the decision (0.4.0)
 
 | Capability | Status |
@@ -568,7 +694,7 @@ than returning something plausible:
 
 | Combination | Method | Phase |
 |---|---|---|
-| FDA + NTI | `FDA_NTI_RSABE` — fully replicated, σw0 = 0.10, Δ = 1/0.9, variance ratio limit 2.5, plus unscaled 80–125% | 2B |
+| FDA + NTI | `FDA_NTI_RSABE` — two of its three criteria implemented in 0.5.0; the unscaled one needs Appendix C, so the method is still `NOT_IMPLEMENTED` | 2B |
 | EMA + highly variable | `EMA_HVD_ABEL` — expanding limits; a different procedure from RSABE, not a relabelling | 2C |
 
 *`FDA_HVD_RSABE` was in this table until 0.4.0, where it was implemented.*

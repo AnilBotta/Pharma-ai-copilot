@@ -221,6 +221,31 @@ class SubjectRecord:
             )
         return self.log_reference[0] - self.log_reference[1]
 
+    def test_difference(self) -> float:
+        """`DTij = Tij1 - Tij2` on the log scale.
+
+        The exact counterpart of `reference_difference`, for the TEST product,
+        in period order. Only a fully replicated design has one - a partial
+        replicate gives each subject a single test measurement.
+
+        Needed by FDA's narrow-therapeutic-index procedure, which compares
+        sigma_WT with sigma_WR. Nothing else in the package uses it, and the
+        highly-variable procedure must never acquire it: reference scaling
+        scales by the REFERENCE variability, and a test variance leaking into
+        that would widen the acceptance region for a variable test product.
+        """
+        if len(self.log_test) < 2:
+            raise DataError(
+                f"Subject {self.subject_id} has {len(self.log_test)} test "
+                "measurement(s); a within-subject test difference needs two. "
+                "Only a fully replicated design provides them."
+            )
+        return self.log_test[0] - self.log_test[1]
+
+    @property
+    def has_test_pair(self) -> bool:
+        return len(self.log_test) >= 2
+
     def treatment_contrast(self) -> float:
         """`Iij = Tij - (Rij1 + Rij2)/2`, generalised to the mean of each.
 
@@ -600,6 +625,23 @@ def reference_differences(
         if record.has_reference_pair:
             grouped.setdefault(record.sequence, []).append(
                 record.reference_difference()
+            )
+    return grouped
+
+
+def test_differences(
+    dataset: ReplicateDataset,
+) -> dict[ReplicateSequence, list[float]]:
+    """`DTij` for every subject with two test measurements, by sequence.
+
+    Grouped the same way `reference_differences` is, and for the same reason:
+    the estimator subtracts a sequence mean, not a grand mean.
+    """
+    grouped: dict[ReplicateSequence, list[float]] = {}
+    for record in dataset.records:
+        if record.has_test_pair:
+            grouped.setdefault(record.sequence, []).append(
+                record.test_difference()
             )
     return grouped
 
