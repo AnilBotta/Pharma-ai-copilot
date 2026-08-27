@@ -1,0 +1,48 @@
+{
+  "case_id": "EMA-ABEL-002-BOUNDARY-NEAR",
+  "title": "EMA ABEL limits, CVwR 30.5%, just above the widening trigger",
+  "method": "ema_hvd_abel",
+  "comparison_kind": "abel_limits",
+  "inputs": {
+    "role": "boundary_near",
+    "cv_wr": 0.305,
+    "regulator": "EMA"
+  },
+  "oracle": {
+    "tool": "PowerTOST",
+    "function": "scABEL",
+    "arguments": "scABEL(CV=0.305, regulator=\"EMA\")",
+    "method_note": "DETERMINISTIC. scABEL is a closed-form function of CV and simulates nothing, so this is the only scaled-procedure comparison in the harness where agreement is exact rather than statistical. Note that scABEL computes the lower limit as 1/upper (R/scABEL.R line 119) where EMA states the pair symmetrically as exp[+/- k.sWR]; equal in exact arithmetic.",
+    "regulatory_setting": "EMA",
+    "version_pinned_in": "environment.lock.json"
+  },
+  "comparisons": [
+    {
+      "quantity": "abel_lower_percent",
+      "absolute_tolerance": 1e-09,
+      "relative_tolerance": 0,
+      "tolerance_basis": "EXACT to floating point, because NOTHING IS SIMULATED ON EITHER SIDE. PowerTOST's scABEL is a closed-form function of CV (R/scABEL.R) and be_stats.ema_hvd.ema_abel_limits is the same closed form. Both evaluate exp(+/- 0.760 * sqrt(log(1 + CV^2))) from the same exact inputs, so the only permissible difference is accumulated rounding in log, sqrt and exp - a few units in the last place of a number near 100, which 1e-9 bounds generously. A larger difference would mean a different regulatory constant or a different scale, which is a substantive disagreement and not rounding. This is NOT a Monte Carlo tolerance and must never be widened into one."
+    },
+    {
+      "quantity": "abel_upper_percent",
+      "absolute_tolerance": 1e-09,
+      "relative_tolerance": 0,
+      "tolerance_basis": "EXACT to floating point, because NOTHING IS SIMULATED ON EITHER SIDE. PowerTOST's scABEL is a closed-form function of CV (R/scABEL.R) and be_stats.ema_hvd.ema_abel_limits is the same closed form. Both evaluate exp(+/- 0.760 * sqrt(log(1 + CV^2))) from the same exact inputs, so the only permissible difference is accumulated rounding in log, sqrt and exp - a few units in the last place of a number near 100, which 1e-9 bounds generously. A larger difference would mean a different regulatory constant or a different scale, which is a substantive disagreement and not rounding. This is NOT a Monte Carlo tolerance and must never be widened into one."
+    },
+    {
+      "quantity": "regulatory_constant_k",
+      "absolute_tolerance": 0.0,
+      "relative_tolerance": 0.0,
+      "tolerance_basis": "EXACTLY equal, no tolerance at all. Both sides carry EMA's regulatory constant as the literal 0.760 the guideline states - be-stats in EMA_HVD_CONSTANTS, PowerTOST in reg_const(\"EMA\") as r_const=0.76. These are the same decimal and must compare identical; any difference means one side is deriving a constant the regulator stated."
+    }
+  ],
+  "not_cross_checkable": [
+    "The overall EMA decision. scABEL returns the acceptance limits, not a verdict, and PowerTOST exposes no dataset-level entry point that would produce one. The decision is covered instead by tier 1B - EMA's own Data set I and Data set II, with the point estimates and 90% intervals the regulator published, reproduced in tests/validation/test_ema_tier1b.py.",
+    "Method A itself. PowerTOST simulates studies; it does not fit an ANOVA to a supplied dataset and return a contrast. Again tier 1B covers it, and covers it better: a regulator's published result beats an independent implementation's agreement.",
+    "p(BE-ABEL) from power.scABEL. Two reasons, both established from the source before any fixture was written (VAL-EMA-ABEL-001): it is the MIXED decision rather than the ABEL criterion, and for EMA it routes to power.scABEL1, which documents four 'purely empirical' adaptations. A tuned approximation cannot serve as an oracle."
+  ],
+  "open_findings": [
+    "VAL-EMA-ABEL-002"
+  ],
+  "notes": "Just past CVwR > 30%, where widening begins and the limits are barely wider than the conventional range. At exactly 30% the formula gives 80.0030 - 124.9953, so this is the region where a wrong boundary operator or a threshold expressed on the sWR scale instead of the CV scale would be invisible in the limits but wrong in the routing. The routing itself is asserted in tests/unit/test_ema_abel.py."
+}

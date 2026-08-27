@@ -25,6 +25,7 @@ does not cover.
 | status | meaning |
 |---|---|
 | `OPEN` | Not yet explained. The method is `PASSED_WITH_FINDING` at best. |
+| `PREEMPTED` | Found by inspecting the oracle's source *before* a comparison was written, so the wrong comparison was never run. |
 | `RESOLVED_MONTE_CARLO_VARIATION` | Chance after all, shown by re-running at higher counts and other seeds. |
 | `RESOLVED_SIMULATION_MODEL_DIFFERENCE` | The two sides simulated different studies. |
 | `RESOLVED_POWERTOST_LEGACY_METHOD_DIFFERENCE` | The oracle implements an older or different published method. |
@@ -48,6 +49,24 @@ at a threshold that differs from FDA's stated one, and `be-stats` follows FDA.
 |---|---|---|
 | [`VAL-FDA-HVD-001`](VAL-FDA-HVD-001.md) | `RSABE-002-BOUNDARY-NEAR/p_be_sabec`, 4.61 sigma | `RESOLVED_POWERTOST_CONFIGURATION_ERROR` |
 | [`VAL-FDA-HVD-002`](VAL-FDA-HVD-002.md) | PowerTOST switches at sWR 0.293560, FDA states 0.294 | `ACCEPTED_ORACLE_DIVERGENCE` |
+| [`VAL-EMA-ABEL-001`](VAL-EMA-ABEL-001.md) | `p(BE-ABEL)` is the mixed decision; `power.scABEL` is empirically tuned | `PREEMPTED` |
+| [`VAL-EMA-ABEL-002`](VAL-EMA-ABEL-002.md) | EMA states the cap as a pair; PowerTOST recomputes it | `ACCEPTED_ORACLE_DIVERGENCE` |
+
+## The rule VAL-FDA-HVD-001 left behind
+
+**Before writing a comparison against any oracle, read the oracle's source and
+establish what the quantity you are about to name actually counts.** Record the
+function, the version, the internal counter, the routing rule, the reported
+output name, and the actual mathematical meaning.
+
+`VAL-EMA-ABEL-001` is the first finding raised by following that rule, and it
+found two problems in the EMA family before a single fixture existed: the same
+`p(BE-…)` naming trap as the FDA case, and — worse, with no FDA analogue —
+that `power.scABEL` documents four "purely empirical" adaptations and is
+therefore a tuned approximation rather than an oracle at all.
+
+That is what the rule is for. The cost of following it is an hour of reading;
+the cost of not following it was PR #59.
 
 `VAL-FDA-HVD-001-evidence.json` is the frozen output of
 `validation/external/investigate_val_fda_hvd_001.py`, which re-runs on demand.

@@ -735,6 +735,102 @@ def test_the_r_side_reports_the_versions_it_actually_resolved():
     assert "packageVersion" in r_side
 
 
+# ------------------------------------------------- EMA ABEL, deterministic ---
+
+
+def test_the_abel_cases_are_deterministic_not_monte_carlo():
+    """The strongest comparison kind in this directory.
+
+    `scABEL` is a closed-form function of CV. Nothing is simulated on either
+    side, so agreement is exact and the tolerance is a floating-point bound.
+    An ABEL case that acquired `nsims` would mean somebody had turned an exact
+    comparison into an approximate one.
+    """
+    abel = [
+        c
+        for c in harness.load_cases()
+        if c.comparison_kind == harness.COMPARISON_ABEL_LIMITS
+    ]
+    assert abel, "the EMA ABEL cases must exist"
+    for case in abel:
+        assert "nsims" not in case.inputs, case.case_id
+        assert "seed" not in case.inputs, case.case_id
+        assert case.oracle["function"] == "scABEL"
+        # No sigma diagnostic: there is no sampling error to measure against.
+        results = harness.compare(
+            [case],
+            {case.case_id: {c.quantity: 100.0 for c in case.comparisons}},
+            {case.case_id: {c.quantity: 100.0 for c in case.comparisons}},
+        )
+        assert all(r.monte_carlo_sigmas is None for r in results)
+        assert all(not r.is_finding for r in results)
+
+
+def test_the_uncapped_abel_cases_demand_floating_point_agreement():
+    """Below the cap the two implementations evaluate the same closed form.
+
+    A tolerance any larger than floating point would be admitting a difference
+    that cannot exist unless a constant differs.
+    """
+    for case in harness.load_cases():
+        if case.comparison_kind != harness.COMPARISON_ABEL_LIMITS:
+            continue
+        if case.inputs["role"] in {"cap", "high_variability"}:
+            continue
+        for comparison in case.comparisons:
+            if comparison.quantity.startswith("abel_"):
+                assert comparison.absolute_tolerance <= 1e-9, (
+                    f"{case.case_id}/{comparison.quantity}"
+                )
+
+
+def test_the_capped_abel_cases_admit_only_the_predicted_divergence():
+    """VAL-EMA-ABEL-002 sized in advance, not fitted afterwards.
+
+    EMA states the cap as 69.84 - 143.19; PowerTOST recomputes it as
+    69.83678 - 143.19102. The tolerance admits that 0.00322 and roughly
+    nothing else - a divergence twice the size would still fail.
+    """
+    capped = [
+        c
+        for c in harness.load_cases()
+        if c.comparison_kind == harness.COMPARISON_ABEL_LIMITS
+        and c.inputs["role"] in {"cap", "high_variability"}
+    ]
+    assert capped
+    for case in capped:
+        for comparison in case.comparisons:
+            if not comparison.quantity.startswith("abel_"):
+                continue
+            assert comparison.absolute_tolerance == pytest.approx(0.0035)
+            assert comparison.absolute_tolerance < 2 * 0.00322
+            assert "VAL-EMA-ABEL-002" in comparison.tolerance_basis
+            assert "predicted" in comparison.tolerance_basis.lower()
+
+
+def test_the_abel_evaluator_reports_capped_and_uncapped_limits():
+    """A capped number that replaced another one must show both."""
+    case = next(
+        c
+        for c in harness.load_cases()
+        if c.comparison_kind == harness.COMPARISON_ABEL_LIMITS
+        and c.inputs["role"] == "high_variability"
+    )
+    values = harness.evaluate_python(case)
+    assert values["cap_applied"] == 1.0
+    assert values["abel_lower_uncapped_percent"] < values["abel_lower_percent"]
+    assert values["abel_upper_uncapped_percent"] > values["abel_upper_percent"]
+    assert values["abel_lower_percent"] == pytest.approx(69.84)
+    assert values["abel_upper_percent"] == pytest.approx(143.19)
+
+
+def test_ema_has_a_cap_role_that_the_fda_methods_do_not_need():
+    """The structural difference between ABEL and RSABE, in the role list."""
+    assert "cap" in harness.TIER3_REQUIRED_ROLES["ema_hvd_abel"]
+    assert "cap" not in harness.TIER3_REQUIRED_ROLES["fda_hvd_rsabe"]
+    assert "cap" not in harness.TIER3_REQUIRED_ROLES["fda_nti"]
+
+
 # ---------------------------------------------------- validation findings ---
 
 FINDINGS = Path(__file__).resolve().parents[2] / "validation" / "findings"

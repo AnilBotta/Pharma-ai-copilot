@@ -1,0 +1,54 @@
+{
+  "case_id": "EMA-ABEL-004-HIGH-VARIABILITY",
+  "title": "EMA ABEL limits, CVwR 70%, far past the cap",
+  "method": "ema_hvd_abel",
+  "comparison_kind": "abel_limits",
+  "inputs": {
+    "role": "high_variability",
+    "cv_wr": 0.7,
+    "regulator": "EMA"
+  },
+  "oracle": {
+    "tool": "PowerTOST",
+    "function": "scABEL",
+    "arguments": "scABEL(CV=0.7, regulator=\"EMA\")",
+    "method_note": "DETERMINISTIC. scABEL is a closed-form function of CV and simulates nothing, so this is the only scaled-procedure comparison in the harness where agreement is exact rather than statistical. Note that scABEL computes the lower limit as 1/upper (R/scABEL.R line 119) where EMA states the pair symmetrically as exp[+/- k.sWR]; equal in exact arithmetic.",
+    "regulatory_setting": "EMA",
+    "version_pinned_in": "environment.lock.json"
+  },
+  "comparisons": [
+    {
+      "quantity": "abel_lower_percent",
+      "absolute_tolerance": 0.0035,
+      "relative_tolerance": 0,
+      "tolerance_basis": "DERIVED FROM A DIVERGENCE PREDICTED BEFORE THIS RAN, not from what the run produced. EMA states the cap as the pair 69.84 - 143.19% (section 4.1.10); PowerTOST recomputes it as exp(+/- r_const * CV2se(CVcap)) = 69.83678 - 143.19102. be-stats applies the STATED pair, as it does for FDA's 0.294 and for Delta = 1/0.9. The difference is therefore exactly 0.00322 percentage points on the lower limit and 0.00102 on the upper. The tolerance is 0.0035, which admits the predicted difference and little else: a divergence twice that size would fail, and so would one in the wrong direction. Recorded as VAL-EMA-ABEL-002. The uncapped limits are compared separately at floating-point tolerance, so the exactness of the FORMULA is still asserted for these cases."
+    },
+    {
+      "quantity": "abel_upper_percent",
+      "absolute_tolerance": 0.0035,
+      "relative_tolerance": 0,
+      "tolerance_basis": "DERIVED FROM A DIVERGENCE PREDICTED BEFORE THIS RAN, not from what the run produced. EMA states the cap as the pair 69.84 - 143.19% (section 4.1.10); PowerTOST recomputes it as exp(+/- r_const * CV2se(CVcap)) = 69.83678 - 143.19102. be-stats applies the STATED pair, as it does for FDA's 0.294 and for Delta = 1/0.9. The difference is therefore exactly 0.00322 percentage points on the lower limit and 0.00102 on the upper. The tolerance is 0.0035, which admits the predicted difference and little else: a divergence twice that size would fail, and so would one in the wrong direction. Recorded as VAL-EMA-ABEL-002. The uncapped limits are compared separately at floating-point tolerance, so the exactness of the FORMULA is still asserted for these cases."
+    },
+    {
+      "quantity": "regulatory_constant_k",
+      "absolute_tolerance": 0.0,
+      "relative_tolerance": 0.0,
+      "tolerance_basis": "EXACTLY equal, no tolerance at all. Both sides carry EMA's regulatory constant as the literal 0.760 the guideline states - be-stats in EMA_HVD_CONSTANTS, PowerTOST in reg_const(\"EMA\") as r_const=0.76. These are the same decimal and must compare identical; any difference means one side is deriving a constant the regulator stated."
+    },
+    {
+      "quantity": "cap_lower_computed_percent",
+      "absolute_tolerance": 1e-09,
+      "relative_tolerance": 0,
+      "tolerance_basis": "EXACT. This compares the two sides' COMPUTED cap - be-stats' spec.ema_abel_cap_computed() against PowerTOST's exp(-r_const*CV2se(CVcap)) - and they must agree to floating point. It is what turns VAL-EMA-ABEL-002 from 'the numbers differ' into 'the two readings of the cap differ, and the arithmetic behind both is identical'. Without this row the capped cases would only show a discrepancy; with it they show exactly where the discrepancy comes from."
+    }
+  ],
+  "not_cross_checkable": [
+    "The overall EMA decision. scABEL returns the acceptance limits, not a verdict, and PowerTOST exposes no dataset-level entry point that would produce one. The decision is covered instead by tier 1B - EMA's own Data set I and Data set II, with the point estimates and 90% intervals the regulator published, reproduced in tests/validation/test_ema_tier1b.py.",
+    "Method A itself. PowerTOST simulates studies; it does not fit an ANOVA to a supplied dataset and return a contrast. Again tier 1B covers it, and covers it better: a regulator's published result beats an independent implementation's agreement.",
+    "p(BE-ABEL) from power.scABEL. Two reasons, both established from the source before any fixture was written (VAL-EMA-ABEL-001): it is the MIXED decision rather than the ABEL criterion, and for EMA it routes to power.scABEL1, which documents four 'purely empirical' adaptations. A tuned approximation cannot serve as an oracle."
+  ],
+  "open_findings": [
+    "VAL-EMA-ABEL-002"
+  ],
+  "notes": "Well beyond the cap, where an implementation that forgot to cap would return roughly 60 - 165% instead of 69.84 - 143.19%. That is a difference no tolerance could absorb, which is the point of having this case as well as the one at the boundary."
+}

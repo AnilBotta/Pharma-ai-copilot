@@ -87,7 +87,66 @@ eval_direct <- function(case) {
   list(sample_size = as.numeric(n), achieved_power = as.numeric(pw))
 }
 
+# EMA's widened acceptance limits, from a DETERMINISTIC PowerTOST function.
+#
+# `scABEL` simulates nothing: it is a closed-form function of CV. That makes
+# this the strongest comparison in the harness - agreement is exact rather than
+# statistical, and a difference cannot be explained away as sampling noise.
+#
+# TWO THINGS TO KNOW ABOUT IT, BOTH READ FROM THE SOURCE FIRST
+#
+# 1. The lower limit is computed as `1/upper`, not as `exp(-r_const*se)`
+#    (R/scABEL.R line 119: "lower acceptance limit is set to 1/upper"). Equal
+#    in exact arithmetic; EMA writes the pair symmetrically as exp[+/- k.sWR],
+#    which is what be-stats computes.
+#
+# 2. The cap is RECOMPUTED from CVcap - `exp(r_const*CV2se(CVcap))` - where the
+#    guideline states the pair 69.84 - 143.19%. be-stats applies the stated
+#    pair. The two differ by 0.0032 / 0.0010 percentage points at and above the
+#    cap. That is VAL-EMA-ABEL-002, predicted before this ran, and the capped
+#    cases assert the predicted difference rather than widening a tolerance to
+#    absorb it.
+#
+# The switch itself AGREES with the regulator here: widening applies for
+# CV > 0.3 (with a 1e-10 tolerance), which is EMA's strict >30%. Unlike the FDA
+# case, PowerTOST and the guideline do not disagree about the trigger.
+eval_abel_limits <- function(case) {
+  i <- case$inputs
+  limits <- PowerTOST::scABEL(CV = i$cv_wr, regulator = "EMA")
+  reg <- PowerTOST::reg_const("EMA")
+  list(
+    abel_lower_percent = 100 * as.numeric(limits[["lower"]]),
+    abel_upper_percent = 100 * as.numeric(limits[["upper"]]),
+    regulatory_constant_k = as.numeric(reg$r_const),
+    # PowerTOST's cap, recomputed from CVcap. Reported so the divergence is a
+    # number in the report rather than a claim in a comment.
+    cap_lower_computed_percent =
+      100 / exp(as.numeric(reg$r_const) * PowerTOST::CV2se(as.numeric(reg$CVcap))),
+    cap_upper_computed_percent =
+      100 * exp(as.numeric(reg$r_const) * PowerTOST::CV2se(as.numeric(reg$CVcap))),
+    .cvswitch = as.numeric(reg$CVswitch),
+    .cvcap = as.numeric(reg$CVcap),
+    .est_method = as.character(reg$est_method)
+  )
+}
+
+eval_ema_constant <- function(case) {
+  reg <- PowerTOST::reg_const("EMA")
+  list(
+    ema_regulatory_constant_k = as.numeric(reg$r_const),
+    ema_cv_switch_percent = 100 * as.numeric(reg$CVswitch),
+    ema_cv_cap_percent = 100 * as.numeric(reg$CVcap),
+    ema_point_estimate_lower_percent = 80,
+    ema_point_estimate_upper_percent = 125,
+    .pe_constr = as.logical(reg$pe_constr),
+    .est_method = as.character(reg$est_method)
+  )
+}
+
 eval_constant <- function(case) {
+  if (identical(case$inputs$regulator, "EMA")) {
+    return(eval_ema_constant(case))
+  }
   reg <- PowerTOST::reg_const("FDA")
   list(
     hvd_r_const = as.numeric(reg$r_const),
@@ -255,6 +314,7 @@ for (path in files) {
     "direct" = eval_direct(case),
     "constant" = eval_constant(case),
     "monte_carlo_power" = eval_power(case),
+    "abel_limits" = eval_abel_limits(case),
     stop(sprintf("unknown comparison_kind '%s' in %s", kind, case$case_id),
          call. = FALSE)
   )

@@ -81,8 +81,26 @@ COMPARISON_DIRECT = "direct"
 COMPARISON_CONSTANT = "constant"
 COMPARISON_POWER = "monte_carlo_power"
 
+#: EMA's widened acceptance limits.
+#:
+#: The strongest comparison in this directory, and the only DETERMINISTIC one
+#: for a scaled procedure. PowerTOST's `scABEL` is a closed-form function of CV
+#: — it simulates nothing — so agreement is exact rather than statistical and
+#: the tolerance is a floating-point bound rather than a sampling one.
+#:
+#: Worth stating plainly next to the FDA cases: for RSABE the highest common
+#: layer was empirical power, because PowerTOST exposes no criterion value for
+#: a dataset. For ABEL the central quantity IS a function both sides compute in
+#: closed form, so the evidence here is of a different and better kind.
+COMPARISON_ABEL_LIMITS = "abel_limits"
+
 COMPARISON_KINDS = frozenset(
-    {COMPARISON_DIRECT, COMPARISON_CONSTANT, COMPARISON_POWER}
+    {
+        COMPARISON_DIRECT,
+        COMPARISON_CONSTANT,
+        COMPARISON_POWER,
+        COMPARISON_ABEL_LIMITS,
+    }
 )
 
 #: Outcomes. `SKIPPED` is not a pass and is never counted as one.
@@ -285,7 +303,43 @@ def evaluate_python(case: Case) -> dict[str, float]:
         return _evaluate_constants(case)
     if case.comparison_kind == COMPARISON_POWER:
         return _evaluate_monte_carlo_power(case)
+    if case.comparison_kind == COMPARISON_ABEL_LIMITS:
+        return _evaluate_abel_limits(case)
     raise CaseError(f"{case.case_id}: no evaluator for {case.comparison_kind}")
+
+
+def _evaluate_abel_limits(case: Case) -> dict[str, float]:
+    """EMA's widened limits at a stated CVwR.
+
+    Both the FINAL limits (with the cap EMA states) and the UNCAPPED ones are
+    reported. Below the cap they are the same number and agree with PowerTOST
+    exactly; at or above it they differ by the amount VAL-EMA-ABEL-002 predicts,
+    and reporting both is what lets a reader see which is which instead of
+    inferring it from a tolerance.
+    """
+    import math
+
+    from be_stats.ema_hvd import ema_abel_limits
+    from be_stats.spec import EMA_HVD_CONSTANTS, ema_abel_cap_computed
+
+    cv_wr = case.inputs["cv_wr"]
+    swr = math.sqrt(math.log1p(cv_wr**2))
+    limits = ema_abel_limits(swr)
+    computed_lower, computed_upper = ema_abel_cap_computed()
+
+    return {
+        "abel_lower_percent": limits.final_lower_percent,
+        "abel_upper_percent": limits.final_upper_percent,
+        "abel_lower_uncapped_percent": limits.raw_lower_percent,
+        "abel_upper_uncapped_percent": limits.raw_upper_percent,
+        "swr": swr,
+        "cap_applied": float(limits.cap_applied),
+        "regulatory_constant_k": EMA_HVD_CONSTANTS[
+            "regulatory_constant_k"
+        ].value,
+        "cap_lower_computed_percent": computed_lower,
+        "cap_upper_computed_percent": computed_upper,
+    }
 
 
 def _evaluate_abe(case: Case) -> dict[str, float]:
@@ -339,9 +393,30 @@ def _evaluate_abe(case: Case) -> dict[str, float]:
 
 
 def _evaluate_constants(case: Case) -> dict[str, float]:
-    from be_stats.spec import FDA_HVD_CONSTANTS, FDA_NTI_CONSTANTS, fda_hvd_theta
+    from be_stats.spec import (
+        EMA_HVD_CONSTANTS,
+        FDA_HVD_CONSTANTS,
+        FDA_NTI_CONSTANTS,
+        fda_hvd_theta,
+    )
 
     values = {
+        # EMA's, read from EMA's own table. Deliberately in the same dict as
+        # FDA's for the harness's convenience only - the PACKAGE keeps them
+        # apart, and `test_regulator_separation.py` enforces that.
+        "ema_regulatory_constant_k": EMA_HVD_CONSTANTS[
+            "regulatory_constant_k"
+        ].value,
+        "ema_cv_switch_percent": EMA_HVD_CONSTANTS[
+            "cv_wr_scaling_threshold_percent"
+        ].value,
+        "ema_cv_cap_percent": EMA_HVD_CONSTANTS["cap_cv_percent"].value,
+        "ema_point_estimate_lower_percent": EMA_HVD_CONSTANTS[
+            "point_estimate_lower_percent"
+        ].value,
+        "ema_point_estimate_upper_percent": EMA_HVD_CONSTANTS[
+            "point_estimate_upper_percent"
+        ].value,
         "hvd_sigma_w0": FDA_HVD_CONSTANTS["sigma_w0"].value,
         "hvd_swr_switching_threshold": FDA_HVD_CONSTANTS[
             "swr_switching_threshold"
@@ -607,6 +682,18 @@ TIER3_REQUIRED_ROLES: dict[str, tuple[str, ...]] = {
     #: reproducible than the reference - which is what criterion (c) exists to
     #: catch, and the axis a central case cannot exercise.
     "fda_nti": ("central", "unequal_variability"),
+    #: EMA ABEL. Four roles, because ABEL has one structural feature the FDA
+    #: procedures do not: a CAP. A method that widens correctly everywhere
+    #: except where widening stops is wrong exactly where the widest limits
+    #: are, which is where it matters most.
+    #:
+    #:     central           widening doing ordinary work
+    #:     boundary_near     just above CVwR = 30%, where widening begins and
+    #:                       the limits are barely wider than 80-125
+    #:     cap               past the cap, where the limits must stop moving
+    #:     high_variability  far past it, where an uncapped implementation
+    #:                       would be visibly wrong
+    "ema_hvd_abel": ("central", "boundary_near", "cap", "high_variability"),
 }
 
 
@@ -844,9 +931,14 @@ def render(results: list[ComparisonResult], tier3: dict, env: dict) -> str:
         "WHAT A GREEN TIER 3 DOES AND DOES NOT MEAN",
         "",
         "It means one independent implementation reproduces these numbers, and",
-        "nothing more. Tier 1B - the FDA's own worked datasets - is a separate",
-        "row, and no amount of tier 3 substitutes for it. A method green here",
-        "is cross-checked, not validated in full.",
+        "nothing more. Tier 1B - the regulator's OWN worked datasets - is a",
+        "separate row, and no amount of tier 3 substitutes for it. A method",
+        "green here is cross-checked, not validated in full.",
+        "",
+        "Tier 1B currently exists for EMA ABEL only, where the regulator",
+        "published two replicate data sets with their results. FDA has not",
+        "published an equivalent, so its methods rest on tier 1A and tier 3.",
+        "That asymmetry is a fact about the documents, not about the code.",
         "",
         "PowerTOST is an implementation oracle, not a regulatory authority.",
         "The FDA guidance remains the source of the rule; a disagreement here",
