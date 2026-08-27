@@ -396,6 +396,118 @@ def test_a_partial_replicate_study_is_supported():
     assert result.decided is True
 
 
+# ------------------------------------------- criteria at the exact boundary ---
+
+
+def _effect(*, gmr_percent: float, lower_percent: float, upper_percent: float):
+    """A TreatmentEffect placed exactly where a test needs it.
+
+    Constructed rather than simulated: a boundary test must land ON the
+    boundary, and no amount of simulation puts a confidence limit at exactly
+    80.000000%.
+    """
+    from be_stats.ema_hvd import TreatmentEffect
+
+    return TreatmentEffect(
+        estimate=math.log(gmr_percent / 100.0),
+        standard_error=0.01,
+        degrees_of_freedom=40,
+        ci_lower=math.log(lower_percent / 100.0),
+        ci_upper=math.log(upper_percent / 100.0),
+        alpha=0.05,
+        n_observations=100,
+        n_subjects=25,
+    )
+
+
+@pytest.mark.parametrize(
+    "lower, upper, expected",
+    [
+        (80.0, 125.0, True),      # both limits exactly on the boundary
+        (79.9999, 125.0, False),  # a hair below the lower limit
+        (80.0, 125.0001, False),  # a hair above the upper limit
+        (80.0001, 124.9999, True),
+    ],
+)
+def test_interval_containment_is_inclusive_at_the_exact_limits(
+    lower, upper, expected
+):
+    """A CI touching the limit is contained.
+
+    4.1.8 asks that the interval "lie within" the acceptance range, and a
+    closed interval contains its endpoints. Getting this wrong fails studies
+    that sit exactly on the boundary — rare, and exactly the ones an applicant
+    would contest.
+    """
+    from be_stats.ema_hvd import _both_criteria
+
+    interval_ok, _, _ = _both_criteria(
+        effect=_effect(gmr_percent=100.0, lower_percent=lower, upper_percent=upper),
+        lower_percent=80.0,
+        upper_percent=125.0,
+    )
+    assert interval_ok is expected
+
+
+@pytest.mark.parametrize(
+    "gmr, expected",
+    [
+        (80.0, True),      # exactly the lower bound
+        (125.0, True),     # exactly the upper bound
+        (79.9999, False),
+        (125.0001, False),
+        (100.0, True),
+    ],
+)
+def test_the_point_estimate_constraint_is_inclusive_at_80_and_125(gmr, expected):
+    """4.1.10: the GMR "should lie within the conventional acceptance range
+    80.00-125.00%". Inclusive, and asserted at both ends."""
+    from be_stats.ema_hvd import _both_criteria
+
+    _, pe_ok, _ = _both_criteria(
+        effect=_effect(gmr_percent=gmr, lower_percent=90.0, upper_percent=110.0),
+        lower_percent=80.0,
+        upper_percent=125.0,
+    )
+    assert pe_ok is expected
+
+
+def test_the_pe_constraint_is_checked_against_80_125_even_when_limits_widen():
+    """The GMR range does NOT widen with the acceptance limits.
+
+    This is the trap in ABEL: 4.1.10 widens the interval limits and leaves the
+    GMR range alone. An implementation that applied the widened limits to both
+    would let a badly located study through precisely when variability is
+    highest.
+    """
+    from be_stats.ema_hvd import _both_criteria
+
+    # A study sitting at GMR 78%, inside widened limits of 69.84-143.19.
+    effect = _effect(gmr_percent=78.0, lower_percent=72.0, upper_percent=84.0)
+    interval_ok, pe_ok, passes = _both_criteria(
+        effect=effect, lower_percent=69.84, upper_percent=143.19
+    )
+    assert interval_ok is True, "the interval really is inside the widened range"
+    assert pe_ok is False, "and the GMR constraint is what stops it"
+    assert passes is False
+
+
+def test_the_stage_validation_table_covers_every_stage_the_brief_names():
+    from be_stats.provenance import ValidationStatus
+    from be_stats.spec import EMA_HVD_STAGE_VALIDATION
+
+    assert set(EMA_HVD_STAGE_VALIDATION) == {
+        "EMA_HVD_DESIGN_GATE",
+        "EMA_HVD_VARIABILITY_ELIGIBILITY",
+        "EMA_ABEL_LIMIT_CALCULATION",
+        "EMA_ABEL_PE_CONSTRAINT",
+        "EMA_HVD_ENDPOINT_DECISION",
+    }
+    # Nothing may claim VALIDATED: package policy requires tier 1B AND no open
+    # question, and VAL-EMA-ABEL-002 is open.
+    assert ValidationStatus.VALIDATED not in EMA_HVD_STAGE_VALIDATION.values()
+
+
 def test_the_dataset_refuses_a_file_spanning_two_endpoints():
     rows = _study(cv_wr_percent=40.0, ratio=0.95, endpoint="Cmax")[:8]
     rows += _study(cv_wr_percent=40.0, ratio=0.95, endpoint="AUC")[:8]
