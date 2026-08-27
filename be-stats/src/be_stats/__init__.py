@@ -147,7 +147,7 @@ from be_stats.study import (
 #: Bumped on any change that can alter a computed result. An analysis record
 #: stores this, because "which version produced this number" is the first
 #: question asked of a result years later.
-__version__ = "0.5.1"
+__version__ = "0.5.2"
 
 __all__ = [
     "APPENDIX_C_MODEL",

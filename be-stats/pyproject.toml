@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "be-stats"
-version = "0.5.1"
+version = "0.5.2"
 description = "Bioequivalence statistics: average BE, power and sample size."
 requires-python = ">=3.11"
 dependencies = [
@@ -25,3 +25,16 @@ where = ["src"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+# `tests` importable as a package, regardless of where pytest was invoked from.
+#
+# `test_algorithm_conformance.py` reuses `make_criterion` from
+# `tests.unit.test_rsabe_criterion`, which resolved only when the working
+# directory happened to be `be-stats/`. Run as `pytest be-stats/tests` from the
+# repository root - which is what a whole-repo run does - the same two tests
+# failed with `ModuleNotFoundError: No module named 'tests'`.
+#
+# That is ENG-001, recorded during the VAL-FDA-HVD-001 investigation as an
+# intermittent failure. It is not intermittent: it depends on the invocation,
+# which is why it appeared once and then would not reproduce. rootdir is this
+# file either way, so one relative entry fixes both invocations.
+pythonpath = ["."]

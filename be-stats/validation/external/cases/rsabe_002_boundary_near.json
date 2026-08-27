@@ -1,46 +1,59 @@
 {
-    "case_id":  "RSABE-002-BOUNDARY-NEAR",
-    "title":  "FDA RSABE, fully replicate, CVwR 31%, ratio 0.90, n=36",
-    "method":  "fda_hvd_rsabe",
-    "comparison_kind":  "monte_carlo_power",
-    "inputs":  {
-                   "role":  "boundary_near",
-                   "design":  "2x2x4",
-                   "powertost_design":  "2x2x4",
-                   "cv_wr":  0.31,
-                   "cv_wt":  0.31,
-                   "theta0":  0.9,
-                   "n":  36,
-                   "nsims":  20000,
-                   "nsims_r":  100000,
-                   "seed":  20260828
-               },
-    "oracle":  {
-                   "tool":  "PowerTOST",
-                   "function":  "power.RSABE",
-                   "arguments":  "power.RSABE(CV=0.31, theta0=0.90, n=36, design=\"2x2x4\", regulator=\"FDA\", details=TRUE, nsims=1e5)",
-                   "method_note":  "PowerTOST computes empirical power by simulating nsims studies from the distributional properties of the deciding statistics. be-stats analyses datasets, so the Python side simulates studies and applies the be-stats criterion to each. Two Monte Carlo estimates of one probability, compared at the only layer both expose.",
-                   "regulatory_setting":  "FDA",
-                   "version_pinned_in":  "environment.lock.json"
-               },
-    "comparisons":  [
-                        {
-                            "quantity":  "p_be_sabec",
-                            "absolute_tolerance":  0.01549,
-                            "relative_tolerance":  0,
-                            "tolerance_basis":  "DERIVED, and independent of the answer. Both sides estimate the same probability by simulation, so the difference between them has standard deviation sqrt(p(1-p)(1/n_python + 1/n_R)). Evaluated at the WORST CASE p = 0.5, which maximises p(1-p), and taken at four standard deviations: 4 * sqrt(0.25 * (1/20000 + 1/100000)) = 0.01549. Using worst-case p rather than the observed p means the tolerance was fixed before either side was run. Wide enough that two agreeing implementations pass essentially always; narrow enough that a procedural difference of more than about 1.5 percentage points fails."
-                        },
-                        {
-                            "quantity":  "p_be_pe",
-                            "absolute_tolerance":  0.01549,
-                            "relative_tolerance":  0,
-                            "tolerance_basis":  "DERIVED, and independent of the answer. Both sides estimate the same probability by simulation, so the difference between them has standard deviation sqrt(p(1-p)(1/n_python + 1/n_R)). Evaluated at the WORST CASE p = 0.5, which maximises p(1-p), and taken at four standard deviations: 4 * sqrt(0.25 * (1/20000 + 1/100000)) = 0.01549. Using worst-case p rather than the observed p means the tolerance was fixed before either side was run. Wide enough that two agreeing implementations pass essentially always; narrow enough that a procedural difference of more than about 1.5 percentage points fails."
-                        }
-                    ],
-    "not_cross_checkable":  [
-                                "The overall p(BE). PowerTOST applies the MIXED procedure - conventional ABE below the switch, scaled above it - and be-stats does not implement the unscaled branch for a replicate design (see replicate_abe.py). Only the two components are compared.",
-                                "The intermediate Howe quantities x, bound_x, y and bound_y. PowerTOST does not expose them for a dataset; it exposes only the probability that the criterion passed. They are checked instead against the FDA SAS in the tier-1A case FDA-HVD-RSABE-CRITERION-001.",
-                                "sWR and the treatment contrast for any individual study. PowerTOST analyses no dataset, so there is nothing to compare them with."
-                            ],
-    "notes":  "Sits just above the 30 percent classification CV, so a substantial share of simulated studies land on either side of the sWR = 0.294 switch. That makes the overall p(BE) especially not comparable, and makes the COMPONENT comparison especially worth having: it is where a wrong switching direction or a wrong scaling constant would show."
+    "case_id": "RSABE-002-BOUNDARY-NEAR",
+    "title": "FDA RSABE, fully replicate, CVwR 31%, ratio 0.90, n=36",
+    "method": "fda_hvd_rsabe",
+    "comparison_kind": "monte_carlo_power",
+    "inputs": {
+        "role": "boundary_near",
+        "design": "2x2x4",
+        "powertost_design": "2x2x4",
+        "cv_wr": 0.31,
+        "cv_wt": 0.31,
+        "theta0": 0.9,
+        "n": 36,
+        "nsims": 20000,
+        "nsims_r": 100000,
+        "seed": 20260828,
+        "experiment": "scaled_criterion_isolated",
+        "be_stats_swr_switch": 0.294
+    },
+    "oracle": {
+        "tool": "PowerTOST",
+        "function": "power.RSABE",
+        "arguments": "power.RSABE(CV=0.31, theta0=0.90, n=36, design=\"2x2x4\", regulator=reg_const(\"USER\", r_const=log(1.25)/0.25, CVswitch=0, CVcap=Inf, pe_constr=TRUE), details=TRUE, nsims=1e5)",
+        "method_note": "PowerTOST computes empirical power by simulating nsims studies from the distributional properties of the deciding statistics. be-stats analyses datasets, so the Python side simulates studies and applies the be-stats criterion to each. Two Monte Carlo estimates of one probability, compared at the only layer both expose.",
+        "regulatory_setting": "FDA constants, switching disabled",
+        "regulatory_setting_note": "r_const is FDA's log(1.25)/0.25 and the criterion is unchanged - SABE_test stays \"fda\", including its Em <- Em - SEs^2 bias correction. Only CVswitch is set to 0, which makes PowerTOST's p(BE-sABEc) the scaled criterion ALONE rather than the mixed decision. See VAL-FDA-HVD-001: comparing the mixed decision against the scaled criterion is what put this case 4.61 sigma out in PR #58, inside a tolerance that passed. CVcap=Inf reproduces FDA, which imposes no cap.",
+        "version_pinned_in": "environment.lock.json"
+    },
+    "comparisons": [
+        {
+            "quantity": "p_be_sabec",
+            "absolute_tolerance": 0.01549,
+            "relative_tolerance": 0,
+            "tolerance_basis": "DERIVED, and independent of the answer. Both sides estimate the same probability by simulation, so the difference between them has standard deviation sqrt(p(1-p)(1/n_python + 1/n_R)). Evaluated at the WORST CASE p = 0.5, which maximises p(1-p), and taken at four standard deviations: 4 * sqrt(0.25 * (1/20000 + 1/100000)) = 0.01549. Using worst-case p rather than the observed p means the tolerance was fixed before either side was run. UNCHANGED FROM PR #58: VAL-FDA-HVD-001 was a mismatch of quantities, not of tolerances, and retrofitting a tolerance to a resolved finding would leave the tolerance meaning nothing."
+        },
+        {
+            "quantity": "p_be_pe",
+            "absolute_tolerance": 0.01549,
+            "relative_tolerance": 0,
+            "tolerance_basis": "DERIVED, and independent of the answer. As for p_be_sabec: 4 * sqrt(0.25 * (1/20000 + 1/100000)) = 0.01549. PowerTOST's BEpe is evaluated over all simulations unconditionally, so this quantity was directly comparable under either regulator setting - which is why it agreed in PR #58 while p_be_sabec did not."
+        },
+        {
+            "quantity": "p_below_switch",
+            "absolute_tolerance": 0.01414,
+            "relative_tolerance": 0,
+            "r_value_is_exact": true,
+            "tolerance_basis": "DERIVED, one-sided. The R side computes this in CLOSED FORM - sWR^2 * dfRR / sigma^2_wR is chi-square on dfRR = n - 2 = 34 degrees of freedom under the model both sides simulate, so P(sWR < 0.294) = pchisq(34 * 0.294^2 / log(1+0.31^2), 34) exactly. Only the Python side carries sampling error, so the tolerance is 4 * sqrt(0.25/20000) = 0.01414 at worst-case p = 0.5. Fixed before the run."
+        }
+    ],
+    "not_cross_checkable": [
+        "The overall p(BE), and the mixed procedure generally. PowerTOST decides below the switch by a TOST on the same intra-subject contrast; FDA specifies Appendix C's mixed model, which be-stats records and refuses to approximate (see replicate_abe.py). Neither PowerTOST's convention nor be-stats' silence can validate the other.",
+        "The intermediate Howe quantities x, bound_x, y and bound_y. PowerTOST does not expose them for a dataset; it exposes only the probability that the criterion passed. They are checked instead against the FDA SAS in the tier-1A case FDA-HVD-RSABE-CRITERION-001.",
+        "sWR and the treatment contrast for any individual study. PowerTOST analyses no dataset, so there is nothing to compare them with. This is not a gap that can be closed by choosing different arguments: PowerTOST 1.5-7 exposes no dataset-level entry point for the FDA scaled procedures at all."
+    ],
+    "open_findings": [
+        "VAL-FDA-HVD-002"
+    ],
+    "notes": "Sits just above the 30 percent classification CV, so a substantial share of simulated studies land on either side of the sWR = 0.294 switch - about 43.5 percent, which p_below_switch now checks against the exact chi-square rather than leaving as a diagnostic. That share is precisely what made this case, and only this case, expose the quantity mismatch recorded as VAL-FDA-HVD-001: at CVwR 0.40 and 0.60 almost nothing falls below the switch, so the mixed decision and the scaled criterion coincide and the mismatch was invisible."
 }

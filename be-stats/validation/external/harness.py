@@ -126,6 +126,12 @@ class Comparison:
     #: Mandatory. A tolerance without a stated reason is a tolerance chosen by
     #: running the test until it passed.
     tolerance_basis: str
+    #: True when the R side computes this quantity in closed form rather than
+    #: by simulation - `p_below_switch` is a chi-square CDF, not a proportion
+    #: of simulated studies. It changes only how the sigma diagnostic is
+    #: scaled: one side contributes no sampling error, so dividing by a
+    #: two-sided standard error would understate how far apart they are.
+    r_value_is_exact: bool = False
 
     def agrees(self, python_value: float, r_value: float) -> tuple[bool, float, float]:
         absolute = abs(python_value - r_value)
@@ -145,6 +151,10 @@ class Case:
     oracle: dict
     #: What this case explicitly does NOT establish.
     not_cross_checkable: tuple[str, ...] = ()
+    #: Validation finding ids that remain open against this case. A method
+    #: whose cases all pass but which carries one of these is reported
+    #: `PASSED_WITH_FINDING`, never bare `PASSED` - see `tier3_status`.
+    open_findings: tuple[str, ...] = ()
     notes: str = ""
 
     @staticmethod
@@ -194,6 +204,7 @@ class Case:
                     absolute_tolerance=float(raw["absolute_tolerance"]),
                     relative_tolerance=float(raw["relative_tolerance"]),
                     tolerance_basis=raw["tolerance_basis"],
+                    r_value_is_exact=bool(raw.get("r_value_is_exact", False)),
                 )
             )
 
@@ -213,6 +224,7 @@ class Case:
             comparisons=tuple(comparisons),
             oracle=oracle,
             not_cross_checkable=tuple(data.get("not_cross_checkable", ())),
+            open_findings=tuple(data.get("open_findings", ())),
             notes=data.get("notes", ""),
         )
 
@@ -348,6 +360,7 @@ def _evaluate_monte_carlo_power(case: Case) -> dict[str, float]:
         n=case.inputs["n"],
         nsims=case.inputs["nsims"],
         seed=case.inputs["seed"],
+        experiment=case.inputs.get("experiment"),
     )
 
 
@@ -500,27 +513,41 @@ def compare(
                     absolute_tolerance=comparison.absolute_tolerance,
                     relative_tolerance=comparison.relative_tolerance,
                     tolerance_basis=comparison.tolerance_basis,
-                    monte_carlo_sigmas=_sigmas(case, python_value, r_value),
+                    monte_carlo_sigmas=_sigmas(
+                        case, comparison, python_value, r_value
+                    ),
                 )
             )
     return results
 
 
-def _sigmas(case: Case, python_value: float, r_value: float) -> float | None:
+def _sigmas(
+    case: Case, comparison: Comparison, python_value: float, r_value: float
+) -> float | None:
     """How many of its own standard errors apart two proportions are.
 
-    Only meaningful for Monte Carlo comparisons, where both sides are
-    estimates. `None` everywhere else - a closed-form comparison has no
-    sampling error to measure against.
+    Only meaningful for Monte Carlo comparisons, where at least one side is an
+    estimate. `None` everywhere else - a closed-form comparison against a
+    closed form has no sampling error to measure against.
+
+    When the R side is exact - `p_below_switch` is a chi-square CDF - only the
+    Python side contributes variance. Pooling both counts would inflate the
+    denominator and make a real difference look smaller than it is.
     """
     if case.comparison_kind != COMPARISON_POWER:
         return None
     n_python = case.inputs.get("nsims")
-    n_r = case.inputs.get("nsims_r")
-    if not n_python or not n_r:
+    if not n_python:
         return None
-    pooled = (python_value * n_python + r_value * n_r) / (n_python + n_r)
-    variance = pooled * (1.0 - pooled) * (1.0 / n_python + 1.0 / n_r)
+    if comparison.r_value_is_exact:
+        pooled = r_value
+        variance = pooled * (1.0 - pooled) / n_python
+    else:
+        n_r = case.inputs.get("nsims_r")
+        if not n_r:
+            return None
+        pooled = (python_value * n_python + r_value * n_r) / (n_python + n_r)
+        variance = pooled * (1.0 - pooled) * (1.0 / n_python + 1.0 / n_r)
     if variance <= 0.0:
         return None
     return abs(python_value - r_value) / math.sqrt(variance)
@@ -550,11 +577,35 @@ TIER3_REQUIRED_ROLES: dict[str, tuple[str, ...]] = {
 }
 
 
+#: Tier-3 outcomes.
+#:
+#: `PASSED_WITH_FINDING` exists because `PASSED` was, for a while, the only
+#: thing the FDA HVD row could say - while the run that produced it had also
+#: raised VAL-FDA-HVD-001. A reader scanning the tier-3 block would have seen
+#: PASSED and stopped. A status that can only say PASSED or PENDING cannot
+#: carry the one thing a reviewer most needs to know: that the comparison
+#: succeeded against an oracle with a known open question against it.
+TIER3_PASSED = "PASSED"
+TIER3_PASSED_WITH_FINDING = "PASSED_WITH_FINDING"
+TIER3_PENDING = "PENDING"
+
+
 def tier3_status(
     cases: list[Case], results: list[ComparisonResult]
 ) -> dict[str, dict]:
-    """Per method: which required roles are covered and whether all passed."""
-    by_case = {c.case_id: c for c in cases}
+    """Per method: which required roles are covered, and with what caveats.
+
+    Two things can qualify a pass, and they are kept apart because they mean
+    different things:
+
+        open_findings   declared on the case, standing questions about what
+                        the comparison establishes. They survive a green run,
+                        because a green run is not what closes them.
+
+        run_findings    raised BY this run: a comparison that agreed within
+                        tolerance but sits further out than sampling error
+                        explains. New every time.
+    """
     outcomes: dict[str, set[str]] = {}
     for result in results:
         outcomes.setdefault(result.case_id, set()).add(result.outcome)
@@ -562,6 +613,7 @@ def tier3_status(
     report: dict[str, dict] = {}
     for method, required in TIER3_REQUIRED_ROLES.items():
         method_cases = [c for c in cases if c.method == method]
+        method_case_ids = {c.case_id for c in method_cases}
         roles_present = {c.inputs.get("role") for c in method_cases}
         missing_roles = [r for r in required if r not in roles_present]
 
@@ -576,16 +628,35 @@ def tier3_status(
             else:
                 role_status[role] = PASS
 
+        open_findings = sorted(
+            {f for case in method_cases for f in case.open_findings}
+        )
+        run_findings = sorted(
+            {
+                f"{r.case_id}/{r.quantity}"
+                for r in results
+                if r.is_finding and r.case_id in method_case_ids
+            }
+        )
+
         all_required_pass = not missing_roles and all(
             role_status.get(role) == PASS for role in required
         )
+        if not all_required_pass:
+            tier3 = TIER3_PENDING
+        elif open_findings or run_findings:
+            tier3 = TIER3_PASSED_WITH_FINDING
+        else:
+            tier3 = TIER3_PASSED
+
         report[method] = {
             "required_roles": list(required),
             "missing_roles": missing_roles,
             "role_status": role_status,
-            "tier3": "PASSED" if all_required_pass else "PENDING",
+            "open_findings": open_findings,
+            "run_findings": run_findings,
+            "tier3": tier3,
         }
-        _ = by_case
     return report
 
 
@@ -699,7 +770,34 @@ def render(results: list[ComparisonResult], tier3: dict, env: dict) -> str:
             lines.append(f"      {role:<18} {got}")
         if status["missing_roles"]:
             lines.append(f"      missing roles: {', '.join(status['missing_roles'])}")
+        for finding in status.get("open_findings", ()):
+            lines.append(f"      OPEN FINDING       {finding}")
+        for finding in status.get("run_findings", ()):
+            lines.append(f"      RAISED THIS RUN    {finding}")
+
+    qualified = sorted(
+        m for m, s in tier3.items() if s["tier3"] == TIER3_PASSED_WITH_FINDING
+    )
+    if qualified:
+        lines += [
+            "",
+            "PASSED_WITH_FINDING is not PASSED. Every required role agreed with",
+            "the oracle, and a question remains that agreement does not answer.",
+            "Read the named finding before relying on the method:",
+            "",
+        ]
+        for method in qualified:
+            names = tier3[method]["open_findings"] + tier3[method]["run_findings"]
+            lines.append(f"  {method}: {', '.join(names)}")
+
     lines += [
+        "",
+        "WHAT A GREEN TIER 3 DOES AND DOES NOT MEAN",
+        "",
+        "It means one independent implementation reproduces these numbers, and",
+        "nothing more. Tier 1B - the FDA's own worked datasets - is a separate",
+        "row, and no amount of tier 3 substitutes for it. A method green here",
+        "is cross-checked, not validated in full.",
         "",
         "PowerTOST is an implementation oracle, not a regulatory authority.",
         "The FDA guidance remains the source of the rule; a disagreement here",
@@ -743,6 +841,10 @@ def main(argv: list[str] | None = None) -> int:
         "environment": env,
         "comparisons": [r.as_dict() for r in results],
         "tier3": tier3,
+        # Hoisted to the top level so a consumer reading the report
+        # programmatically cannot render a green summary without stepping over
+        # them. See `validation/findings/`.
+        "open_findings": sorted({f for case in cases for f in case.open_findings}),
     }
     args.json_out.write_text(json.dumps(report, indent=2), encoding="utf-8")
 

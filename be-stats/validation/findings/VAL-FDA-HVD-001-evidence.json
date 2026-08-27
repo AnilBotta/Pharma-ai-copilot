@@ -1,0 +1,186 @@
+{
+  "finding_id": "VAL-FDA-HVD-001",
+  "generated": "2026-08-27T02:49:43.589076+00:00",
+  "scenario": {
+    "design": "2x2x4",
+    "cv_wr": 0.31,
+    "cv_wt": 0.31,
+    "theta0": 0.9,
+    "n": 36
+  },
+  "instrument_disclaimer": "`powertost_reproduction` is a transcription of PowerTOST 1.5-7 R/power_RSABE2L_isc.R. It explains the oracle; it cannot corroborate it. The corroboration is the corrected case files driving the real PowerTOST in CI.",
+  "data_generating_process": {
+    "what": "distribution of the be-stats sWR^2 against the exact scaled chi-square PowerTOST samples from",
+    "nsims": 20000,
+    "seed": 20260828,
+    "degrees_of_freedom": 34,
+    "expected_mean_s2wr": 0.09175842523954066,
+    "observed_mean_s2wr": 0.09179565634772294,
+    "expected_variance_s2wr": 0.0004952710942611984,
+    "observed_variance_s2wr": 0.0004933458805122284,
+    "ks_statistic": 0.003592979582673461,
+    "ks_p_value": 0.9576858586928733,
+    "interpretation": "reported, not asserted; a build must not hinge on a p-value that can be loosened"
+  },
+  "experiment_a": {
+    "experiment": "A",
+    "what": "scaled criterion alone, switching disabled on both sides",
+    "be_stats": 0.87055,
+    "instrument": 0.87098,
+    "difference": -0.00042999999999993044,
+    "sigmas": 0.16556079508173238,
+    "nsims_be_stats": 20000,
+    "nsims_instrument": 100000
+  },
+  "experiment_b": {
+    "experiment": "B",
+    "what": "mixed procedure - PowerTOST's actual p(BE-sABEc)",
+    "be_stats": 0.8562,
+    "instrument": 0.85672,
+    "difference": -0.000520000000000076,
+    "sigmas": 0.19156057840333687,
+    "nsims_be_stats": 20000,
+    "nsims_instrument": 100000,
+    "caveat": "The be-stats side of experiment B uses the INSTRUMENT's unscaled branch, because be-stats refuses the unscaled replicate branch until Appendix C is implemented. This experiment therefore explains the oracle's number; it does not validate be-stats, and it is not a case file."
+  },
+  "switch_probability": {
+    "experiment": "switch probability",
+    "what": "how often each rule routes a study to the unscaled branch",
+    "fda_swr_threshold": 0.294,
+    "powertost_swr_threshold": 0.293560379208524,
+    "threshold_difference": 0.0004396207914759698,
+    "exact_p_below_fda": 0.43541859453878806,
+    "exact_p_below_powertost": 0.4306705130833396,
+    "probability_difference": 0.004748081455448472,
+    "be_stats_observed_fraction_below": 0.43255,
+    "be_stats_vs_exact_sigmas": 0.8182149190824175,
+    "nsims": 20000,
+    "seed": 20260828
+  },
+  "sweep": [
+    {
+      "cv_wr": 0.27,
+      "sigma_wr": 0.26526451451440597,
+      "fraction_below_switch": 0.8315,
+      "p_scaled_criterion_alone": 0.81125,
+      "instrument_p_mixed": 0.853125,
+      "gap": -0.041874999999999996,
+      "nsims": 8000
+    },
+    {
+      "cv_wr": 0.28,
+      "sigma_wr": 0.27473343658154453,
+      "fraction_below_switch": 0.74125,
+      "p_scaled_criterion_alone": 0.83,
+      "instrument_p_mixed": 0.84975,
+      "gap": -0.019750000000000045,
+      "nsims": 8000
+    },
+    {
+      "cv_wr": 0.29,
+      "sigma_wr": 0.28416570814422526,
+      "fraction_below_switch": 0.639375,
+      "p_scaled_criterion_alone": 0.847375,
+      "instrument_p_mixed": 0.84675,
+      "gap": 0.0006249999999999867,
+      "nsims": 8000
+    },
+    {
+      "cv_wr": 0.3,
+      "sigma_wr": 0.29356037920852385,
+      "fraction_below_switch": 0.534875,
+      "p_scaled_criterion_alone": 0.860875,
+      "instrument_p_mixed": 0.85175,
+      "gap": 0.009124999999999939,
+      "nsims": 8000
+    },
+    {
+      "cv_wr": 0.31,
+      "sigma_wr": 0.3029165318029715,
+      "fraction_below_switch": 0.427125,
+      "p_scaled_criterion_alone": 0.87425,
+      "instrument_p_mixed": 0.860625,
+      "gap": 0.013624999999999998,
+      "nsims": 8000
+    },
+    {
+      "cv_wr": 0.32,
+      "sigma_wr": 0.31223328022050606,
+      "fraction_below_switch": 0.33675,
+      "p_scaled_criterion_alone": 0.88325,
+      "instrument_p_mixed": 0.86975,
+      "gap": 0.013499999999999956,
+      "nsims": 8000
+    },
+    {
+      "cv_wr": 0.33,
+      "sigma_wr": 0.3215097711999328,
+      "fraction_below_switch": 0.257375,
+      "p_scaled_criterion_alone": 0.8925,
+      "instrument_p_mixed": 0.879125,
+      "gap": 0.013374999999999915,
+      "nsims": 8000
+    },
+    {
+      "cv_wr": 0.35,
+      "sigma_wr": 0.33993873070639113,
+      "fraction_below_switch": 0.141125,
+      "p_scaled_criterion_alone": 0.9065,
+      "instrument_p_mixed": 0.894375,
+      "gap": 0.012124999999999941,
+      "nsims": 8000
+    },
+    {
+      "cv_wr": 0.4,
+      "sigma_wr": 0.38525317015992655,
+      "fraction_below_switch": 0.02375,
+      "p_scaled_criterion_alone": 0.933625,
+      "instrument_p_mixed": 0.932125,
+      "gap": 0.0015000000000000568,
+      "nsims": 8000
+    },
+    {
+      "cv_wr": 0.6,
+      "sigma_wr": 0.5545130293761912,
+      "fraction_below_switch": 0.0,
+      "p_scaled_criterion_alone": 0.974875,
+      "instrument_p_mixed": 0.974875,
+      "gap": 0.0,
+      "nsims": 8000
+    }
+  ],
+  "reproducibility": {
+    "runs": [
+      {
+        "seed": 20260828,
+        "nsims": 50000,
+        "p_scaled_criterion_alone": 0.8704,
+        "instrument_p_mixed": 0.85588,
+        "gap": 0.014519999999999977,
+        "fraction_below_switch": 0.4341
+      },
+      {
+        "seed": 20260829,
+        "nsims": 50000,
+        "p_scaled_criterion_alone": 0.86948,
+        "instrument_p_mixed": 0.85558,
+        "gap": 0.013900000000000023,
+        "fraction_below_switch": 0.43554
+      },
+      {
+        "seed": 20260830,
+        "nsims": 50000,
+        "p_scaled_criterion_alone": 0.87024,
+        "instrument_p_mixed": 0.8568,
+        "gap": 0.013440000000000007,
+        "fraction_below_switch": 0.43792
+      }
+    ],
+    "gap_mean": 0.013953333333333337,
+    "gap_min": 0.013440000000000007,
+    "gap_max": 0.014519999999999977,
+    "gap_range": 0.0010799999999999699,
+    "original_observed_difference": 0.01238,
+    "interpretation": "a difference that survives every seed and does not shrink with nsims is not Monte Carlo variation"
+  }
+}

@@ -110,6 +110,12 @@ def _allocate(n: int, sequences: int) -> list[int]:
     return [base + (1 if i < remainder else 0) for i in range(sequences)]
 
 
+#: The only R-side setting under which PowerTOST's `p(BE-sABEc)` is the scaled
+#: criterion alone. See the docstring below and `run_powertost.R`.
+SCALED_CRITERION_ISOLATED = "scaled_criterion_isolated"
+FDA_MIXED_PROCEDURE = "fda_mixed_procedure"
+
+
 def simulate_scaled_power(
     *,
     method: str,
@@ -120,33 +126,65 @@ def simulate_scaled_power(
     n: int,
     nsims: int,
     seed: int,
+    experiment: str | None = None,
 ) -> dict[str, float]:
     """Empirical power of the be-stats decision, by component.
 
-    Returns proportions named to match PowerTOST's `details = TRUE` vector, so
-    the case files compare like with like:
+    Returns proportions named to match PowerTOST's `details = TRUE` vector:
 
-        p_be_sabec    the scaled criterion alone
-        p_be_pe       the point-estimate constraint alone     [RSABE]
-        p_be_sratio   the sigma_wT / sigma_wR criterion alone [NTI]
+        p_be_sabec       the scaled criterion alone
+        p_be_pe          the point-estimate constraint alone     [RSABE]
+        p_be_sratio      the sigma_wT / sigma_wR criterion alone [NTI]
+        p_below_switch   how often sWR lands below the switch    [RSABE]
+
+    MATCHING THE NAME IS NOT MATCHING THE QUANTITY - VAL-FDA-HVD-001
+
+    `p_be_sabec` here is the scaled criterion alone, computed for every
+    simulated study whether or not the mixed procedure would have routed that
+    study to it. PowerTOST's element of the same name is NOT that. It is
+    `counts["BEul"]`, which accumulates
+
+        BE <- ifelse(s2wRs > s2switch, BE_RSABE, BE_ABE)
+
+    - the mixed decision, conventional ABE below the switch. The two coincide
+    only where essentially nothing falls below the switch, which is why the
+    CVwR 0.40 and 0.60 cases agreed and the CVwR 0.31 case sat 4.61 sigma out.
+
+    So an RSABE case must ask the R side for `experiment =
+    "scaled_criterion_isolated"`, which drives PowerTOST with `CVswitch = 0`
+    and makes its `p(BE-sABEc)` the scaled criterion alone. That is enforced
+    below rather than left to whoever writes the next case file.
+
+    `p_be_pe` needs no such care: PowerTOST's `BEpe` is evaluated over all
+    simulations unconditionally, so it is directly comparable either way.
 
     THE OVERALL p(BE) IS NOT PRODUCED, FOR EITHER METHOD.
 
-    For RSABE it is the MIXED procedure - conventional ABE below the switch,
-    scaled above it - and be-stats does not implement the unscaled branch for a
-    replicate design. For NTI it requires criterion (b), the unscaled
-    80.00-125.00% test, which needs Appendix C and is likewise unimplemented.
-    In both cases there is no Python value to compare, so none is invented.
-    The case files record this under `not_cross_checkable`.
-
-    `fraction_below_switch` is reported but never compared. It is a diagnostic:
-    it says how much of the scenario the missing unscaled branch would have
-    governed, which is how much of PowerTOST's overall p(BE) is out of reach.
+    For RSABE it is the mixed procedure AND the point-estimate constraint, and
+    be-stats does not implement the unscaled branch for a replicate design -
+    FDA specifies Appendix C's mixed model there, which `replicate_abe.py`
+    records and refuses to approximate. For NTI it requires criterion (b), the
+    unscaled 80.00-125.00% test, which needs the same model. In both cases
+    there is no Python value to compare, so none is invented. The case files
+    record this under `not_cross_checkable`.
     """
     if design not in DESIGNS:
         raise ValueError(
             f"design {design!r} is not one this harness translates; known: "
             f"{sorted(DESIGNS)}"
+        )
+    if method == "fda_hvd_rsabe" and experiment != SCALED_CRITERION_ISOLATED:
+        # Refused rather than warned. Under the FDA regulator setting the R
+        # side's `p(BE-sABEc)` is the mixed decision, which be-stats cannot
+        # produce; comparing it with the scaled criterion alone is exactly the
+        # mistake VAL-FDA-HVD-001 records, and it passed the declared
+        # tolerance, so nothing downstream would have caught it.
+        raise ValueError(
+            f"an RSABE case must set inputs.experiment = "
+            f"{SCALED_CRITERION_ISOLATED!r}, got {experiment!r}. Under "
+            f"{FDA_MIXED_PROCEDURE!r} PowerTOST reports the MIXED decision as "
+            "p(BE-sABEc) and this function reports the scaled criterion "
+            "alone: the two are different quantities. See VAL-FDA-HVD-001."
         )
     labels = DESIGNS[design]
     n_by_sequence = _allocate(n, len(labels))
@@ -218,10 +256,16 @@ def simulate_scaled_power(
     out = {
         "p_be_sabec": counts["p_be_sabec"] / evaluated,
         "nsims_evaluated": float(evaluated),
-        "fraction_below_switch": below_switch / evaluated,
     }
     if method == "fda_hvd_rsabe":
         out["p_be_pe"] = counts["p_be_pe"] / evaluated
+        # Comparable against a closed form rather than against another
+        # simulation: sWR^2 * dfRR / sigma^2_wR is chi-square on dfRR degrees
+        # of freedom under the model simulated here, so the R side computes
+        # this exactly. It checks two things one power comparison cannot
+        # separate - that the sWR estimator has the right sampling
+        # distribution, and that the switch is applied at FDA's threshold.
+        out["p_below_switch"] = below_switch / evaluated
     else:
         out["p_be_sratio"] = counts["p_be_sratio"] / evaluated
     return out

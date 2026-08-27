@@ -11,7 +11,7 @@ PYTHON ?= python
 DOCKER ?= docker
 IMAGE  ?= be-stats-validation
 
-.PHONY: help test validate validate-python validate-image clean
+.PHONY: help test validate validate-python validate-image investigate clean
 
 help:
 	@echo "test             run the ordinary suite (no R, no Docker)"
@@ -19,6 +19,7 @@ help:
 	@echo "validate-python  run the harness locally; comparisons report SKIPPED"
 	@echo "                 unless Rscript is on PATH"
 	@echo "validate-image   build the validation image only"
+	@echo "investigate      re-run the VAL-FDA-HVD-001 investigation (~6 min)"
 
 test:
 	$(PYTHON) -m pytest
@@ -38,6 +39,14 @@ validate-python:
 	PYTHONPATH=src $(PYTHON) validation/external/harness.py \
 		--json-out validation/external/report.json \
 		--text-out validation/external/report.txt
+
+# Needs no R. It reproduces the evidence behind a resolved finding, and
+# rewrites validation/findings/VAL-FDA-HVD-001-evidence.json in place - so a
+# non-empty `git diff` afterwards means the explanation no longer reproduces,
+# which is exactly the thing worth noticing.
+investigate:
+	PYTHONPATH=src:validation/external $(PYTHON) \
+		validation/external/investigate_val_fda_hvd_001.py
 
 clean:
 	rm -f validation/external/report.json \

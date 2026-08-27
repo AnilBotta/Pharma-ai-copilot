@@ -380,10 +380,30 @@ def test_the_simulator_reports_the_components_powertost_reports():
     result = simulate.simulate_scaled_power(
         method="fda_hvd_rsabe", design="2x2x4",
         cv_wr=0.45, cv_wt=0.45, theta0=0.90, n=24, nsims=200, seed=1,
+        experiment=simulate.SCALED_CRITERION_ISOLATED,
     )
-    assert set(result) >= {"p_be_sabec", "p_be_pe", "fraction_below_switch"}
-    for key in ("p_be_sabec", "p_be_pe"):
+    assert set(result) >= {"p_be_sabec", "p_be_pe", "p_below_switch"}
+    for key in ("p_be_sabec", "p_be_pe", "p_below_switch"):
         assert 0.0 <= result[key] <= 1.0
+
+
+def test_an_rsabe_case_must_ask_for_the_isolated_scaled_criterion():
+    """VAL-FDA-HVD-001, guarded so it cannot recur silently.
+
+    Under `regulator = "FDA"` PowerTOST reports the MIXED decision as
+    `p(BE-sABEc)`, and this simulator reports the scaled criterion alone. The
+    two are different quantities, they agree wherever little falls below the
+    switch, and the mismatch passed the declared tolerance - so nothing
+    downstream would have caught it. Refusing is the only place it can be
+    caught cheaply.
+    """
+    for experiment in (None, simulate.FDA_MIXED_PROCEDURE, "anything_else"):
+        with pytest.raises(ValueError, match="VAL-FDA-HVD-001"):
+            simulate.simulate_scaled_power(
+                method="fda_hvd_rsabe", design="2x2x4",
+                cv_wr=0.45, cv_wt=0.45, theta0=0.90, n=24, nsims=10, seed=1,
+                experiment=experiment,
+            )
 
 
 def test_the_simulator_does_not_report_an_overall_p_be():
@@ -394,6 +414,11 @@ def test_the_simulator_does_not_report_an_overall_p_be():
             method=method, design="2x2x4",
             cv_wr=0.45 if method == "fda_hvd_rsabe" else 0.10,
             cv_wt=cv_wt, theta0=0.95, n=24, nsims=100, seed=2,
+            experiment=(
+                simulate.SCALED_CRITERION_ISOLATED
+                if method == "fda_hvd_rsabe"
+                else None
+            ),
         )
         assert "p_be" not in result
 
@@ -418,6 +443,7 @@ def test_the_between_subject_variance_cannot_affect_the_result():
     baseline = simulate.simulate_scaled_power(
         method="fda_hvd_rsabe", design="2x2x4",
         cv_wr=0.45, cv_wt=0.45, theta0=0.90, n=24, nsims=150, seed=5,
+        experiment=simulate.SCALED_CRITERION_ISOLATED,
     )
     original = simulate.BETWEEN_SUBJECT_SD
     try:
@@ -425,6 +451,7 @@ def test_the_between_subject_variance_cannot_affect_the_result():
         moved = simulate.simulate_scaled_power(
             method="fda_hvd_rsabe", design="2x2x4",
             cv_wr=0.45, cv_wt=0.45, theta0=0.90, n=24, nsims=150, seed=5,
+            experiment=simulate.SCALED_CRITERION_ISOLATED,
         )
     finally:
         simulate.BETWEEN_SUBJECT_SD = original
@@ -446,17 +473,45 @@ def test_the_monte_carlo_tolerance_is_derived_not_chosen():
 
 
 def test_the_power_cases_use_the_worst_case_tolerance():
-    """Every Monte Carlo case carries the derived number, not a rounder one."""
-    expected = 4.0 * math.sqrt(0.25 * (1 / 20_000 + 1 / 100_000))
+    """Every Monte Carlo tolerance is the derived number for ITS OWN counts.
+
+    Three rules, and each case must land on whichever applies to it. The point
+    is not that they are all the same number - RSABE-004 runs a larger oracle
+    and an exact comparator, so it is not - but that every one of them is
+    reproducible from the case's own inputs by a formula fixed in advance.
+    """
     for case in harness.load_cases():
         if case.comparison_kind != harness.COMPARISON_POWER:
             continue
-        assert case.inputs["nsims"] == 20_000
-        assert case.inputs["nsims_r"] == 100_000
+        n_python = case.inputs["nsims"]
+        n_r = case.inputs["nsims_r"]
+        assert n_python == 20_000
         for comparison in case.comparisons:
+            label = f"{case.case_id}/{comparison.quantity}"
+            if comparison.r_value_is_exact:
+                # Only the Python side carries sampling error.
+                expected = 4.0 * math.sqrt(0.25 / n_python)
+            else:
+                expected = 4.0 * math.sqrt(0.25 * (1 / n_python + 1 / n_r))
             assert comparison.absolute_tolerance == pytest.approx(
                 expected, abs=1e-5
-            ), f"{case.case_id}/{comparison.quantity}"
+            ), label
+
+
+def test_the_resolved_findings_tolerance_was_not_tightened_afterwards():
+    """VAL-FDA-HVD-001 was a mismatch of quantities, not of tolerances.
+
+    The case that raised it keeps the 0.01549 derived before the first run.
+    Narrowing it now - when the comparison agrees and the narrower value would
+    still pass - is exactly how a tolerance stops being a pre-declared bound
+    and becomes a description of what happened to be observed.
+    """
+    case = next(
+        c for c in harness.load_cases() if c.case_id == "RSABE-002-BOUNDARY-NEAR"
+    )
+    sabec = next(c for c in case.comparisons if c.quantity == "p_be_sabec")
+    assert sabec.absolute_tolerance == pytest.approx(0.01549, abs=1e-6)
+    assert "UNCHANGED FROM PR #58" in sabec.tolerance_basis
 
 
 # ----------------------------------------------------------- the report ---
@@ -626,6 +681,348 @@ def test_the_r_side_reports_the_versions_it_actually_resolved():
     r_side = (EXTERNAL / "run_powertost.R").read_text(encoding="utf-8")
     assert "r_packages_resolved" in r_side
     assert "packageVersion" in r_side
+
+
+# ---------------------------------------------------- validation findings ---
+
+FINDINGS = Path(__file__).resolve().parents[2] / "validation" / "findings"
+
+#: The classifications a finding may carry. A free-text status is a status
+#: nobody can query, and "mostly resolved" is not a category.
+FINDING_STATUSES = {
+    "OPEN",
+    "RESOLVED_MONTE_CARLO_VARIATION",
+    "RESOLVED_SIMULATION_MODEL_DIFFERENCE",
+    "RESOLVED_POWERTOST_LEGACY_METHOD_DIFFERENCE",
+    "RESOLVED_BE_STATS_DEFECT",
+    "RESOLVED_POWERTOST_CONFIGURATION_ERROR",
+    "ACCEPTED_ORACLE_DIVERGENCE",
+}
+
+
+def _findings() -> dict[str, dict]:
+    return {
+        path.stem: json.loads(path.read_text(encoding="utf-8"))
+        for path in sorted(FINDINGS.glob("VAL-*.json"))
+        if not path.stem.endswith("-evidence")
+    }
+
+
+def test_every_finding_record_is_complete_and_classified():
+    records = _findings()
+    assert records, "the findings directory must not be empty once one is raised"
+    for name, record in records.items():
+        assert record["finding_id"] == name
+        assert record["status"] in FINDING_STATUSES, name
+        for key in ("title", "method", "raised_by", "raised_on"):
+            assert str(record.get(key, "")).strip(), f"{name}: missing {key}"
+        # Human-readable twin, so the record is not JSON-only.
+        assert (FINDINGS / f"{name}.md").exists(), name
+
+
+def test_every_open_finding_named_by_a_case_actually_exists():
+    """A case may not point at a finding nobody wrote.
+
+    An `open_findings` entry downgrades a whole method's tier-3 row. A typo
+    would silently downgrade nothing, which is the wrong direction to fail in.
+    """
+    known = set(_findings())
+    for case in harness.load_cases():
+        for finding in case.open_findings:
+            assert finding in known, f"{case.case_id} names unknown {finding}"
+
+
+def test_the_root_cause_finding_cites_the_oracle_precisely():
+    """A finding that says 'PowerTOST does something different' is not a
+    finding. It has to name the version, the file and the line."""
+    record = _findings()["VAL-FDA-HVD-001"]
+    cause = record["root_cause"]
+    assert cause["oracle"]["version"] == "1.5-7"
+    assert "power_RSABE2L_isc.R" in cause["oracle"]["implemented_in"]
+    lines = cause["decisive_lines"]
+    assert any("BEul" in entry["line"] for entry in lines)
+    assert any("ifelse(s2wRs>s2switch" in entry["line"] for entry in lines)
+    assert any(entry.get("line_number") for entry in lines)
+
+
+def test_the_root_cause_finding_records_what_was_not_changed():
+    """The brief's constraint, kept where it can be checked.
+
+    An investigation that quietly edits production logic until the numbers
+    agree produces the same green report as one that explains the difference.
+    The record has to state which of the two happened.
+    """
+    resolution = _findings()["VAL-FDA-HVD-001"]["resolution"]
+    assert resolution["classification"] == "RESOLVED_POWERTOST_CONFIGURATION_ERROR"
+    unchanged = " ".join(resolution["changes_deliberately_not_made"])
+    assert "No production statistical logic was changed" in unchanged
+    assert "No tolerance was altered retrospectively" in unchanged
+
+
+def test_the_engineering_observation_is_kept_out_of_the_statistical_finding():
+    """A flaky test is not evidence about a statistical method.
+
+    It is recorded, and recorded separately, so it can neither be lost nor
+    mistaken for part of the numerical explanation.
+    """
+    record = _findings()["VAL-FDA-HVD-001"]
+    observations = record["engineering_observations"]
+    assert observations
+    assert observations[0]["status"] in {"NOT_PURSUED", "EXPLAINED_AND_FIXED"}
+    assert "pytest" in observations[0]["what"]
+    # And it must not have leaked into the root cause.
+    assert "pytest" not in json.dumps(record["root_cause"])
+
+
+def test_the_invocation_dependent_test_failure_stays_fixed():
+    """ENG-001. It was never intermittent - it depended on the invocation.
+
+    `test_algorithm_conformance.py` imports from `tests.unit.test_rsabe_criterion`,
+    which resolved only when the working directory was `be-stats/`. Run as
+    `pytest be-stats/tests` from the repository root, those tests failed with
+    ModuleNotFoundError. `rootdir` is `be-stats/pyproject.toml` either way, so
+    one relative pythonpath entry covers both.
+    """
+    import tomllib
+
+    root = Path(__file__).resolve().parents[2]
+    config = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))
+    assert config["tool"]["pytest"]["ini_options"]["pythonpath"] == ["."]
+
+    # The import that needs it must still be the one being protected.
+    conformance = (
+        root / "tests" / "validation" / "test_algorithm_conformance.py"
+    ).read_text(encoding="utf-8")
+    assert "from tests.unit.test_rsabe_criterion import" in conformance
+
+
+def test_the_threshold_divergence_is_a_separate_accepted_finding():
+    """PowerTOST derives the switch from CV = 0.30; FDA states 0.294.
+
+    Real, permanent, and not the cause of VAL-FDA-HVD-001. Keeping it as its
+    own record is what stops a resolved finding from being reopened every time
+    somebody rediscovers the fourth decimal.
+    """
+    record = _findings()["VAL-FDA-HVD-002"]
+    assert record["status"] == "ACCEPTED_ORACLE_DIVERGENCE"
+    powertost = record["what_differs"]["powertost"]
+    assert powertost["value_on_the_swr_scale"] == pytest.approx(
+        math.sqrt(math.log(0.30**2 + 1)), rel=1e-12
+    )
+    assert record["what_differs"]["fda"]["rule"] == "sWR >= 0.294"
+    assert record["action_required"].startswith("None in be-stats")
+
+
+def test_the_switch_thresholds_really_do_differ_by_what_the_finding_claims():
+    """Recomputed here rather than trusted from the record."""
+    from be_stats.spec import FDA_HVD_CONSTANTS
+
+    fda = FDA_HVD_CONSTANTS["swr_switching_threshold"].value
+    powertost = math.sqrt(math.log(0.30**2 + 1))
+    assert fda == 0.294
+    assert powertost == pytest.approx(0.293560379208524, abs=1e-15)
+    claimed = _findings()["VAL-FDA-HVD-002"]["what_differs"]["difference"]
+    assert fda - powertost == pytest.approx(claimed, abs=1e-12)
+
+
+# ------------------------------------------- tier 3 cannot read as validated -
+
+
+def _tier3_for(open_findings: tuple[str, ...]) -> dict:
+    """A minimal all-passing method, with and without a standing finding."""
+    template = json.loads(
+        (EXTERNAL / "cases" / "rsabe_002_boundary_near.json").read_text("utf-8")
+    )
+    cases = []
+    for role in harness.TIER3_REQUIRED_ROLES["fda_hvd_rsabe"]:
+        data = json.loads(json.dumps(template))
+        data["case_id"] = f"SYNTH-{role}"
+        data["inputs"]["role"] = role
+        data["open_findings"] = list(open_findings)
+        cases.append(harness.Case.from_dict(data))
+
+    results = [
+        harness.ComparisonResult(case.case_id, "p_be_sabec", harness.PASS,
+                                 python_value=0.5, r_value=0.5,
+                                 absolute_difference=0.0, relative_difference=0.0,
+                                 absolute_tolerance=0.1, relative_tolerance=0.0)
+        for case in cases
+    ]
+    return cases, results, harness.tier3_status(cases, results)
+
+
+def test_a_clean_sweep_with_no_finding_is_a_plain_pass():
+    _, _, tier3 = _tier3_for(())
+    assert tier3["fda_hvd_rsabe"]["tier3"] == harness.TIER3_PASSED
+
+
+def test_an_open_finding_downgrades_a_passing_method():
+    """Every required role agreed, and a question remains that agreement does
+    not answer. `PASSED` would be true and misleading."""
+    _, _, tier3 = _tier3_for(("VAL-FDA-HVD-002",))
+    status = tier3["fda_hvd_rsabe"]
+    assert status["tier3"] == harness.TIER3_PASSED_WITH_FINDING
+    assert status["open_findings"] == ["VAL-FDA-HVD-002"]
+
+
+def test_the_report_cannot_show_a_qualified_pass_as_a_plain_one():
+    cases, results, tier3 = _tier3_for(("VAL-FDA-HVD-002",))
+    text = harness.render(results, tier3, harness.environment())
+
+    assert "PASSED_WITH_FINDING" in text
+    assert "PASSED_WITH_FINDING is not PASSED" in text
+    assert "OPEN FINDING       VAL-FDA-HVD-002" in text
+
+
+def test_no_report_can_render_the_words_fully_validated():
+    """Tier 3 is one independent implementation agreeing. It is not
+    validation, and the report must not let a skim reader conclude it is."""
+    cases = harness.load_cases()
+    results = harness.compare(cases, {c.case_id: {} for c in cases}, None)
+    text = harness.render(results, harness.tier3_status(cases, results),
+                          harness.environment())
+    # Not even inside a negation. A consumer grepping the report for a
+    # reassuring phrase must not find one, and "not fully validated" contains
+    # "fully validated".
+    assert "fully validated" not in text.lower()
+    assert "cross-checked, not validated in full" in text
+    assert "Tier 1B" in text
+
+
+def test_the_shipped_rsabe_cases_carry_the_standing_finding():
+    """Not a synthetic construction: the real case files must do this."""
+    rsabe = [c for c in harness.load_cases() if c.method == "fda_hvd_rsabe"]
+    assert rsabe
+    for case in rsabe:
+        assert "VAL-FDA-HVD-002" in case.open_findings, case.case_id
+
+
+def test_the_open_findings_reach_the_machine_readable_report(tmp_path):
+    """A consumer reading report.json must trip over them, not have to know
+    to look in the tier-3 block."""
+    report = tmp_path / "report.json"
+    harness.main(["--json-out", str(report)])
+    data = json.loads(report.read_text(encoding="utf-8"))
+    assert "VAL-FDA-HVD-002" in data["open_findings"]
+
+
+# ---------------------------------------- the corrected RSABE comparison ---
+
+
+def test_every_rsabe_case_isolates_the_scaled_criterion():
+    """The correction from VAL-FDA-HVD-001, asserted on the shipped files.
+
+    Without `CVswitch = 0` on the R side, PowerTOST's `p(BE-sABEc)` is the
+    mixed decision and the comparison is between two different quantities.
+    """
+    for case in harness.load_cases():
+        if case.method != "fda_hvd_rsabe":
+            continue
+        assert case.inputs["experiment"] == simulate.SCALED_CRITERION_ISOLATED
+        arguments = case.oracle["arguments"]
+        assert "CVswitch=0" in arguments.replace(" ", ""), case.case_id
+        assert "r_const=log(1.25)/0.25" in arguments.replace(" ", ""), case.case_id
+
+
+def test_the_r_side_disables_switching_without_touching_the_constant():
+    """The USER regSet must change the routing and nothing else.
+
+    If it also changed `r_const`, the comparison would silently be against a
+    different criterion - which would be a worse version of the bug it fixes.
+    """
+    r_side = (EXTERNAL / "run_powertost.R").read_text(encoding="utf-8")
+    assert 'reg_const(' in r_side
+    assert '"USER"' in r_side
+    assert "CVswitch = 0" in r_side
+    assert "r_const = log(1.25) / 0.25" in r_side
+    assert "CVcap = Inf" in r_side
+    # And it must explain itself, since a reader meeting `CVswitch = 0` in a
+    # validation harness is right to be suspicious of it.
+    assert "VAL-FDA-HVD-001" in r_side
+
+
+def test_the_switching_fraction_matches_the_exact_chi_square():
+    """The comparison `p_below_switch` makes, checked on the Python side alone.
+
+    sWR^2 * dfRR / sigma^2_wR is chi-square on dfRR under the simulated model,
+    so the expected fraction below the switch is a closed form. This is the one
+    check that separates the sWR estimator and the switch from the criterion,
+    and it needs no R.
+    """
+    from scipy import stats as scipy_stats
+
+    n, cv = 36, 0.31
+    result = simulate.simulate_scaled_power(
+        method="fda_hvd_rsabe", design="2x2x4",
+        cv_wr=cv, cv_wt=cv, theta0=0.90, n=n, nsims=4000, seed=20260828,
+        experiment=simulate.SCALED_CRITERION_ISOLATED,
+    )
+    df_rr = n - 2
+    exact = float(
+        scipy_stats.chi2.cdf(df_rr * 0.294**2 / math.log1p(cv**2), df_rr)
+    )
+    assert exact == pytest.approx(0.4354, abs=5e-4)
+    # Four standard errors of the Python side's own binomial sampling error.
+    assert result["p_below_switch"] == pytest.approx(
+        exact, abs=4.0 * math.sqrt(exact * (1 - exact) / 4000)
+    )
+
+
+def test_an_exact_r_value_is_not_scored_as_if_it_had_sampling_error():
+    """Pooling both counts would inflate the denominator and make a real
+    difference look smaller than it is."""
+    case = next(
+        c for c in harness.load_cases() if c.case_id == "RSABE-002-BOUNDARY-NEAR"
+    )
+    exact = next(c for c in case.comparisons if c.quantity == "p_below_switch")
+    pooled = next(c for c in case.comparisons if c.quantity == "p_be_sabec")
+    assert exact.r_value_is_exact
+    assert not pooled.r_value_is_exact
+
+    one_sided = harness._sigmas(case, exact, 0.44, 0.4354)
+    two_sided = harness._sigmas(case, pooled, 0.44, 0.4354)
+    assert one_sided > two_sided
+
+
+# ------------------------------------------------ the investigation script ---
+
+
+def test_the_investigation_instrument_is_not_part_of_the_package():
+    """It transcribes PowerTOST, so it must never be importable as be-stats.
+
+    A transcription of the oracle cannot corroborate the oracle, and a
+    transcription of the oracle's non-FDA below-switch branch must not be
+    reachable by anything asking what FDA would conclude.
+    """
+    package = Path(__file__).resolve().parents[2] / "src" / "be_stats"
+    for path in package.glob("*.py"):
+        text = path.read_text(encoding="utf-8")
+        assert "powertost_reproduction" not in text, path.name
+        assert "investigate_val_fda_hvd_001" not in text, path.name
+
+
+def test_the_investigation_script_labels_its_instrument_as_one():
+    script = (EXTERNAL / "investigate_val_fda_hvd_001.py").read_text("utf-8")
+    assert "INVESTIGATION INSTRUMENT, NOT EVIDENCE" in script
+    assert "NOT A be-stats RESULT, AND NOT AN FDA RESULT" in script
+
+
+def test_the_frozen_evidence_reproduces_the_explanation():
+    """The numbers the finding rests on, read back from the file that made
+    them rather than retyped into the record."""
+    evidence = json.loads(
+        (FINDINGS / "VAL-FDA-HVD-001-evidence.json").read_text(encoding="utf-8")
+    )
+    # Experiment A: the same quantity, compared against itself, agrees.
+    assert evidence["experiment_a"]["sigmas"] < harness.SIGMA_FINDING
+    # The sweep's gap vanishes exactly where the switching fraction does.
+    by_cv = {row["cv_wr"]: row for row in evidence["sweep"]}
+    assert by_cv[0.60]["fraction_below_switch"] == 0.0
+    assert by_cv[0.60]["gap"] == pytest.approx(0.0, abs=1e-12)
+    assert abs(by_cv[0.31]["gap"]) > 5 * abs(by_cv[0.40]["gap"])
+    # And it is not sampling noise: it survives every seed.
+    assert evidence["reproducibility"]["gap_range"] < 0.005
+    assert evidence["reproducibility"]["gap_min"] > 0.005
 
 
 def test_the_version_pin_is_compared_as_a_version_not_a_string():

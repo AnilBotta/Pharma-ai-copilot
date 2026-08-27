@@ -1,0 +1,44 @@
+{
+  "finding_id": "VAL-FDA-HVD-002",
+  "title": "PowerTOST switches at sWR 0.293560; FDA Appendix G states 0.294",
+  "raised_by": "source inspection during the VAL-FDA-HVD-001 investigation",
+  "raised_on": "2026-08-28",
+  "status": "ACCEPTED_ORACLE_DIVERGENCE",
+  "method": "fda_hvd_rsabe",
+  "severity": "oracle_divergence_be_stats_follows_the_regulator",
+
+  "what_differs": {
+    "fda": {
+      "rule": "sWR >= 0.294",
+      "source": "FDA, Statistical Approaches to Establishing Bioequivalence, May 2026, Appendix G",
+      "kind": "normative constant, stated as a number",
+      "be_stats": "FDA_HVD_CONSTANTS['swr_switching_threshold'], VERIFIED, 0.294"
+    },
+    "powertost": {
+      "rule": "s2wRs > log(CVswitch^2 + 1) with CVswitch = 0.3",
+      "source": "PowerTOST 1.5-7, R/scABEL.R line 17 and R/power_RSABE2L_isc.R line 156",
+      "kind": "derived by converting a CV of 30 percent to a log-scale SD",
+      "value_on_the_swr_scale": 0.293560379208524
+    },
+    "difference": 0.0004396207914759698,
+    "studies_affected": "any whose estimated sWR falls in [0.293560, 0.294) - routed to the scaled criterion by PowerTOST and to the unscaled branch by FDA"
+  },
+
+  "why_this_is_not_a_be_stats_defect": "This is the exact distinction settled in be-stats 0.1.1 (PR #54). FDA's 0.294 is the regulator's criterion applied to an estimated sWR, not a rounded display of sqrt(log(1 + 0.30^2)). The earlier plan to derive the threshold from CV = 30 percent was reversed on statistical review, and the guard forbidding the literal 0.294 was deleted. CV = 0.30 remains the classification threshold under section III.C; 0.294 is the switching threshold under Appendix G. be-stats follows the regulator. PowerTOST is an implementation oracle and is free to encode it differently.",
+
+  "magnitude": {
+    "scenario": "CVwR 0.31, n = 36, 2x2x4 - the scenario where the largest share of studies sits near the switch",
+    "p_below_switch_at_fda_threshold": 0.4354,
+    "p_below_switch_at_powertost_threshold": 0.4307,
+    "difference_in_switching_probability": 0.0047,
+    "difference_in_mixed_power": "under 0.001",
+    "note": "Exact values are recomputed on every investigation run and recorded in VAL-FDA-HVD-001-evidence.json under switch_probability."
+  },
+
+  "why_it_stays_open": "No run closes it. Both sides are behaving as designed and will continue to differ for as long as PowerTOST derives the threshold and FDA states it. Carrying it as an open finding on the RSABE cases is what keeps the fda_hvd_rsabe tier-3 row reading PASSED_WITH_FINDING rather than PASSED, which is the honest summary: the scaled criterion agrees with an independent implementation whose switching rule is known to differ from the regulator's in the fourth decimal.",
+
+  "consequence_for_the_comparison": "None, by construction. The RSABE cases now run PowerTOST with CVswitch = 0, so no comparison depends on the oracle's threshold at all. The threshold is instead compared as a rule: the R side reports both switching probabilities in closed form, and the be-stats side is checked against FDA's.",
+
+  "action_required": "None in be-stats. Revisit only if FDA restates the rule, or if a future comparison is added that depends on the oracle's switch.",
+  "related_findings": ["VAL-FDA-HVD-001"]
+}

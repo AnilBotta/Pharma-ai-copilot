@@ -1,0 +1,51 @@
+{
+    "case_id": "RSABE-004-BOUNDARY-RESEEDED",
+    "title": "FDA RSABE, the VAL-FDA-HVD-001 scenario at a different seed and ten times the oracle count",
+    "method": "fda_hvd_rsabe",
+    "comparison_kind": "monte_carlo_power",
+    "inputs": {
+        "role": "boundary_near_reseeded",
+        "design": "2x2x4",
+        "powertost_design": "2x2x4",
+        "cv_wr": 0.31,
+        "cv_wt": 0.31,
+        "theta0": 0.9,
+        "n": 36,
+        "nsims": 20000,
+        "nsims_r": 1000000,
+        "seed": 20260901,
+        "experiment": "scaled_criterion_isolated",
+        "be_stats_swr_switch": 0.294
+    },
+    "oracle": {
+        "tool": "PowerTOST",
+        "function": "power.RSABE",
+        "arguments": "power.RSABE(CV=0.31, theta0=0.90, n=36, design=\"2x2x4\", regulator=reg_const(\"USER\", r_const=log(1.25)/0.25, CVswitch=0, CVcap=Inf, pe_constr=TRUE), details=TRUE, nsims=1e6)",
+        "method_note": "The same scenario as RSABE-002 at an independent Python seed and a ten-times larger oracle count. Its job is not extra coverage of the criterion but a specific question about VAL-FDA-HVD-001: whether the agreement that resolved it holds when the sampling error is reduced. A difference of definitions does not shrink with nsims; Monte Carlo variation does.",
+        "regulatory_setting": "FDA constants, switching disabled",
+        "version_pinned_in": "environment.lock.json"
+    },
+    "comparisons": [
+        {
+            "quantity": "p_be_sabec",
+            "absolute_tolerance": 0.01428,
+            "relative_tolerance": 0,
+            "tolerance_basis": "DERIVED from THIS case's replicate counts, not copied from RSABE-002. 4 * sqrt(0.25 * (1/20000 + 1/1000000)) = 0.01428. Narrower than RSABE-002's 0.01549 only because the oracle side runs ten times as many simulations; the rule producing it is unchanged, and it was computed before the case was run."
+        },
+        {
+            "quantity": "p_below_switch",
+            "absolute_tolerance": 0.01414,
+            "relative_tolerance": 0,
+            "r_value_is_exact": true,
+            "tolerance_basis": "DERIVED, one-sided. The R side computes this in closed form from the chi-square distribution of sWR^2, so only the Python side carries sampling error: 4 * sqrt(0.25/20000) = 0.01414 at worst-case p = 0.5. The oracle count does not enter, which is why this tolerance matches RSABE-002's rather than this case's other one."
+        }
+    ],
+    "not_cross_checkable": [
+        "The overall p(BE), and the mixed procedure generally - as for RSABE-002.",
+        "Whether agreement at two seeds would generalise to every seed. Two seeds bound the sampling variation loosely; the systematic sweep across sWR and the three-seed reproducibility run live in validation/external/investigate_val_fda_hvd_001.py, whose evidence is frozen alongside the finding."
+    ],
+    "open_findings": [
+        "VAL-FDA-HVD-002"
+    ],
+    "notes": "Added by the VAL-FDA-HVD-001 investigation. p_be_pe is deliberately not repeated here: it agreed under both regulator settings and at both seeds, so a third assertion of it would add runtime without adding evidence."
+}
