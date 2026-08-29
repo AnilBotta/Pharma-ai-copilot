@@ -44,7 +44,7 @@
         "The overall p(BE), and the mixed procedure generally - as for RSABE-002.",
         "Whether agreement at two seeds would generalise to every seed. Two seeds bound the sampling variation loosely; the systematic sweep across sWR and the three-seed reproducibility run live in validation/external/investigate_val_fda_hvd_001.py, whose evidence is frozen alongside the finding."
     ],
-    "open_findings": [
+    "standing_findings": [
         "VAL-FDA-HVD-002"
     ],
     "notes": "Added by the VAL-FDA-HVD-001 investigation. p_be_pe is deliberately not repeated here: it agreed under both regulator settings and at both seeds, so a third assertion of it would add runtime without adding evidence."

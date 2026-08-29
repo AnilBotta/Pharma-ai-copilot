@@ -235,11 +235,73 @@ FDA_NASAL_LOCAL_ACTION = Citation(
     document_version="draft, reissued 2003",
 )
 
+#: The EMA bioequivalence guideline, now pinned.
+#:
+#: This citation previously carried `document_version="current"`, which is the
+#: exact failure this module opens by warning about: "current" is not a version,
+#: it is a promise that someone will remember to check. The document was read
+#: for the highly-variable release and is pinned to what its own cover page
+#: says.
 EMA_BIOEQUIVALENCE = Citation(
     authority="EMA",
     document="Guideline on the Investigation of Bioequivalence",
     section="Narrow therapeutic index drugs",
-    document_version="current",
+    document_version="CPMP/EWP/QWP/1401/98 Rev. 1, effective 1 August 2010",
+)
+
+#: Section 4.1.10, the highly-variable provision. Read at the cited version.
+#:
+#: WHY A 2010 GUIDELINE IS STILL THE RULE IN 2026
+#:
+#: ICH M13A came into effect on 25 January 2025 and formally superseded parts
+#: of this guideline. It did NOT supersede this part. M13A covers only
+#: "BE study considerations and data analysis for a non-replicate study design";
+#: highly variable drugs on a replicate design are named as a Tier 3 topic for
+#: the future M13C. EMA's own implementation note is explicit that the two
+#: documents are to be read in conjunction here — see
+#: `EMA_M13A_IMPLEMENTATION`.
+EMA_BIOEQUIVALENCE_HVD = Citation(
+    authority="EMA",
+    document="Guideline on the Investigation of Bioequivalence",
+    section="4.1.10 Highly variable drugs or drug products",
+    document_version="CPMP/EWP/QWP/1401/98 Rev. 1, effective 1 August 2010",
+)
+
+#: The document that settles precedence between M13A and the 2010 guideline.
+#:
+#: Verbatim, under "Implementation": "After 25 January 2025, the EMA Guideline
+#: on the investigation of bioequivalence (CPMP/EWP/QWP/1401/98 Rev. 1)
+#: pertaining to specific topics not addressed in ICH M13A will continue to
+#: apply until such time as they are replaced by new ICH guidance." And: "the
+#: requirements of both ICH M13A and the existing EMA Guideline read in
+#: conjunction may be applicable to e.g., BE studies with highly variable drugs
+#: (replicate design)".
+EMA_M13A_IMPLEMENTATION = Citation(
+    authority="EMA",
+    document=(
+        "Considerations regarding the implementation of ICH M13A on "
+        "bioequivalence for immediate-release solid oral dosage forms"
+    ),
+    section="Implementation",
+    document_version="EMA/531548/2024, adopted by CHMP 17 February 2025",
+)
+
+#: The Q&A that specifies HOW a replicate design is analysed, which the
+#: guideline itself does not.
+#:
+#: Names three candidate models and recommends one: "Method A (guideline
+#: recommended)" is an all-fixed-effects ANOVA — `proc glm; model logDATA =
+#: sequence subject(sequence) period formulation`. It also gives the reference
+#: -only model for sWR, and two worked data sets with published results, which
+#: is what makes tier 1B possible for this method.
+EMA_PKWP_QA = Citation(
+    authority="EMA",
+    document=(
+        "Questions & Answers: Positions on specific questions addressed to "
+        "the Pharmacokinetics Working Party"
+    ),
+    section="Statistical analysis of bioequivalence studies with a replicate design",
+    document_version="EMA/618604/2008 Rev. 13",
 )
 
 ICH_M13A_QA = Citation(

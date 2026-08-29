@@ -462,15 +462,33 @@ class ReplicateDataset:
         )
 
 
-def _validate_subject(
+def validate_subject_rows(
     subject_id: str,
     rows: list[ReplicateObservation],
     diagnostics: list[Diagnostic],
-) -> SubjectRecord | None:
-    """One subject's rows against the design. Returns None if excluded.
+) -> tuple[ReplicateSequence, dict[int, ReplicateObservation]] | None:
+    """Row-level validation for one subject. Returns None if excluded.
 
-    Every rejection appends a diagnostic first, so an excluded subject can
-    never be silent.
+    WHAT THIS DOES AND DOES NOT DECIDE
+
+    It checks what every regulator must agree on, because it is about whether
+    the FILE is self-consistent rather than about any statistical method: one
+    sequence per subject, periods inside the design, no duplicated period, the
+    row's treatment matching what the sequence says that period is, and a value
+    that has a logarithm.
+
+    It deliberately stops short of deciding whether a subject has ENOUGH data.
+    That question has different answers for different regulators. FDA's
+    Appendix G sWR needs both reference replicates, so `_validate_subject`
+    drops a subject without them. EMA's Method A does not: it is an ANOVA over
+    whatever is present, and the worked data set EMA publishes (EMA/618604/2008
+    Rev. 13, Data set I) contains eight subjects with missing periods whose
+    inclusion is required to reproduce EMA's own published result.
+
+    Splitting the two was the whole reason this function exists separately. A
+    shared *row* check is a shared fact about the data; a shared *inclusion*
+    rule would have been a shared statistical opinion, which these two
+    regulators do not have.
     """
     sequences = {r.sequence for r in rows}
     if len(sequences) != 1:
@@ -558,6 +576,24 @@ def _validate_subject(
 
     if excluded:
         return None
+    return sequence, by_period
+
+
+def _validate_subject(
+    subject_id: str,
+    rows: list[ReplicateObservation],
+    diagnostics: list[Diagnostic],
+) -> SubjectRecord | None:
+    """One subject's rows against the design, for the FDA reference-variance
+    pipeline. Returns None if excluded.
+
+    Row validation is shared (`validate_subject_rows`); the inclusion rule
+    below is not, and must not be — see that function's docstring.
+    """
+    validated = validate_subject_rows(subject_id, rows, diagnostics)
+    if validated is None:
+        return None
+    sequence, by_period = validated
 
     missing = [p for p in range(1, sequence.periods + 1) if p not in by_period]
     reference_periods = sequence.reference_periods()

@@ -540,7 +540,13 @@ def test_rsabe_is_implemented_but_not_validated():
         ValidationStatus.IMPLEMENTED_UNVALIDATED
     )
     assert VALIDATION[Method.FDA_NTI_RSABE] is ValidationStatus.NOT_IMPLEMENTED
-    assert VALIDATION[Method.EMA_HVD_ABEL] is ValidationStatus.NOT_IMPLEMENTED
+    # EMA ABEL is implemented as of the EMA release and is still not VALIDATED.
+    # It has tier-1B evidence, which FDA HVD does not — EMA published two
+    # worked data sets and both reproduce — but the cap reading remains open
+    # (VAL-EMA-ABEL-002), so the method-level status stays unvalidated.
+    assert VALIDATION[Method.EMA_HVD_ABEL] is (
+        ValidationStatus.IMPLEMENTED_UNVALIDATED
+    )
     for status in VALIDATION.values():
         assert status is not ValidationStatus.VALIDATED
 

@@ -1,0 +1,63 @@
+{
+  "finding_id": "VAL-EMA-ABEL-001",
+  "title": "PowerTOST's p(BE-ABEL) is the mixed decision, and power.scABEL is empirically tuned",
+  "raised_by": "source inspection during PR #60, before any comparison fixture was written",
+  "raised_on": "2026-08-27",
+  "status": "PREEMPTED",
+  "status_note": "No classification, because nothing was resolved: the wrong comparison was never written, so there was no discrepancy to explain. PREEMPTED is what the VAL-FDA-HVD-001 rule produces when it works.",
+  "method": "ema_hvd_abel",
+  "severity": "oracle_selection_no_wrong_comparison_was_run",
+
+  "why_it_was_looked_for": "VAL-FDA-HVD-001 cost a full investigation to discover that p(BE-sABEc) is the mixed decision rather than the scaled criterion. Its recorded conclusion was that verifying a reported quantity's actual meaning must become a standard step before writing any oracle comparison. This is that step, performed first, which is why no incorrect EMA comparison was ever run.",
+
+  "finding_1_naming": {
+    "claim": "p(BE-ABEL) is the mixed decision - ABEL above the switch, conventional ABE below - not the ABEL criterion alone.",
+    "key_statistic_route": {
+      "file": "R/power_scABEL1.R",
+      "counter_names": "names(counts) <- c(\"BE\", \"BEwl\", \"BEpe\", \"BEabe\")",
+      "counter_names_line": 155,
+      "abel_criterion": "BE <- (lABEL<=lCL) & (uCL<=uABEL)",
+      "abel_criterion_line": 211,
+      "overwritten_by": "BE <- ifelse(s2wRs>s2switch, BE, BEABE)",
+      "overwritten_line": 220,
+      "accumulated": "counts[\"BEwl\"] <- counts[\"BEwl\"] + sum(BE)",
+      "accumulated_line": 229,
+      "reported_as": "names(p) <- c(\"p(BE)\", \"p(BE-ABEL)\", \"p(BE-pe)\", \"p(BE-ABE)\")",
+      "reported_line": 133
+    },
+    "subject_data_route": {
+      "file": "R/power_RSABE2L_sdsims.R",
+      "mixed": "BE <- ifelse(s2wRs < s2switch, BE_ABE, BE_RSABE)",
+      "mixed_line": 317,
+      "reported_line": 341
+    },
+    "directly_comparable_anyway": "p(BE-pe), the point-estimate constraint, is evaluated over all simulations unconditionally - as in the FDA family."
+  },
+
+  "finding_2_empirical_adaptations": {
+    "claim": "power.scABEL for EMA routes to power.scABEL1, which is a tuned approximation rather than a faithful implementation of the EMA rule.",
+    "routing": "reg_const(\"EMA\") leaves est_method = \"ANOVA\"; R/power_scABEL.R line 17 routes on that to power.scABEL1.",
+    "header_comment": "power via key statistic sims with empirical adaptions to obtain better agreement to sims based on subject data",
+    "adaptations": [
+      {"line": 118, "source": "# next is purely empirical for 2x3x3", "what": "dfTT <- dfRR"},
+      {"line": 177, "source": "s2wT is empirical because dfTT is not defined and artificially set to equal dfRR", "what": "mses <- (s2wTs + 2*s2wRs)/3 for 2x3x3"},
+      {"line": 185, "source": "'mean' of both attempts V1.1-02/V1.1-03 in case of 2x2x4", "what": "mses <- (mses_ABE + (s2wTs + s2wRs)/2)/2 - the average of two different estimators"},
+      {"line": 212, "source": "#--- conventional ABE for low CV (0.2 is purely empiric)", "what": "a different mean square is used for the ABE branch when CVwR <= 20%"}
+    ],
+    "consequence": "None of this is in the EMA guideline. Comparing be-stats against power.scABEL would compare a faithful implementation against a deliberately inexact one and report the difference as a finding."
+  },
+
+  "oracles_used_instead": [
+    {"oracle": "scABEL(CV, regulator=\"EMA\")", "kind": "deterministic", "establishes": "the widened limits exactly, with no simulation and no Monte Carlo tolerance"},
+    {"oracle": "EMA/618604/2008 Rev. 13 Data set I and II", "kind": "tier_1b", "establishes": "Method A point estimate, 90% CI and CVwR against the regulator's own published numbers"},
+    {"oracle": "power.scABEL.sdsims", "kind": "monte_carlo", "establishes": "available and adaptation-free (it fits real lm() models), but reports the same mixed p(BE-ABEL)"}
+  ],
+
+  "scabel_notes": [
+    "The switch MATCHES the regulator: widening applies for CV > 0.3 (with a 1e-10 tolerance), which is EMA's strict >30%. Unlike VAL-FDA-HVD-002, PowerTOST and the regulator agree here.",
+    "The lower limit is computed as 1/upper rather than exp(-k*sWR) - equal in exact arithmetic, possibly a last-ULP difference in floating point. EMA states the pair symmetrically as exp[+/- k.sWR], which is what be-stats computes.",
+    "The cap is computed from CVcap rather than taken from the guideline's stated pair. That is VAL-EMA-ABEL-002."
+  ],
+
+  "related_findings": ["VAL-FDA-HVD-001", "VAL-EMA-ABEL-002"]
+}

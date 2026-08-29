@@ -20,17 +20,41 @@ via `open_findings`, which downgrades a method's tier-3 row from `PASSED` to
 tier-3 block should not be able to read `PASSED` without also reading what it
 does not cover.
 
-## Statuses
+## Status and classification are separate fields
+
+They answer different questions, and collapsing them loses one of the answers.
+
+**`status`** — does anyone still need to work on this?
 
 | status | meaning |
 |---|---|
-| `OPEN` | Not yet explained. The method is `PASSED_WITH_FINDING` at best. |
+| `OPEN` | Not yet explained. |
+| `PREEMPTED` | Found by inspecting the oracle's source *before* a comparison was written, so the wrong comparison was never run. Nothing broke, so nothing needed resolving. |
+| `RESOLVED` | Understood and decided. **Not** the same as "the numbers now agree." |
+
+**`classification`** — what turned out to be true. Present when `status` is
+`RESOLVED`.
+
+| classification | meaning |
+|---|---|
 | `RESOLVED_MONTE_CARLO_VARIATION` | Chance after all, shown by re-running at higher counts and other seeds. |
 | `RESOLVED_SIMULATION_MODEL_DIFFERENCE` | The two sides simulated different studies. |
 | `RESOLVED_POWERTOST_LEGACY_METHOD_DIFFERENCE` | The oracle implements an older or different published method. |
 | `RESOLVED_BE_STATS_DEFECT` | `be-stats` was wrong. Fix the package, not the case. |
 | `RESOLVED_POWERTOST_CONFIGURATION_ERROR` | The harness drove the oracle wrongly, or compared quantities that are not the same quantity. |
-| `ACCEPTED_ORACLE_DIVERGENCE` | Explained, correct on both sides, and permanent: the oracle encodes something the regulator states differently. Stays on the case as an open finding because no run will ever close it. |
+| `ACCEPTED_ORACLE_DIVERGENCE` | Correct on both sides, and **permanent**: the oracle encodes something the regulator states differently. `be-stats` follows the regulator. |
+
+### A resolved finding can still qualify a tier-3 row
+
+`ACCEPTED_ORACLE_DIVERGENCE` is the case in point. `VAL-FDA-HVD-002` and
+`VAL-EMA-ABEL-002` are both `RESOLVED` — nobody needs to investigate them
+again — and both describe a numerical difference that appears in **every run**
+and always will.
+
+So the method's tier-3 row stays `PASSED_WITH_FINDING`. Marking it `PASSED`
+would hide a real difference behind a green tick; leaving the finding `OPEN`
+would keep a closed question permanently open. The two fields let the report
+say both things at once, which is what a reviewer actually needs.
 
 ## The hierarchy, which a finding never inverts
 
@@ -44,10 +68,30 @@ at a threshold that differs from FDA's stated one, and `be-stats` follows FDA.
 
 ## The records
 
-| id | subject | status |
-|---|---|---|
-| [`VAL-FDA-HVD-001`](VAL-FDA-HVD-001.md) | `RSABE-002-BOUNDARY-NEAR/p_be_sabec`, 4.61 sigma | `RESOLVED_POWERTOST_CONFIGURATION_ERROR` |
-| [`VAL-FDA-HVD-002`](VAL-FDA-HVD-002.md) | PowerTOST switches at sWR 0.293560, FDA states 0.294 | `ACCEPTED_ORACLE_DIVERGENCE` |
+| id | subject | status | classification |
+|---|---|---|---|
+| [`VAL-FDA-HVD-001`](VAL-FDA-HVD-001.md) | `RSABE-002-BOUNDARY-NEAR/p_be_sabec`, 4.61 sigma | `RESOLVED` | `RESOLVED_POWERTOST_CONFIGURATION_ERROR` |
+| [`VAL-FDA-HVD-002`](VAL-FDA-HVD-002.md) | PowerTOST switches at sWR 0.293560, FDA states 0.294 | `RESOLVED` | `ACCEPTED_ORACLE_DIVERGENCE` |
+| [`VAL-EMA-ABEL-001`](VAL-EMA-ABEL-001.md) | `p(BE-ABEL)` is the mixed decision; `power.scABEL` is empirically tuned | `PREEMPTED` | — |
+| [`VAL-EMA-ABEL-002`](VAL-EMA-ABEL-002.md) | EMA states the cap as a pair; PowerTOST recomputes it | `RESOLVED` | `ACCEPTED_ORACLE_DIVERGENCE` |
+
+No finding is currently `OPEN`.
+
+## The rule VAL-FDA-HVD-001 left behind
+
+**Before writing a comparison against any oracle, read the oracle's source and
+establish what the quantity you are about to name actually counts.** Record the
+function, the version, the internal counter, the routing rule, the reported
+output name, and the actual mathematical meaning.
+
+`VAL-EMA-ABEL-001` is the first finding raised by following that rule, and it
+found two problems in the EMA family before a single fixture existed: the same
+`p(BE-…)` naming trap as the FDA case, and — worse, with no FDA analogue —
+that `power.scABEL` documents four "purely empirical" adaptations and is
+therefore a tuned approximation rather than an oracle at all.
+
+That is what the rule is for. The cost of following it is an hour of reading;
+the cost of not following it was PR #59.
 
 `VAL-FDA-HVD-001-evidence.json` is the frozen output of
 `validation/external/investigate_val_fda_hvd_001.py`, which re-runs on demand.

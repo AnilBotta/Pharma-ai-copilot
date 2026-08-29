@@ -735,14 +735,239 @@ def test_the_r_side_reports_the_versions_it_actually_resolved():
     assert "packageVersion" in r_side
 
 
+# ------------------------------------------------- EMA ABEL, deterministic ---
+
+
+def test_the_abel_cases_are_deterministic_not_monte_carlo():
+    """The strongest comparison kind in this directory.
+
+    `scABEL` is a closed-form function of CV. Nothing is simulated on either
+    side, so agreement is exact and the tolerance is a floating-point bound.
+    An ABEL case that acquired `nsims` would mean somebody had turned an exact
+    comparison into an approximate one.
+    """
+    abel = [
+        c
+        for c in harness.load_cases()
+        if c.comparison_kind == harness.COMPARISON_ABEL_LIMITS
+    ]
+    assert abel, "the EMA ABEL cases must exist"
+    for case in abel:
+        assert "nsims" not in case.inputs, case.case_id
+        assert "seed" not in case.inputs, case.case_id
+        assert case.oracle["function"] == "scABEL"
+        # No sigma diagnostic: there is no sampling error to measure against.
+        results = harness.compare(
+            [case],
+            {case.case_id: {c.quantity: 100.0 for c in case.comparisons}},
+            {case.case_id: {c.quantity: 100.0 for c in case.comparisons}},
+        )
+        assert all(r.monte_carlo_sigmas is None for r in results)
+        assert all(not r.is_finding for r in results)
+
+
+def test_the_uncapped_abel_cases_demand_floating_point_agreement():
+    """Below the cap the two implementations evaluate the same closed form.
+
+    A tolerance any larger than floating point would be admitting a difference
+    that cannot exist unless a constant differs.
+    """
+    for case in harness.load_cases():
+        if case.comparison_kind != harness.COMPARISON_ABEL_LIMITS:
+            continue
+        if case.inputs["role"] in {"cap", "high_variability"}:
+            continue
+        for comparison in case.comparisons:
+            if comparison.quantity.startswith("abel_"):
+                assert comparison.absolute_tolerance <= 1e-9, (
+                    f"{case.case_id}/{comparison.quantity}"
+                )
+
+
+def test_the_capped_abel_cases_admit_only_the_predicted_divergence():
+    """VAL-EMA-ABEL-002 sized in advance, not fitted afterwards.
+
+    EMA states the cap as 69.84 - 143.19; PowerTOST recomputes it as
+    69.83678 - 143.19102. The tolerance admits that 0.00322 and roughly
+    nothing else - a divergence twice the size would still fail.
+    """
+    capped = [
+        c
+        for c in harness.load_cases()
+        if c.comparison_kind == harness.COMPARISON_ABEL_LIMITS
+        and c.inputs["role"] in {"cap", "high_variability"}
+    ]
+    assert capped
+    for case in capped:
+        for comparison in case.comparisons:
+            if not comparison.quantity.startswith("abel_"):
+                continue
+            assert comparison.absolute_tolerance == pytest.approx(0.0035)
+            assert comparison.absolute_tolerance < 2 * 0.00322
+            assert "VAL-EMA-ABEL-002" in comparison.tolerance_basis
+            assert "predicted" in comparison.tolerance_basis.lower()
+
+
+def test_the_abel_evaluator_reports_capped_and_uncapped_limits():
+    """A capped number that replaced another one must show both."""
+    case = next(
+        c
+        for c in harness.load_cases()
+        if c.comparison_kind == harness.COMPARISON_ABEL_LIMITS
+        and c.inputs["role"] == "high_variability"
+    )
+    values = harness.evaluate_python(case)
+    assert values["cap_applied"] == 1.0
+    assert values["abel_lower_uncapped_percent"] < values["abel_lower_percent"]
+    assert values["abel_upper_uncapped_percent"] > values["abel_upper_percent"]
+    assert values["abel_lower_percent"] == pytest.approx(69.84)
+    assert values["abel_upper_percent"] == pytest.approx(143.19)
+
+
+def test_the_cap_divergence_finding_is_resolved_not_open():
+    """VAL-EMA-ABEL-002: the question is answered, the numbers still differ.
+
+    EMA states the maximum widened range as 69.84 - 143.19% and its table gives
+    the >=50% row as exactly that pair. PowerTOST preserves the unrounded
+    formula. That is a documented oracle divergence - not a regulatory
+    ambiguity and not a be-stats defect - so it is RESOLVED.
+    """
+    record = _findings()["VAL-EMA-ABEL-002"]
+    assert record["status"] == "RESOLVED"
+    assert record["classification"] == "ACCEPTED_ORACLE_DIVERGENCE"
+    assert record["resolved_on"]
+    # Resolved is not absent: it still qualifies the tier-3 row.
+    assert "why_it_still_qualifies_the_tier_3_row" in record
+
+
+def test_the_production_cap_is_the_regulator_stated_pair():
+    """69.84 / 143.19 exactly, and the recomputed pair is reference only.
+
+    The whole point of VAL-EMA-ABEL-002 is that be-stats does NOT adopt
+    PowerTOST's continuous cap. If these two ever became the same number, the
+    package would have quietly started following the oracle over the
+    regulator.
+    """
+    from be_stats.ema_hvd import ema_abel_limits
+    from be_stats.spec import EMA_HVD_CONSTANTS, ema_abel_cap_computed
+
+    assert EMA_HVD_CONSTANTS["cap_lower_percent"].value == 69.84
+    assert EMA_HVD_CONSTANTS["cap_upper_percent"].value == 143.19
+
+    # Applied, not merely stored: a study far past the cap gets exactly these.
+    far_past = ema_abel_limits(math.sqrt(math.log1p(0.80**2)))
+    assert far_past.cap_applied is True
+    assert far_past.final_lower_percent == 69.84
+    assert far_past.final_upper_percent == 143.19
+
+    computed_lower, computed_upper = ema_abel_cap_computed()
+    assert computed_lower != 69.84
+    assert computed_upper != 143.19
+    assert computed_lower == pytest.approx(69.83678197809269, abs=1e-12)
+    assert computed_upper == pytest.approx(143.19101935620301, abs=1e-12)
+
+
+def test_the_recomputed_cap_appears_only_as_oracle_reference_output():
+    """It is reported for comparison and never used to decide anything.
+
+    `ema_abel_cap_computed` may be read by the harness and by tests. If
+    `ema_hvd.py` ever called it, the production cap would have become the
+    derived one by accident.
+    """
+    import ast
+    from pathlib import Path
+
+    import be_stats.spec as spec_module
+
+    # Parsed, not grepped. `ema_hvd.py` DISCUSSES the recomputed cap in its
+    # docstrings - explaining why it is not used is most of the point - and a
+    # text search cannot tell an explanation from a call. This is the same
+    # lesson as the "fully validated" check in the report.
+    tree = ast.parse(
+        (Path(spec_module.__file__).parent / "ema_hvd.py").read_text(
+            encoding="utf-8"
+        )
+    )
+    imported: set[str] = set()
+    called: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom):
+            imported.update(alias.name for alias in node.names)
+        elif isinstance(node, ast.Call):
+            func = node.func
+            if isinstance(func, ast.Name):
+                called.add(func.id)
+            elif isinstance(func, ast.Attribute):
+                called.add(func.attr)
+
+    assert "ema_abel_cap_computed" not in imported, (
+        "the production limit calculation must not import the recomputed cap"
+    )
+    assert "ema_abel_cap_computed" not in called, (
+        "the production limit calculation must not consult the recomputed cap"
+    )
+
+    # And the harness reports it as a separate, clearly named quantity.
+    case = next(
+        c
+        for c in harness.load_cases()
+        if c.comparison_kind == harness.COMPARISON_ABEL_LIMITS
+        and c.inputs["role"] == "cap"
+    )
+    values = harness.evaluate_python(case)
+    assert values["abel_lower_percent"] == 69.84
+    assert values["cap_lower_computed_percent"] != 69.84
+
+
+def test_the_fda_and_ema_thresholds_stay_separate_in_the_harness_too():
+    """0.294 and 30% are different rules owned by different regulators.
+
+    Asserted here as well as in the package, because the harness is where a
+    generic "HVD threshold" would be most tempting to introduce.
+    """
+    from be_stats.spec import EMA_HVD_CONSTANTS, FDA_HVD_CONSTANTS
+
+    assert FDA_HVD_CONSTANTS["swr_switching_threshold"].value == 0.294
+    assert EMA_HVD_CONSTANTS["cv_wr_scaling_threshold_percent"].value == 30.0
+    assert "swr_switching_threshold" not in EMA_HVD_CONSTANTS
+    assert "cv_wr_scaling_threshold_percent" not in FDA_HVD_CONSTANTS
+
+    # EMA's threshold is never stored on the sWR scale.
+    ema_values = {v.value for v in EMA_HVD_CONSTANTS.values()}
+    assert not any(
+        abs(v - 0.293560379208524) < 1e-9 for v in ema_values
+    ), "0.293560 is a mathematical cross-reference, never the stored rule"
+
+
+def test_ema_has_a_cap_role_that_the_fda_methods_do_not_need():
+    """The structural difference between ABEL and RSABE, in the role list."""
+    assert "cap" in harness.TIER3_REQUIRED_ROLES["ema_hvd_abel"]
+    assert "cap" not in harness.TIER3_REQUIRED_ROLES["fda_hvd_rsabe"]
+    assert "cap" not in harness.TIER3_REQUIRED_ROLES["fda_nti"]
+
+
 # ---------------------------------------------------- validation findings ---
 
 FINDINGS = Path(__file__).resolve().parents[2] / "validation" / "findings"
 
 #: The classifications a finding may carry. A free-text status is a status
 #: nobody can query, and "mostly resolved" is not a category.
+#: `status` answers "does anyone still need to work on this".
 FINDING_STATUSES = {
     "OPEN",
+    #: Recorded BEFORE any comparison was written, so the wrong comparison was
+    #: never run. VAL-FDA-HVD-001 established that verifying what an oracle's
+    #: reported quantity actually counts must precede writing a fixture;
+    #: VAL-EMA-ABEL-001 is the first finding raised by doing that first.
+    "PREEMPTED",
+    #: Understood and decided. NOT the same as "the numbers now agree" - an
+    #: ACCEPTED_ORACLE_DIVERGENCE is resolved and permanent.
+    "RESOLVED",
+}
+
+#: `classification` answers "what turned out to be true". Present when the
+#: status is RESOLVED.
+FINDING_CLASSIFICATIONS = {
     "RESOLVED_MONTE_CARLO_VARIATION",
     "RESOLVED_SIMULATION_MODEL_DIFFERENCE",
     "RESOLVED_POWERTOST_LEGACY_METHOD_DIFFERENCE",
@@ -766,6 +991,11 @@ def test_every_finding_record_is_complete_and_classified():
     for name, record in records.items():
         assert record["finding_id"] == name
         assert record["status"] in FINDING_STATUSES, name
+        if record["status"] == "RESOLVED":
+            assert record["classification"] in FINDING_CLASSIFICATIONS, name
+        else:
+            # Nothing was resolved, so there is no resolution to classify.
+            assert "classification" not in record, name
         for key in ("title", "method", "raised_by", "raised_on"):
             assert str(record.get(key, "")).strip(), f"{name}: missing {key}"
         # Human-readable twin, so the record is not JSON-only.
@@ -775,13 +1005,29 @@ def test_every_finding_record_is_complete_and_classified():
 def test_every_open_finding_named_by_a_case_actually_exists():
     """A case may not point at a finding nobody wrote.
 
-    An `open_findings` entry downgrades a whole method's tier-3 row. A typo
+    A `standing_findings` entry downgrades a whole method's tier-3 row. A typo
     would silently downgrade nothing, which is the wrong direction to fail in.
     """
     known = set(_findings())
     for case in harness.load_cases():
-        for finding in case.open_findings:
+        for finding in case.standing_findings:
             assert finding in known, f"{case.case_id} names unknown {finding}"
+
+
+def test_a_case_using_the_old_field_name_is_refused():
+    """`open_findings` was renamed, and the rename carried a meaning change.
+
+    A finding can be RESOLVED and still stand. A case file left on the old name
+    would quietly stop qualifying its method's tier-3 row, which is a silent
+    upgrade from PASSED_WITH_FINDING to PASSED - exactly the direction that
+    must never happen by accident.
+    """
+    template = json.loads(
+        (EXTERNAL / "cases" / "ema_abel_cap.json").read_text(encoding="utf-8")
+    )
+    template["open_findings"] = template.pop("standing_findings")
+    with pytest.raises(harness.CaseError, match="renamed to 'standing_findings'"):
+        harness.Case.from_dict(template)
 
 
 def test_the_root_cause_finding_cites_the_oracle_precisely():
@@ -878,7 +1124,8 @@ def test_the_threshold_divergence_is_a_separate_accepted_finding():
     somebody rediscovers the fourth decimal.
     """
     record = _findings()["VAL-FDA-HVD-002"]
-    assert record["status"] == "ACCEPTED_ORACLE_DIVERGENCE"
+    assert record["status"] == "RESOLVED"
+    assert record["classification"] == "ACCEPTED_ORACLE_DIVERGENCE"
     powertost = record["what_differs"]["powertost"]
     assert powertost["value_on_the_swr_scale"] == pytest.approx(
         math.sqrt(math.log(0.30**2 + 1)), rel=1e-12
@@ -902,7 +1149,7 @@ def test_the_switch_thresholds_really_do_differ_by_what_the_finding_claims():
 # ------------------------------------------- tier 3 cannot read as validated -
 
 
-def _tier3_for(open_findings: tuple[str, ...]) -> dict:
+def _tier3_for(standing_findings: tuple[str, ...]) -> dict:
     """A minimal all-passing method, with and without a standing finding."""
     template = json.loads(
         (EXTERNAL / "cases" / "rsabe_002_boundary_near.json").read_text("utf-8")
@@ -912,7 +1159,7 @@ def _tier3_for(open_findings: tuple[str, ...]) -> dict:
         data = json.loads(json.dumps(template))
         data["case_id"] = f"SYNTH-{role}"
         data["inputs"]["role"] = role
-        data["open_findings"] = list(open_findings)
+        data["standing_findings"] = list(standing_findings)
         cases.append(harness.Case.from_dict(data))
 
     results = [
@@ -936,7 +1183,7 @@ def test_an_open_finding_downgrades_a_passing_method():
     _, _, tier3 = _tier3_for(("VAL-FDA-HVD-002",))
     status = tier3["fda_hvd_rsabe"]
     assert status["tier3"] == harness.TIER3_PASSED_WITH_FINDING
-    assert status["open_findings"] == ["VAL-FDA-HVD-002"]
+    assert status["standing_findings"] == ["VAL-FDA-HVD-002"]
 
 
 def test_the_report_cannot_show_a_qualified_pass_as_a_plain_one():
@@ -945,7 +1192,7 @@ def test_the_report_cannot_show_a_qualified_pass_as_a_plain_one():
 
     assert "PASSED_WITH_FINDING" in text
     assert "PASSED_WITH_FINDING is not PASSED" in text
-    assert "OPEN FINDING       VAL-FDA-HVD-002" in text
+    assert "STANDING FINDING   VAL-FDA-HVD-002" in text
 
 
 def test_no_report_can_render_the_words_fully_validated():
@@ -968,16 +1215,16 @@ def test_the_shipped_rsabe_cases_carry_the_standing_finding():
     rsabe = [c for c in harness.load_cases() if c.method == "fda_hvd_rsabe"]
     assert rsabe
     for case in rsabe:
-        assert "VAL-FDA-HVD-002" in case.open_findings, case.case_id
+        assert "VAL-FDA-HVD-002" in case.standing_findings, case.case_id
 
 
-def test_the_open_findings_reach_the_machine_readable_report(tmp_path):
+def test_the_standing_findings_reach_the_machine_readable_report(tmp_path):
     """A consumer reading report.json must trip over them, not have to know
     to look in the tier-3 block."""
     report = tmp_path / "report.json"
     harness.main(["--json-out", str(report)])
     data = json.loads(report.read_text(encoding="utf-8"))
-    assert "VAL-FDA-HVD-002" in data["open_findings"]
+    assert "VAL-FDA-HVD-002" in data["standing_findings"]
 
 
 # ---------------------------------------- the corrected RSABE comparison ---

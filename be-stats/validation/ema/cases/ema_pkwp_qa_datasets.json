@@ -1,0 +1,2966 @@
+{
+ "data_set_i": [
+  {
+   "subject": 1,
+   "value": 2285.96,
+   "formulation": "R",
+   "period": 1,
+   "sequence": "BABA",
+   "log_value": 7.734541
+  },
+  {
+   "subject": 1,
+   "value": 1955.82,
+   "formulation": "T",
+   "period": 2,
+   "sequence": "BABA",
+   "log_value": 7.578565
+  },
+  {
+   "subject": 1,
+   "value": 1345.94,
+   "formulation": "R",
+   "period": 3,
+   "sequence": "BABA",
+   "log_value": 7.204848
+  },
+  {
+   "subject": 1,
+   "value": 2856.24,
+   "formulation": "T",
+   "period": 4,
+   "sequence": "BABA",
+   "log_value": 7.957261
+  },
+  {
+   "subject": 2,
+   "value": 3151.72,
+   "formulation": "T",
+   "period": 1,
+   "sequence": "ABAB",
+   "log_value": 8.055704
+  },
+  {
+   "subject": 2,
+   "value": 2589.3,
+   "formulation": "R",
+   "period": 2,
+   "sequence": "ABAB",
+   "log_value": 7.859143
+  },
+  {
+   "subject": 2,
+   "value": 2992.94,
+   "formulation": "T",
+   "period": 3,
+   "sequence": "ABAB",
+   "log_value": 8.004011
+  },
+  {
+   "subject": 2,
+   "value": 2413.4,
+   "formulation": "R",
+   "period": 4,
+   "sequence": "ABAB",
+   "log_value": 7.788792
+  },
+  {
+   "subject": 3,
+   "value": 3264.74,
+   "formulation": "T",
+   "period": 1,
+   "sequence": "ABAB",
+   "log_value": 8.090935
+  },
+  {
+   "subject": 3,
+   "value": 3257.92,
+   "formulation": "R",
+   "period": 2,
+   "sequence": "ABAB",
+   "log_value": 8.088844
+  },
+  {
+   "subject": 3,
+   "value": 3100.54,
+   "formulation": "T",
+   "period": 3,
+   "sequence": "ABAB",
+   "log_value": 8.039332
+  },
+  {
+   "subject": 3,
+   "value": 3094.16,
+   "formulation": "R",
+   "period": 4,
+   "sequence": "ABAB",
+   "log_value": 8.037272
+  },
+  {
+   "subject": 4,
+   "value": 1206.36,
+   "formulation": "T",
+   "period": 1,
+   "sequence": "ABAB",
+   "log_value": 7.095363
+  },
+  {
+   "subject": 4,
+   "value": 1306.56,
+   "formulation": "R",
+   "period": 2,
+   "sequence": "ABAB",
+   "log_value": 7.175153
+  },
+  {
+   "subject": 4,
+   "value": 1583.12,
+   "formulation": "T",
+   "period": 3,
+   "sequence": "ABAB",
+   "log_value": 7.367153
+  },
+  {
+   "subject": 4,
+   "value": 1349.44,
+   "formulation": "R",
+   "period": 4,
+   "sequence": "ABAB",
+   "log_value": 7.207445
+  },
+  {
+   "subject": 5,
+   "value": 3880.9,
+   "formulation": "R",
+   "period": 1,
+   "sequence": "BABA",
+   "log_value": 8.263822
+  },
+  {
+   "subject": 5,
+   "value": 7322.88,
+   "formulation": "T",
+   "period": 2,
+   "sequence": "BABA",
+   "log_value": 8.898759
+  },
+  {
+   "subject": 5,
+   "value": 4429.66,
+   "formulation": "R",
+   "period": 3,
+   "sequence": "BABA",
+   "log_value": 8.396078
+  },
+  {
+   "subject": 5,
+   "value": 3322.88,
+   "formulation": "T",
+   "period": 4,
+   "sequence": "BABA",
+   "log_value": 8.108587
+  },
+  {
+   "subject": 6,
+   "value": 978.08,
+   "formulation": "R",
+   "period": 1,
+   "sequence": "BABA",
+   "log_value": 6.885591
+  },
+  {
+   "subject": 6,
+   "value": 1211.04,
+   "formulation": "T",
+   "period": 2,
+   "sequence": "BABA",
+   "log_value": 7.099235
+  },
+  {
+   "subject": 6,
+   "value": 973.88,
+   "formulation": "R",
+   "period": 3,
+   "sequence": "BABA",
+   "log_value": 6.881288
+  },
+  {
+   "subject": 6,
+   "value": 1150.8,
+   "formulation": "T",
+   "period": 4,
+   "sequence": "BABA",
+   "log_value": 7.048213
+  },
+  {
+   "subject": 7,
+   "value": 2924.06,
+   "formulation": "T",
+   "period": 1,
+   "sequence": "ABAB",
+   "log_value": 7.980728
+  },
+  {
+   "subject": 7,
+   "value": 2289.98,
+   "formulation": "R",
+   "period": 2,
+   "sequence": "ABAB",
+   "log_value": 7.736298
+  },
+  {
+   "subject": 7,
+   "value": 2494.28,
+   "formulation": "T",
+   "period": 3,
+   "sequence": "ABAB",
+   "log_value": 7.821755
+  },
+  {
+   "subject": 7,
+   "value": 3239.14,
+   "formulation": "R",
+   "period": 4,
+   "sequence": "ABAB",
+   "log_value": 8.083063
+  },
+  {
+   "subject": 8,
+   "value": 2425.46,
+   "formulation": "R",
+   "period": 1,
+   "sequence": "BABA",
+   "log_value": 7.793776
+  },
+  {
+   "subject": 8,
+   "value": 3705.74,
+   "formulation": "T",
+   "period": 2,
+   "sequence": "BABA",
+   "log_value": 8.217638
+  },
+  {
+   "subject": 8,
+   "value": 1891.06,
+   "formulation": "R",
+   "period": 3,
+   "sequence": "BABA",
+   "log_value": 7.544893
+  },
+  {
+   "subject": 8,
+   "value": 8979.12,
+   "formulation": "T",
+   "period": 4,
+   "sequence": "BABA",
+   "log_value": 9.102657
+  },
+  {
+   "subject": 9,
+   "value": 3825.02,
+   "formulation": "R",
+   "period": 1,
+   "sequence": "BABA",
+   "log_value": 8.249319
+  },
+  {
+   "subject": 9,
+   "value": 5315.04,
+   "formulation": "T",
+   "period": 2,
+   "sequence": "BABA",
+   "log_value": 8.578296
+  },
+  {
+   "subject": 9,
+   "value": 5813.16,
+   "formulation": "R",
+   "period": 3,
+   "sequence": "BABA",
+   "log_value": 8.66788
+  },
+  {
+   "subject": 9,
+   "value": 11475.9,
+   "formulation": "T",
+   "period": 4,
+   "sequence": "BABA",
+   "log_value": 9.348004
+  },
+  {
+   "subject": 10,
+   "value": 4112.26,
+   "formulation": "R",
+   "period": 1,
+   "sequence": "BABA",
+   "log_value": 8.321728
+  },
+  {
+   "subject": 10,
+   "value": 3822.86,
+   "formulation": "T",
+   "period": 2,
+   "sequence": "BABA",
+   "log_value": 8.248754
+  },
+  {
+   "subject": 10,
+   "value": 2459.82,
+   "formulation": "R",
+   "period": 3,
+   "sequence": "BABA",
+   "log_value": 7.807843
+  },
+  {
+   "subject": 10,
+   "value": 4616.76,
+   "formulation": "T",
+   "period": 4,
+   "sequence": "BABA",
+   "log_value": 8.437448
+  },
+  {
+   "subject": 11,
+   "value": 3170.3,
+   "formulation": "T",
+   "period": 1,
+   "sequence": "ABAB",
+   "log_value": 8.061581
+  },
+  {
+   "subject": 11,
+   "value": 2267.1,
+   "formulation": "R",
+   "period": 2,
+   "sequence": "ABAB",
+   "log_value": 7.726257
+  },
+  {
+   "subject": 11,
+   "value": 1703.32,
+   "formulation": "R",
+   "period": 4,
+   "sequence": "ABAB",
+   "log_value": 7.440335
+  },
+  {
+   "subject": 12,
+   "value": 2997.18,
+   "formulation": "T",
+   "period": 1,
+   "sequence": "ABAB",
+   "log_value": 8.005427
+  },
+  {
+   "subject": 12,
+   "value": 2954.78,
+   "formulation": "R",
+   "period": 2,
+   "sequence": "ABAB",
+   "log_value": 7.991179
+  },
+  {
+   "subject": 12,
+   "value": 5252.66,
+   "formulation": "T",
+   "period": 3,
+   "sequence": "ABAB",
+   "log_value": 8.56649
+  },
+  {
+   "subject": 12,
+   "value": 3744.54,
+   "formulation": "R",
+   "period": 4,
+   "sequence": "ABAB",
+   "log_value": 8.228054
+  },
+  {
+   "subject": 13,
+   "value": 2055.7,
+   "formulation": "T",
+   "period": 1,
+   "sequence": "ABAB",
+   "log_value": 7.628372
+  },
+  {
+   "subject": 13,
+   "value": 983.3,
+   "formulation": "R",
+   "period": 2,
+   "sequence": "ABAB",
+   "log_value": 6.890914
+  },
+  {
+   "subject": 13,
+   "value": 1771.3,
+   "formulation": "T",
+   "period": 3,
+   "sequence": "ABAB",
+   "log_value": 7.479469
+  },
+  {
+   "subject": 13,
+   "value": 3293.18,
+   "formulation": "R",
+   "period": 4,
+   "sequence": "ABAB",
+   "log_value": 8.099609
+  },
+  {
+   "subject": 14,
+   "value": 1590.62,
+   "formulation": "R",
+   "period": 1,
+   "sequence": "BABA",
+   "log_value": 7.371879
+  },
+  {
+   "subject": 14,
+   "value": 1141.54,
+   "formulation": "T",
+   "period": 2,
+   "sequence": "BABA",
+   "log_value": 7.040134
+  },
+  {
+   "subject": 14,
+   "value": 1238.34,
+   "formulation": "R",
+   "period": 3,
+   "sequence": "BABA",
+   "log_value": 7.121527
+  },
+  {
+   "subject": 14,
+   "value": 1285.8,
+   "formulation": "T",
+   "period": 4,
+   "sequence": "BABA",
+   "log_value": 7.159136
+  },
+  {
+   "subject": 15,
+   "value": 1470.5,
+   "formulation": "T",
+   "period": 1,
+   "sequence": "ABAB",
+   "log_value": 7.293358
+  },
+  {
+   "subject": 15,
+   "value": 1122.84,
+   "formulation": "R",
+   "period": 2,
+   "sequence": "ABAB",
+   "log_value": 7.023616
+  },
+  {
+   "subject": 15,
+   "value": 1592.18,
+   "formulation": "T",
+   "period": 3,
+   "sequence": "ABAB",
+   "log_value": 7.372859
+  },
+  {
+   "subject": 15,
+   "value": 1753.16,
+   "formulation": "R",
+   "period": 4,
+   "sequence": "ABAB",
+   "log_value": 7.469175
+  },
+  {
+   "subject": 16,
+   "value": 1886.14,
+   "formulation": "R",
+   "period": 1,
+   "sequence": "BABA",
+   "log_value": 7.542288
+  },
+  {
+   "subject": 16,
+   "value": 2077.28,
+   "formulation": "T",
+   "period": 2,
+   "sequence": "BABA",
+   "log_value": 7.638815
+  },
+  {
+   "subject": 16,
+   "value": 2197.62,
+   "formulation": "R",
+   "period": 3,
+   "sequence": "BABA",
+   "log_value": 7.69513
+  },
+  {
+   "subject": 16,
+   "value": 2194.64,
+   "formulation": "T",
+   "period": 4,
+   "sequence": "BABA",
+   "log_value": 7.693773
+  },
+  {
+   "subject": 17,
+   "value": 629.16,
+   "formulation": "T",
+   "period": 1,
+   "sequence": "ABAB",
+   "log_value": 6.444386
+  },
+  {
+   "subject": 17,
+   "value": 498.34,
+   "formulation": "R",
+   "period": 2,
+   "sequence": "ABAB",
+   "log_value": 6.211283
+  },
+  {
+   "subject": 17,
+   "value": 551.74,
+   "formulation": "T",
+   "period": 3,
+   "sequence": "ABAB",
+   "log_value": 6.313077
+  },
+  {
+   "subject": 17,
+   "value": 382.18,
+   "formulation": "R",
+   "period": 4,
+   "sequence": "ABAB",
+   "log_value": 5.945892
+  },
+  {
+   "subject": 18,
+   "value": 464.96,
+   "formulation": "R",
+   "period": 1,
+   "sequence": "BABA",
+   "log_value": 6.141951
+  },
+  {
+   "subject": 18,
+   "value": 2949.84,
+   "formulation": "T",
+   "period": 2,
+   "sequence": "BABA",
+   "log_value": 7.989506
+  },
+  {
+   "subject": 18,
+   "value": 1205.58,
+   "formulation": "R",
+   "period": 3,
+   "sequence": "BABA",
+   "log_value": 7.094716
+  },
+  {
+   "subject": 18,
+   "value": 2145.96,
+   "formulation": "T",
+   "period": 4,
+   "sequence": "BABA",
+   "log_value": 7.671342
+  },
+  {
+   "subject": 19,
+   "value": 1889.26,
+   "formulation": "R",
+   "period": 1,
+   "sequence": "BABA",
+   "log_value": 7.54394
+  },
+  {
+   "subject": 19,
+   "value": 5837.14,
+   "formulation": "T",
+   "period": 2,
+   "sequence": "BABA",
+   "log_value": 8.671996
+  },
+  {
+   "subject": 19,
+   "value": 2375.84,
+   "formulation": "R",
+   "period": 3,
+   "sequence": "BABA",
+   "log_value": 7.773106
+  },
+  {
+   "subject": 19,
+   "value": 1673.46,
+   "formulation": "T",
+   "period": 4,
+   "sequence": "BABA",
+   "log_value": 7.422649
+  },
+  {
+   "subject": 20,
+   "value": 793.44,
+   "formulation": "T",
+   "period": 1,
+   "sequence": "ABAB",
+   "log_value": 6.676378
+  },
+  {
+   "subject": 20,
+   "value": 1169.72,
+   "formulation": "R",
+   "period": 2,
+   "sequence": "ABAB",
+   "log_value": 7.06452
+  },
+  {
+   "subject": 20,
+   "value": 1072.8,
+   "formulation": "R",
+   "period": 4,
+   "sequence": "ABAB",
+   "log_value": 6.978027
+  },
+  {
+   "subject": 21,
+   "value": 2085.78,
+   "formulation": "R",
+   "period": 1,
+   "sequence": "BABA",
+   "log_value": 7.642898
+  },
+  {
+   "subject": 21,
+   "value": 2373.2,
+   "formulation": "T",
+   "period": 2,
+   "sequence": "BABA",
+   "log_value": 7.771995
+  },
+  {
+   "subject": 21,
+   "value": 1557.0,
+   "formulation": "R",
+   "period": 3,
+   "sequence": "BABA",
+   "log_value": 7.350516
+  },
+  {
+   "subject": 21,
+   "value": 2135.28,
+   "formulation": "T",
+   "period": 4,
+   "sequence": "BABA",
+   "log_value": 7.666353
+  },
+  {
+   "subject": 22,
+   "value": 288.06,
+   "formulation": "R",
+   "period": 1,
+   "sequence": "BABA",
+   "log_value": 5.663169
+  },
+  {
+   "subject": 22,
+   "value": 309.98,
+   "formulation": "T",
+   "period": 2,
+   "sequence": "BABA",
+   "log_value": 5.736508
+  },
+  {
+   "subject": 22,
+   "value": 324.18,
+   "formulation": "R",
+   "period": 3,
+   "sequence": "BABA",
+   "log_value": 5.781299
+  },
+  {
+   "subject": 22,
+   "value": 307.58,
+   "formulation": "T",
+   "period": 4,
+   "sequence": "BABA",
+   "log_value": 5.728735
+  },
+  {
+   "subject": 23,
+   "value": 524.8,
+   "formulation": "T",
+   "period": 1,
+   "sequence": "ABAB",
+   "log_value": 6.263017
+  },
+  {
+   "subject": 23,
+   "value": 372.84,
+   "formulation": "R",
+   "period": 2,
+   "sequence": "ABAB",
+   "log_value": 5.921149
+  },
+  {
+   "subject": 23,
+   "value": 518.92,
+   "formulation": "T",
+   "period": 3,
+   "sequence": "ABAB",
+   "log_value": 6.25175
+  },
+  {
+   "subject": 23,
+   "value": 604.56,
+   "formulation": "R",
+   "period": 4,
+   "sequence": "ABAB",
+   "log_value": 6.404501
+  },
+  {
+   "subject": 24,
+   "value": 5866.94,
+   "formulation": "T",
+   "period": 1,
+   "sequence": "ABAB",
+   "log_value": 8.677088
+  },
+  {
+   "subject": 24,
+   "value": 5547.78,
+   "formulation": "T",
+   "period": 3,
+   "sequence": "ABAB",
+   "log_value": 8.621153
+  },
+  {
+   "subject": 24,
+   "value": 4386.8,
+   "formulation": "R",
+   "period": 4,
+   "sequence": "ABAB",
+   "log_value": 8.386355
+  },
+  {
+   "subject": 25,
+   "value": 4008.46,
+   "formulation": "T",
+   "period": 1,
+   "sequence": "ABAB",
+   "log_value": 8.296162
+  },
+  {
+   "subject": 25,
+   "value": 1898.84,
+   "formulation": "R",
+   "period": 2,
+   "sequence": "ABAB",
+   "log_value": 7.548998
+  },
+  {
+   "subject": 25,
+   "value": 1565.22,
+   "formulation": "T",
+   "period": 3,
+   "sequence": "ABAB",
+   "log_value": 7.355782
+  },
+  {
+   "subject": 25,
+   "value": 4875.32,
+   "formulation": "R",
+   "period": 4,
+   "sequence": "ABAB",
+   "log_value": 8.491941
+  },
+  {
+   "subject": 26,
+   "value": 1197.46,
+   "formulation": "T",
+   "period": 1,
+   "sequence": "ABAB",
+   "log_value": 7.087958
+  },
+  {
+   "subject": 26,
+   "value": 330.82,
+   "formulation": "R",
+   "period": 2,
+   "sequence": "ABAB",
+   "log_value": 5.801574
+  },
+  {
+   "subject": 26,
+   "value": 1276.16,
+   "formulation": "T",
+   "period": 3,
+   "sequence": "ABAB",
+   "log_value": 7.151611
+  },
+  {
+   "subject": 26,
+   "value": 394.82,
+   "formulation": "R",
+   "period": 4,
+   "sequence": "ABAB",
+   "log_value": 5.97843
+  },
+  {
+   "subject": 27,
+   "value": 13823.18,
+   "formulation": "R",
+   "period": 1,
+   "sequence": "BABA",
+   "log_value": 9.534102
+  },
+  {
+   "subject": 27,
+   "value": 7618.82,
+   "formulation": "T",
+   "period": 2,
+   "sequence": "BABA",
+   "log_value": 8.938377
+  },
+  {
+   "subject": 27,
+   "value": 9493.34,
+   "formulation": "R",
+   "period": 3,
+   "sequence": "BABA",
+   "log_value": 9.158346
+  },
+  {
+   "subject": 27,
+   "value": 8928.44,
+   "formulation": "T",
+   "period": 4,
+   "sequence": "BABA",
+   "log_value": 9.096997
+  },
+  {
+   "subject": 28,
+   "value": 940.86,
+   "formulation": "R",
+   "period": 1,
+   "sequence": "BABA",
+   "log_value": 6.846794
+  },
+  {
+   "subject": 28,
+   "value": 1188.7,
+   "formulation": "T",
+   "period": 2,
+   "sequence": "BABA",
+   "log_value": 7.080616
+  },
+  {
+   "subject": 28,
+   "value": 882.02,
+   "formulation": "R",
+   "period": 3,
+   "sequence": "BABA",
+   "log_value": 6.782215
+  },
+  {
+   "subject": 28,
+   "value": 1226.38,
+   "formulation": "T",
+   "period": 4,
+   "sequence": "BABA",
+   "log_value": 7.111822
+  },
+  {
+   "subject": 29,
+   "value": 2175.24,
+   "formulation": "R",
+   "period": 1,
+   "sequence": "BABA",
+   "log_value": 7.684894
+  },
+  {
+   "subject": 29,
+   "value": 2654.36,
+   "formulation": "T",
+   "period": 2,
+   "sequence": "BABA",
+   "log_value": 7.883959
+  },
+  {
+   "subject": 29,
+   "value": 3235.26,
+   "formulation": "R",
+   "period": 3,
+   "sequence": "BABA",
+   "log_value": 8.081865
+  },
+  {
+   "subject": 29,
+   "value": 3033.3,
+   "formulation": "T",
+   "period": 4,
+   "sequence": "BABA",
+   "log_value": 8.017406
+  },
+  {
+   "subject": 30,
+   "value": 1194.9,
+   "formulation": "T",
+   "period": 1,
+   "sequence": "ABAB",
+   "log_value": 7.085818
+  },
+  {
+   "subject": 30,
+   "value": 826.66,
+   "formulation": "R",
+   "period": 2,
+   "sequence": "ABAB",
+   "log_value": 6.717393
+  },
+  {
+   "subject": 30,
+   "value": 610.38,
+   "formulation": "T",
+   "period": 3,
+   "sequence": "ABAB",
+   "log_value": 6.414082
+  },
+  {
+   "subject": 30,
+   "value": 594.14,
+   "formulation": "R",
+   "period": 4,
+   "sequence": "ABAB",
+   "log_value": 6.387115
+  },
+  {
+   "subject": 31,
+   "value": 4108.68,
+   "formulation": "R",
+   "period": 1,
+   "sequence": "BABA",
+   "log_value": 8.320857
+  },
+  {
+   "subject": 31,
+   "value": 7399.52,
+   "formulation": "T",
+   "period": 2,
+   "sequence": "BABA",
+   "log_value": 8.90917
+  },
+  {
+   "subject": 31,
+   "value": 4461.62,
+   "formulation": "T",
+   "period": 4,
+   "sequence": "BABA",
+   "log_value": 8.403267
+  },
+  {
+   "subject": 32,
+   "value": 792.22,
+   "formulation": "T",
+   "period": 1,
+   "sequence": "ABAB",
+   "log_value": 6.674839
+  },
+  {
+   "subject": 32,
+   "value": 999.74,
+   "formulation": "R",
+   "period": 2,
+   "sequence": "ABAB",
+   "log_value": 6.907495
+  },
+  {
+   "subject": 32,
+   "value": 1179.4,
+   "formulation": "T",
+   "period": 3,
+   "sequence": "ABAB",
+   "log_value": 7.072761
+  },
+  {
+   "subject": 32,
+   "value": 1678.96,
+   "formulation": "R",
+   "period": 4,
+   "sequence": "ABAB",
+   "log_value": 7.42593
+  },
+  {
+   "subject": 33,
+   "value": 3925.52,
+   "formulation": "R",
+   "period": 1,
+   "sequence": "BABA",
+   "log_value": 8.275254
+  },
+  {
+   "subject": 33,
+   "value": 3789.74,
+   "formulation": "T",
+   "period": 2,
+   "sequence": "BABA",
+   "log_value": 8.240053
+  },
+  {
+   "subject": 33,
+   "value": 3463.82,
+   "formulation": "R",
+   "period": 3,
+   "sequence": "BABA",
+   "log_value": 8.150127
+  },
+  {
+   "subject": 33,
+   "value": 4576.64,
+   "formulation": "T",
+   "period": 4,
+   "sequence": "BABA",
+   "log_value": 8.42872
+  },
+  {
+   "subject": 34,
+   "value": 1708.58,
+   "formulation": "R",
+   "period": 1,
+   "sequence": "BABA",
+   "log_value": 7.443418
+  },
+  {
+   "subject": 34,
+   "value": 2500.84,
+   "formulation": "T",
+   "period": 2,
+   "sequence": "BABA",
+   "log_value": 7.824382
+  },
+  {
+   "subject": 34,
+   "value": 1263.3,
+   "formulation": "R",
+   "period": 3,
+   "sequence": "BABA",
+   "log_value": 7.141483
+  },
+  {
+   "subject": 34,
+   "value": 2048.42,
+   "formulation": "T",
+   "period": 4,
+   "sequence": "BABA",
+   "log_value": 7.624824
+  },
+  {
+   "subject": 35,
+   "value": 943.06,
+   "formulation": "T",
+   "period": 1,
+   "sequence": "ABAB",
+   "log_value": 6.84913
+  },
+  {
+   "subject": 35,
+   "value": 769.22,
+   "formulation": "R",
+   "period": 2,
+   "sequence": "ABAB",
+   "log_value": 6.645377
+  },
+  {
+   "subject": 35,
+   "value": 848.8,
+   "formulation": "T",
+   "period": 3,
+   "sequence": "ABAB",
+   "log_value": 6.743824
+  },
+  {
+   "subject": 35,
+   "value": 1193.88,
+   "formulation": "R",
+   "period": 4,
+   "sequence": "ABAB",
+   "log_value": 7.084964
+  },
+  {
+   "subject": 36,
+   "value": 2540.42,
+   "formulation": "T",
+   "period": 1,
+   "sequence": "ABAB",
+   "log_value": 7.840085
+  },
+  {
+   "subject": 36,
+   "value": 2091.18,
+   "formulation": "R",
+   "period": 2,
+   "sequence": "ABAB",
+   "log_value": 7.645484
+  },
+  {
+   "subject": 36,
+   "value": 2583.66,
+   "formulation": "T",
+   "period": 3,
+   "sequence": "ABAB",
+   "log_value": 7.856962
+  },
+  {
+   "subject": 36,
+   "value": 1993.98,
+   "formulation": "R",
+   "period": 4,
+   "sequence": "ABAB",
+   "log_value": 7.597888
+  },
+  {
+   "subject": 37,
+   "value": 851.44,
+   "formulation": "T",
+   "period": 1,
+   "sequence": "ABAB",
+   "log_value": 6.746929
+  },
+  {
+   "subject": 37,
+   "value": 653.88,
+   "formulation": "R",
+   "period": 2,
+   "sequence": "ABAB",
+   "log_value": 6.482924
+  },
+  {
+   "subject": 37,
+   "value": 2371.3,
+   "formulation": "T",
+   "period": 3,
+   "sequence": "ABAB",
+   "log_value": 7.771194
+  },
+  {
+   "subject": 37,
+   "value": 1275.38,
+   "formulation": "R",
+   "period": 4,
+   "sequence": "ABAB",
+   "log_value": 7.150999
+  },
+  {
+   "subject": 38,
+   "value": 6054.76,
+   "formulation": "R",
+   "period": 1,
+   "sequence": "BABA",
+   "log_value": 8.7086
+  },
+  {
+   "subject": 38,
+   "value": 7322.18,
+   "formulation": "T",
+   "period": 2,
+   "sequence": "BABA",
+   "log_value": 8.898663
+  },
+  {
+   "subject": 38,
+   "value": 6746.98,
+   "formulation": "R",
+   "period": 3,
+   "sequence": "BABA",
+   "log_value": 8.81685
+  },
+  {
+   "subject": 38,
+   "value": 7130.7,
+   "formulation": "T",
+   "period": 4,
+   "sequence": "BABA",
+   "log_value": 8.872165
+  },
+  {
+   "subject": 39,
+   "value": 5825.64,
+   "formulation": "T",
+   "period": 1,
+   "sequence": "ABAB",
+   "log_value": 8.670024
+  },
+  {
+   "subject": 39,
+   "value": 6462.82,
+   "formulation": "R",
+   "period": 2,
+   "sequence": "ABAB",
+   "log_value": 8.773821
+  },
+  {
+   "subject": 39,
+   "value": 7400.48,
+   "formulation": "T",
+   "period": 3,
+   "sequence": "ABAB",
+   "log_value": 8.9093
+  },
+  {
+   "subject": 39,
+   "value": 6196.84,
+   "formulation": "R",
+   "period": 4,
+   "sequence": "ABAB",
+   "log_value": 8.731795
+  },
+  {
+   "subject": 40,
+   "value": 1690.42,
+   "formulation": "R",
+   "period": 1,
+   "sequence": "BABA",
+   "log_value": 7.432732
+  },
+  {
+   "subject": 40,
+   "value": 1292.9,
+   "formulation": "T",
+   "period": 2,
+   "sequence": "BABA",
+   "log_value": 7.164643
+  },
+  {
+   "subject": 40,
+   "value": 1522.4,
+   "formulation": "R",
+   "period": 3,
+   "sequence": "BABA",
+   "log_value": 7.328043
+  },
+  {
+   "subject": 40,
+   "value": 1066.58,
+   "formulation": "T",
+   "period": 4,
+   "sequence": "BABA",
+   "log_value": 6.972213
+  },
+  {
+   "subject": 41,
+   "value": 2783.06,
+   "formulation": "R",
+   "period": 1,
+   "sequence": "BABA",
+   "log_value": 7.931306
+  },
+  {
+   "subject": 41,
+   "value": 1149.08,
+   "formulation": "T",
+   "period": 2,
+   "sequence": "BABA",
+   "log_value": 7.046717
+  },
+  {
+   "subject": 41,
+   "value": 877.92,
+   "formulation": "R",
+   "period": 3,
+   "sequence": "BABA",
+   "log_value": 6.777555
+  },
+  {
+   "subject": 41,
+   "value": 572.42,
+   "formulation": "T",
+   "period": 4,
+   "sequence": "BABA",
+   "log_value": 6.349873
+  },
+  {
+   "subject": 42,
+   "value": 4759.06,
+   "formulation": "T",
+   "period": 1,
+   "sequence": "ABAB",
+   "log_value": 8.467805
+  },
+  {
+   "subject": 42,
+   "value": 5831.92,
+   "formulation": "R",
+   "period": 2,
+   "sequence": "ABAB",
+   "log_value": 8.671102
+  },
+  {
+   "subject": 42,
+   "value": 4154.76,
+   "formulation": "R",
+   "period": 4,
+   "sequence": "ABAB",
+   "log_value": 8.33201
+  },
+  {
+   "subject": 43,
+   "value": 5399.28,
+   "formulation": "T",
+   "period": 1,
+   "sequence": "ABAB",
+   "log_value": 8.594021
+  },
+  {
+   "subject": 43,
+   "value": 5425.9,
+   "formulation": "R",
+   "period": 2,
+   "sequence": "ABAB",
+   "log_value": 8.598939
+  },
+  {
+   "subject": 43,
+   "value": 4344.5,
+   "formulation": "T",
+   "period": 3,
+   "sequence": "ABAB",
+   "log_value": 8.376666
+  },
+  {
+   "subject": 43,
+   "value": 4507.04,
+   "formulation": "R",
+   "period": 4,
+   "sequence": "ABAB",
+   "log_value": 8.413396
+  },
+  {
+   "subject": 44,
+   "value": 5611.1,
+   "formulation": "T",
+   "period": 1,
+   "sequence": "ABAB",
+   "log_value": 8.632502
+  },
+  {
+   "subject": 44,
+   "value": 5444.14,
+   "formulation": "R",
+   "period": 2,
+   "sequence": "ABAB",
+   "log_value": 8.602295
+  },
+  {
+   "subject": 44,
+   "value": 4805.9,
+   "formulation": "T",
+   "period": 3,
+   "sequence": "ABAB",
+   "log_value": 8.4776
+  },
+  {
+   "subject": 44,
+   "value": 4960.66,
+   "formulation": "R",
+   "period": 4,
+   "sequence": "ABAB",
+   "log_value": 8.509294
+  },
+  {
+   "subject": 45,
+   "value": 707.68,
+   "formulation": "R",
+   "period": 1,
+   "sequence": "BABA",
+   "log_value": 6.561992
+  },
+  {
+   "subject": 45,
+   "value": 3681.66,
+   "formulation": "T",
+   "period": 2,
+   "sequence": "BABA",
+   "log_value": 8.211119
+  },
+  {
+   "subject": 45,
+   "value": 18454.26,
+   "formulation": "R",
+   "period": 3,
+   "sequence": "BABA",
+   "log_value": 9.823051
+  },
+  {
+   "subject": 45,
+   "value": 1003.46,
+   "formulation": "T",
+   "period": 4,
+   "sequence": "BABA",
+   "log_value": 6.911209
+  },
+  {
+   "subject": 46,
+   "value": 2400.64,
+   "formulation": "T",
+   "period": 1,
+   "sequence": "ABAB",
+   "log_value": 7.783491
+  },
+  {
+   "subject": 46,
+   "value": 1420.6,
+   "formulation": "R",
+   "period": 2,
+   "sequence": "ABAB",
+   "log_value": 7.258835
+  },
+  {
+   "subject": 46,
+   "value": 1146.68,
+   "formulation": "T",
+   "period": 3,
+   "sequence": "ABAB",
+   "log_value": 7.044626
+  },
+  {
+   "subject": 46,
+   "value": 5005.72,
+   "formulation": "R",
+   "period": 4,
+   "sequence": "ABAB",
+   "log_value": 8.518337
+  },
+  {
+   "subject": 47,
+   "value": 483.08,
+   "formulation": "R",
+   "period": 1,
+   "sequence": "BABA",
+   "log_value": 6.180182
+  },
+  {
+   "subject": 47,
+   "value": 1033.3,
+   "formulation": "T",
+   "period": 2,
+   "sequence": "BABA",
+   "log_value": 6.940513
+  },
+  {
+   "subject": 47,
+   "value": 644.54,
+   "formulation": "R",
+   "period": 3,
+   "sequence": "BABA",
+   "log_value": 6.468537
+  },
+  {
+   "subject": 47,
+   "value": 675.3,
+   "formulation": "T",
+   "period": 4,
+   "sequence": "BABA",
+   "log_value": 6.515157
+  },
+  {
+   "subject": 48,
+   "value": 2157.08,
+   "formulation": "R",
+   "period": 1,
+   "sequence": "BABA",
+   "log_value": 7.676511
+  },
+  {
+   "subject": 48,
+   "value": 3117.36,
+   "formulation": "T",
+   "period": 2,
+   "sequence": "BABA",
+   "log_value": 8.044742
+  },
+  {
+   "subject": 48,
+   "value": 2816.14,
+   "formulation": "R",
+   "period": 3,
+   "sequence": "BABA",
+   "log_value": 7.943122
+  },
+  {
+   "subject": 48,
+   "value": 2850.4,
+   "formulation": "T",
+   "period": 4,
+   "sequence": "BABA",
+   "log_value": 7.955215
+  },
+  {
+   "subject": 49,
+   "value": 14261.54,
+   "formulation": "T",
+   "period": 1,
+   "sequence": "ABAB",
+   "log_value": 9.565322
+  },
+  {
+   "subject": 49,
+   "value": 26489.56,
+   "formulation": "R",
+   "period": 2,
+   "sequence": "ABAB",
+   "log_value": 10.184506
+  },
+  {
+   "subject": 49,
+   "value": 23525.66,
+   "formulation": "T",
+   "period": 3,
+   "sequence": "ABAB",
+   "log_value": 10.065847
+  },
+  {
+   "subject": 49,
+   "value": 21243.76,
+   "formulation": "R",
+   "period": 4,
+   "sequence": "ABAB",
+   "log_value": 9.963818
+  },
+  {
+   "subject": 50,
+   "value": 1552.24,
+   "formulation": "T",
+   "period": 1,
+   "sequence": "ABAB",
+   "log_value": 7.347454
+  },
+  {
+   "subject": 50,
+   "value": 1569.32,
+   "formulation": "R",
+   "period": 2,
+   "sequence": "ABAB",
+   "log_value": 7.358398
+  },
+  {
+   "subject": 50,
+   "value": 2090.0,
+   "formulation": "T",
+   "period": 3,
+   "sequence": "ABAB",
+   "log_value": 7.644919
+  },
+  {
+   "subject": 50,
+   "value": 1479.98,
+   "formulation": "R",
+   "period": 4,
+   "sequence": "ABAB",
+   "log_value": 7.299784
+  },
+  {
+   "subject": 51,
+   "value": 3834.44,
+   "formulation": "R",
+   "period": 1,
+   "sequence": "BABA",
+   "log_value": 8.251779
+  },
+  {
+   "subject": 51,
+   "value": 4899.76,
+   "formulation": "T",
+   "period": 2,
+   "sequence": "BABA",
+   "log_value": 8.496942
+  },
+  {
+   "subject": 51,
+   "value": 3702.9,
+   "formulation": "R",
+   "period": 3,
+   "sequence": "BABA",
+   "log_value": 8.216872
+  },
+  {
+   "subject": 51,
+   "value": 5677.02,
+   "formulation": "T",
+   "period": 4,
+   "sequence": "BABA",
+   "log_value": 8.644182
+  },
+  {
+   "subject": 52,
+   "value": 5925.92,
+   "formulation": "R",
+   "period": 1,
+   "sequence": "BABA",
+   "log_value": 8.687091
+  },
+  {
+   "subject": 52,
+   "value": 967.9,
+   "formulation": "T",
+   "period": 2,
+   "sequence": "BABA",
+   "log_value": 6.875129
+  },
+  {
+   "subject": 52,
+   "value": 797.02,
+   "formulation": "R",
+   "period": 3,
+   "sequence": "BABA",
+   "log_value": 6.68088
+  },
+  {
+   "subject": 52,
+   "value": 939.38,
+   "formulation": "T",
+   "period": 4,
+   "sequence": "BABA",
+   "log_value": 6.84522
+  },
+  {
+   "subject": 53,
+   "value": 3528.48,
+   "formulation": "T",
+   "period": 1,
+   "sequence": "ABAB",
+   "log_value": 8.168622
+  },
+  {
+   "subject": 53,
+   "value": 2037.36,
+   "formulation": "R",
+   "period": 2,
+   "sequence": "ABAB",
+   "log_value": 7.61941
+  },
+  {
+   "subject": 53,
+   "value": 3211.68,
+   "formulation": "T",
+   "period": 3,
+   "sequence": "ABAB",
+   "log_value": 8.074549
+  },
+  {
+   "subject": 53,
+   "value": 2906.74,
+   "formulation": "R",
+   "period": 4,
+   "sequence": "ABAB",
+   "log_value": 7.974787
+  },
+  {
+   "subject": 54,
+   "value": 937.16,
+   "formulation": "R",
+   "period": 1,
+   "sequence": "BABA",
+   "log_value": 6.842854
+  },
+  {
+   "subject": 54,
+   "value": 6327.96,
+   "formulation": "T",
+   "period": 2,
+   "sequence": "BABA",
+   "log_value": 8.752733
+  },
+  {
+   "subject": 54,
+   "value": 1054.92,
+   "formulation": "R",
+   "period": 3,
+   "sequence": "BABA",
+   "log_value": 6.96122
+  },
+  {
+   "subject": 54,
+   "value": 1766.02,
+   "formulation": "T",
+   "period": 4,
+   "sequence": "BABA",
+   "log_value": 7.476484
+  },
+  {
+   "subject": 55,
+   "value": 3437.98,
+   "formulation": "T",
+   "period": 1,
+   "sequence": "ABAB",
+   "log_value": 8.142639
+  },
+  {
+   "subject": 55,
+   "value": 3731.8,
+   "formulation": "R",
+   "period": 2,
+   "sequence": "ABAB",
+   "log_value": 8.224646
+  },
+  {
+   "subject": 55,
+   "value": 4832.72,
+   "formulation": "T",
+   "period": 3,
+   "sequence": "ABAB",
+   "log_value": 8.483165
+  },
+  {
+   "subject": 55,
+   "value": 3310.24,
+   "formulation": "R",
+   "period": 4,
+   "sequence": "ABAB",
+   "log_value": 8.104776
+  },
+  {
+   "subject": 56,
+   "value": 1011.14,
+   "formulation": "T",
+   "period": 1,
+   "sequence": "ABAB",
+   "log_value": 6.918834
+  },
+  {
+   "subject": 56,
+   "value": 654.02,
+   "formulation": "R",
+   "period": 2,
+   "sequence": "ABAB",
+   "log_value": 6.483138
+  },
+  {
+   "subject": 56,
+   "value": 858.58,
+   "formulation": "T",
+   "period": 3,
+   "sequence": "ABAB",
+   "log_value": 6.75528
+  },
+  {
+   "subject": 56,
+   "value": 908.12,
+   "formulation": "R",
+   "period": 4,
+   "sequence": "ABAB",
+   "log_value": 6.811377
+  },
+  {
+   "subject": 57,
+   "value": 1003.34,
+   "formulation": "R",
+   "period": 1,
+   "sequence": "BABA",
+   "log_value": 6.91109
+  },
+  {
+   "subject": 57,
+   "value": 4739.94,
+   "formulation": "T",
+   "period": 2,
+   "sequence": "BABA",
+   "log_value": 8.46378
+  },
+  {
+   "subject": 57,
+   "value": 697.84,
+   "formulation": "R",
+   "period": 3,
+   "sequence": "BABA",
+   "log_value": 6.54799
+  },
+  {
+   "subject": 57,
+   "value": 2504.52,
+   "formulation": "T",
+   "period": 4,
+   "sequence": "BABA",
+   "log_value": 7.825852
+  },
+  {
+   "subject": 58,
+   "value": 6496.34,
+   "formulation": "R",
+   "period": 1,
+   "sequence": "BABA",
+   "log_value": 8.778994
+  },
+  {
+   "subject": 58,
+   "value": 5949.36,
+   "formulation": "T",
+   "period": 2,
+   "sequence": "BABA",
+   "log_value": 8.691039
+  },
+  {
+   "subject": 58,
+   "value": 6003.38,
+   "formulation": "R",
+   "period": 3,
+   "sequence": "BABA",
+   "log_value": 8.700078
+  },
+  {
+   "subject": 58,
+   "value": 6373.72,
+   "formulation": "T",
+   "period": 4,
+   "sequence": "BABA",
+   "log_value": 8.759939
+  },
+  {
+   "subject": 59,
+   "value": 1247.58,
+   "formulation": "R",
+   "period": 1,
+   "sequence": "BABA",
+   "log_value": 7.128961
+  },
+  {
+   "subject": 59,
+   "value": 1116.88,
+   "formulation": "T",
+   "period": 2,
+   "sequence": "BABA",
+   "log_value": 7.018294
+  },
+  {
+   "subject": 59,
+   "value": 1166.74,
+   "formulation": "R",
+   "period": 3,
+   "sequence": "BABA",
+   "log_value": 7.061969
+  },
+  {
+   "subject": 59,
+   "value": 2658.38,
+   "formulation": "T",
+   "period": 4,
+   "sequence": "BABA",
+   "log_value": 7.885472
+  },
+  {
+   "subject": 60,
+   "value": 33929.62,
+   "formulation": "T",
+   "period": 1,
+   "sequence": "ABAB",
+   "log_value": 10.432044
+  },
+  {
+   "subject": 60,
+   "value": 24943.44,
+   "formulation": "R",
+   "period": 2,
+   "sequence": "ABAB",
+   "log_value": 10.124366
+  },
+  {
+   "subject": 60,
+   "value": 19110.22,
+   "formulation": "T",
+   "period": 3,
+   "sequence": "ABAB",
+   "log_value": 9.857979
+  },
+  {
+   "subject": 60,
+   "value": 12805.18,
+   "formulation": "R",
+   "period": 4,
+   "sequence": "ABAB",
+   "log_value": 9.457605
+  },
+  {
+   "subject": 62,
+   "value": 2280.5,
+   "formulation": "T",
+   "period": 1,
+   "sequence": "ABAB",
+   "log_value": 7.73215
+  },
+  {
+   "subject": 62,
+   "value": 1714.48,
+   "formulation": "R",
+   "period": 2,
+   "sequence": "ABAB",
+   "log_value": 7.446865
+  },
+  {
+   "subject": 62,
+   "value": 4034.28,
+   "formulation": "T",
+   "period": 3,
+   "sequence": "ABAB",
+   "log_value": 8.302583
+  },
+  {
+   "subject": 62,
+   "value": 3420.76,
+   "formulation": "R",
+   "period": 4,
+   "sequence": "ABAB",
+   "log_value": 8.137618
+  },
+  {
+   "subject": 63,
+   "value": 3376.72,
+   "formulation": "T",
+   "period": 1,
+   "sequence": "ABAB",
+   "log_value": 8.12466
+  },
+  {
+   "subject": 63,
+   "value": 2242.8,
+   "formulation": "R",
+   "period": 2,
+   "sequence": "ABAB",
+   "log_value": 7.71548
+  },
+  {
+   "subject": 63,
+   "value": 1719.54,
+   "formulation": "T",
+   "period": 3,
+   "sequence": "ABAB",
+   "log_value": 7.449812
+  },
+  {
+   "subject": 63,
+   "value": 2342.32,
+   "formulation": "R",
+   "period": 4,
+   "sequence": "ABAB",
+   "log_value": 7.758897
+  },
+  {
+   "subject": 64,
+   "value": 912.34,
+   "formulation": "R",
+   "period": 1,
+   "sequence": "BABA",
+   "log_value": 6.816013
+  },
+  {
+   "subject": 64,
+   "value": 2104.42,
+   "formulation": "T",
+   "period": 2,
+   "sequence": "BABA",
+   "log_value": 7.651795
+  },
+  {
+   "subject": 64,
+   "value": 2061.04,
+   "formulation": "R",
+   "period": 3,
+   "sequence": "BABA",
+   "log_value": 7.630966
+  },
+  {
+   "subject": 64,
+   "value": 1496.5,
+   "formulation": "T",
+   "period": 4,
+   "sequence": "BABA",
+   "log_value": 7.310884
+  },
+  {
+   "subject": 65,
+   "value": 3957.94,
+   "formulation": "R",
+   "period": 1,
+   "sequence": "BABA",
+   "log_value": 8.283479
+  },
+  {
+   "subject": 65,
+   "value": 5895.6,
+   "formulation": "T",
+   "period": 2,
+   "sequence": "BABA",
+   "log_value": 8.681962
+  },
+  {
+   "subject": 65,
+   "value": 5859.58,
+   "formulation": "R",
+   "period": 3,
+   "sequence": "BABA",
+   "log_value": 8.675833
+  },
+  {
+   "subject": 65,
+   "value": 5073.48,
+   "formulation": "T",
+   "period": 4,
+   "sequence": "BABA",
+   "log_value": 8.531782
+  },
+  {
+   "subject": 66,
+   "value": 1165.7,
+   "formulation": "T",
+   "period": 1,
+   "sequence": "ABAB",
+   "log_value": 7.061077
+  },
+  {
+   "subject": 66,
+   "value": 1248.62,
+   "formulation": "R",
+   "period": 2,
+   "sequence": "ABAB",
+   "log_value": 7.129794
+  },
+  {
+   "subject": 66,
+   "value": 1168.68,
+   "formulation": "T",
+   "period": 3,
+   "sequence": "ABAB",
+   "log_value": 7.06363
+  },
+  {
+   "subject": 66,
+   "value": 1300.42,
+   "formulation": "R",
+   "period": 4,
+   "sequence": "ABAB",
+   "log_value": 7.170443
+  },
+  {
+   "subject": 67,
+   "value": 1197.4,
+   "formulation": "R",
+   "period": 1,
+   "sequence": "BABA",
+   "log_value": 7.087908
+  },
+  {
+   "subject": 67,
+   "value": 1119.34,
+   "formulation": "T",
+   "period": 2,
+   "sequence": "BABA",
+   "log_value": 7.020495
+  },
+  {
+   "subject": 68,
+   "value": 1709.72,
+   "formulation": "R",
+   "period": 1,
+   "sequence": "BABA",
+   "log_value": 7.444085
+  },
+  {
+   "subject": 68,
+   "value": 2532.4,
+   "formulation": "T",
+   "period": 2,
+   "sequence": "BABA",
+   "log_value": 7.836923
+  },
+  {
+   "subject": 68,
+   "value": 1581.02,
+   "formulation": "R",
+   "period": 3,
+   "sequence": "BABA",
+   "log_value": 7.365825
+  },
+  {
+   "subject": 68,
+   "value": 2807.4,
+   "formulation": "T",
+   "period": 4,
+   "sequence": "BABA",
+   "log_value": 7.940014
+  },
+  {
+   "subject": 69,
+   "value": 2798.84,
+   "formulation": "T",
+   "period": 1,
+   "sequence": "ABAB",
+   "log_value": 7.93696
+  },
+  {
+   "subject": 69,
+   "value": 2454.1,
+   "formulation": "R",
+   "period": 2,
+   "sequence": "ABAB",
+   "log_value": 7.805515
+  },
+  {
+   "subject": 69,
+   "value": 5334.84,
+   "formulation": "R",
+   "period": 4,
+   "sequence": "ABAB",
+   "log_value": 8.582014
+  },
+  {
+   "subject": 70,
+   "value": 4318.42,
+   "formulation": "R",
+   "period": 1,
+   "sequence": "BABA",
+   "log_value": 8.370645
+  },
+  {
+   "subject": 70,
+   "value": 2182.66,
+   "formulation": "T",
+   "period": 2,
+   "sequence": "BABA",
+   "log_value": 7.6883
+  },
+  {
+   "subject": 70,
+   "value": 1649.16,
+   "formulation": "R",
+   "period": 3,
+   "sequence": "BABA",
+   "log_value": 7.408021
+  },
+  {
+   "subject": 70,
+   "value": 1620.32,
+   "formulation": "T",
+   "period": 4,
+   "sequence": "BABA",
+   "log_value": 7.390379
+  },
+  {
+   "subject": 71,
+   "value": 470.24,
+   "formulation": "T",
+   "period": 1,
+   "sequence": "ABAB",
+   "log_value": 6.153243
+  },
+  {
+   "subject": 71,
+   "value": 208.04,
+   "formulation": "R",
+   "period": 2,
+   "sequence": "ABAB",
+   "log_value": 5.33773
+  },
+  {
+   "subject": 72,
+   "value": 2098.3,
+   "formulation": "T",
+   "period": 1,
+   "sequence": "ABAB",
+   "log_value": 7.648883
+  },
+  {
+   "subject": 72,
+   "value": 1919.76,
+   "formulation": "R",
+   "period": 2,
+   "sequence": "ABAB",
+   "log_value": 7.559955
+  },
+  {
+   "subject": 72,
+   "value": 2817.76,
+   "formulation": "T",
+   "period": 3,
+   "sequence": "ABAB",
+   "log_value": 7.943698
+  },
+  {
+   "subject": 72,
+   "value": 2041.0,
+   "formulation": "R",
+   "period": 4,
+   "sequence": "ABAB",
+   "log_value": 7.621195
+  },
+  {
+   "subject": 73,
+   "value": 6667.32,
+   "formulation": "T",
+   "period": 1,
+   "sequence": "ABAB",
+   "log_value": 8.804973
+  },
+  {
+   "subject": 73,
+   "value": 5289.84,
+   "formulation": "R",
+   "period": 2,
+   "sequence": "ABAB",
+   "log_value": 8.573543
+  },
+  {
+   "subject": 73,
+   "value": 7300.28,
+   "formulation": "T",
+   "period": 3,
+   "sequence": "ABAB",
+   "log_value": 8.895668
+  },
+  {
+   "subject": 73,
+   "value": 9711.84,
+   "formulation": "R",
+   "period": 4,
+   "sequence": "ABAB",
+   "log_value": 9.181101
+  },
+  {
+   "subject": 74,
+   "value": 2036.76,
+   "formulation": "R",
+   "period": 1,
+   "sequence": "BABA",
+   "log_value": 7.619116
+  },
+  {
+   "subject": 74,
+   "value": 1948.04,
+   "formulation": "T",
+   "period": 2,
+   "sequence": "BABA",
+   "log_value": 7.574579
+  },
+  {
+   "subject": 74,
+   "value": 1539.58,
+   "formulation": "R",
+   "period": 3,
+   "sequence": "BABA",
+   "log_value": 7.339265
+  },
+  {
+   "subject": 74,
+   "value": 2079.14,
+   "formulation": "T",
+   "period": 4,
+   "sequence": "BABA",
+   "log_value": 7.63971
+  },
+  {
+   "subject": 75,
+   "value": 767.3,
+   "formulation": "T",
+   "period": 1,
+   "sequence": "ABAB",
+   "log_value": 6.642878
+  },
+  {
+   "subject": 75,
+   "value": 1046.3,
+   "formulation": "R",
+   "period": 2,
+   "sequence": "ABAB",
+   "log_value": 6.953015
+  },
+  {
+   "subject": 75,
+   "value": 1390.36,
+   "formulation": "T",
+   "period": 3,
+   "sequence": "ABAB",
+   "log_value": 7.237318
+  },
+  {
+   "subject": 75,
+   "value": 3019.18,
+   "formulation": "R",
+   "period": 4,
+   "sequence": "ABAB",
+   "log_value": 8.012741
+  },
+  {
+   "subject": 76,
+   "value": 12097.5,
+   "formulation": "T",
+   "period": 1,
+   "sequence": "ABAB",
+   "log_value": 9.400754
+  },
+  {
+   "subject": 76,
+   "value": 12694.42,
+   "formulation": "R",
+   "period": 2,
+   "sequence": "ABAB",
+   "log_value": 9.448918
+  },
+  {
+   "subject": 76,
+   "value": 10999.24,
+   "formulation": "T",
+   "period": 3,
+   "sequence": "ABAB",
+   "log_value": 9.305581
+  },
+  {
+   "subject": 76,
+   "value": 9406.52,
+   "formulation": "R",
+   "period": 4,
+   "sequence": "ABAB",
+   "log_value": 9.149158
+  },
+  {
+   "subject": 77,
+   "value": 1115.5,
+   "formulation": "R",
+   "period": 1,
+   "sequence": "BABA",
+   "log_value": 7.017058
+  },
+  {
+   "subject": 77,
+   "value": 1115.3,
+   "formulation": "T",
+   "period": 2,
+   "sequence": "BABA",
+   "log_value": 7.016879
+  },
+  {
+   "subject": 77,
+   "value": 1111.78,
+   "formulation": "R",
+   "period": 3,
+   "sequence": "BABA",
+   "log_value": 7.013718
+  },
+  {
+   "subject": 77,
+   "value": 2352.82,
+   "formulation": "T",
+   "period": 4,
+   "sequence": "BABA",
+   "log_value": 7.76337
+  },
+  {
+   "subject": 78,
+   "value": 20373.54,
+   "formulation": "R",
+   "period": 1,
+   "sequence": "BABA",
+   "log_value": 9.921992
+  },
+  {
+   "subject": 78,
+   "value": 13689.6,
+   "formulation": "T",
+   "period": 2,
+   "sequence": "BABA",
+   "log_value": 9.524392
+  },
+  {
+   "subject": 78,
+   "value": 20585.02,
+   "formulation": "R",
+   "period": 3,
+   "sequence": "BABA",
+   "log_value": 9.932319
+  },
+  {
+   "subject": 78,
+   "value": 24498.14,
+   "formulation": "T",
+   "period": 4,
+   "sequence": "BABA",
+   "log_value": 10.106352
+  }
+ ],
+ "data_set_ii": [
+  {
+   "subject": 1,
+   "value": 4053.6,
+   "formulation": "R",
+   "period": 1,
+   "sequence": "2",
+   "log_value": 8.307361
+  },
+  {
+   "subject": 1,
+   "value": 3970.4,
+   "formulation": "T",
+   "period": 2,
+   "sequence": "2",
+   "log_value": 8.286622
+  },
+  {
+   "subject": 1,
+   "value": 3748.8,
+   "formulation": "R",
+   "period": 3,
+   "sequence": "2",
+   "log_value": 8.229191
+  },
+  {
+   "subject": 2,
+   "value": 2986.2,
+   "formulation": "R",
+   "period": 1,
+   "sequence": "2",
+   "log_value": 8.001757
+  },
+  {
+   "subject": 2,
+   "value": 2378.8,
+   "formulation": "T",
+   "period": 2,
+   "sequence": "2",
+   "log_value": 7.774351
+  },
+  {
+   "subject": 2,
+   "value": 2804.6,
+   "formulation": "R",
+   "period": 3,
+   "sequence": "2",
+   "log_value": 7.939016
+  },
+  {
+   "subject": 3,
+   "value": 3464.4,
+   "formulation": "R",
+   "period": 1,
+   "sequence": "3",
+   "log_value": 8.150295
+  },
+  {
+   "subject": 3,
+   "value": 3340.2,
+   "formulation": "R",
+   "period": 2,
+   "sequence": "3",
+   "log_value": 8.113786
+  },
+  {
+   "subject": 3,
+   "value": 4028.8,
+   "formulation": "T",
+   "period": 3,
+   "sequence": "3",
+   "log_value": 8.301224
+  },
+  {
+   "subject": 4,
+   "value": 4105.0,
+   "formulation": "T",
+   "period": 1,
+   "sequence": "1",
+   "log_value": 8.319961
+  },
+  {
+   "subject": 4,
+   "value": 3191.2,
+   "formulation": "R",
+   "period": 2,
+   "sequence": "1",
+   "log_value": 8.068152
+  },
+  {
+   "subject": 4,
+   "value": 3803.6,
+   "formulation": "R",
+   "period": 3,
+   "sequence": "1",
+   "log_value": 8.243703
+  },
+  {
+   "subject": 5,
+   "value": 4767.8,
+   "formulation": "T",
+   "period": 1,
+   "sequence": "1",
+   "log_value": 8.46964
+  },
+  {
+   "subject": 5,
+   "value": 4542.6,
+   "formulation": "R",
+   "period": 2,
+   "sequence": "1",
+   "log_value": 8.421255
+  },
+  {
+   "subject": 5,
+   "value": 3940.0,
+   "formulation": "R",
+   "period": 3,
+   "sequence": "1",
+   "log_value": 8.278936
+  },
+  {
+   "subject": 6,
+   "value": 3050.8,
+   "formulation": "R",
+   "period": 1,
+   "sequence": "3",
+   "log_value": 8.023159
+  },
+  {
+   "subject": 6,
+   "value": 3027.2,
+   "formulation": "R",
+   "period": 2,
+   "sequence": "3",
+   "log_value": 8.015393
+  },
+  {
+   "subject": 6,
+   "value": 2419.6,
+   "formulation": "T",
+   "period": 3,
+   "sequence": "3",
+   "log_value": 7.791358
+  },
+  {
+   "subject": 7,
+   "value": 2530.2,
+   "formulation": "R",
+   "period": 1,
+   "sequence": "2",
+   "log_value": 7.836054
+  },
+  {
+   "subject": 7,
+   "value": 3072.0,
+   "formulation": "T",
+   "period": 2,
+   "sequence": "2",
+   "log_value": 8.030084
+  },
+  {
+   "subject": 7,
+   "value": 2962.6,
+   "formulation": "R",
+   "period": 3,
+   "sequence": "2",
+   "log_value": 7.993823
+  },
+  {
+   "subject": 8,
+   "value": 2205.0,
+   "formulation": "T",
+   "period": 1,
+   "sequence": "1",
+   "log_value": 7.698483
+  },
+  {
+   "subject": 8,
+   "value": 2041.4,
+   "formulation": "R",
+   "period": 2,
+   "sequence": "1",
+   "log_value": 7.621391
+  },
+  {
+   "subject": 8,
+   "value": 2018.0,
+   "formulation": "R",
+   "period": 3,
+   "sequence": "1",
+   "log_value": 7.609862
+  },
+  {
+   "subject": 9,
+   "value": 4647.6,
+   "formulation": "R",
+   "period": 1,
+   "sequence": "2",
+   "log_value": 8.444106
+  },
+  {
+   "subject": 9,
+   "value": 4159.6,
+   "formulation": "T",
+   "period": 2,
+   "sequence": "2",
+   "log_value": 8.333174
+  },
+  {
+   "subject": 9,
+   "value": 3400.0,
+   "formulation": "R",
+   "period": 3,
+   "sequence": "2",
+   "log_value": 8.131531
+  },
+  {
+   "subject": 10,
+   "value": 2228.2,
+   "formulation": "T",
+   "period": 1,
+   "sequence": "1",
+   "log_value": 7.708949
+  },
+  {
+   "subject": 10,
+   "value": 2360.4,
+   "formulation": "R",
+   "period": 2,
+   "sequence": "1",
+   "log_value": 7.766586
+  },
+  {
+   "subject": 10,
+   "value": 2221.2,
+   "formulation": "R",
+   "period": 3,
+   "sequence": "1",
+   "log_value": 7.705803
+  },
+  {
+   "subject": 11,
+   "value": 1863.8,
+   "formulation": "R",
+   "period": 1,
+   "sequence": "3",
+   "log_value": 7.530373
+  },
+  {
+   "subject": 11,
+   "value": 2212.4,
+   "formulation": "R",
+   "period": 2,
+   "sequence": "3",
+   "log_value": 7.701833
+  },
+  {
+   "subject": 11,
+   "value": 2394.4,
+   "formulation": "T",
+   "period": 3,
+   "sequence": "3",
+   "log_value": 7.780888
+  },
+  {
+   "subject": 12,
+   "value": 2278.4,
+   "formulation": "R",
+   "period": 1,
+   "sequence": "3",
+   "log_value": 7.731229
+  },
+  {
+   "subject": 12,
+   "value": 3170.4,
+   "formulation": "R",
+   "period": 2,
+   "sequence": "3",
+   "log_value": 8.061613
+  },
+  {
+   "subject": 12,
+   "value": 3927.2,
+   "formulation": "T",
+   "period": 3,
+   "sequence": "3",
+   "log_value": 8.275682
+  },
+  {
+   "subject": 13,
+   "value": 2640.4,
+   "formulation": "R",
+   "period": 1,
+   "sequence": "3",
+   "log_value": 7.878686
+  },
+  {
+   "subject": 13,
+   "value": 2430.4,
+   "formulation": "R",
+   "period": 2,
+   "sequence": "3",
+   "log_value": 7.795811
+  },
+  {
+   "subject": 13,
+   "value": 2869.2,
+   "formulation": "T",
+   "period": 3,
+   "sequence": "3",
+   "log_value": 7.961789
+  },
+  {
+   "subject": 14,
+   "value": 3030.8,
+   "formulation": "R",
+   "period": 1,
+   "sequence": "2",
+   "log_value": 8.016582
+  },
+  {
+   "subject": 14,
+   "value": 2459.8,
+   "formulation": "T",
+   "period": 2,
+   "sequence": "2",
+   "log_value": 7.807835
+  },
+  {
+   "subject": 14,
+   "value": 2970.4,
+   "formulation": "R",
+   "period": 3,
+   "sequence": "2",
+   "log_value": 7.996452
+  },
+  {
+   "subject": 15,
+   "value": 2254.4,
+   "formulation": "R",
+   "period": 1,
+   "sequence": "2",
+   "log_value": 7.720639
+  },
+  {
+   "subject": 15,
+   "value": 1994.8,
+   "formulation": "T",
+   "period": 2,
+   "sequence": "2",
+   "log_value": 7.598299
+  },
+  {
+   "subject": 15,
+   "value": 2724.4,
+   "formulation": "R",
+   "period": 3,
+   "sequence": "2",
+   "log_value": 7.910003
+  },
+  {
+   "subject": 16,
+   "value": 2959.6,
+   "formulation": "T",
+   "period": 1,
+   "sequence": "1",
+   "log_value": 7.992809
+  },
+  {
+   "subject": 16,
+   "value": 3442.0,
+   "formulation": "R",
+   "period": 2,
+   "sequence": "1",
+   "log_value": 8.143808
+  },
+  {
+   "subject": 16,
+   "value": 3342.6,
+   "formulation": "R",
+   "period": 3,
+   "sequence": "1",
+   "log_value": 8.114504
+  },
+  {
+   "subject": 17,
+   "value": 2396.8,
+   "formulation": "T",
+   "period": 1,
+   "sequence": "1",
+   "log_value": 7.78189
+  },
+  {
+   "subject": 17,
+   "value": 2659.4,
+   "formulation": "R",
+   "period": 2,
+   "sequence": "1",
+   "log_value": 7.885856
+  },
+  {
+   "subject": 17,
+   "value": 2172.0,
+   "formulation": "R",
+   "period": 3,
+   "sequence": "1",
+   "log_value": 7.683404
+  },
+  {
+   "subject": 18,
+   "value": 2725.0,
+   "formulation": "R",
+   "period": 1,
+   "sequence": "3",
+   "log_value": 7.910224
+  },
+  {
+   "subject": 18,
+   "value": 2805.6,
+   "formulation": "R",
+   "period": 2,
+   "sequence": "3",
+   "log_value": 7.939373
+  },
+  {
+   "subject": 18,
+   "value": 3146.6,
+   "formulation": "T",
+   "period": 3,
+   "sequence": "3",
+   "log_value": 8.054078
+  },
+  {
+   "subject": 19,
+   "value": 2418.8,
+   "formulation": "R",
+   "period": 1,
+   "sequence": "2",
+   "log_value": 7.791027
+  },
+  {
+   "subject": 19,
+   "value": 2749.8,
+   "formulation": "T",
+   "period": 2,
+   "sequence": "2",
+   "log_value": 7.919283
+  },
+  {
+   "subject": 19,
+   "value": 2504.0,
+   "formulation": "R",
+   "period": 3,
+   "sequence": "2",
+   "log_value": 7.825645
+  },
+  {
+   "subject": 20,
+   "value": 2662.4,
+   "formulation": "R",
+   "period": 1,
+   "sequence": "3",
+   "log_value": 7.886983
+  },
+  {
+   "subject": 20,
+   "value": 2929.8,
+   "formulation": "R",
+   "period": 2,
+   "sequence": "3",
+   "log_value": 7.982689
+  },
+  {
+   "subject": 20,
+   "value": 3037.2,
+   "formulation": "T",
+   "period": 3,
+   "sequence": "3",
+   "log_value": 8.018691
+  },
+  {
+   "subject": 21,
+   "value": 2869.6,
+   "formulation": "R",
+   "period": 1,
+   "sequence": "3",
+   "log_value": 7.961928
+  },
+  {
+   "subject": 21,
+   "value": 2666.4,
+   "formulation": "R",
+   "period": 2,
+   "sequence": "3",
+   "log_value": 7.888485
+  },
+  {
+   "subject": 21,
+   "value": 3069.0,
+   "formulation": "T",
+   "period": 3,
+   "sequence": "3",
+   "log_value": 8.029107
+  },
+  {
+   "subject": 22,
+   "value": 2949.0,
+   "formulation": "T",
+   "period": 1,
+   "sequence": "1",
+   "log_value": 7.989221
+  },
+  {
+   "subject": 22,
+   "value": 2926.8,
+   "formulation": "R",
+   "period": 2,
+   "sequence": "1",
+   "log_value": 7.981665
+  },
+  {
+   "subject": 22,
+   "value": 2855.4,
+   "formulation": "R",
+   "period": 3,
+   "sequence": "1",
+   "log_value": 7.956967
+  },
+  {
+   "subject": 23,
+   "value": 3154.8,
+   "formulation": "T",
+   "period": 1,
+   "sequence": "1",
+   "log_value": 8.05668
+  },
+  {
+   "subject": 23,
+   "value": 3185.6,
+   "formulation": "R",
+   "period": 2,
+   "sequence": "1",
+   "log_value": 8.066396
+  },
+  {
+   "subject": 23,
+   "value": 3548.6,
+   "formulation": "R",
+   "period": 3,
+   "sequence": "1",
+   "log_value": 8.174308
+  },
+  {
+   "subject": 24,
+   "value": 1874.8,
+   "formulation": "R",
+   "period": 1,
+   "sequence": "2",
+   "log_value": 7.536257
+  },
+  {
+   "subject": 24,
+   "value": 1808.8,
+   "formulation": "T",
+   "period": 2,
+   "sequence": "2",
+   "log_value": 7.500419
+  },
+  {
+   "subject": 24,
+   "value": 2730.8,
+   "formulation": "R",
+   "period": 3,
+   "sequence": "2",
+   "log_value": 7.91235
+  }
+ ]
+}

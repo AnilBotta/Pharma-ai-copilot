@@ -1,0 +1,53 @@
+{
+  "case_id": "CONSTANTS-002-EMA",
+  "title": "EMA regulatory constants, be-stats against PowerTOST reg_const(\"EMA\")",
+  "method": "regulatory_constants",
+  "comparison_kind": "constant",
+  "inputs": {
+    "role": "constants",
+    "regulator": "EMA"
+  },
+  "oracle": {
+    "tool": "PowerTOST",
+    "function": "reg_const",
+    "arguments": "reg_const(\"EMA\")",
+    "method_note": "Returns a 'regSet' with CVswitch, r_const, CVcap, pe_constr and est_method. PowerTOST's encoding of the EMA settings, read independently of this package. The point-estimate limits are not carried as numbers on the regSet - pe_constr is a logical - so they are asserted against the conventional 80/125 that both the guideline and PowerTOST's defaults use.",
+    "regulatory_setting": "EMA"
+  },
+  "comparisons": [
+    {
+      "quantity": "ema_regulatory_constant_k",
+      "absolute_tolerance": 0.0,
+      "relative_tolerance": 0.0,
+      "tolerance_basis": "EXACTLY equal. EMA states k = 0.760 and both sides carry that literal. No arithmetic happens to either, so no tolerance is defensible."
+    },
+    {
+      "quantity": "ema_cv_switch_percent",
+      "absolute_tolerance": 0.0,
+      "relative_tolerance": 0.0,
+      "tolerance_basis": "EXACTLY equal, and the row worth reading twice. EMA's trigger is CVwR > 30% on the CV SCALE. PowerTOST agrees - CVswitch = 0.3, applied as CV > 0.3 + 1e-10 - which is why EMA has no analogue of VAL-FDA-HVD-002, where PowerTOST's derived 0.293560 disagrees with FDA's stated 0.294. Asserting the agreement is what makes the FDA disagreement legible as a real difference rather than a quirk of this harness."
+    },
+    {
+      "quantity": "ema_cv_cap_percent",
+      "absolute_tolerance": 0.0,
+      "relative_tolerance": 0.0,
+      "tolerance_basis": "EXACTLY equal. Both carry 50% as the variability at which widening stops. That the two sides then APPLY the cap differently - stated pair against recomputed pair - is VAL-EMA-ABEL-002 and is asserted in the capped ABEL cases, not here."
+    },
+    {
+      "quantity": "ema_point_estimate_lower_percent",
+      "absolute_tolerance": 0.0,
+      "relative_tolerance": 0.0,
+      "tolerance_basis": "EXACTLY equal. 4.1.10: 'The geometric mean ratio (GMR) should lie within the conventional acceptance range 80.00-125.00%.' Numerically identical to FDA's point-estimate constraint and stored in a separate table on purpose - two regulators agreeing today is not one rule."
+    },
+    {
+      "quantity": "ema_point_estimate_upper_percent",
+      "absolute_tolerance": 0.0,
+      "relative_tolerance": 0.0,
+      "tolerance_basis": "EXACTLY equal, for the same reason as the lower limit: 4.1.10 states the GMR range as the conventional 80.00-125.00% and both sides carry those literals with no arithmetic applied to either. A tolerance here would only be room for one side to have derived a number the regulator stated."
+    }
+  ],
+  "not_cross_checkable": [
+    "That EMA's constants are the ones the GUIDELINE states. PowerTOST is an implementation oracle, so this case establishes only that two implementations encode the same numbers. The guideline itself is the source, read at section 4.1.10, and the values carry VERIFIED provenance for that reason rather than because of this comparison."
+  ],
+  "notes": "The EMA counterpart of CONSTANTS-001-FDA. Both exist so that a constant cannot drift without something failing."
+}

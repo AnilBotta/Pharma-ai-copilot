@@ -4,7 +4,8 @@
   "raised_by": "be-stats external validation harness, first run, PR #58",
   "raised_on": "2026-08-27",
   "resolved_on": "2026-08-28",
-  "status": "RESOLVED_POWERTOST_CONFIGURATION_ERROR",
+  "status": "RESOLVED",
+  "classification": "RESOLVED_POWERTOST_CONFIGURATION_ERROR",
   "method": "fda_hvd_rsabe",
   "severity": "harness_defect_no_production_impact",
 

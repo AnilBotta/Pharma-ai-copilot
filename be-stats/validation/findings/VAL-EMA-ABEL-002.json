@@ -1,0 +1,54 @@
+{
+  "finding_id": "VAL-EMA-ABEL-002",
+  "title": "EMA states the ABEL cap as a limit pair; the formula at CVwR = 50% gives a fractionally wider one",
+  "raised_by": "PR #60, while implementing the cap",
+  "raised_on": "2026-08-27",
+  "resolved_on": "2026-08-27",
+  "status": "RESOLVED",
+  "classification": "ACCEPTED_ORACLE_DIVERGENCE",
+  "status_note": "RESOLVED means the question is answered, not that the numbers converged. EMA states the maximum widened range as 69.84 - 143.19% and its table gives the >=50% row as exactly that pair; PowerTOST preserves the unrounded formula. That is a documented divergence between an oracle and a regulator - not a regulatory ambiguity, and not a be-stats defect. The 0.0032 percentage-point difference is permanent and will appear in every run.",
+  "method": "ema_hvd_abel",
+  "severity": "oracle_divergence_be_stats_follows_the_regulator",
+
+  "what_differs": {
+    "ema_stated": {
+      "rule": "widened 'to a maximum of 69.84 - 143.19%'",
+      "source": "EMA, Guideline on the Investigation of Bioequivalence, CPMP/EWP/QWP/1401/98 Rev. 1, section 4.1.10, and its own table row '>=50 | 69.84 | 143.19'",
+      "lower_percent": 69.84,
+      "upper_percent": 143.19,
+      "kind": "normative, stated as a pair of numbers"
+    },
+    "computed_at_cap_cv": {
+      "rule": "cap CVwR at 50% and evaluate exp(+/- k*sWR)",
+      "source": "PowerTOST 1.5-7, R/scABEL.R: ret <- ifelse(CV>CVcap, exp(r_const*CV2se(CVcap)), ret)",
+      "lower_percent": 69.83678197809269,
+      "upper_percent": 143.19101935620301,
+      "kind": "derived"
+    },
+    "difference_lower_percentage_points": 0.0032180219073097,
+    "difference_upper_percentage_points": 0.0010193562030087,
+    "relative_magnitude": "about three parts in a hundred thousand"
+  },
+
+  "which_be_stats_applies": "The stated pair. `ema_abel_limits` caps each limit at 69.84 and 143.19; `spec.ema_abel_cap_computed()` returns the derived pair, kept for comparison and never used in place of it.",
+
+  "why": "Consistency with how this package has treated every such question. FDA states sWR >= 0.294 where the derivation gives 0.293560 and be-stats follows the stated number (VAL-FDA-HVD-002). FDA's NTI appendix states Delta = 1/0.9 where its own example code writes 1.11111 and be-stats follows the stated constant. The rule applied is the one the regulator wrote down; a value that reproduces it to the published precision is recorded beside it, not substituted for it.",
+
+  "side_effects": [
+    "The stated pair is fractionally NARROWER than the formula's value, so this reading is the marginally more conservative one.",
+    "The cap engages at CVwR of about 49.993% rather than exactly 50%, because the stated lower limit 69.84 is reached just before CVwR = 50%."
+  ],
+
+  "consequence_for_tier_3": {
+    "predicted_before_running": true,
+    "prediction": "A scABEL comparison agrees EXACTLY for CVwR below the cap and differs by 0.00322 (lower) and 0.00102 (upper) percentage points at or above it.",
+    "how_the_cases_handle_it": "The below-cap case uses a tolerance at floating-point scale. The capped case asserts the divergence IS the predicted one rather than widening a tolerance to absorb it. A difference predicted in advance is evidence that both implementations are understood; the same difference found afterwards would be a finding."
+  },
+
+  "why_it_still_qualifies_the_tier_3_row": "Resolved is not absent. The divergence is permanent - it will appear in every run for as long as EMA prints a rounded pair and PowerTOST recomputes it - so the ema_hvd_abel tier-3 row reads PASSED_WITH_FINDING rather than PASSED. The qualification records that the comparison is not unconditional; the RESOLVED status records that nobody needs to investigate it again. Those are different facts and the report carries both.",
+
+  "what_would_reopen_it": "EMA restating the cap - for example in the future ICH M13C - or a PowerTOST release that adopts the stated pair. Neither is an action for this package.",
+
+  "action_required": "None in be-stats. Revisit if EMA restates the cap, for example in the future ICH M13C.",
+  "related_findings": ["VAL-EMA-ABEL-001", "VAL-FDA-HVD-002"]
+}

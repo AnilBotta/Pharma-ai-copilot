@@ -45,7 +45,7 @@
         "sWR and the treatment contrast for any individual study. PowerTOST analyses no dataset, so there is nothing to compare them with. This is not a gap that can be closed by choosing different arguments: PowerTOST 1.5-7 exposes no dataset-level entry point for the FDA scaled procedures at all.",
         "p_below_switch. At CVwR 0.60 the exact probability is below 1e-6, so a comparison would agree to within its tolerance no matter what either side did. It is asserted where it can discriminate - RSABE-001 and RSABE-002 - and omitted here rather than kept as coverage that establishes nothing."
     ],
-    "open_findings": [
+    "standing_findings": [
         "VAL-FDA-HVD-002"
     ],
     "notes": "The scaled branch under heavy variability, where the widened limit is far from 80-125 and an error in the scaling constant would be obvious."

@@ -37,6 +37,7 @@ from enum import StrEnum
 
 from be_stats.provenance import (
     EMA_BIOEQUIVALENCE,
+    EMA_BIOEQUIVALENCE_HVD,
     FDA_STATISTICAL_APPROACHES,
     FDA_STATISTICAL_APPROACHES_APPENDIX_F,
     FDA_STATISTICAL_APPROACHES_APPENDIX_G,
@@ -108,7 +109,20 @@ VALIDATION: dict[Method, ValidationStatus] = {
     #: is not, and this package's policy is that an attested algorithm is not a
     #: reproduced result.
     Method.FDA_HVD_RSABE: ValidationStatus.IMPLEMENTED_UNVALIDATED,
-    Method.EMA_HVD_ABEL: ValidationStatus.NOT_IMPLEMENTED,
+    #: EMA ABEL. IMPLEMENTED_UNVALIDATED at the METHOD level even though three
+    #: of its capabilities are VALIDATED on tier-1B evidence — the first in
+    #: this package to reach that bar.
+    #:
+    #: A method status is the status of the whole procedure, and the whole
+    #: procedure is more than its parts: no EMA publication carries one
+    #: end-to-end highly variable Cmax example running CVwR > 30% -> widened
+    #: limits -> Method A 90% CI -> GMR constraint -> a stated verdict.
+    #: Validated components assembled by unvalidated wiring is precisely the
+    #: failure this ladder exists to make visible, so the method stays below
+    #: its parts rather than inheriting their best status.
+    #:
+    #: See `CAPABILITY_VALIDATION` for the per-capability picture.
+    Method.EMA_HVD_ABEL: ValidationStatus.IMPLEMENTED_UNVALIDATED,
 }
 
 #: NOTE: this frozenset and `ValidationStatus.IMPLEMENTED` are unrelated. This
@@ -162,6 +176,24 @@ class Capability(StrEnum):
     #: for a fully replicate study means Appendix C's model.
     FDA_NTI_UNSCALED_ABE = "fda_nti_unscaled_abe"
 
+    # ------------------------------ EMA highly variable drugs (ABEL) ---
+    #: Which replicate designs 4.1.10 permits, classified with a reason.
+    EMA_HVD_DESIGN_GATE = "ema_hvd_design_gate"
+    #: CVwR > 30%, strictly, on the CV scale, and Cmax only.
+    EMA_HVD_VARIABILITY_ELIGIBILITY = "ema_hvd_variability_eligibility"
+    #: CVwR from the reference measurements alone, by the model
+    #: EMA/618604/2008 Rev. 13 section 3.4 specifies.
+    EMA_HVD_REFERENCE_VARIABILITY = "ema_hvd_reference_variability"
+    #: Method A: the all-fixed-effects ANOVA the Q&A calls "guideline
+    #: recommended", giving mu_T - mu_R and its 90% interval.
+    EMA_REPLICATE_METHOD_A = "ema_replicate_method_a"
+    #: exp(+/- k.sWR) with the cap 4.1.10 states.
+    EMA_ABEL_LIMIT_CALCULATION = "ema_abel_limit_calculation"
+    #: The GMR within 80.00-125.00%, required in addition to the interval.
+    EMA_ABEL_PE_CONSTRAINT = "ema_abel_pe_constraint"
+    #: The two criteria combined into one endpoint verdict.
+    EMA_HVD_ENDPOINT_DECISION = "ema_hvd_endpoint_decision"
+
 
 #: Capabilities carry their own statuses, on the same ladder.
 #:
@@ -208,6 +240,65 @@ CAPABILITY_VALIDATION: dict[Capability, ValidationStatus] = {
     #: here. Two of three NTI criteria are computable; the third is not, so the
     #: NTI method as a whole stays NOT_IMPLEMENTED.
     Capability.FDA_NTI_UNSCALED_ABE: ValidationStatus.NOT_IMPLEMENTED,
+    # ------------------------------ EMA highly variable drugs (ABEL) ---
+    #
+    # THE FIRST `VALIDATED` ENTRIES IN THIS TABLE, AND WHY THEY EARN IT
+    #
+    # Everything above is IMPLEMENTED_UNVALIDATED at best, because FDA has
+    # published no worked dataset and the package's policy is that an attested
+    # algorithm is not a reproduced result. EMA has published one — two, in
+    # fact, plus a table — so three EMA capabilities clear the bar that no FDA
+    # capability can currently clear.
+    #
+    # The evidence is TIER 1B: a regulator's own numbers, reproduced. Not tier
+    # 3, which is an independent implementation agreeing, and not tier 1A,
+    # which is an algorithm attested against prose.
+    #: Structural: the gate either permits the designs 4.1.10 permits or it
+    #: does not. No number for a regulator to disagree with.
+    Capability.EMA_HVD_DESIGN_GATE: ValidationStatus.IMPLEMENTED,
+    #: Structural: a strict comparison against 30 on the CV scale.
+    Capability.EMA_HVD_VARIABILITY_ELIGIBILITY: ValidationStatus.IMPLEMENTED,
+    #: VALIDATED — tier 1B. EMA/618604/2008 Rev. 13 section 3.4 publishes the
+    #: reference within-subject CV for both annexed data sets under the Model
+    #: A/B column: 47.0% and 11.2%. This package's estimator, run on the raw
+    #: data from the same annex, gives 46.96% and 11.17% — agreement to the
+    #: one decimal EMA printed. See tests/validation/test_ema_tier1b.py.
+    Capability.EMA_HVD_REFERENCE_VARIABILITY: ValidationStatus.VALIDATED,
+    #: VALIDATED — tier 1B. The same Q&A publishes Method A's point estimate
+    #: and 90% confidence interval for both data sets: 115.66 (107.11, 124.89)
+    #: and 102.26 (97.32, 107.46). Both reproduce to the two decimals printed,
+    #: INCLUDING the unbalanced four-period set whose eight incomplete subjects
+    #: must be retained for the published result to come out.
+    Capability.EMA_REPLICATE_METHOD_A: ValidationStatus.VALIDATED,
+    #: VALIDATED — tier 1B. Section 4.1.10 prints its own table of widened
+    #: limits at CVwR 30, 35, 40, 45 and >=50 percent. All five rows reproduce
+    #: to the two decimals published, and the stated cap 69.84 - 143.19% is
+    #: applied as stated.
+    #:
+    #: VAL-EMA-ABEL-002 does not qualify this. It is RESOLVED: PowerTOST keeps
+    #: the unrounded formula where EMA states a rounded pair, which is a
+    #: documented divergence between an oracle and a regulator and not an open
+    #: question about the rule. be-stats follows the regulator, and the tier-1B
+    #: table is what confirms that reading.
+    Capability.EMA_ABEL_LIMIT_CALCULATION: ValidationStatus.VALIDATED,
+    #: A containment test on a number produced elsewhere. No regulator-published
+    #: example exercises the constraint on its own, so it stays unvalidated even
+    #: though the limits either side of it are validated.
+    Capability.EMA_ABEL_PE_CONSTRAINT: (
+        ValidationStatus.IMPLEMENTED_UNVALIDATED
+    ),
+    #: DELIBERATELY NOT VALIDATED, and the reason is worth stating.
+    #:
+    #: Every PART of the endpoint decision now has tier-1B evidence, and the
+    #: whole does not. No EMA publication carries one end-to-end highly
+    #: variable Cmax example running CVwR > 30% -> widened limits -> Method A
+    #: 90% CI -> GMR within 80-125% -> a stated PASS or FAIL. Validating the
+    #: components does not validate the wiring between them, and this is
+    #: exactly the place where a package could assemble correct pieces into a
+    #: wrong verdict.
+    Capability.EMA_HVD_ENDPOINT_DECISION: (
+        ValidationStatus.IMPLEMENTED_UNVALIDATED
+    ),
 }
 
 
@@ -391,6 +482,164 @@ FDA_HVD_CONSTANTS: dict[str, RegulatoryValue] = {
         VIA_PRIMARY_DOCUMENT,
     ),
 }
+
+
+# --------------------------------------- EMA highly variable drugs ---
+#
+# A SEPARATE DICTIONARY, ON PURPOSE, AND NOT A REGULATOR FLAG
+#
+# FDA's RSABE and EMA's ABEL are not one method with two parameter sets. They
+# differ in what triggers scaling, on which SCALE that trigger is expressed,
+# what the scaled quantity is, which endpoints may use it, whether there is a
+# cap, and how the criteria combine. Sharing a constants table between them
+# would make each of those differences a conditional rather than a fact, and a
+# conditional is something that can be got wrong once and then be wrong
+# everywhere.
+#
+# THE TRIGGER IS ON THE CV SCALE, AND IT IS STRICT
+#
+# EMA 4.1.10: widening requires "that the within-subject variability for Cmax
+# of the reference compound in the study is >30%". That is CVwR, as a
+# percentage, strictly greater than 30.
+#
+# It is NOT sWR >= 0.294, and it must not be turned into one. On the sWR scale
+# EMA's boundary is sqrt(ln(1 + 0.30^2)) = 0.293560..., which is a DIFFERENT
+# NUMBER from FDA's stated 0.294 — the two regulators' thresholds disagree in
+# the fourth decimal, and studies exist between them. See
+# validation/findings/VAL-FDA-HVD-002.md, which records that difference from
+# the other side.
+#
+# So EMA's threshold is stored as 30 percent on the CV scale, compared on the
+# CV scale, and never converted for the purposes of the decision.
+EMA_HVD_CONSTANTS: dict[str, RegulatoryValue] = {
+    "cv_wr_scaling_threshold_percent": RegulatoryValue(
+        30.0,
+        EMA_BIOEQUIVALENCE_HVD,
+        VerificationStatus.VERIFIED,
+        "Widening requires CVwR > 30 percent, STRICTLY greater. 4.1.10: 'the "
+        "bioequivalence study must be of a replicate design where it has been "
+        "demonstrated that the within-subject variability for Cmax of the "
+        "reference compound in the study is >30%'. Compared on the CV scale; "
+        "do not convert to an sWR boundary.",
+        VIA_PRIMARY_DOCUMENT,
+    ),
+    "regulatory_constant_k": RegulatoryValue(
+        0.760,
+        EMA_BIOEQUIVALENCE_HVD,
+        VerificationStatus.VERIFIED,
+        "4.1.10: '[U, L] = exp [+/- k.sWR] ... k is the regulatory constant "
+        "set to 0.760'. Stated to three decimals by the regulator and stored "
+        "as stated.",
+        VIA_PRIMARY_DOCUMENT,
+    ),
+    "cap_cv_percent": RegulatoryValue(
+        50.0,
+        EMA_BIOEQUIVALENCE_HVD,
+        VerificationStatus.VERIFIED,
+        "The variability at which widening stops. The guideline's own table "
+        "ends at '>=50' and the Q&A says the widening increases 'to a maximum "
+        "of 50%'.",
+        VIA_PRIMARY_DOCUMENT,
+    ),
+    "cap_lower_percent": RegulatoryValue(
+        69.84,
+        EMA_BIOEQUIVALENCE_HVD,
+        VerificationStatus.VERIFIED,
+        "4.1.10: 'the acceptance criteria for Cmax can be widened to a maximum "
+        "of 69.84 - 143.19%'. STATED by the regulator, not recomputed. "
+        "exp(-0.760*sqrt(ln(1.25))) = 69.83678..., which rounds to it - see "
+        "`ema_abel_cap_computed` for that value, kept separate.",
+        VIA_PRIMARY_DOCUMENT,
+    ),
+    "cap_upper_percent": RegulatoryValue(
+        143.19,
+        EMA_BIOEQUIVALENCE_HVD,
+        VerificationStatus.VERIFIED,
+        "As above; exp(+0.760*sqrt(ln(1.25))) = 143.19101... rounds to it. "
+        "Note the stated pair is not exactly reciprocal (1/0.6984 = 1.43184), "
+        "because each was rounded independently.",
+        VIA_PRIMARY_DOCUMENT,
+    ),
+    "point_estimate_lower_percent": RegulatoryValue(
+        80.00,
+        EMA_BIOEQUIVALENCE_HVD,
+        VerificationStatus.VERIFIED,
+        "4.1.10: 'The geometric mean ratio (GMR) should lie within the "
+        "conventional acceptance range 80.00-125.00%.' Required IN ADDITION to "
+        "the confidence interval falling inside the widened limits. "
+        "Numerically equal to FDA's constraint and stored separately, because "
+        "two regulators agreeing today is not the same as one rule.",
+        VIA_PRIMARY_DOCUMENT,
+    ),
+    "point_estimate_upper_percent": RegulatoryValue(
+        125.00,
+        EMA_BIOEQUIVALENCE_HVD,
+        VerificationStatus.VERIFIED,
+        "",
+        VIA_PRIMARY_DOCUMENT,
+    ),
+}
+
+#: Which endpoints EMA permits reference scaling for. Cmax, and only Cmax.
+#:
+#: 4.1.10, final paragraph: "The possibility to widen the acceptance criteria
+#: based on high intra-subject variability does not apply to AUC where the
+#: acceptance range should remain at 80.00 - 125.00% regardless of
+#: variability."
+#:
+#: A frozenset rather than a boolean on the endpoint, so that adding an
+#: endpoint is an edit to a regulatory table with a citation attached, not a
+#: condition somebody relaxes in passing.
+EMA_ABEL_SCALABLE_ENDPOINTS: frozenset[Endpoint] = frozenset({Endpoint.CMAX})
+
+
+def ema_abel_cap_computed() -> tuple[float, float]:
+    """The cap as the formula would give it, NOT as the regulator states it.
+
+    Exists to be compared against the stated 69.84 - 143.19, never to be used
+    in place of it. `ema_abel_limits` applies the stated pair; this function is
+    the check that the two agree to the precision the guideline publishes.
+
+    The FDA NTI release established the pattern: when a regulator states a
+    number and also gives a formula that nearly reproduces it, keep both and
+    say which one decides.
+    """
+    k = EMA_HVD_CONSTANTS["regulatory_constant_k"].value
+    cap_cv = EMA_HVD_CONSTANTS["cap_cv_percent"].value / 100.0
+    swr = math.sqrt(math.log1p(cap_cv**2))
+    return 100.0 * math.exp(-k * swr), 100.0 * math.exp(k * swr)
+
+
+def ema_hvd_scaling_eligible(
+    *, cv_wr_percent: float, endpoint: Endpoint
+) -> tuple[bool, str]:
+    """Does EMA permit reference scaling here? Returns (eligible, reason).
+
+    Two conditions, both required, and each reported separately because a study
+    that fails on the endpoint is a different situation from one that fails on
+    variability.
+    """
+    if endpoint not in EMA_ABEL_SCALABLE_ENDPOINTS:
+        permitted = ", ".join(sorted(str(e) for e in EMA_ABEL_SCALABLE_ENDPOINTS))
+        return False, (
+            f"EMA does not permit reference scaling for {endpoint}. Section "
+            f"4.1.10 restricts widening to {permitted}: 'The possibility to "
+            "widen the acceptance criteria based on high intra-subject "
+            "variability does not apply to AUC where the acceptance range "
+            "should remain at 80.00 - 125.00% regardless of variability.'"
+        )
+
+    threshold = EMA_HVD_CONSTANTS["cv_wr_scaling_threshold_percent"].value
+    if not cv_wr_percent > threshold:
+        return False, (
+            f"CVwR is {cv_wr_percent:.4f}%, which is not greater than the "
+            f"{threshold:.0f}% EMA requires. The comparison is strict and is "
+            "made on the CV scale, as 4.1.10 states it."
+        )
+    return True, (
+        f"CVwR {cv_wr_percent:.4f}% exceeds {threshold:.0f}% and {endpoint} is "
+        "scalable under 4.1.10."
+    )
 
 
 # ------------------------------- the OTHER rule that uses 0.294 ---
@@ -790,11 +1039,18 @@ def resolve_be_spec(
         return spec(
             method=Method.EMA_HVD_ABEL,
             acceptance=None,
-            required_design="replicated crossover",
+            required_design="3-period or 4-period replicate crossover",
+            constants=EMA_HVD_CONSTANTS,
             notes=(
-                "EMA uses average BE with expanding limits (ABEL), which is a "
-                "different procedure from FDA's RSABE and not a relabelling "
-                "of it. Phase 2C."
+                "EMA widens the acceptance LIMITS and then applies an ordinary "
+                "interval test: [U, L] = exp[+/- 0.760 * sWR], capped at "
+                "69.84-143.19%, with the GMR additionally required to fall "
+                "within 80.00-125.00%. That is a different procedure from "
+                "FDA's RSABE, which scales a CRITERION, and not a relabelling "
+                "of it. Widening applies to Cmax ONLY, and only where CVwR "
+                "exceeds 30 percent - strictly, on the CV scale. Section "
+                "4.1.10; ICH M13A does not address replicate designs, so the "
+                "2010 guideline continues to apply (EMA/531548/2024)."
             ),
         )
 

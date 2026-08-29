@@ -5,7 +5,8 @@
 | | |
 |---|---|
 | Raised | source inspection during the `VAL-FDA-HVD-001` investigation, 2026-08-28 |
-| Status | `ACCEPTED_ORACLE_DIVERGENCE` |
+| Status | `RESOLVED` |
+| Classification | `ACCEPTED_ORACLE_DIVERGENCE` |
 | Method | `fda_hvd_rsabe` |
 | Action required in `be-stats` | None. |
 
@@ -76,14 +77,17 @@ no comparison depends on the oracle's threshold. The threshold is compared as a
 *rule* instead: the R side reports both switching probabilities in closed form,
 and the be-stats side is checked against FDA's via `p_below_switch`.
 
-## Why it stays open
+## Why a resolved finding still qualifies the tier-3 row
 
-No run closes it. Both sides behave as designed and will continue to differ for
-as long as PowerTOST derives the threshold and FDA states it. Carrying it as an
-open finding on the RSABE cases is what keeps the `fda_hvd_rsabe` tier-3 row
-reading `PASSED_WITH_FINDING` rather than `PASSED` — which is the honest
-summary. The scaled criterion agrees with an independent implementation whose
-switching rule is known to differ from the regulator's in the fourth decimal.
+Resolved is not absent. Both sides behave as designed and will continue to
+differ for as long as PowerTOST derives the threshold and FDA states it, so the
+`fda_hvd_rsabe` tier-3 row reads `PASSED_WITH_FINDING` rather than `PASSED` —
+which is the honest summary. The scaled criterion agrees with an independent
+implementation whose switching rule is known to differ from the regulator's in
+the fourth decimal.
+
+`RESOLVED` records that nobody needs to investigate it again; the qualification
+records that the comparison is not unconditional. Both are true.
 
 Revisit only if FDA restates the rule, or if a comparison is added that depends
 on the oracle's switch.

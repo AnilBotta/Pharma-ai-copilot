@@ -200,7 +200,7 @@ def test_the_decision_lives_outside_the_estimation_layer():
     else.
     """
     from be_stats import VALIDATION, Method, ValidationStatus
-    from be_stats import hvd
+    from be_stats import ema_hvd, hvd
 
     assert VALIDATION[Method.FDA_HVD_RSABE] is (
         ValidationStatus.IMPLEMENTED_UNVALIDATED
@@ -208,9 +208,16 @@ def test_the_decision_lives_outside_the_estimation_layer():
     assert hvd.__name__ not in {m.__name__ for m in MODULES}
     assert hasattr(hvd, "assess_endpoint")
 
-    # Still not implemented, and not reachable by configuring this one.
+    # EMA ABEL is a SECOND decision module, and the same separation holds for
+    # it: the estimation layer cannot see it either. That it decides in its own
+    # module rather than by configuring `hvd` is the architecture working —
+    # RSABE and ABEL are different procedures, not one with a regulator flag.
+    assert ema_hvd.__name__ not in {m.__name__ for m in MODULES}
+    assert hasattr(ema_hvd, "assess_ema_endpoint")
+    assert not hasattr(hvd, "assess_ema_endpoint")
+
+    # Still not implemented, and not reachable by configuring the others.
     assert VALIDATION[Method.FDA_NTI_RSABE] is ValidationStatus.NOT_IMPLEMENTED
-    assert VALIDATION[Method.EMA_HVD_ABEL] is ValidationStatus.NOT_IMPLEMENTED
     for status in VALIDATION.values():
         assert status is not ValidationStatus.VALIDATED
 

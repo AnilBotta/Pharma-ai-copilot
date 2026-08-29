@@ -52,7 +52,7 @@
         "The intermediate Howe quantities x, bound_x, y and bound_y. PowerTOST does not expose them for a dataset; it exposes only the probability that the criterion passed. They are checked instead against the FDA SAS in the tier-1A case FDA-HVD-RSABE-CRITERION-001.",
         "sWR and the treatment contrast for any individual study. PowerTOST analyses no dataset, so there is nothing to compare them with. This is not a gap that can be closed by choosing different arguments: PowerTOST 1.5-7 exposes no dataset-level entry point for the FDA scaled procedures at all."
     ],
-    "open_findings": [
+    "standing_findings": [
         "VAL-FDA-HVD-002"
     ],
     "notes": "Sits just above the 30 percent classification CV, so a substantial share of simulated studies land on either side of the sWR = 0.294 switch - about 43.5 percent, which p_below_switch now checks against the exact chi-square rather than leaving as a diagnostic. That share is precisely what made this case, and only this case, expose the quantity mismatch recorded as VAL-FDA-HVD-001: at CVwR 0.40 and 0.60 almost nothing falls below the switch, so the mixed decision and the scaled criterion coincide and the mismatch was invisible."

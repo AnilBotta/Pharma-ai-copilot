@@ -3,7 +3,9 @@
   "title": "PowerTOST switches at sWR 0.293560; FDA Appendix G states 0.294",
   "raised_by": "source inspection during the VAL-FDA-HVD-001 investigation",
   "raised_on": "2026-08-28",
-  "status": "ACCEPTED_ORACLE_DIVERGENCE",
+  "status": "RESOLVED",
+  "classification": "ACCEPTED_ORACLE_DIVERGENCE",
+  "status_note": "As for VAL-EMA-ABEL-002: RESOLVED means the question is answered, not that the numbers converged. PowerTOST derives the switch from CV = 0.30 where FDA states 0.294. The divergence is permanent and still qualifies the fda_hvd_rsabe tier-3 row.",
   "method": "fda_hvd_rsabe",
   "severity": "oracle_divergence_be_stats_follows_the_regulator",
 

@@ -6,6 +6,158 @@ first question asked of a result years later.
 
 ---
 
+## 0.6.0 — EMA highly variable drugs (ABEL), and the first tier-1B evidence
+
+The EMA reference-scaled route, implemented as a **separate method** from FDA's
+RSABE. No FDA logic changed; no Appendix C was implemented.
+
+### The source was established before any code was written
+
+The obvious risk here was assuming the 2010 guideline had been superseded.
+**ICH M13A** came into effect on 25 January 2025 and did supersede parts of it
+— but only for non-replicate designs. EMA/531548/2024 is explicit:
+
+> After 25 January 2025, the EMA Guideline on the investigation of
+> bioequivalence (CPMP/EWP/QWP/1401/98 Rev. 1) pertaining to specific topics
+> not addressed in ICH M13A will continue to apply
+
+and names "BE studies with highly variable drugs (replicate design)" among
+them. They are a Tier 3 topic for the future **M13C**, which does not exist
+yet. Precedence is recorded in `provenance.py`: M13A → 4.1.10 → the PKWP Q&A →
+product-specific guidance.
+
+### The rule, as the regulator states it
+
+| | |
+|---|---|
+| trigger | **CVwR > 30%**, strictly, on the **CV scale** |
+| endpoint | **Cmax only** — AUC stays 80.00–125.00% "regardless of variability" |
+| limits | `[U, L] = exp[±k·sWR]`, `k = 0.760` |
+| cap | 69.84 – 143.19%, applied as the **stated pair** |
+| and | GMR within 80.00–125.00%, required **in addition** |
+| designs | 3-period or 4-period replicate crossover |
+
+The trigger is **not** `sWR ≥ 0.294` and is never converted into one. On the sWR
+scale EMA's boundary is 0.293560 — a *different number* from FDA's stated
+0.294, with real studies in between. That is `VAL-FDA-HVD-002` seen from the
+other side, and it is why the constants live in separate tables.
+
+### Tier 1B — the first in this package
+
+EMA published two replicate data sets **with their results**, and the annex has
+the raw data. Both reproduce:
+
+| | Data set I | Data set II |
+|---|---|---|
+| design | 4-period, 77 subjects, **8 incomplete** | 3-period partial replicate, 24 subjects |
+| point estimate | **115.66** (published 115.66) | **102.26** (published 102.26) |
+| 90% CI | **107.11, 124.89** (107.11, 124.89) | **97.32, 107.46** (97.32, 107.46) |
+| CVwR | **46.96%** (published 47.0%) | **11.17%** (published 11.2%) |
+
+All five rows of the guideline's own limits table reproduce to the two decimals
+it prints.
+
+**Tier 1B settled something no oracle could have.** `ReplicateDataset` excludes
+subjects missing a reference replicate — correct for FDA's sWR. Data set I has
+eight incomplete subjects, and EMA's published result can only be reproduced by
+**keeping** them. Row-level validation is now shared (`validate_subject_rows`,
+a pure refactor); the *inclusion rule* is not, and must not be.
+
+### EMA specifies a model that can be implemented faithfully
+
+The Q&A names **Method A** "guideline recommended": `proc glm`, all terms
+fixed, one variance component. That is ordinary least squares — no REML, no
+variance components, nothing to fail to converge — so unlike FDA's Appendix C
+it reproduces exactly. `replicate_abe.py` still records Appendix C and still
+refuses.
+
+So the ordinary branch **decides** here rather than refusing. EMA runs the same
+model either way and only moves the limits; there was no need to invent an
+approximation, because the regulator specified something implementable.
+
+### Separation, enforced
+
+`FdaHvdResult` and `EmaHighlyVariableResult`. Separate constants, citations and
+modules. Tests assert that mutating an EMA constant cannot move an FDA decision
+and vice versa, that neither module imports the other, and that the one shared
+helper — `linear_model`, a design matrix and a least-squares solve — knows no
+regulator. The point-estimate range is 80.00–125.00% on both sides and is
+stored twice on purpose.
+
+### Two findings, both raised before any comparison ran
+
+- **`VAL-EMA-ABEL-001`** (`PREEMPTED`). PowerTOST's `p(BE-ABEL)` is the *mixed*
+  decision, not the ABEL criterion — the same trap as `p(BE-sABEc)`, in both
+  routes. And `power.scABEL` routes for EMA to `power.scABEL1`, which documents
+  four "purely empirical" adaptations. A tuned approximation is not an oracle,
+  so **`scABEL` — which is deterministic** — is the primary one instead.
+- **`VAL-EMA-ABEL-002`** — status `RESOLVED`, classification
+  `ACCEPTED_ORACLE_DIVERGENCE`. EMA states the cap as the pair 69.84–143.19 and
+  its table gives the ≥50% row as exactly that; the formula at CVwR = 50% gives
+  69.83678–143.19102. `be-stats` applies the stated pair, as it does for FDA's
+  0.294. The 0.0032 percentage-point divergence was **predicted before the
+  comparison ran**, and the capped cases assert it rather than widening a
+  tolerance to absorb it.
+
+### Status and classification are separate fields
+
+They answer different questions:
+
+| field | question |
+|---|---|
+| `status` | does anyone still need to work on this — `OPEN` / `PREEMPTED` / `RESOLVED` |
+| `classification` | what turned out to be true, when `RESOLVED` |
+
+**`RESOLVED` is not the same as "the numbers now agree."** An
+`ACCEPTED_ORACLE_DIVERGENCE` is understood, decided, and *permanent*. So a
+resolved finding still qualifies its method's tier-3 row: `open_findings` on a
+case is now `standing_findings`, and the report says `STANDING FINDING` rather
+than `OPEN FINDING`. Calling a resolved divergence "open" made the report claim
+an investigation was outstanding when none was.
+
+The old field name is **refused** rather than silently accepted — a case left
+on it would quietly stop qualifying its method, which is a silent upgrade from
+`PASSED_WITH_FINDING` to `PASSED`.
+
+### The first `VALIDATED` capabilities in the package
+
+The EMA stages live in the existing `Capability` enum rather than a table of
+their own. Three are `VALIDATED` on tier-1B evidence:
+
+| capability | evidence |
+|---|---|
+| `ema_hvd_reference_variability` | CVwR 47.0% and 11.2%, both reproduced |
+| `ema_replicate_method_a` | 115.66 (107.11, 124.89) and 102.26 (97.32, 107.46) |
+| `ema_abel_limit_calculation` | all five rows of the 4.1.10 table |
+
+`VAL-EMA-ABEL-002` does **not** qualify the limit calculation: the tier-1B
+table is what *confirms* the stated reading, since all five rows reproduce
+under it. The finding records a difference from an **oracle**, and an oracle
+does not outrank the regulator.
+
+**`ema_hvd_endpoint_decision` and the method itself stay
+`IMPLEMENTED_UNVALIDATED`.** Every part has tier-1B evidence and the whole does
+not: no EMA publication carries one end-to-end highly variable Cmax example
+running CVwR > 30% → widened limits → Method A 90% CI → GMR constraint → a
+stated verdict. Validated components assembled by unvalidated wiring is exactly
+the failure this ladder exists to make visible.
+
+A test also asserts that **no FDA capability claims `VALIDATED`**, so the
+asymmetry stays a fact about the documents rather than something a later edit
+erodes.
+
+### Tier 3 is deterministic for this method
+
+`scABEL` simulates nothing, so EMA's central quantity is checked **exactly**
+rather than statistically — stronger than any amount of agreeing simulation.
+Uncapped cases agree to 0.00000; capped cases differ by exactly the predicted
+0.00322 / 0.00102.
+
+`numpy` is now a declared dependency. It always arrived with scipy and was used
+through it; Method A imports it by name, so it is declared by name.
+
+---
+
 ## 0.5.2 — VAL-FDA-HVD-001 explained
 
 **No new regulatory methods. No engine behaviour changed, and none needed to
