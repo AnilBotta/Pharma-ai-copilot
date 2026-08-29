@@ -254,17 +254,55 @@ CAPABILITY_VALIDATION: dict[Capability, ValidationStatus] = {
     Capability.FDA_HVD_UNSCALED_BRANCH: (
         ValidationStatus.IMPLEMENTED_UNVALIDATED
     ),
-    #: Appendix C for the FULLY REPLICATE design. Implemented, and validated
-    #: against two independent kinds of evidence:
+    #: IMPLEMENTED_UNVALIDATED, and it stays there DESPITE having more evidence
+    #: behind it than either EMA capability marked VALIDATED. That reads oddly,
+    #: so the reason is written down.
     #:
-    #:   EMA/618604/2008 Rev. 13 Data set I, SAS 9.1 Method C - a regulator's
-    #:   published result for FDA's model. Note the authority precisely: the
-    #:   MODEL is FDA's, the NUMBERS are EMA-published. Stronger than a
-    #:   peer-reviewed dataset, weaker than an FDA-published example of FDA's
-    #:   own model, and never described as the latter.
+    #: The bar for VALIDATED here is a REGULATOR'S OWN published output for the
+    #: procedure being claimed. EMA_REPLICATE_METHOD_A clears it because EMA
+    #: published Method A's numbers and this package reproduces them. Appendix
+    #: C is FDA's procedure, and FDA has published no worked example of it.
     #:
-    #:   ReplicateBE.jl 1.0.15 on Julia 1.10.5 - an independent implementation
-    #:   oracle, verified in PR #61 to reproduce that same SAS output.
+    #: What exists is EMA's published output for a model EMA transcribes and
+    #: attributes to FDA by name - excellent evidence that the arithmetic is
+    #: right, and not the same thing as FDA validating FDA's own model.
+    #: Promoting on it would inflate one regulator's authority into another's,
+    #: and `test_no_fda_capability_claims_validated` exists to catch exactly
+    #: that. It caught this.
+    #:
+    #: The evidence, precisely:
+    #:
+    #:   EMA/618604/2008 Rev. 13 Data set I, SAS 9.1 Method C. Point estimate
+    #:   115.66, interval 107.10-124.89, within-subject CVs 47.3% and 35.3% -
+    #:   all five reproduce to the decimals EMA printed, on the UNBALANCED set
+    #:   whose eight incomplete subjects must be retained for the published
+    #:   result to come out.
+    #:
+    #: Note the authority precisely: the MODEL is FDA's, the NUMBERS are
+    #: EMA-published, for the model EMA transcribes and attributes to FDA by
+    #: name. Stronger than a peer-reviewed dataset, weaker than an
+    #: FDA-published example of FDA's own model, and never described as the
+    #: latter.
+    #:
+    #: Two further kinds of evidence support it, neither of which the tier-1B
+    #: claim rests on:
+    #:
+    #:   TIER 3 - ReplicateBE.jl 1.0.15 on Julia 1.10.5, verified in PR #61 to
+    #:   reproduce that same SAS output. Seven of nine synthetic cases agree to
+    #:   1e-6 on all five covariance parameters, the SE and the df. The other
+    #:   two are fits with a NEGATIVE subject-by-formulation correlation, which
+    #:   FA0(2) permits and the oracle's link cannot represent - see
+    #:   VAL-FDA-APPENDIX-C-003. No oracle available to this project covers
+    #:   that region.
+    #:
+    #:   TIER 1A - for a balanced, complete, interior fit the model reduces
+    #:   exactly to the classical subject-level analysis, and the Satterthwaite
+    #:   df is exactly n - 2. Verified to 1e-8 on seven cases by a route with
+    #:   no mixed model in it. This is what adjudicated the tier-3 exclusions.
+    #:
+    #: What would move it to VALIDATED: an FDA-published worked example of
+    #: Appendix C, or a SAS PROC MIXED run on a dataset with published inputs.
+    #: Not another oracle, and not more synthetic cases.
     Capability.FDA_REPLICATE_STANDARD_ABE_FULL: (
         ValidationStatus.IMPLEMENTED_UNVALIDATED
     ),
