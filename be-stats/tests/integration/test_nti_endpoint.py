@@ -460,19 +460,32 @@ def test_the_result_cites_appendix_f_and_not_appendix_g():
     assert citation_form in " ".join(result.reference_variance.provenance())
 
 
-def test_the_nti_method_stays_not_implemented_while_a_criterion_is_missing():
+def test_the_nti_method_became_implementable_when_criterion_b_arrived():
+    """Three criteria, and (b) was the one that was structurally missing.
+
+    NTI withheld its verdict for three releases not because two criteria were
+    hard but because the third could not be computed at all: the unscaled
+    80.00-125.00% test on a fully replicate study IS Appendix C. Implementing
+    Appendix C is what made the method reachable, and nothing else changed
+    about NTI.
+    """
     from be_stats import VALIDATION, Method, ValidationStatus
     from be_stats import CAPABILITY_VALIDATION, Capability
 
-    assert VALIDATION[Method.FDA_NTI_RSABE] is ValidationStatus.NOT_IMPLEMENTED
+    assert VALIDATION[Method.FDA_NTI_RSABE] is (
+        ValidationStatus.IMPLEMENTED_UNVALIDATED
+    )
     assert (
         CAPABILITY_VALIDATION[Capability.FDA_NTI_UNSCALED_ABE]
-        is ValidationStatus.NOT_IMPLEMENTED
+        is ValidationStatus.IMPLEMENTED_UNVALIDATED
     )
     assert (
         CAPABILITY_VALIDATION[Capability.FDA_NTI_DESIGN_VALIDATION]
         is ValidationStatus.IMPLEMENTED
     )
+    # NOT validated. The three criteria each have their own evidence; the
+    # assembled procedure has none yet, and a method does not inherit the
+    # status of its parts.
     for status in VALIDATION.values():
         assert status is not ValidationStatus.VALIDATED
 
@@ -491,7 +504,9 @@ def test_ema_abel_did_not_arrive_through_the_nti_module():
     assert VALIDATION[Method.EMA_HVD_ABEL] is (
         ValidationStatus.IMPLEMENTED_UNVALIDATED
     )
-    assert VALIDATION[Method.FDA_NTI_RSABE] is ValidationStatus.NOT_IMPLEMENTED
+    assert VALIDATION[Method.FDA_NTI_RSABE] is (
+        ValidationStatus.IMPLEMENTED_UNVALIDATED
+    )
 
     assert not hasattr(nti, "assess_ema_endpoint")
     assert not hasattr(ema_hvd, "assess_nti_endpoint")

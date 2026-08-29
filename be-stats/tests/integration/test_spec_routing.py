@@ -110,10 +110,17 @@ def test_fda_nti_resolves_to_rsabe_and_refuses_to_run():
     assert spec.constants["sigma_w0"].value == 0.10
     assert spec.constants["variance_ratio_upper_limit"].value == 2.5
     assert spec.constants["delta"].value == pytest.approx(1.0 / 0.9)
-    assert not spec.is_implemented
 
-    with pytest.raises(NotImplementedMethod, match="fully replicated"):
-        spec.require_implemented()
+    # Implemented as of the Appendix C release - criterion (b) was the missing
+    # piece - and it still has no fixed acceptance interval, because FDA's NTI
+    # procedure changes the TEST rather than the limits.
+    assert spec.is_implemented
+    spec.require_implemented()
+
+    from be_stats.spec import NotApplicable
+
+    with pytest.raises(NotApplicable, match="fixed acceptance interval"):
+        spec.require_interval()
 
 
 def test_fda_and_ema_take_different_routes_for_highly_variable_drugs():
@@ -175,7 +182,7 @@ def test_unimplemented_methods_are_not_in_the_implemented_set():
     # FDA's NTI route remains a separate procedure with its own constants and
     # its own criteria, and neither of the highly-variable implementations
     # generalised into it.
-    assert Method.FDA_NTI_RSABE not in IMPLEMENTED
+    assert Method.FDA_NTI_RSABE in IMPLEMENTED
 
 
 def test_implementing_hvd_did_not_turn_nti_into_a_configuration_flag():
@@ -189,7 +196,12 @@ def test_implementing_hvd_did_not_turn_nti_into_a_configuration_flag():
     """
     from be_stats import VALIDATION, ValidationStatus
 
-    assert VALIDATION[Method.FDA_NTI_RSABE] is ValidationStatus.NOT_IMPLEMENTED
+    # NTI is implemented now, and NOT by configuring the highly-variable code.
+    # It arrived when Appendix C supplied criterion (b) - a model neither HVD
+    # route uses - and its constants are still its own.
+    assert VALIDATION[Method.FDA_NTI_RSABE] is (
+        ValidationStatus.IMPLEMENTED_UNVALIDATED
+    )
 
     nti = resolve_be_spec(
         jurisdiction=Jurisdiction.FDA,
@@ -197,5 +209,15 @@ def test_implementing_hvd_did_not_turn_nti_into_a_configuration_flag():
         endpoint=Endpoint.AUC,
     )
     assert nti.method is Method.FDA_NTI_RSABE
-    with pytest.raises(NotImplementedMethod):
-        nti.require_implemented()
+    nti.require_implemented()
+
+    # The point of this guard survives: NTI's spec resolves to NTI's own
+    # constants, and none of the highly-variable ones. Sharing a parameter
+    # table is how one method quietly becomes a configuration of another.
+    hvd = resolve_be_spec(
+        jurisdiction=Jurisdiction.FDA, drug_class=DrugClass.HIGHLY_VARIABLE
+    )
+    assert nti.constants["sigma_w0"].value == 0.10
+    assert hvd.constants["sigma_w0"].value == 0.25
+    assert "swr_switching_threshold" not in nti.constants
+    assert "variance_ratio_upper_limit" not in hvd.constants

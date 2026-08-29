@@ -103,7 +103,12 @@ class Method(StrEnum):
 VALIDATION: dict[Method, ValidationStatus] = {
     Method.STANDARD_ABE: ValidationStatus.IMPLEMENTED_UNVALIDATED,
     Method.EMA_NTI_NARROW_ABE: ValidationStatus.IMPLEMENTED_UNVALIDATED,
-    Method.FDA_NTI_RSABE: ValidationStatus.NOT_IMPLEMENTED,
+    #: All three Appendix F criteria are computable as of the Appendix C
+    #: release - (b) was the one that was structurally missing. The method
+    #: therefore leaves NOT_IMPLEMENTED, and stops at
+    #: IMPLEMENTED_UNVALIDATED: its validation ladder has to be re-run against
+    #: the assembled procedure, not inherited from the three parts.
+    Method.FDA_NTI_RSABE: ValidationStatus.IMPLEMENTED_UNVALIDATED,
     #: Implemented in the highly-variable release. IMPLEMENTED_UNVALIDATED and
     #: not VALIDATED: tier 1A conformance to Appendix G is established, tier 1B
     #: is not, and this package's policy is that an attested algorithm is not a
@@ -164,12 +169,18 @@ class Capability(StrEnum):
     FDA_HVD_UNSCALED_BRANCH = "fda_hvd_unscaled_branch"
     #: Appendix C itself: the mixed model, independent of which caller needs it.
     #:
-    #: Distinct from the two capabilities that are BLOCKED BY it -
-    #: FDA_HVD_UNSCALED_BRANCH and FDA_NTI_UNSCALED_ABE. Those are call sites;
-    #: this is the model. One thing is missing and three statuses report it,
-    #: which is worth keeping straight when the model eventually arrives and
-    #: all three move together.
-    FDA_REPLICATE_STANDARD_ABE = "fda_replicate_standard_abe"
+    #: SPLIT BY DESIGN, and the split is load-bearing rather than tidy.
+    #:
+    #: PR #61 established a trustworthy oracle for the fully replicate design
+    #: and NOT for the partial replicate one: ReplicateBE.jl reproduces EMA's
+    #: published SAS Method C output exactly on 2x2x4 and differs by 2.94
+    #: denominator degrees of freedom on 2x3x3. A single
+    #: `FDA_REPLICATE_STANDARD_ABE` status would have to say one thing about
+    #: two situations that differ, and whichever it said would be wrong about
+    #: the other - a report reading VALIDATED would imply partial replicate
+    #: support that does not exist.
+    FDA_REPLICATE_STANDARD_ABE_FULL = "fda_replicate_standard_abe_full"
+    FDA_REPLICATE_STANDARD_ABE_PARTIAL = "fda_replicate_standard_abe_partial"
 
     # ------------------------------------ narrow therapeutic index drugs ---
     #: Enforce that an NTI drug is on a fully replicate design before any
@@ -231,21 +242,40 @@ CAPABILITY_VALIDATION: dict[Capability, ValidationStatus] = {
     #:
     #: An earlier version ran TOST on the `ilat` contrast and called this
     #: EXPERIMENTAL. A status field does not travel with a number, and the
-    #: number was a bioequivalence verdict from a different model. The branch
-    #: refuses instead. See `replicate_abe.py` for the specification.
-    Capability.FDA_HVD_UNSCALED_BRANCH: ValidationStatus.NOT_IMPLEMENTED,
-    #: NOT_IMPLEMENTED, and the oracle feasibility study (PR #61) did not
-    #: change that. It concluded BLOCKED_WITH_PRECISE_REASONS: nlme reproduces
-    #: the point estimate and the covariance parameters against EMA's published
-    #: Method C results, and NO available implementation reproduces the
-    #: Satterthwaite denominator df - which sets the width of the interval and
-    #: therefore the decision.
+    #: number was a bioequivalence verdict from a different model.
     #:
-    #: ORACLE READINESS AND IMPLEMENTATION STATUS ARE DIFFERENT THINGS. This
-    #: field is the second one. The first lives in
-    #: validation/findings/VAL-FDA-APPENDIX-C-001.json, where it currently
-    #: reads `oracle_ready: false`.
-    Capability.FDA_REPLICATE_STANDARD_ABE: ValidationStatus.NOT_IMPLEMENTED,
+    #: IMPLEMENTED FOR FULLY REPLICATE DESIGNS as of the Appendix C release.
+    #: A partial replicate study below the switch still refuses, and so does a
+    #: fully replicate one whose raw observations were not supplied - Appendix
+    #: C is available-case and cannot be run from the reduced dataset. The
+    #: status is the weaker of the two situations it covers, deliberately: a
+    #: caller reading IMPLEMENTED here must not infer that every HVD study
+    #: below the switch gets a verdict.
+    Capability.FDA_HVD_UNSCALED_BRANCH: (
+        ValidationStatus.IMPLEMENTED_UNVALIDATED
+    ),
+    #: Appendix C for the FULLY REPLICATE design. Implemented, and validated
+    #: against two independent kinds of evidence:
+    #:
+    #:   EMA/618604/2008 Rev. 13 Data set I, SAS 9.1 Method C - a regulator's
+    #:   published result for FDA's model. Note the authority precisely: the
+    #:   MODEL is FDA's, the NUMBERS are EMA-published. Stronger than a
+    #:   peer-reviewed dataset, weaker than an FDA-published example of FDA's
+    #:   own model, and never described as the latter.
+    #:
+    #:   ReplicateBE.jl 1.0.15 on Julia 1.10.5 - an independent implementation
+    #:   oracle, verified in PR #61 to reproduce that same SAS output.
+    Capability.FDA_REPLICATE_STANDARD_ABE_FULL: (
+        ValidationStatus.IMPLEMENTED_UNVALIDATED
+    ),
+    #: Appendix C for the PARTIAL REPLICATE design. NOT_IMPLEMENTED, and the
+    #: reason is evidentiary rather than arithmetical: the same code would
+    #: produce a number and there is nothing to check it against. The correct
+    #: partial replicate Satterthwaite df remains NOT DETERMINED. See
+    #: validation/findings/VAL-FDA-APPENDIX-C-002.md.
+    Capability.FDA_REPLICATE_STANDARD_ABE_PARTIAL: (
+        ValidationStatus.NOT_IMPLEMENTED
+    ),
     # ------------------------------------ narrow therapeutic index drugs ---
     #: Structural: the design gate either enforces III.B or it does not.
     Capability.FDA_NTI_DESIGN_VALIDATION: ValidationStatus.IMPLEMENTED,
@@ -255,11 +285,14 @@ CAPABILITY_VALIDATION: dict[Capability, ValidationStatus] = {
     Capability.FDA_NTI_VARIABILITY_RATIO: (
         ValidationStatus.IMPLEMENTED_UNVALIDATED
     ),
-    #: Same reason as `FDA_HVD_UNSCALED_BRANCH`: the unscaled analysis of a
-    #: fully replicate study is Appendix C's mixed model, which is not fitted
-    #: here. Two of three NTI criteria are computable; the third is not, so the
-    #: NTI method as a whole stays NOT_IMPLEMENTED.
-    Capability.FDA_NTI_UNSCALED_ABE: ValidationStatus.NOT_IMPLEMENTED,
+    #: Criterion (b), now computed. NTI's design gate already requires a fully
+    #: replicate design, which is exactly the scope Appendix C is validated
+    #: for - so unlike the HVD branch there is no partial replicate case to
+    #: refuse, and all three NTI criteria are available given the raw
+    #: observations.
+    Capability.FDA_NTI_UNSCALED_ABE: (
+        ValidationStatus.IMPLEMENTED_UNVALIDATED
+    ),
     # ------------------------------ EMA highly variable drugs (ABEL) ---
     #
     # THE FIRST `VALIDATED` ENTRIES IN THIS TABLE, AND WHY THEY EARN IT

@@ -109,6 +109,16 @@ class DiagnosticCode(StrEnum):
     #: is NOT decided - deliberately, rather than being decided by a different
     #: model that would look the same.
     REPLICATE_ABE_MODEL_NOT_IMPLEMENTED = "REPLICATE_ABE_MODEL_NOT_IMPLEMENTED"
+    #: Appendix C IS implemented - for the fully replicate design. This is the
+    #: partial replicate design being refused, and the reason is evidentiary
+    #: rather than arithmetical: the same code would produce a number, and
+    #: there is nothing to check it against. ReplicateBE.jl reproduces SAS
+    #: exactly on the fully replicate data set and differs by 2.94 denominator
+    #: degrees of freedom on the partial replicate one. See
+    #: validation/findings/VAL-FDA-APPENDIX-C-002.md.
+    APPENDIX_C_PARTIAL_REPLICATE_NOT_VALIDATED = (
+        "APPENDIX_C_PARTIAL_REPLICATE_NOT_VALIDATED"
+    )
 
     # ------------------------------------ narrow therapeutic index drugs ---
     #: An NTI drug was submitted on a design FDA does not accept for it. NTI

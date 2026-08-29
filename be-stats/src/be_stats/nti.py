@@ -645,12 +645,32 @@ class FdaNtiResult:
         return head + body
 
 
-def assess_nti_endpoint(dataset: ReplicateDataset) -> FdaNtiResult:
+def assess_nti_endpoint(
+    dataset: ReplicateDataset,
+    *,
+    observations: list | None = None,
+) -> FdaNtiResult:
     """FDA's NTI procedure for one PK endpoint.
 
     Raises `NtiDesignError` before any arithmetic if the design is not fully
-    replicate. Otherwise computes what can be computed and withholds the
-    verdict, because criterion b needs Appendix C.
+    replicate.
+
+    ALL THREE CRITERIA CAN NOW BE COMPUTED - GIVEN THE RAW OBSERVATIONS.
+
+    Criterion (b) is the ordinary unscaled 80.00-125.00% test, and for a fully
+    replicate study that means Appendix C's mixed model. That model is
+    implemented as of the full-replicate release, so NTI can finally return a
+    regulatory verdict rather than withholding one.
+
+    `observations` is needed for the same reason it is needed in `hvd.py`:
+    Appendix C is an AVAILABLE CASE analysis and `ReplicateDataset` has already
+    dropped subjects that Appendix G's sWR could not use. Without the raw rows,
+    criterion (b) stays uncomputed and the endpoint stays undecided - which is
+    the old behaviour, preserved rather than removed.
+
+    NTI's design gate is what makes this clean: it already requires a fully
+    replicate design, which is precisely the scope Appendix C is validated for.
+    There is no partial replicate case to refuse here.
     """
     require_fully_replicate(dataset)
 
@@ -664,18 +684,59 @@ def assess_nti_endpoint(dataset: ReplicateDataset) -> FdaNtiResult:
     contrast = estimate_treatment_contrast(dataset)
     diagnostics += [d for d in contrast.diagnostics if d not in diagnostics]
 
-    unscaled = NtiUnscaledAbeCriterion(
-        lower_limit_percent=FDA_NTI_CONSTANTS["unscaled_lower_percent"].value,
-        upper_limit_percent=FDA_NTI_CONSTANTS["unscaled_upper_percent"].value,
-        computed=False,
-        reason=(
-            "the unscaled average BE analysis of a fully replicate study is "
-            "FDA Appendix C's mixed model, which is not implemented — see "
-            "replicate_abe.py. Appendix F's own ilat interval is a different "
-            "model and is not substituted"
-        ),
-    )
-    diagnostics.append(replicate_abe_unavailable(dataset))
+    appendix_c = None
+    if observations is None:
+        unscaled = NtiUnscaledAbeCriterion(
+            lower_limit_percent=FDA_NTI_CONSTANTS["unscaled_lower_percent"].value,
+            upper_limit_percent=FDA_NTI_CONSTANTS["unscaled_upper_percent"].value,
+            computed=False,
+            reason=(
+                "criterion b is Appendix C's mixed model, which is an AVAILABLE "
+                "CASE analysis and needs the raw observations. The dataset has "
+                "already dropped subjects Appendix G's sWR could not use, so "
+                "they cannot be recovered from it. Pass `observations=` to "
+                "compute this criterion"
+            ),
+        )
+        diagnostics.append(replicate_abe_unavailable(dataset))
+    else:
+        from be_stats.appendix_c import analyse_replicate_abe_full
+
+        appendix_c = analyse_replicate_abe_full(observations)
+        diagnostics += [
+            d for d in appendix_c.diagnostics if d not in diagnostics
+        ]
+        if appendix_c.decided:
+            unscaled = NtiUnscaledAbeCriterion(
+                lower_limit_percent=FDA_NTI_CONSTANTS[
+                    "unscaled_lower_percent"
+                ].value,
+                upper_limit_percent=FDA_NTI_CONSTANTS[
+                    "unscaled_upper_percent"
+                ].value,
+                computed=True,
+                reason=(
+                    "computed from FDA Appendix C's mixed model on the "
+                    "subject-period observations, with Satterthwaite "
+                    "denominator degrees of freedom"
+                ),
+                ci_lower_percent=appendix_c.ci_lower_percent,
+                ci_upper_percent=appendix_c.ci_upper_percent,
+            )
+        else:
+            unscaled = NtiUnscaledAbeCriterion(
+                lower_limit_percent=FDA_NTI_CONSTANTS[
+                    "unscaled_lower_percent"
+                ].value,
+                upper_limit_percent=FDA_NTI_CONSTANTS[
+                    "unscaled_upper_percent"
+                ].value,
+                computed=False,
+                reason=(
+                    "Appendix C declined to decide for this dataset; see the "
+                    "diagnostics"
+                ),
+            )
 
     scaled = None
     if contrast.estimable and variance.estimable:
@@ -697,10 +758,18 @@ def assess_nti_endpoint(dataset: ReplicateDataset) -> FdaNtiResult:
         reference_variance=variance,
         test_variance=test_variance,
         treatment_contrast=contrast if contrast.estimable else None,
-        # Criterion b is structurally unavailable, so the endpoint is never
-        # decided in this release. Stated as a constant rather than computed,
-        # so that implementing Appendix C is a deliberate change here.
-        decided=False,
+        # DECIDED ONLY WHEN ALL THREE CRITERIA EXIST.
+        #
+        # This was a hard-coded False for three releases, because criterion b
+        # was structurally unavailable. It is now computed - and the condition
+        # is written out rather than flipped to True, so an endpoint whose
+        # scaled criterion or variance ratio could not be formed still
+        # withholds the verdict instead of inheriting one.
+        decided=(
+            scaled is not None
+            and unscaled.passes is not None
+            and ratio.passes is not None
+        ),
         diagnostics=tuple(diagnostics),
         n_for_swr=variance.n_subjects,
         n_for_swt=test_variance.n_subjects,

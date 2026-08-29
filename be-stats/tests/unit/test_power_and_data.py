@@ -311,16 +311,28 @@ def test_parallel_refuses_a_method_that_has_no_fixed_interval():
         analyse_parallel(study, fda_hvd)
 
 
-def test_an_unimplemented_method_still_refuses_by_name():
-    """The `NotImplementedMethod` path, kept alive by NTI."""
-    fda_nti = resolve_be_spec(
-        jurisdiction=Jurisdiction.FDA,
-        drug_class=DrugClass.NARROW_THERAPEUTIC_INDEX,
+def test_an_unimplemented_method_still_refuses_by_name(monkeypatch):
+    """The `NotImplementedMethod` path, no longer kept alive by NTI.
+
+    NTI used to be the package's one unimplemented method and was borrowed
+    here to exercise the refusal. It is implemented as of the Appendix C
+    release, and every other Method is too - so the mechanism is exercised by
+    marking one unimplemented rather than by relying on a gap that has closed.
+    """
+    import be_stats.spec as spec_module
+    from be_stats import NotImplementedMethod
+    from be_stats.spec import Method
+
+    # IMPLEMENTED is derived from VALIDATION at import time, so the SET is what
+    # has to be patched - see the twin of this test in test_abe_crossover.py.
+    monkeypatch.setattr(
+        spec_module,
+        "IMPLEMENTED",
+        frozenset(m for m in Method if m is not Method.STANDARD_ABE),
     )
+    spec = resolve_be_spec(jurisdiction=Jurisdiction.FDA)
     study = ParallelStudy(
         endpoint="AUC", test=[100.0, 110.0, 95.0], reference=[99.0, 108.0, 97.0]
     )
-    from be_stats import NotImplementedMethod
-
     with pytest.raises(NotImplementedMethod):
-        analyse_parallel(study, fda_nti)
+        analyse_parallel(study, spec)

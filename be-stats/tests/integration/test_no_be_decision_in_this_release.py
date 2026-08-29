@@ -217,7 +217,9 @@ def test_the_decision_lives_outside_the_estimation_layer():
     assert not hasattr(hvd, "assess_ema_endpoint")
 
     # Still not implemented, and not reachable by configuring the others.
-    assert VALIDATION[Method.FDA_NTI_RSABE] is ValidationStatus.NOT_IMPLEMENTED
+    assert VALIDATION[Method.FDA_NTI_RSABE] is (
+        ValidationStatus.IMPLEMENTED_UNVALIDATED
+    )
     for status in VALIDATION.values():
         assert status is not ValidationStatus.VALIDATED
 
