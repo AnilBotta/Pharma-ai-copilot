@@ -1,0 +1,294 @@
+{
+  "finding_id": "VAL-FDA-APPENDIX-C-001",
+  "title": "Is there a trustworthy numerical oracle for FDA Appendix C?",
+  "raised_by": "PR #61, as the feasibility question itself",
+  "raised_on": "2026-08-29",
+  "status": "RESOLVED",
+  "classification": "DF_METHOD_DIFFERENCE",
+  "status_note": "RESOLVED as a question answered, not as an obstacle removed. The investigation set out to establish whether an oracle exists and concluded that a PARTIAL one does: the estimate and the covariance parameters are checkable, the Satterthwaite denominator df is not. That is a finding about the available tooling, not a defect in anything.",
+  "method": "fda_replicate_standard_abe",
+  "implementation_status": "NOT_IMPLEMENTED",
+  "oracle_ready": false,
+
+  "verdict": "BLOCKED_WITH_PRECISE_REASONS",
+
+  "what_is_established": [
+    "The model, completely, including the exact FA0(2) parameterisation and the five covariance parameters named individually.",
+    "The missing-data rule, from FDA section III rather than inferred: PROC MIXED is an AVAILABLE CASE analysis that 'uses all observed data'.",
+    "Two regulator-published worked data sets with raw data, published point estimates, published 90% confidence intervals and published within-subject CVs - for THIS model, published by EMA, computed in SAS 9.1.",
+    "A partial oracle: nlme reproduces the point estimate to the published precision on both data sets and the within-subject CVs to within 0.1 percentage points.",
+    "One Satterthwaite df value, recovered indirectly and well conditioned: approximately 19.60 for Data set II."
+  ],
+
+  "what_is_missing": [
+    {
+      "gap": "a verified Satterthwaite df for the PARTIAL REPLICATE (2x3x3) design",
+      "why_it_blocks": "FDA HVD supports partial AND fully replicate designs, so the Appendix C unscaled branch is reachable from both. ReplicateBE.jl reproduces SAS exactly on 2x2x4 and differs by 2.94 df on 2x3x3 - a design its own validation claim never covered. Implementing against an oracle verified for only one of the two designs would leave the other unvalidated, which is the situation this package exists to avoid.",
+      "severity": "blocking",
+      "recorded_as": "VAL-FDA-APPENDIX-C-002"
+    },
+    {
+      "gap": "datasets covering the roles this package requires for tier 3",
+      "why_it_blocks": "Two data sets exist - one per design - and both are broadly central. Point 13 of the PR #61 brief asks additionally for heteroscedastic residual variances, materially different subject variances, and a near-boundary decision.",
+      "severity": "blocking",
+      "what_changed": "These are now GENERATABLE for the fully replicate design, because a verified oracle for it exists. They are not for the partial replicate design."
+    },
+    {
+      "gap": "published standard error and denominator df",
+      "why_it_blocks": "Neither is published for either data set, so every df conclusion is indirect. On Data set I the inference is tight - matching a two-decimal CI pins the df, because the CI depends on estimate, SE and df together. On Data set II it rests on the SE, and although three implementations agree on that SE they could share a difference from SAS.",
+      "severity": "limiting rather than blocking"
+    }
+  ],
+
+  "r_package_comparison": {
+    "requirements": [
+      "1. fixed SEQ + PER + TRT",
+      "2. subject-by-formulation covariance (the G matrix)",
+      "3. treatment-specific residual variances (the R matrix)",
+      "4. Satterthwaite denominator df for the T-R contrast"
+    ],
+    "rule": "A package is not an oracle unless all four hold.",
+    "candidates": {
+      "nlme": {
+        "version": "3.1.168",
+        "ships_with_r": true,
+        "fixed_seq_per_trt": "SUPPORTED",
+        "subject_by_formulation_covariance": "SUPPORTED",
+        "treatment_specific_residuals": "SUPPORTED",
+        "satterthwaite_df": "NOT_SUPPORTED",
+        "verdict": "PARTIAL ORACLE",
+        "how": "random = list(SUBJ = pdSymm(~ TRT - 1)) gives the full 2x2 subject-level covariance, positive-definite by construction as FA0(2) is; weights = varIdent(form = ~ 1 | TRT) gives the treatment-specific residual variances. Five parameters, matching FDA.",
+        "df_method": "containment ('inner-outer'), not Satterthwaite",
+        "usable_for": ["treatment estimate", "covariance parameters", "SE, with the caveat below"],
+        "NOT_usable_for": ["denominator df", "90% CI", "the BE decision"]
+      },
+      "lme4_lmerTest": {
+        "version": "lme4 1.1.37, lmerTest 3.1.3",
+        "fixed_seq_per_trt": "SUPPORTED",
+        "subject_by_formulation_covariance": "SUPPORTED",
+        "treatment_specific_residuals": "NOT_SUPPORTED",
+        "satterthwaite_df": "SUPPORTED",
+        "verdict": "NOT AN ORACLE",
+        "why": "lme4 estimates a single residual variance and has no varIdent equivalent. FDA's REPEATED/GRP=TRT requires one per treatment. lmerTest's Satterthwaite df is genuine and is computed on the wrong covariance structure, which makes it the most dangerous of the three: a Satterthwaite-labelled df for a model that is not Appendix C.",
+        "demonstrated_not_asserted": {
+          "data_set_i_estimate": 115.7958,
+          "published": 115.66,
+          "delta_percentage_points": 0.1358,
+          "singular_fit": true,
+          "reading": "On the UNBALANCED data set the wrong residual structure moves the point estimate by 0.136 percentage points, where nlme and glmmTMB land within 0.002. This is the limitation showing up as a number rather than as a claim about the package's features - and it is exactly the size of error a plausible-but-wrong implementation would produce."
+        },
+        "the_sharpest_result_in_this_investigation": {
+          "what": "lmerTest computes a GENUINE Satterthwaite df, and it is not SAS's.",
+          "data_set_ii_lmerTest_df": 35.94061,
+          "data_set_ii_sas_implied_df": 19.603,
+          "ratio": 1.83,
+          "data_set_i_lmerTest_df": 205.0001,
+          "consequence": "t(35.94) = 1.6890 against t(19.60) = 1.7264 is a 2.2% NARROWER half-width. On a borderline study that is a different BE decision.",
+          "why_it_matters_most": "This is the failure mode the whole investigation exists to guard against. lmerTest's Satterthwaite is correctly implemented; it is applied to a covariance structure that is not Appendix C, and the result is a df that looks principled, carries the right label, and is wrong by a factor of 1.8. An oracle cannot be accepted on the strength of the word 'Satterthwaite' - only on the strength of the model it is computed for."
+        }
+      },
+      "glmmTMB": {
+        "version": "1.1.12",
+        "fixed_seq_per_trt": "SUPPORTED",
+        "subject_by_formulation_covariance": "SUPPORTED",
+        "treatment_specific_residuals": "SUPPORTED",
+        "satterthwaite_df": "NOT_SUPPORTED",
+        "verdict": "NOT AN ORACLE, BUT A SECOND PARTIAL ONE",
+        "why": "us(0 + TRT | SUBJ) and dispformula = ~ TRT express requirements 1-3. Inference is Wald: standard errors from the observed information and NORMAL quantiles, with no denominator df at all. z = 1.6449 against t(19.6) = 1.7264 is 4.7% on the half-width for Data set II, which moves a borderline decision.",
+        "why_it_matters_anyway": "It is an INDEPENDENT implementation of the same five-parameter structure, written in a different language against a different optimiser. Where it agrees with nlme, the agreement is evidence about the estimate and the SE that neither package could supply alone.",
+        "caveats": [
+          "reported 'Model convergence problem; singular convergence (7)' on Data set II"
+        ]
+      },
+      "mmrm": {
+        "fixed_seq_per_trt": "SUPPORTED",
+        "subject_by_formulation_covariance": "NOT_SUPPORTED",
+        "treatment_specific_residuals": "PARTIAL",
+        "satterthwaite_df": "SUPPORTED",
+        "verdict": "NOT AN ORACLE",
+        "why": "mmrm is a marginal model with no G side. Appendix C's marginal covariance is Z G Z' + R, a PATTERNED 5-parameter matrix whose pattern depends on which periods carry T and R and therefore differs by sequence. mmrm's structures are indexed by visit and would give an unpatterned 10-parameter 4x4 - a richer and different model. Assessed from the package's documented design rather than by fitting."
+      }
+    },
+    "corroborating_observation": "replicateBE, the established R package for replicate bioequivalence, implements EMA Method A and Method B and NOT Method C - despite already depending on nlme, lmerTest and pbkrtest. That the leading R package in this exact domain stops short of the FDA model is evidence about the R ecosystem rather than about anyone's effort."
+  },
+
+  "estimate_and_se_conclusion": {
+    "status": "PARTIAL ORACLE ESTABLISHED",
+    "what_two_independent_fits_agree_on": {
+      "data_set_i": {
+        "published": 115.66,
+        "nlme": 115.6588,
+        "glmmTMB": 115.6577,
+        "se_nlme": 0.046633,
+        "se_glmmTMB": 0.046507,
+        "se_relative_difference": 0.0027
+      },
+      "data_set_ii": {
+        "published": 102.26,
+        "nlme": 102.2644,
+        "glmmTMB": 102.2644,
+        "se_nlme": 0.030317,
+        "se_glmmTMB": 0.030317,
+        "se_relative_difference": 0.0
+      }
+    },
+    "reading": "Two independent implementations of the same five-parameter structure - different languages, different optimisers - reproduce EMA's published point estimate to within 0.003 percentage points on both data sets, and agree with each other on the standard error EXACTLY on the balanced data set and to 0.27% on the unbalanced one. The estimate therefore has a usable oracle; the SE has one on balanced data and a 0.27% band on unbalanced data.",
+    "why_the_unbalanced_se_differs": "NOT_DETERMINED. Candidate causes are the REML optimum being flatter with 8 incomplete subjects, and the two packages parameterising the covariance differently (pdSymm Cholesky against glmmTMB's us()). Distinguishing them would need the SAS value, which is not published."
+  },
+
+  "satterthwaite_conclusion": {
+    "status": "NO INDEPENDENT ORACLE",
+    "recovered_value": {
+      "data_set_ii": {
+        "recovered_df": 19.6,
+        "nlme_containment_df": 45,
+        "ratio": 2.3,
+        "well_conditioned": true,
+        "sensitivity": "a 0.1% change in the SE moves the recovered df by 0.4",
+        "plausible": "yes - 24 subjects, 72 observations; the T-R contrast in a partial replicate is substantially between-subject, so an effective df near the subject count is expected",
+        "method": "t = half_width / SE from EMA's published CI and nlme's SE, inverted"
+      },
+      "data_set_i": {
+        "recovered_df": 544.5,
+        "nlme_containment_df": 217,
+        "well_conditioned": false,
+        "sensitivity": "a 0.1% change in the SE moves the recovered df by 773",
+        "plausible": "NO - exceeds the 298 observations, which is impossible for this model",
+        "why": "the implied t of 1.6477 sits 0.0028 above the normal limit 1.6449, and dt/d(df) vanishes there. The recovery is uninformative for this data set and is reported as such rather than quoted."
+      }
+    },
+    "corroborated_by_a_second_se": "nlme and glmmTMB give the SAME standard error on Data set II to five decimals (0.030317), and both therefore imply the same SAS df of 19.603. lme4 - which fits the WRONG residual structure - gives 0.030394 and implies 20.663. So the recovered df is not resting on one package's arithmetic, and the one package that disagrees is the one already known to be fitting a different model.",
+    "what_this_buys": "One indirect df target, now supported by two independent SEs rather than one. A future Python implementation computing Satterthwaite df for Data set II and landing near 19.6 would be meaningful corroboration. It remains ONE number, on ONE data set, and is not a validated df.",
+    "what_it_does_not_buy": "Anything for Data set I, where the recovery is ill conditioned and returns an impossible answer; and nothing at all for the unbalanced case, the heteroscedastic case, or a near-boundary decision - which is where a df method is most likely to be wrong and matters most."
+  },
+
+  "missing_data_conclusion": {
+    "rule": "available case analysis - PROC MIXED uses all observed data",
+    "source": "FDA, Statistical Approaches to Establishing Bioequivalence, May 2026, section III (missing data), which contrasts PROC MIXED with PROC GLM's complete case analysis",
+    "quoted": "An available case analysis could be done using SAS PROC MIXED, which uses all observed data",
+    "consequence": "Appendix C's inclusion rule is neither Appendix G's (which requires both reference replicates for sWR) nor EMA Method A's, and is the most permissive of the three. PR #60 established that regulator-specific inclusion rules materially change results, so this was taken from the source rather than borrowed from a neighbouring model.",
+    "corroboration": "Data set I contains 8 subjects with missing periods and nlme, fitting all 298 observations, reproduces EMA's published Method C estimate to 0.0012 percentage points."
+  },
+
+  "sas_feasibility": {
+    "sas_ondemand_for_academics": {
+      "verdict": "NOT APPROPRIATE",
+      "why": "Its licence prohibits commercial use, and work intended to support a regulatory submission is commercial. Ruled out on licence rather than on capability."
+    },
+    "licensed_sas_environment": {
+      "verdict": "UNKNOWN - an organisational question",
+      "why": "If one exists it could settle this investigation outright: one PROC MIXED run on the two published data sets would give the SE and the df directly. This is a question for the project owner, not a technical obstacle."
+    },
+    "published_sas_output": {
+      "verdict": "AVAILABLE, PARTIAL",
+      "what": "EMA/618604/2008 Rev. 13 section 3.3 records that SAS 9.1 produced the Method C results. Point estimates, 90% CIs and within-subject CVs are published for two data sets whose raw data is in the same annex.",
+      "what_is_absent": "standard errors and denominator degrees of freedom"
+    },
+    "runtime_dependency": "None proposed. be-stats must never depend on SAS, and nothing here would make it."
+  },
+
+  "replicatebe_jl": {
+    "name": "ReplicateBE.jl",
+    "ecosystem": "Julia",
+    "version_pinned": "1.0.15",
+    "julia_version_pinned": "1.10.5",
+    "licence": "GPL-3.0",
+    "role": "EXTERNAL ORACLE ONLY. be_stats does not depend on Julia and must never. Running it and comparing numbers creates no derivative work; none of its code is copied into be_stats. The boundary stays: regulatory source -> our implementation -> independent oracle.",
+
+    "version_note": "1.0.15, not the 1.0.10 the documentation site serves. 1.0.10 declares DataFrames 0.19-0.20, which cannot resolve on Julia 1.10 - SortingAlgorithms forces DataFrames >= 1.0 and the graph is unsatisfiable. 1.0.15 declares DataFrames = 1 and julia = 1.",
+
+    "appendix_numbering_caution": "Its documentation cites the FDA guidance by an OLDER appendix letter. That is a labelling difference and is not evidence either way: the current May 2026 guidance carries this model at Appendix C, and earlier editions lettered it differently. The model was therefore compared TERM BY TERM against the current Appendix C rather than accepted or rejected on the appendix letter.",
+
+    "model_equivalence_from_source": {
+      "method": "source inspection of src/generalfunc.jl on master, not documentation",
+      "fixed_effects": {
+        "verdict": "IDENTICAL",
+        "detail": "sequence, period, formulation, matching MODEL Y = SEQ PER TRT"
+      },
+      "subject_by_formulation_covariance": {
+        "verdict": "MATHEMATICALLY_EQUIVALENT",
+        "source": "gmat(s) = Symmetric([s[1] cov; cov s[2]]), cov = sqrt(s[1]*s[2])*s[3]",
+        "detail": "A CSH parameterisation - two variances and a correlation. FDA writes FA0(2), which is G = LL' with L lower triangular. Both span exactly the positive-semidefinite 2x2 cone with three free parameters; they differ in coordinates, not in the model. FDA NAMES CSH as an acceptable substitute: 'TYPE=FA0(2) could possibly be replaced by TYPE=CSH or UNR', so this is a permitted parameterisation rather than merely an equivalent one."
+      },
+      "treatment_specific_residuals": {
+        "verdict": "IDENTICAL",
+        "source": "rmat(s, Z) = Diagonal(Z*s)",
+        "detail": "A diagonal residual matrix with one variance per treatment, i.e. REPEATED/GRP=TRT SUB=SUBJ."
+      },
+      "parameter_count": {
+        "verdict": "IDENTICAL",
+        "detail": "five: two between-subject variances, one correlation, two within-subject residual variances - the same five FDA's model estimates, in different coordinates"
+      },
+      "contrast_and_level": {
+        "verdict": "IDENTICAL",
+        "detail": "T vs R contrast at a requestable level; confint(level = 0.90) gives FDA's ALPHA=0.1 interval"
+      }
+    },
+
+    "satterthwaite_implementation_from_source": {
+      "function": "sattdf(data, gradc, A, C, L, lcl)",
+      "file": "src/generalfunc.jl",
+      "formula_rank_1": "df = 2*(L'CL)^2 / (gradC' * A * gradC)",
+      "formula_rank_ge_2": "spectral decomposition of the contrast variance; vm[i] = 2*lambda_i^2 / ((p_i' gradC)' A (p_i' gradC)); df = 2*sum(vm) / (sum(vm) - rank)",
+      "uses_reml_information_matrix": true,
+      "uses_gradient_of_contrast_variance": true,
+      "detail": "A is the information matrix of the variance parameters and gradc holds the gradient of the contrast variance with respect to each of them. That is the Satterthwaite construction proper - the same one SAS PROC MIXED implements for DDFM=SATTERTH - and not a different quantity wearing the name.",
+      "boundary_handling": "guards on vm[i] > 2.0 in the multi-rank branch, and a final max(1, df) floor",
+      "verdict": "STRUCTURALLY CORRECT ON INSPECTION. Whether it agrees NUMERICALLY with SAS is a separate question and is what the run answers."
+    },
+
+    "why_inspection_was_not_enough": "lmerTest also implements Satterthwaite correctly, and returns 35.94 where SAS implies 19.60 - because it is computed for a covariance structure that is not Appendix C. A correct formula on the wrong model gives a wrong df that looks entirely principled. So structure was checked from source AND the numbers were run.",
+
+    "fitted_results": {
+      "data_set_i_2x2x4_fully_replicate": {
+        "converged": true,
+        "estimate_percent": 115.65764787434397,
+        "published": 115.66,
+        "standard_error": 0.04650123718563794,
+        "denominator_df": 208.08114726075297,
+        "ci_percent": [107.10447183782598, 124.89386560890081],
+        "published_ci": [107.10, 124.89],
+        "cv_within_reference_percent": 47.33,
+        "cv_within_test_percent": 35.29,
+        "published_cv": [47.3, 35.3],
+        "verdict": "EVERY PUBLISHED QUANTITY REPRODUCES at the precision EMA printed. The CI is the load-bearing one - it depends on the estimate, the SE and the df together - so matching it to two decimals confirms the Satterthwaite df indirectly but tightly. On the UNBALANCED data set, with 8 incomplete subjects."
+      },
+      "data_set_ii_2x3x3_partial_replicate": {
+        "converged": true,
+        "estimate_percent": 102.26439008224206,
+        "published": 102.26,
+        "standard_error": 0.030317219371948898,
+        "denominator_df": 22.540250688073332,
+        "df_implied_by_published_ci": 19.603,
+        "ci_percent": [97.08212028650071, 107.72329083903576],
+        "published_ci": [97.05, 107.76],
+        "cv_within_reference_percent": 11.55,
+        "published_cv_reference": 11.5,
+        "verdict": "Estimate and covariance parameters MATCH; the interval does NOT. Narrower than published by about 0.035 percentage points at each end. The whole difference is the df: 22.540 against an implied 19.603. Recorded as VAL-FDA-APPENDIX-C-002."
+      },
+      "available_case_behaviour": {
+        "verdict": "CONFIRMED",
+        "evidence": "298 observations and 77 subjects read for Data set I - every row, including the 8 subjects with missing periods - and the published estimate and CI reproduced. No complete-case deletion. This matches FDA section III's description of PROC MIXED as an available case analysis that uses all observed data."
+      },
+      "standard_error_agreement": {
+        "data_set_i": {"nlme": 0.046633, "glmmTMB": 0.046507, "replicatebe": 0.046501},
+        "data_set_ii": {"nlme": 0.030317, "glmmTMB": 0.030317, "replicatebe": 0.030317},
+        "reading": "Three independent implementations, three languages. Identical to five decimals on the balanced data set; within 0.28% on the unbalanced one, where glmmTMB and ReplicateBE agree to 0.013%."
+      }
+    },
+
+    "verdict": "VERIFIED FOR FULLY REPLICATE (2x2x4), UNVERIFIED FOR PARTIAL REPLICATE (2x3x3). The package's own claim is scoped to full-replicated 2x2x4 and 2x2x3 designs, and the results match that scope exactly: agreement where it claims agreement, divergence where it never claimed any."
+  },
+
+  "what_would_unblock_this": [
+    "ONE PROC MIXED run in a licensed SAS environment on EMA Data set II, reporting the SE and the Satterthwaite df. That single number resolves VAL-FDA-APPENDIX-C-002 and, with it, the last blocking gap. This is now a much smaller ask than it was before the Julia work: the fully replicate design is already settled.",
+    "OR: independent evidence for the partial replicate df from another implementation that fits the same structure and computes Satterthwaite - none is currently known.",
+    "Once the partial replicate design is settled, the remaining dataset roles are generatable from the verified oracle for BOTH designs, and the tier-3 case set can be built."
+  ],
+
+  "scope_note": "If a future decision limited Appendix C support to FULLY REPLICATE designs only, the oracle question would already be answered for that scope. That would be a REGULATORY scoping decision - FDA HVD permits partial replicate designs and refusing them is a product choice, not a statistical one - and it is not taken here.",
+
+  "effect_on_existing_methods": "NONE. FDA HVD below sWR = 0.294 still selects STANDARD_ABE and returns NOT DECIDED; FDA NTI criterion (b) remains unavailable. Both for the same reason, unchanged: Appendix C is not implemented.",
+
+  "related_findings": ["VAL-EMA-ABEL-001", "VAL-EMA-ABEL-002"]
+}

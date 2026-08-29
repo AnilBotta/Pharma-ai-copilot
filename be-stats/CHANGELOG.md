@@ -6,7 +6,124 @@ first question asked of a result years later.
 
 ---
 
-## 0.6.0 — EMA highly variable drugs (ABEL), and the first tier-1B evidence
+## Unreleased — FDA Appendix C: oracle feasibility
+
+**No implementation. No version bump.** An investigation, run before writing a
+five-parameter REML fit, on the principle the EMA release established:
+implementing a regulator's exact model is worth doing once there is evidence
+capable of detecting a plausible-but-wrong version of it.
+
+**Verdict: `BLOCKED_WITH_PRECISE_REASONS`.** `FDA_REPLICATE_STANDARD_ABE`
+remains `NOT_IMPLEMENTED`, and no existing decision changed.
+
+### What the source review added
+
+Three things the specification lacked, all from the guidance itself:
+
+- **FDA names its own permitted alternatives.** `TYPE=FA0(2)` may be replaced
+  by `CSH` or `UNR`, `DDFM=SATTERTH` by `DDFM=KR2`, and *"alternative software
+  could also be used if same results are generated as in PROC MIXED in SAS."*
+  That last sentence is the licence for an external oracle and equally its
+  burden.
+- **The missing-data rule**, from section III rather than Appendix C: PROC
+  MIXED is an **available case** analysis that *"uses all observed data"*,
+  contrasted with PROC GLM which *"removes all subjects with any missing
+  observations"*. So Appendix C's inclusion rule is neither Appendix G's nor
+  EMA Method A's, and is the most permissive of the three.
+- **The five covariance parameters, named** rather than counted. `FA0(2)` is
+  `G = LL'` with `L` lower-triangular, giving `σ²_BT = l11²`,
+  `σ²_BR = l21² + l22²`, `σ_BTBR = l11·l21` — every symmetric 2×2, but
+  positive semi-definite *by construction*, which is why FDA writes `FA0(2)`
+  rather than `UN`. Plus `σ²_WT` and `σ²_WR` from `REPEATED/GRP=TRT`. The
+  subject-by-formulation variance is not a sixth parameter but
+  `σ²_D = σ²_BT + σ²_BR − 2·σ_BTBR`.
+
+### There is no FDA worked dataset — but there is published SAS output
+
+The May 2026 guidance publishes no numerical example. **EMA does, for this
+exact model:** EMA/618604/2008 Rev. 13 calls it *"Method C"*, attributes it to
+the FDA guidance by name, and records that SAS 9.1 produced the results. Raw
+data for both data sets has been in this repository since PR #60.
+
+| | Data set I | Data set II |
+|---|---|---|
+| point estimate | 115.66 | 102.26 |
+| 90% CI | 107.10, 124.89 | 97.05, 107.76 |
+| within-subject CV%, R / T | 47.3 / 35.3 | 11.5 / — |
+
+**Neither the standard error nor the denominator df is published.** That gap is
+the whole difficulty.
+
+### The R comparison
+
+| package | fixed | G matrix | R matrix | Satterthwaite df | verdict |
+|---|---|---|---|---|---|
+| **nlme** 3.1.168 | ✅ | ✅ | ✅ | ❌ containment | **partial oracle** |
+| **glmmTMB** 1.1.12 | ✅ | ✅ | ✅ | ❌ Wald *z* | **partial oracle** |
+| lme4 1.1.37 + lmerTest 3.1.3 | ✅ | ✅ | ❌ one residual | ✅ | not an oracle |
+| mmrm | ✅ | ❌ marginal only | ⚠️ | ✅ | not an oracle |
+
+**The estimate and the SE do have an oracle.** Two independent implementations
+— different languages, different optimisers — reproduce EMA's published
+estimate to within 0.003 percentage points on both data sets, and agree with
+each other on the SE *exactly* on the balanced data set and to 0.27% on the
+unbalanced one.
+
+**lme4 demonstrates its own limitation rather than being accused of it.** On the
+unbalanced Data set I its estimate is 115.7958 — off by **0.136 percentage
+points**, with a singular fit — where nlme and glmmTMB land within 0.002. That
+is the single-residual-variance restriction as a number, and it is the size of
+error a plausible-but-wrong implementation would produce.
+
+**And lmerTest is the sharpest result of all.** It computes a *genuine*
+Satterthwaite df — 35.94 on Data set II, against SAS's implied 19.60, a factor
+of 1.83. `t(35.94) = 1.6890` against `t(19.60) = 1.7264` is a 2.2% narrower
+half-width, which at the boundary is a different decision.
+
+The implementation is correct; it is applied to a covariance structure that is
+not Appendix C. The result looks principled, carries the right label, and is
+wrong by nearly a factor of two. **An oracle cannot be accepted on the strength
+of the word "Satterthwaite" — only on the strength of the model it is computed
+for.** That is the finding that justifies this PR having been an investigation
+rather than an implementation.
+
+Corroborating: `replicateBE`, the established R package for replicate
+bioequivalence, implements EMA Methods A and B and **not** Method C, despite
+already depending on `nlme` and `lmerTest`.
+
+### The blocker, quantified
+
+Satterthwaite df has no independent oracle. Recovering it from EMA's published
+CI and nlme's SE works on one data set and breaks on the other:
+
+| | recovered df | package's own df | conditioning |
+|---|---|---|---|
+| Data set II, from nlme's SE | **19.603** | 45 (containment) | well conditioned |
+| Data set II, from glmmTMB's SE | **19.603** | ∞ (Wald) | well conditioned |
+| Data set II, from lme4's SE | 20.663 | — | well conditioned |
+| Data set I, from nlme's SE | 544 — **impossible**, exceeds 298 observations | 217 | ill conditioned, ±760 df per 0.1% of SE |
+
+nlme and glmmTMB give the *same* SE on Data set II and therefore imply the
+*same* SAS df. lme4 — already known to fit the wrong structure — implies a
+different one. So the recovered df does not rest on a single package's
+arithmetic, and the package that disagrees is the one that should.
+
+`t(19.6) = 1.7264` against `t(45) = 1.6794` is a **2.8% wider half-width**, and
+against Wald's `1.6449` a **4.7%** one. At the boundary that is a different BE
+decision — which is why df is a first-class validation target and not a detail.
+
+### SAS feasibility
+
+- **SAS OnDemand for Academics: not appropriate** — its licence prohibits
+  commercial use, and work supporting a regulatory submission is commercial.
+  Ruled out on licence, not capability.
+- A licensed SAS environment: unknown, and an organisational question. One
+  PROC MIXED run on the two published data sets would settle this outright.
+- Published SAS output: available but partial, as above.
+
+Nothing here becomes a runtime dependency of `be-stats`, and none is proposed.
+
+### Recorded as VAL-FDA-APPENDIX-C-001
 
 The EMA reference-scaled route, implemented as a **separate method** from FDA's
 RSABE. No FDA logic changed; no Appendix C was implemented.

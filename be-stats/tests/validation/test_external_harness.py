@@ -967,13 +967,29 @@ FINDING_STATUSES = {
 
 #: `classification` answers "what turned out to be true". Present when the
 #: status is RESOLVED.
+#:
+#: Two families, because findings arise from two different activities. The
+#: first came out of comparing against PowerTOST (PRs #58-#60); the second out
+#: of ORACLE FEASIBILITY work, where the question is not "why do these two
+#: numbers differ" but "is there anything trustworthy to compare against at
+#: all". A cause like DF_METHOD_DIFFERENCE has no meaning in the first family
+#: and is the whole answer in the second.
 FINDING_CLASSIFICATIONS = {
+    # Comparison findings.
     "RESOLVED_MONTE_CARLO_VARIATION",
     "RESOLVED_SIMULATION_MODEL_DIFFERENCE",
     "RESOLVED_POWERTOST_LEGACY_METHOD_DIFFERENCE",
     "RESOLVED_BE_STATS_DEFECT",
     "RESOLVED_POWERTOST_CONFIGURATION_ERROR",
     "ACCEPTED_ORACLE_DIVERGENCE",
+    # Oracle-feasibility findings, per the PR #61 brief.
+    "MODEL_STRUCTURE_DIFFERENCE",
+    "DF_METHOD_DIFFERENCE",
+    "COVARIANCE_PARAMETERIZATION_DIFFERENCE",
+    "MISSING_DATA_DIFFERENCE",
+    "NUMERICAL_OPTIMIZER_DIFFERENCE",
+    "SOURCE_DATA_AMBIGUITY",
+    "OPEN_UNEXPLAINED",
 }
 
 

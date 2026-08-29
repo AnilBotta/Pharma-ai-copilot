@@ -74,8 +74,37 @@ at a threshold that differs from FDA's stated one, and `be-stats` follows FDA.
 | [`VAL-FDA-HVD-002`](VAL-FDA-HVD-002.md) | PowerTOST switches at sWR 0.293560, FDA states 0.294 | `RESOLVED` | `ACCEPTED_ORACLE_DIVERGENCE` |
 | [`VAL-EMA-ABEL-001`](VAL-EMA-ABEL-001.md) | `p(BE-ABEL)` is the mixed decision; `power.scABEL` is empirically tuned | `PREEMPTED` | — |
 | [`VAL-EMA-ABEL-002`](VAL-EMA-ABEL-002.md) | EMA states the cap as a pair; PowerTOST recomputes it | `RESOLVED` | `ACCEPTED_ORACLE_DIVERGENCE` |
+| [`VAL-FDA-APPENDIX-C-001`](VAL-FDA-APPENDIX-C-001.md) | Is there a trustworthy oracle for FDA Appendix C? | `RESOLVED` | `DF_METHOD_DIFFERENCE` |
 
 No finding is currently `OPEN`.
+
+## Two families of finding
+
+The classifications split by the activity that produces them.
+
+**Comparison findings** come from running a case against an oracle and asking
+why two numbers differ. `RESOLVED_MONTE_CARLO_VARIATION`,
+`RESOLVED_POWERTOST_CONFIGURATION_ERROR`, `ACCEPTED_ORACLE_DIVERGENCE` and the
+rest belong here.
+
+**Oracle-feasibility findings** come from asking, before any comparison exists,
+whether there is anything trustworthy to compare against at all.
+`DF_METHOD_DIFFERENCE`, `MODEL_STRUCTURE_DIFFERENCE`,
+`COVARIANCE_PARAMETERIZATION_DIFFERENCE`, `MISSING_DATA_DIFFERENCE`,
+`NUMERICAL_OPTIMIZER_DIFFERENCE`, `SOURCE_DATA_AMBIGUITY` and
+`OPEN_UNEXPLAINED` belong here.
+
+`VAL-FDA-APPENDIX-C-001` is the first of the second kind, and it carries a
+field the first kind does not need:
+
+```
+oracle_ready         false
+implementation_status NOT_IMPLEMENTED
+```
+
+Those are different concepts and a feasibility record has to keep them apart.
+An oracle can be ready while the implementation is absent; the reverse — an
+implementation with no oracle — is the situation this package exists to avoid.
 
 ## The rule VAL-FDA-HVD-001 left behind
 
