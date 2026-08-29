@@ -849,6 +849,27 @@ PARTIAL_REPLICATE_REFUSAL = (
 )
 
 
+def within_acceptance_range(lower_percent: float, upper_percent: float) -> bool:
+    """Is the confidence interval contained by 80.00-125.00%, inclusively?
+
+    Named and separate rather than inline, for one reason: INCLUSIVE is a
+    regulatory choice, not an implementation detail. FDA requires the interval
+    to be WITHIN 80 to 125 percent, and an interval whose limit sits exactly on
+    80.00 is within it - so the comparison is `>=`, not `>`.
+
+    Inline, that choice could only be tested through a constructed dataset, and
+    no dataset can be constructed whose limit is EXACTLY 80.00 in binary
+    floating point - the nearest achievable is 79.99999998, which a correct
+    implementation must and does reject. The distinction between `>` and `>=`
+    would then have been untestable, which is an odd position for a rule that
+    decides whether a product is approved.
+    """
+    return (
+        lower_percent >= LOWER_LIMIT_PERCENT
+        and upper_percent <= UPPER_LIMIT_PERCENT
+    )
+
+
 def analyse_replicate_abe_full(
     observations: list[ReplicateObservation],
 ) -> ReplicateAbeResult:
@@ -875,12 +896,7 @@ def analyse_replicate_abe_full(
     lower_percent = 100.0 * math.exp(lower_log)
     upper_percent = 100.0 * math.exp(upper_log)
 
-    # Inclusive at both ends: a confidence interval touching the limit is
-    # contained by it.
-    passes = (
-        lower_percent >= LOWER_LIMIT_PERCENT
-        and upper_percent <= UPPER_LIMIT_PERCENT
-    )
+    passes = within_acceptance_range(lower_percent, upper_percent)
 
     provenance = [
         f"FDA {APPENDIX_C_MODEL.citation.section} "
@@ -933,4 +949,5 @@ __all__ = [
     "analyse_replicate_abe_full",
     "fit_appendix_c",
     "satterthwaite_df",
+    "within_acceptance_range",
 ]

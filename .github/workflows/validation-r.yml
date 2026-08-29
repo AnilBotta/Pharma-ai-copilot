@@ -19,6 +19,10 @@ on:
     paths:
       - "be-stats/src/**"
       - "be-stats/validation/external/**"
+      # The Appendix C case oracle: a change to the cases or to the Julia
+      # script must re-run the comparison, not inherit the previous verdict.
+      - "be-stats/validation/appendix_c/**"
+      - "be-stats/tests/validation/test_appendix_c_case_oracle.py"
       - ".github/workflows/validation-r.yml"
   schedule:
     # Weekly. The oracle is pinned, so a change here means the pins drifted or
@@ -114,7 +118,7 @@ jobs:
               be-stats/validation/ema/cases/ema_pkwp_qa_datasets.json \
               be-stats/validation/external/appendix_c_julia.json
 
-      - name: Upload the report
+      - name: Upload the investigation output
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -125,4 +129,92 @@ jobs:
             be-stats/validation/external/powertost_results.json
             be-stats/validation/external/appendix_c_investigation.json
             be-stats/validation/external/appendix_c_julia.json
+          if-no-files-found: warn
+
+  appendix-c-case-oracle:
+    name: Appendix C case oracle (ReplicateBE.jl)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    # SEPARATE JOB, AND IT GATES.
+    #
+    # The two Julia/R steps in the job above are INVESTIGATIONS - they ask
+    # whether a candidate oracle can fit Appendix C at all, and a candidate that
+    # will not converge is a finding to write down. `continue-on-error` is right
+    # there.
+    #
+    # This is not that. ReplicateBE.jl was ESTABLISHED as a tier-3 oracle for
+    # fully replicate designs in PR #61, by reproducing EMA's published SAS
+    # output exactly. The nine synthetic cases are checked against it, and a
+    # disagreement is a defect in one of the two implementations - so this job
+    # fails, and it fails just as hard when the comparison is SKIPPED. A
+    # validation that quietly does not run is worse than one that fails,
+    # because it reports green.
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build the pinned validation image
+        run: docker build -t be-stats-validation be-stats/validation/external
+
+      - name: Run ReplicateBE.jl over the nine cases
+        run: |
+          docker run --rm -v "$PWD:/work" be-stats-validation \
+            julia be-stats/validation/appendix_c/oracle/replicatebe_cases.jl \
+              be-stats/validation/appendix_c/cases/full_replicate_cases.json \
+              be-stats/validation/appendix_c/oracle/replicatebe_cases_run.json
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install be-stats
+        run: pip install -e "be-stats[dev]"
+
+      - name: Compare, against the run just produced
+        # Deliberately NOT against the committed frozen file: that would pass
+        # if the frozen file had gone stale relative to the pinned oracle.
+        env:
+          BE_STATS_APPENDIX_C_CASE_ORACLE: >-
+            be-stats/validation/appendix_c/oracle/replicatebe_cases_run.json
+        run: |
+          python -m pytest be-stats/tests/validation/test_appendix_c_case_oracle.py \
+            -v --junitxml=appendix-c-oracle.xml
+
+      - name: Fail if any comparison was skipped
+        # pytest exits 0 on a fully skipped module. Locally that is correct -
+        # Julia is not installed on a developer machine. Here it means the
+        # oracle file never arrived, and green would be a lie.
+        if: always()
+        run: |
+          python - <<'PY'
+          import sys, xml.etree.ElementTree as ET
+          from pathlib import Path
+          path = Path("appendix-c-oracle.xml")
+          if not path.exists():
+              print("no junit report - pytest never ran"); sys.exit(1)
+          suite = ET.parse(path).getroot()
+          totals = {k: int(suite.get(k) or 0) for k in ("tests", "skipped", "failures", "errors")}
+          # The root may be <testsuites>; take the aggregate either way.
+          if suite.tag == "testsuites" and not totals["tests"]:
+              for child in suite:
+                  for k in totals:
+                      totals[k] += int(child.get(k) or 0)
+          print(totals)
+          if totals["tests"] == 0:
+              print("no tests collected"); sys.exit(1)
+          if totals["skipped"]:
+              print(f"{totals['skipped']} comparison(s) SKIPPED - the oracle did not run")
+              sys.exit(1)
+          sys.exit(1 if totals["failures"] or totals["errors"] else 0)
+          PY
+
+      - name: Upload the case oracle run
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: appendix-c-case-oracle
+          path: |
+            be-stats/validation/appendix_c/oracle/replicatebe_cases_run.json
+            appendix-c-oracle.xml
           if-no-files-found: warn
