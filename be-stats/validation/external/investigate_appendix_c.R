@@ -149,8 +149,31 @@ recover_df_from_published_ci <- function(estimate_log, se, published_ci, alpha =
     ))
   }
   root <- stats::uniroot(f, c(1, 1e6), tol = 1e-9)
-  list(recovered_df = root$root, t_implied = t_implied,
-       note = "diagnostic only - depends entirely on this candidate's SE")
+
+  # CONDITIONING. dt/d(df) vanishes as df grows, so when the implied t sits
+  # near the normal quantile 1.6449 a change in the SE of a fraction of a
+  # percent moves the recovered df by hundreds. The first run recovered 541 df
+  # for Data set I - more than its 298 observations, which is impossible for
+  # this model - purely because t_implied was 1.6475.
+  #
+  # So the recovery is reported with the sensitivity that produced it, and an
+  # answer exceeding the observation count is marked implausible rather than
+  # printed as though it meant something.
+  df_hat <- root$root
+  bump <- stats::uniroot(
+    function(df) stats::qt(1 - alpha, df) - t_implied * 1.001,
+    c(1, 1e7), tol = 1e-9, extendInt = "yes"
+  )$root
+  list(
+    recovered_df = df_hat,
+    t_implied = t_implied,
+    df_shift_per_0.1pct_se = abs(bump - df_hat),
+    well_conditioned = abs(bump - df_hat) < 0.5 * df_hat,
+    note = paste(
+      "diagnostic only - depends entirely on this candidate's SE, and is",
+      "ill-conditioned wherever the implied t approaches 1.645"
+    )
+  )
 }
 
 summarise_fit <- function(estimate_log, se, df, published, n_obs, n_subjects) {
@@ -173,7 +196,14 @@ summarise_fit <- function(estimate_log, se, df, published, n_obs, n_subjects) {
     out$ci_upper_delta <- out$ci_upper_percent - published$ci[2]
   }
   out$estimate_delta <- out$estimate_percent - published$estimate_percent
-  out$recovered <- recover_df_from_published_ci(estimate_log, se, published$ci)
+  rec <- recover_df_from_published_ci(estimate_log, se, published$ci)
+  # A Satterthwaite df for this model cannot exceed the number of
+  # observations. Anything larger says the recovery has broken down, not that
+  # SAS used 500 degrees of freedom.
+  if (!is.null(rec$recovered_df) && is.finite(rec$recovered_df)) {
+    rec$exceeds_n_observations <- rec$recovered_df > n_obs
+  }
+  out$recovered <- rec
   out
 }
 
@@ -235,14 +265,36 @@ fit_nlme <- function(d, published) {
                         allCoef = TRUE)
   var_by_trt <- (sigma * ratios)^2
 
-  g <- tryCatch(as.matrix(nlme::getVarCov(fit)), error = function(e) NULL)
+  # getVarCov returns an object of class "VarCov", which jsonlite cannot
+  # serialise ("No method asJSON S3 class: VarCov" ended the first run after
+  # every number had already been computed). Stripped to plain numerics and
+  # named from the matrix's own dimnames rather than by assuming which of T
+  # and R is index 1.
+  g <- tryCatch(
+    {
+      m <- nlme::getVarCov(fit)
+      labels <- colnames(m)
+      if (is.null(labels)) labels <- paste0("level", seq_len(ncol(m)))
+      stats::setNames(
+        as.list(c(
+          as.numeric(m[1, 1]), as.numeric(m[2, 2]), as.numeric(m[1, 2])
+        )),
+        c(
+          paste0("between_subject_variance_", labels[1]),
+          paste0("between_subject_variance_", labels[2]),
+          "between_subject_covariance"
+        )
+      )
+    },
+    error = function(e) NULL
+  )
 
   res <- summarise_fit(estimate, se, df, published, nrow(d),
                        nlevels(droplevels(d$SUBJ)))
   res$status <- SUPPORTED
   res$residual_variance_by_treatment <- as.list(var_by_trt)
   res$cv_within_percent <- lapply(as.list(var_by_trt), cv_from_variance)
-  res$subject_covariance_G <- if (is.null(g)) NULL else as.list(as.data.frame(g))
+  res$subject_covariance_G <- g
   res$df_method <- paste(
     "nlme containment ('inner-outer'), NOT Satterthwaite. lme reports a df",
     "determined by the level at which each term varies, which is a different",
@@ -437,8 +489,15 @@ for (name in c("data_set_i", "data_set_ii")) {
       ))
     }
     if (!is.null(r$recovered$recovered_df) && is.finite(r$recovered$recovered_df)) {
-      cat(sprintf("              df implied by the published CI and THIS se: %.3f\n",
-                  r$recovered$recovered_df))
+      cat(sprintf(
+        "              df implied by the published CI and THIS se: %.3f  [%s%s]\n",
+        r$recovered$recovered_df,
+        if (isTRUE(r$recovered$well_conditioned)) "well conditioned"
+        else sprintf("ILL CONDITIONED, +-%.0f df per 0.1%% of se",
+                     r$recovered$df_shift_per_0.1pct_se),
+        if (isTRUE(r$recovered$exceeds_n_observations))
+          "; EXCEEDS n_obs, so impossible" else ""
+      ))
     }
     if (!is.null(r$cv_within_percent)) {
       cat(sprintf("              within-subject CV%%: %s\n",

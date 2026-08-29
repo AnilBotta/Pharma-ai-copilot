@@ -28,6 +28,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libcurl4-openssl-dev \
         libssl-dev \
         libxml2-dev \
+        # nloptr, which lme4 needs, builds a bundled NLopt through cmake when
+        # no system NLopt is present. The first run of the Appendix C
+        # investigation had all three candidates come back `absent` for this
+        # one reason: nloptr could not build, and lme4, lmerTest and glmmTMB
+        # all fell over behind it. Supplying NLopt directly is cheaper than
+        # letting each build compile its own.
+        cmake \
+        libnlopt-dev \
     && rm -rf /var/lib/apt/lists/*
 
 COPY install_r_packages.R /tmp/install_r_packages.R
