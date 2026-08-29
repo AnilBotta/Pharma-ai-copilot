@@ -75,6 +75,18 @@ points**, with a singular fit — where nlme and glmmTMB land within 0.002. That
 is the single-residual-variance restriction as a number, and it is the size of
 error a plausible-but-wrong implementation would produce.
 
+**And lmerTest is the sharpest result of all.** It computes a *genuine*
+Satterthwaite df — 35.94 on Data set II, against SAS's implied 19.60, a factor
+of 1.83. `t(35.94) = 1.6890` against `t(19.60) = 1.7264` is a 2.2% narrower
+half-width, which at the boundary is a different decision.
+
+The implementation is correct; it is applied to a covariance structure that is
+not Appendix C. The result looks principled, carries the right label, and is
+wrong by nearly a factor of two. **An oracle cannot be accepted on the strength
+of the word "Satterthwaite" — only on the strength of the model it is computed
+for.** That is the finding that justifies this PR having been an investigation
+rather than an implementation.
+
 Corroborating: `replicateBE`, the established R package for replicate
 bioequivalence, implements EMA Methods A and B and **not** Method C, despite
 already depending on `nlme` and `lmerTest`.

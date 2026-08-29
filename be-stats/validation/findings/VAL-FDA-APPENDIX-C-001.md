@@ -223,9 +223,23 @@ nlme and glmmTMB give the *same* SE on Data set II and therefore imply the
 implies 20.66. So the recovered df does not rest on one package's arithmetic,
 and the one package that disagrees is the one that should.
 
-**No candidate produces Satterthwaite df for this model.** nlme reports
-containment (45), glmmTMB reports none at all, and lmerTest's Satterthwaite is
-computed on a structure that is not Appendix C.
+**No R candidate produces Satterthwaite df for this model.** nlme reports
+containment (45), glmmTMB reports none at all.
+
+### lmerTest is the sharpest result in the investigation
+
+lmerTest *does* compute a genuine Satterthwaite df. On Data set II it returns
+**35.94**, against SAS's implied **19.60** — a factor of **1.83**.
+
+`t(35.94) = 1.6890` against `t(19.60) = 1.7264` is a **2.2% narrower**
+half-width. On a borderline study that is a different BE decision.
+
+This is the failure mode the whole investigation exists to guard against. The
+Satterthwaite implementation is correct; it is applied to a covariance
+structure that is not Appendix C, and the result is a df that looks
+principled, carries the right label, and is wrong by nearly a factor of two.
+**An oracle cannot be accepted on the strength of the word "Satterthwaite" —
+only on the strength of the model it is computed for.**
 
 `t(19.6) = 1.7264` against `t(45) = 1.6794` is a **2.8% wider half-width**, and
 against Wald's `1.6449` a **4.7%** one. At the boundary that is a different BE

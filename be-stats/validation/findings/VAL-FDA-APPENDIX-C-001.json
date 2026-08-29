@@ -74,6 +74,15 @@
           "delta_percentage_points": 0.1358,
           "singular_fit": true,
           "reading": "On the UNBALANCED data set the wrong residual structure moves the point estimate by 0.136 percentage points, where nlme and glmmTMB land within 0.002. This is the limitation showing up as a number rather than as a claim about the package's features - and it is exactly the size of error a plausible-but-wrong implementation would produce."
+        },
+        "the_sharpest_result_in_this_investigation": {
+          "what": "lmerTest computes a GENUINE Satterthwaite df, and it is not SAS's.",
+          "data_set_ii_lmerTest_df": 35.94061,
+          "data_set_ii_sas_implied_df": 19.603,
+          "ratio": 1.83,
+          "data_set_i_lmerTest_df": 205.0001,
+          "consequence": "t(35.94) = 1.6890 against t(19.60) = 1.7264 is a 2.2% NARROWER half-width. On a borderline study that is a different BE decision.",
+          "why_it_matters_most": "This is the failure mode the whole investigation exists to guard against. lmerTest's Satterthwaite is correctly implemented; it is applied to a covariance structure that is not Appendix C, and the result is a df that looks principled, carries the right label, and is wrong by a factor of 1.8. An oracle cannot be accepted on the strength of the word 'Satterthwaite' - only on the strength of the model it is computed for."
         }
       },
       "glmmTMB": {
