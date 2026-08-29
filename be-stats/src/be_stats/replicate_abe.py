@@ -118,7 +118,7 @@ class ReplicateAbeModelSpecification:
 
     fixed_effects: tuple[str, ...] = ("sequence", "period", "treatment")
     #: Subject-level random effects for T and R, unstructured 2x2.
-    random_effects: str = "TRT / TYPE=FA0(2) SUB=SUBJ"
+    random_effects: str = "TRT / TYPE=FA0(2) SUB=SUBJ G"
     #: Treatment-specific residual variances.
     repeated: str = "GRP=TRT SUB=SUBJ"
     denominator_df: str = "Satterthwaite, from all five covariance parameters"
@@ -130,6 +130,78 @@ class ReplicateAbeModelSpecification:
     citation: Citation = FDA_STATISTICAL_APPROACHES_APPENDIX_C
     verified_by: str = VIA_PRIMARY_DOCUMENT
 
+    #: The SAS block exactly as Appendix C prints it, so a reviewer can diff
+    #: the specification against the source without opening the PDF.
+    sas: tuple[str, ...] = (
+        "PROC MIXED;",
+        "CLASSES SEQ SUBJ PER TRT;",
+        "MODEL Y = SEQ PER TRT/ DDFM=SATTERTH;",
+        "RANDOM TRT/TYPE=FA0(2) SUB=SUBJ G;",
+        "REPEATED/GRP=TRT SUB=SUBJ;",
+        "ESTIMATE 'T vs. R' TRT 1 -1/CL ALPHA=0.1;",
+    )
+
+    #: THE FIVE COVARIANCE PARAMETERS, NAMED.
+    #:
+    #: "Five-parameter covariance model" is not a specification - it is a count.
+    #: An implementation has to know which five.
+    #:
+    #: TYPE=FA0(2) is a factor-analytic structure with NO diagonal addition:
+    #: G = LL' with L lower triangular 2x2, so
+    #:
+    #:     L = [[l11, 0], [l21, l22]]
+    #:     G = [[l11^2,      l11*l21          ],
+    #:          [l11*l21,    l21^2 + l22^2    ]]
+    #:
+    #: Three free parameters spanning every symmetric 2x2, but positive
+    #: SEMI-DEFINITE by construction. That is why FDA writes FA0(2) rather than
+    #: UN: UN lets the optimiser reach a non-positive-definite estimate, and
+    #: FA0(2) cannot. FDA permits CSH and UNR as alternatives - both also
+    #: constrained - which is consistent with the constraint being the point.
+    #:
+    #: Ordering follows the ESTIMATE statement's note that TRT sorts with the
+    #: test code first (T=1, R=2).
+    covariance_parameters: tuple[str, ...] = (
+        "sigma2_BT  - between-subject variance for TEST, G[1,1] = l11^2",
+        "sigma2_BR  - between-subject variance for REFERENCE, "
+        "G[2,2] = l21^2 + l22^2",
+        "sigma_BTBR - between-subject covariance of T and R, G[1,2] = l11*l21",
+        "sigma2_WT  - within-subject residual variance for TEST "
+        "(REPEATED GRP=TRT)",
+        "sigma2_WR  - within-subject residual variance for REFERENCE "
+        "(REPEATED GRP=TRT)",
+    )
+
+    #: The subject-by-formulation interaction is not a sixth parameter; it is a
+    #: function of the first three, which is what EMA/618604/2008 Rev. 13 means
+    #: by "the last three are combined to give the subject x formulation
+    #: interaction variance component".
+    subject_by_formulation_variance: str = (
+        "sigma2_D = sigma2_BT + sigma2_BR - 2*sigma_BTBR"
+    )
+
+    #: FDA names these itself, and they matter: an oracle that uses CSH or KR2
+    #: is not thereby disqualified, and one that uses neither Satterthwaite nor
+    #: KR2 is.
+    permitted_alternatives: tuple[str, ...] = (
+        "TYPE=FA0(2) could possibly be replaced by TYPE=CSH or UNR",
+        "DDFM=SATTERTH could possibly be replaced by DDFM=KR2",
+        "alternative software could also be used if same results are "
+        "generated as in PROC MIXED in SAS",
+    )
+
+    #: Section III, on missing data. PROC MIXED is named there as an AVAILABLE
+    #: CASE analysis - it "uses all observed data" - and contrasted with PROC
+    #: GLM, which "removes all subjects with any missing observations". So the
+    #: inclusion rule for this model is NOT Appendix G's (which needs both
+    #: reference replicates for sWR) and NOT EMA Method A's. It is its own, and
+    #: it is the most permissive of the three.
+    missing_data_rule: str = (
+        "available case analysis: PROC MIXED uses all observed data. FDA "
+        "section III contrasts this with PROC GLM's complete case analysis. "
+        "The approach must be prespecified in the protocol or SAP."
+    )
+
     def explain(self) -> list[str]:
         return [
             f"fixed effects: {', '.join(self.fixed_effects)}",
@@ -138,6 +210,10 @@ class ReplicateAbeModelSpecification:
             f"denominator df: {self.denominator_df}",
             f"contrast: {self.contrast} at alpha={self.alpha}",
             f"operates on: {self.operates_on}",
+            f"covariance parameters ({self.n_covariance_parameters}): "
+            + "; ".join(self.covariance_parameters),
+            f"subject-by-formulation: {self.subject_by_formulation_variance}",
+            f"missing data: {self.missing_data_rule}",
             f"{self.citation} [verified, via {self.verified_by}]",
         ]
 

@@ -33,11 +33,29 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY install_r_packages.R /tmp/install_r_packages.R
 RUN Rscript /tmp/install_r_packages.R
 
+# Candidate oracles for FDA Appendix C, in their own layer and BEST-EFFORT.
+#
+# Separate from the layer above on purpose. That one installs the oracle and
+# must fail the build if it cannot; this one installs candidates for an oracle
+# that does not exist yet, and a candidate that will not build is a legitimate
+# investigation result rather than a broken image. Letting a failed experiment
+# take down a green cross-check would be the wrong dependency direction.
+COPY install_appendix_c_packages.R /tmp/install_appendix_c_packages.R
+RUN Rscript /tmp/install_appendix_c_packages.R || \
+    echo "appendix C candidates: install script exited non-zero; the \
+investigation records NOT DETERMINED for whatever is absent"
+
 # The Python side. `--break-system-packages` is deliberate in a throwaway
 # validation container; a venv here would add a layer of indirection with
 # nothing to isolate from.
+#
+# numpy is named explicitly rather than inherited from scipy: `be_stats`
+# declares it as a direct dependency now that EMA's Method A builds a design
+# matrix, and a container that relies on a transitive edge is relying on
+# somebody else's packaging decision.
 RUN python3 -m pip install --no-cache-dir --break-system-packages \
         "scipy>=1.11" \
+        "numpy>=1.24" \
         "pytest>=8"
 
 WORKDIR /work

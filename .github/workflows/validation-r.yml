@@ -80,6 +80,24 @@ jobs:
           sys.exit(1 if bad else 0)
           PY
 
+      - name: Investigate FDA Appendix C oracles
+        # An INVESTIGATION, not a validation. It fits candidate R models
+        # against the only published results for FDA's Appendix C model and
+        # records how far each one gets. Nothing here gates the build:
+        # `continue-on-error` because a candidate that will not converge is a
+        # finding to write down, not a reason to fail a cross-check that
+        # already passed.
+        #
+        # It runs after the enforcement step above so it can never be confused
+        # with it, and its output is uploaded alongside the report.
+        if: always()
+        continue-on-error: true
+        run: |
+          docker run --rm -v "$PWD:/work" be-stats-validation \
+            Rscript be-stats/validation/external/investigate_appendix_c.R \
+              be-stats/validation/ema/cases/ema_pkwp_qa_datasets.json \
+              be-stats/validation/external/appendix_c_investigation.json
+
       - name: Upload the report
         if: always()
         uses: actions/upload-artifact@v4
@@ -89,4 +107,5 @@ jobs:
             be-stats/validation/external/report.json
             be-stats/validation/external/report.txt
             be-stats/validation/external/powertost_results.json
+            be-stats/validation/external/appendix_c_investigation.json
           if-no-files-found: warn
