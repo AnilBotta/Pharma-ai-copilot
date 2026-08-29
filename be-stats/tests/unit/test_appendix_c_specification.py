@@ -164,6 +164,69 @@ def test_the_refusal_still_explains_the_model_it_would_have_to_fit():
     )
 
 
+def test_ema_method_a_is_not_fda_appendix_c():
+    """The guard point 6 of the PR #61 brief asks for.
+
+    EMA Method A was VALIDATED in PR #60 against EMA's own published numbers.
+    It is a different model from FDA Appendix C, and the temptation to reuse it
+    is real precisely because the two produce similar POINT ESTIMATES on
+    balanced data - EMA's own annex shows 102.26 from both on Data set II.
+
+    They differ where it decides:
+
+        Method A     all effects FIXED, ONE residual variance, no
+                     subject-by-formulation covariance, residual df
+        Appendix C   subject-by-formulation RANDOM effects, TWO residual
+                     variances, Satterthwaite df
+
+    On EMA's Data set II those give 90% intervals of (97.32, 107.46) and
+    (97.05, 107.76) respectively - the second materially wider, from a
+    denominator df of about 19.6 against 45. Same estimate, different decision
+    at the boundary.
+    """
+    from be_stats.ema_hvd import TreatmentEffect
+
+    # Method A's model string names its own structure and does NOT claim any
+    # of Appendix C's.
+    method_a = TreatmentEffect.__dataclass_fields__["model"].default
+    assert "Method A" in method_a
+    assert "fixed-effects ANOVA" in method_a
+    for appendix_c_only in ("FA0(2)", "GRP=TRT", "Satterthwaite", "random"):
+        assert appendix_c_only not in method_a, (
+            f"EMA Method A must not claim {appendix_c_only!r}, which belongs "
+            "to FDA Appendix C"
+        )
+
+    # And Appendix C's specification does not describe Method A.
+    explained = " ".join(APPENDIX_C_MODEL.explain())
+    assert "FA0(2)" in explained
+    assert APPENDIX_C_MODEL.n_covariance_parameters == 5
+    assert "Method A" not in explained
+
+
+def test_the_ema_module_cannot_be_reached_from_the_appendix_c_module():
+    """Structural, not stylistic.
+
+    If `replicate_abe` ever imported the EMA fitter, Appendix C would be one
+    convenient edit away from silently becoming Method A - the exact
+    substitution `_REASON` refuses to make with Appendix G.
+    """
+    import ast
+    from pathlib import Path
+
+    tree = ast.parse(Path(replicate_abe.__file__).read_text(encoding="utf-8"))
+    imported = {
+        node.module
+        for node in ast.walk(tree)
+        if isinstance(node, ast.ImportFrom) and node.module
+    }
+    assert not any("ema" in (m or "") for m in imported), imported
+    assert not any("linear_model" in (m or "") for m in imported), (
+        "the OLS helper fits Method A's model; reaching it from here would "
+        "make the wrong model available at the right call site"
+    )
+
+
 def test_no_module_has_started_fitting_a_mixed_model():
     """The structural guard against Appendix C arriving by accident.
 

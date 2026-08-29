@@ -1,0 +1,161 @@
+{
+  "finding_id": "VAL-FDA-APPENDIX-C-001",
+  "title": "Is there a trustworthy numerical oracle for FDA Appendix C?",
+  "raised_by": "PR #61, as the feasibility question itself",
+  "raised_on": "2026-08-29",
+  "status": "RESOLVED",
+  "classification": "DF_METHOD_DIFFERENCE",
+  "status_note": "RESOLVED as a question answered, not as an obstacle removed. The investigation set out to establish whether an oracle exists and concluded that a PARTIAL one does: the estimate and the covariance parameters are checkable, the Satterthwaite denominator df is not. That is a finding about the available tooling, not a defect in anything.",
+  "method": "fda_replicate_standard_abe",
+  "implementation_status": "NOT_IMPLEMENTED",
+  "oracle_ready": false,
+
+  "verdict": "BLOCKED_WITH_PRECISE_REASONS",
+
+  "what_is_established": [
+    "The model, completely, including the exact FA0(2) parameterisation and the five covariance parameters named individually.",
+    "The missing-data rule, from FDA section III rather than inferred: PROC MIXED is an AVAILABLE CASE analysis that 'uses all observed data'.",
+    "Two regulator-published worked data sets with raw data, published point estimates, published 90% confidence intervals and published within-subject CVs - for THIS model, published by EMA, computed in SAS 9.1.",
+    "A partial oracle: nlme reproduces the point estimate to the published precision on both data sets and the within-subject CVs to within 0.1 percentage points.",
+    "One Satterthwaite df value, recovered indirectly and well conditioned: approximately 19.60 for Data set II."
+  ],
+
+  "what_is_missing": [
+    {
+      "gap": "an independent implementation of Satterthwaite df for THIS model",
+      "why_it_blocks": "df sets the width of the 90% CI and therefore the BE decision. An implementation that reproduces the estimate and the SE but not the df produces a correct point estimate inside a wrong interval, which is a wrong regulatory decision wearing the right numbers.",
+      "severity": "blocking"
+    },
+    {
+      "gap": "published standard error",
+      "why_it_blocks": "Without it, SE and df cannot be separated: the published CI constrains only their product t(df)*SE. nlme's SE can be checked against that product only where the recovery is well conditioned.",
+      "severity": "blocking"
+    },
+    {
+      "gap": "datasets covering the roles this package requires for tier 3",
+      "why_it_blocks": "Two data sets exist, both broadly central. PR #61 point 13 asks for balanced, unbalanced, heteroscedastic residuals, materially different subject variances, and a near-boundary decision. Synthetic cases cannot be added because generating their expected values needs the oracle that is missing.",
+      "severity": "blocking"
+    }
+  ],
+
+  "r_package_comparison": {
+    "requirements": [
+      "1. fixed SEQ + PER + TRT",
+      "2. subject-by-formulation covariance (the G matrix)",
+      "3. treatment-specific residual variances (the R matrix)",
+      "4. Satterthwaite denominator df for the T-R contrast"
+    ],
+    "rule": "A package is not an oracle unless all four hold.",
+    "candidates": {
+      "nlme": {
+        "version": "3.1.168",
+        "ships_with_r": true,
+        "fixed_seq_per_trt": "SUPPORTED",
+        "subject_by_formulation_covariance": "SUPPORTED",
+        "treatment_specific_residuals": "SUPPORTED",
+        "satterthwaite_df": "NOT_SUPPORTED",
+        "verdict": "PARTIAL ORACLE",
+        "how": "random = list(SUBJ = pdSymm(~ TRT - 1)) gives the full 2x2 subject-level covariance, positive-definite by construction as FA0(2) is; weights = varIdent(form = ~ 1 | TRT) gives the treatment-specific residual variances. Five parameters, matching FDA.",
+        "df_method": "containment ('inner-outer'), not Satterthwaite",
+        "usable_for": ["treatment estimate", "covariance parameters", "SE, with the caveat below"],
+        "NOT_usable_for": ["denominator df", "90% CI", "the BE decision"]
+      },
+      "lme4_lmerTest": {
+        "fixed_seq_per_trt": "SUPPORTED",
+        "subject_by_formulation_covariance": "SUPPORTED",
+        "treatment_specific_residuals": "NOT_SUPPORTED",
+        "satterthwaite_df": "SUPPORTED",
+        "verdict": "NOT AN ORACLE",
+        "why": "lme4 estimates a single residual variance and has no varIdent equivalent. FDA's REPEATED/GRP=TRT requires one per treatment. lmerTest's Satterthwaite df is genuine and is computed on the wrong covariance structure, which makes it the most dangerous of the three: it produces a Satterthwaite-labelled df for a model that is not Appendix C."
+      },
+      "glmmTMB": {
+        "fixed_seq_per_trt": "SUPPORTED",
+        "subject_by_formulation_covariance": "SUPPORTED",
+        "treatment_specific_residuals": "SUPPORTED",
+        "satterthwaite_df": "NOT_SUPPORTED",
+        "verdict": "NOT AN ORACLE",
+        "why": "us(0 + TRT | SUBJ) and dispformula = ~ TRT express requirements 1-3. Inference is Wald: standard errors from the observed information and NORMAL quantiles, with no denominator df at all. z = 1.6449 against t(19.6) = 1.7264 is 4.7% on the half-width for Data set II, which moves a borderline decision."
+      },
+      "mmrm": {
+        "fixed_seq_per_trt": "SUPPORTED",
+        "subject_by_formulation_covariance": "NOT_SUPPORTED",
+        "treatment_specific_residuals": "PARTIAL",
+        "satterthwaite_df": "SUPPORTED",
+        "verdict": "NOT AN ORACLE",
+        "why": "mmrm is a marginal model with no G side. Appendix C's marginal covariance is Z G Z' + R, a PATTERNED 5-parameter matrix whose pattern depends on which periods carry T and R and therefore differs by sequence. mmrm's structures are indexed by visit and would give an unpatterned 10-parameter 4x4 - a richer and different model. Assessed from the package's documented design rather than by fitting."
+      }
+    },
+    "corroborating_observation": "replicateBE, the established R package for replicate bioequivalence, implements EMA Method A and Method B and NOT Method C - despite already depending on nlme, lmerTest and pbkrtest. That the leading R package in this exact domain stops short of the FDA model is evidence about the R ecosystem rather than about anyone's effort."
+  },
+
+  "satterthwaite_conclusion": {
+    "status": "NO INDEPENDENT ORACLE",
+    "recovered_value": {
+      "data_set_ii": {
+        "recovered_df": 19.6,
+        "nlme_containment_df": 45,
+        "ratio": 2.3,
+        "well_conditioned": true,
+        "sensitivity": "a 0.1% change in the SE moves the recovered df by 0.4",
+        "plausible": "yes - 24 subjects, 72 observations; the T-R contrast in a partial replicate is substantially between-subject, so an effective df near the subject count is expected",
+        "method": "t = half_width / SE from EMA's published CI and nlme's SE, inverted"
+      },
+      "data_set_i": {
+        "recovered_df": 544.5,
+        "nlme_containment_df": 217,
+        "well_conditioned": false,
+        "sensitivity": "a 0.1% change in the SE moves the recovered df by 773",
+        "plausible": "NO - exceeds the 298 observations, which is impossible for this model",
+        "why": "the implied t of 1.6477 sits 0.0028 above the normal limit 1.6449, and dt/d(df) vanishes there. The recovery is uninformative for this data set and is reported as such rather than quoted."
+      }
+    },
+    "what_this_buys": "One indirect df target. A future Python implementation computing Satterthwaite df for Data set II and landing near 19.6 would be meaningful corroboration. It is one number, on one data set, resting on nlme's SE being right - which is not a validated df and must never be recorded as one."
+  },
+
+  "missing_data_conclusion": {
+    "rule": "available case analysis - PROC MIXED uses all observed data",
+    "source": "FDA, Statistical Approaches to Establishing Bioequivalence, May 2026, section III (missing data), which contrasts PROC MIXED with PROC GLM's complete case analysis",
+    "quoted": "An available case analysis could be done using SAS PROC MIXED, which uses all observed data",
+    "consequence": "Appendix C's inclusion rule is neither Appendix G's (which requires both reference replicates for sWR) nor EMA Method A's, and is the most permissive of the three. PR #60 established that regulator-specific inclusion rules materially change results, so this was taken from the source rather than borrowed from a neighbouring model.",
+    "corroboration": "Data set I contains 8 subjects with missing periods and nlme, fitting all 298 observations, reproduces EMA's published Method C estimate to 0.0012 percentage points."
+  },
+
+  "sas_feasibility": {
+    "sas_ondemand_for_academics": {
+      "verdict": "NOT APPROPRIATE",
+      "why": "Its licence prohibits commercial use, and work intended to support a regulatory submission is commercial. Ruled out on licence rather than on capability."
+    },
+    "licensed_sas_environment": {
+      "verdict": "UNKNOWN - an organisational question",
+      "why": "If one exists it could settle this investigation outright: one PROC MIXED run on the two published data sets would give the SE and the df directly. This is a question for the project owner, not a technical obstacle."
+    },
+    "published_sas_output": {
+      "verdict": "AVAILABLE, PARTIAL",
+      "what": "EMA/618604/2008 Rev. 13 section 3.3 records that SAS 9.1 produced the Method C results. Point estimates, 90% CIs and within-subject CVs are published for two data sets whose raw data is in the same annex.",
+      "what_is_absent": "standard errors and denominator degrees of freedom"
+    },
+    "runtime_dependency": "None proposed. be-stats must never depend on SAS, and nothing here would make it."
+  },
+
+  "leading_full_oracle_candidate": {
+    "name": "ReplicateBE.jl",
+    "ecosystem": "Julia",
+    "licence": "GPL-3.0",
+    "claim": "implements the FDA guidance model, described by its own documentation as EMA Method C, with FA0(2)/CSH random effects, treatment-specific residual variances and Satterthwaite df",
+    "validation_claim_quoted": "ReplicateBE is compliant to SAS/SPSS when comparing the following parameters: REML estimate, variance components estimate, fixed effect estimate, standard error of fixed effect estimate; Satterthwaite degree of freedom (DF) estimate is equal with SAS/SPSS DF estimate for full-replicated basic bioequivalence balanced and unbalanced datasets (2x2x4, 2x2x3)",
+    "status": "NOT VERIFIED BY THIS INVESTIGATION",
+    "why_not": "It requires a Julia toolchain in the validation container, which is a material addition and was out of scope for a feasibility PR. Its claims are recorded as claims.",
+    "licence_note": "GPL-3.0 is compatible with using it as an ORACLE - running it and comparing numbers creates no derivative work. Copying its code into be-stats would be a different question and is not proposed.",
+    "recommended_next_step": true
+  },
+
+  "what_would_unblock_this": [
+    "One PROC MIXED run on the two EMA data sets in a licensed SAS environment, reporting the SE and the Satterthwaite df. This is the shortest path and settles the question completely.",
+    "OR: adding Julia and ReplicateBE.jl to the validation container and verifying its SAS-agreement claims against the two published data sets - which would establish the estimate, SE and df together.",
+    "EITHER of those also makes the additional dataset roles reachable, because expected values could then be generated for balanced, unbalanced, heteroscedastic, unequal-subject-variance and near-boundary cases."
+  ],
+
+  "effect_on_existing_methods": "NONE. FDA HVD below sWR = 0.294 still selects STANDARD_ABE and returns NOT DECIDED; FDA NTI criterion (b) remains unavailable. Both for the same reason, unchanged: Appendix C is not implemented.",
+
+  "related_findings": ["VAL-EMA-ABEL-001", "VAL-EMA-ABEL-002"]
+}

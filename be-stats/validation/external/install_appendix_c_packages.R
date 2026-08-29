@@ -27,29 +27,50 @@ options(
                               "https://packagemanager.posit.co/cran/2025-10-01"))
 )
 
+# NEVER PUT A `warning` HANDLER ON install.packages.
+#
+# This is what went wrong on the first two CI attempts and it is worth
+# recording, because the failure looked like a missing system library and was
+# not.
+#
+# `tryCatch(install.packages(...), warning = ...)` UNWINDS at the point the
+# first warning is signalled. install.packages does not error when a package
+# fails to build - it warns, once per failure, and carries on. So a warning
+# handler aborts the whole call at the first stumble, and every package that
+# had not yet been reached is silently never attempted. The visible symptom was
+# "dependency 'RcppEigen' is not available for package 'lme4'": RcppEigen was
+# not broken, it was never installed, because an earlier warning had already
+# unwound the call.
+#
+# suppressWarnings lets it run to completion. Availability is then checked
+# afterwards, which is the only claim worth making anyway - "install.packages
+# did not warn" is not the same as "the package is usable".
+#
+# The candidates are installed in ONE call so install.packages resolves the
+# dependency order itself. Naming RcppEigen and TMB explicitly is belt and
+# braces: they are the two heavy compiles in this chain, and naming them makes
+# a failure in either attributable rather than inferred.
 candidates <- c("lme4", "lmerTest", "glmmTMB")
+build_chain <- c("RcppEigen", "TMB")
 
-manifest <- list()
-for (pkg in candidates) {
-  cat(sprintf("--- attempting %s\n", pkg))
-  ok <- tryCatch(
-    {
+cat("--- installing candidates and their heavy dependencies\n")
+tryCatch(
+  suppressWarnings(
+    install.packages(
+      c(build_chain, candidates),
       # dependencies = c("Depends", "Imports") for the reason recorded in
       # install_r_packages.R: Suggests dragged in a geospatial library and
       # cost three minutes of build time on the first CI attempt.
-      install.packages(pkg, dependencies = c("Depends", "Imports"))
-      requireNamespace(pkg, quietly = TRUE)
-    },
-    error = function(e) {
-      cat(sprintf("    failed: %s\n", conditionMessage(e)))
-      FALSE
-    },
-    warning = function(w) {
-      cat(sprintf("    warning: %s\n", conditionMessage(w)))
-      requireNamespace(pkg, quietly = TRUE)
-    }
-  )
-  manifest[[pkg]] <- if (isTRUE(ok)) {
+      dependencies = c("Depends", "Imports")
+    )
+  ),
+  error = function(e) cat(sprintf("    install.packages errored: %s\n",
+                                  conditionMessage(e)))
+)
+
+manifest <- list()
+for (pkg in c(build_chain, candidates)) {
+  manifest[[pkg]] <- if (requireNamespace(pkg, quietly = TRUE)) {
     as.character(utils::packageVersion(pkg))
   } else {
     "absent"

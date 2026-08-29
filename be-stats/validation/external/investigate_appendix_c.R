@@ -160,15 +160,31 @@ recover_df_from_published_ci <- function(estimate_log, se, published_ci, alpha =
   # answer exceeding the observation count is marked implausible rather than
   # printed as though it meant something.
   df_hat <- root$root
-  bump <- stats::uniroot(
-    function(df) stats::qt(1 - alpha, df) - t_implied * 1.001,
-    c(1, 1e7), tol = 1e-9, extendInt = "yes"
-  )$root
+
+  # BOTH DIRECTIONS. The df-to-t map is steeply asymmetric near the normal
+  # limit: on Data set I, perturbing the SE by 0.1% moved the recovered df by
+  # 161 downwards and 773 upwards. Checking only one direction reported that
+  # case as "well conditioned" while the same output also flagged it as
+  # impossible - two conclusions from one number, which is a bug in the
+  # diagnostic rather than a property of the data.
+  shift_for <- function(factor) {
+    tryCatch(
+      abs(
+        stats::uniroot(
+          function(df) stats::qt(1 - alpha, df) - t_implied * factor,
+          c(1, 1e9), tol = 1e-9, extendInt = "yes"
+        )$root - df_hat
+      ),
+      error = function(e) Inf
+    )
+  }
+  worst_shift <- max(shift_for(1.001), shift_for(0.999))
+
   list(
     recovered_df = df_hat,
     t_implied = t_implied,
-    df_shift_per_0.1pct_se = abs(bump - df_hat),
-    well_conditioned = abs(bump - df_hat) < 0.5 * df_hat,
+    df_shift_per_0.1pct_se = worst_shift,
+    well_conditioned = worst_shift < 0.25 * df_hat,
     note = paste(
       "diagnostic only - depends entirely on this candidate's SE, and is",
       "ill-conditioned wherever the implied t approaches 1.645"
