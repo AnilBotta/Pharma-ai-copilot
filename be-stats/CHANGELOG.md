@@ -58,15 +58,22 @@ the whole difficulty.
 
 | package | fixed | G matrix | R matrix | Satterthwaite df | verdict |
 |---|---|---|---|---|---|
-| **nlme** | ✅ | ✅ | ✅ | ❌ containment | **partial oracle** |
-| lme4 + lmerTest | ✅ | ✅ | ❌ one residual | ✅ | not an oracle |
-| glmmTMB | ✅ | ✅ | ✅ | ❌ Wald *z* | not an oracle |
+| **nlme** 3.1.168 | ✅ | ✅ | ✅ | ❌ containment | **partial oracle** |
+| **glmmTMB** 1.1.12 | ✅ | ✅ | ✅ | ❌ Wald *z* | **partial oracle** |
+| lme4 1.1.37 + lmerTest 3.1.3 | ✅ | ✅ | ❌ one residual | ✅ | not an oracle |
 | mmrm | ✅ | ❌ marginal only | ⚠️ | ✅ | not an oracle |
 
-nlme reproduces the point estimate essentially exactly — 115.6588 against a
-published 115.66 — and the within-subject CVs to within 0.1 percentage points.
-It is a **partial oracle** for the estimate and the covariance parameters, and
-must never be used for the df, the CI or the decision.
+**The estimate and the SE do have an oracle.** Two independent implementations
+— different languages, different optimisers — reproduce EMA's published
+estimate to within 0.003 percentage points on both data sets, and agree with
+each other on the SE *exactly* on the balanced data set and to 0.27% on the
+unbalanced one.
+
+**lme4 demonstrates its own limitation rather than being accused of it.** On the
+unbalanced Data set I its estimate is 115.7958 — off by **0.136 percentage
+points**, with a singular fit — where nlme and glmmTMB land within 0.002. That
+is the single-residual-variance restriction as a number, and it is the size of
+error a plausible-but-wrong implementation would produce.
 
 Corroborating: `replicateBE`, the established R package for replicate
 bioequivalence, implements EMA Methods A and B and **not** Method C, despite
@@ -77,15 +84,21 @@ already depending on `nlme` and `lmerTest`.
 Satterthwaite df has no independent oracle. Recovering it from EMA's published
 CI and nlme's SE works on one data set and breaks on the other:
 
-| | recovered df | nlme containment df | conditioning |
+| | recovered df | package's own df | conditioning |
 |---|---|---|---|
-| Data set II | **19.60** | 45 | well conditioned — 0.1% on the SE moves it 0.4 |
-| Data set I | 544 — **impossible**, exceeds 298 observations | 217 | ill conditioned — 0.1% moves it 773 |
+| Data set II, from nlme's SE | **19.603** | 45 (containment) | well conditioned |
+| Data set II, from glmmTMB's SE | **19.603** | ∞ (Wald) | well conditioned |
+| Data set II, from lme4's SE | 20.663 | — | well conditioned |
+| Data set I, from nlme's SE | 544 — **impossible**, exceeds 298 observations | 217 | ill conditioned, ±760 df per 0.1% of SE |
 
-A factor of 2.3 on Data set II, and `t(19.6) = 1.7264` against
-`t(45) = 1.6794` is a 2.8% wider half-width. That is a different BE decision at
-the boundary, which is why df is treated as a first-class validation target and
-not a detail.
+nlme and glmmTMB give the *same* SE on Data set II and therefore imply the
+*same* SAS df. lme4 — already known to fit the wrong structure — implies a
+different one. So the recovered df does not rest on a single package's
+arithmetic, and the package that disagrees is the one that should.
+
+`t(19.6) = 1.7264` against `t(45) = 1.6794` is a **2.8% wider half-width**, and
+against Wald's `1.6449` a **4.7%** one. At the boundary that is a different BE
+decision — which is why df is a first-class validation target and not a detail.
 
 ### SAS feasibility
 

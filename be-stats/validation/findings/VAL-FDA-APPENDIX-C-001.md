@@ -164,7 +164,108 @@ value is asymmetric —
 It is the only lever available against an unpublished quantity, and it is
 labelled as such everywhere it appears.
 
+## The R candidates, fitted rather than assessed on paper
+
+Four requirements. A package is not an oracle unless all four hold.
+
+| package | 1 fixed | 2 G matrix | 3 R matrix | 4 Satterthwaite df | verdict |
+|---|:--:|:--:|:--:|:--:|---|
+| **nlme** 3.1.168 | ✅ | ✅ | ✅ | ❌ containment | **partial oracle** |
+| **glmmTMB** 1.1.12 | ✅ | ✅ | ✅ | ❌ Wald *z* | **partial oracle** |
+| lme4 1.1.37 + lmerTest 3.1.3 | ✅ | ✅ | ❌ one residual | ✅ | not an oracle |
+| mmrm | ✅ | ❌ marginal only | ⚠️ | ✅ | not an oracle |
+
+`mmrm` is the one judged from its documented design rather than by fitting: it
+is a marginal model with no G side, and Appendix C's marginal covariance is a
+*patterned* five-parameter matrix whose pattern differs by sequence. `mmrm`'s
+structures are indexed by visit and would give an unpatterned ten-parameter
+4×4 — a richer and different model.
+
+`replicateBE`, the established R package for replicate bioequivalence,
+implements EMA Methods A and B and **not** Method C, despite already depending
+on `nlme` and `lmerTest`. That the leading R package in this exact domain stops
+short of the FDA model is evidence about the ecosystem, not about anyone's
+effort.
+
+### The estimate and the SE have an oracle
+
+| | published | nlme | glmmTMB |
+|---|---:|---:|---:|
+| Data set I estimate | 115.66 | 115.6588 | 115.6577 |
+| Data set I SE | — | 0.046633 | 0.046507 |
+| Data set II estimate | 102.26 | 102.2644 | 102.2644 |
+| Data set II SE | — | 0.030317 | 0.030317 |
+
+Two independent implementations — different languages, different optimisers —
+reproduce EMA's published estimate to within **0.003 percentage points** on
+both data sets, and agree with each other on the SE **exactly** on the balanced
+data set and to **0.27%** on the unbalanced one.
+
+### lme4 demonstrates the limitation rather than being accused of it
+
+On the unbalanced Data set I, lme4's estimate is **115.7958** — off by
+**0.136 percentage points**, with a singular fit — where nlme and glmmTMB land
+within 0.002. That is the single-residual-variance restriction showing up as a
+number, and it is exactly the size of error a plausible-but-wrong
+implementation would produce.
+
+### Satterthwaite df is the blocker
+
+| | recovered df | package's own df | conditioning |
+|---|---:|---:|---|
+| Data set II (nlme SE) | **19.603** | 45 (containment) | well conditioned |
+| Data set II (glmmTMB SE) | **19.603** | ∞ (Wald) | well conditioned |
+| Data set II (lme4 SE) | 20.663 | — | well conditioned |
+| Data set I (nlme SE) | 544 — **impossible** | 217 | ill conditioned, ±760 df per 0.1% of SE |
+
+nlme and glmmTMB give the *same* SE on Data set II and therefore imply the
+*same* SAS df of 19.60. lme4 — already known to fit the wrong structure —
+implies 20.66. So the recovered df does not rest on one package's arithmetic,
+and the one package that disagrees is the one that should.
+
+**No candidate produces Satterthwaite df for this model.** nlme reports
+containment (45), glmmTMB reports none at all, and lmerTest's Satterthwaite is
+computed on a structure that is not Appendix C.
+
+`t(19.6) = 1.7264` against `t(45) = 1.6794` is a **2.8% wider half-width**, and
+against Wald's `1.6449` a **4.7%** one. At the boundary that is a different BE
+decision.
+
 ## Verdict
+
+**`BLOCKED_WITH_PRECISE_REASONS`.**
+
+Established: the model, the parameterisation, the missing-data rule, two
+regulator-published data sets, and a partial oracle for the estimate and the
+standard error.
+
+Missing, and each of them blocking:
+
+1. **An independent Satterthwaite df.** No available implementation computes it
+   for this covariance structure. One df value is recoverable indirectly, on
+   one data set, and that is not a validated df.
+2. **A published standard error.** Without it, SE and df cannot be separated —
+   the published CI constrains only their product.
+3. **Datasets covering the roles tier 3 requires.** Two exist, both broadly
+   central. Synthetic cases for the unbalanced, heteroscedastic,
+   unequal-subject-variance and near-boundary roles cannot be added, because
+   generating their expected values needs the oracle that is missing.
+
+### What would unblock it
+
+- **One PROC MIXED run in a licensed SAS environment** on the two published
+  data sets, reporting the SE and the Satterthwaite df. Shortest path; settles
+  it outright.
+- **Or** adding Julia and `ReplicateBE.jl` to the validation container and
+  testing its claim that its "Satterthwaite degree of freedom (DF) estimate is
+  equal with SAS/SPSS DF estimate for full-replicated basic bioequivalence
+  balanced and unbalanced datasets". That claim is recorded here as a claim; it
+  has not been verified. `ReplicateBE.jl` is GPL-3.0, which is fine for use as
+  an oracle — running it and comparing numbers creates no derivative work —
+  and would be a different question if its code were ever copied.
+
+Either also makes the missing dataset roles reachable, because expected values
+could then be generated for them.
 
 See `VAL-FDA-APPENDIX-C-001.json` for the machine-readable record and
 `appendix_c_investigation.json` (CI artifact) for the fitted numbers.
