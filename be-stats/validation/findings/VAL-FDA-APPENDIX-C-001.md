@@ -245,6 +245,63 @@ only on the strength of the model it is computed for.**
 against Wald's `1.6449` a **4.7%** one. At the boundary that is a different BE
 decision.
 
+## ReplicateBE.jl — the last candidate
+
+Julia, GPL-3.0, pinned at **1.0.15** on **Julia 1.10.5**, in the validation
+image only. `be-stats` does not depend on Julia and must never; running the
+package and comparing numbers creates no derivative work, and none of its code
+is copied.
+
+> **1.0.15, not the 1.0.10 the documentation site serves.** 1.0.10 declares
+> `DataFrames = "0.19, 0.20"`, which cannot resolve on Julia 1.10 —
+> `SortingAlgorithms` forces `DataFrames ≥ 1.0` and the graph is
+> unsatisfiable. 1.0.15 declares `DataFrames = "1"`.
+
+### On the appendix numbering
+
+Its documentation cites the FDA guidance by an **older appendix letter**. That
+is a labelling difference and is evidence of nothing: the current May 2026
+guidance carries this model at Appendix C and earlier editions lettered it
+differently. The model was compared **term by term** against the current
+Appendix C instead.
+
+### Model equivalence, from source
+
+| component | verdict | evidence |
+|---|---|---|
+| fixed SEQ + PER + TRT | **IDENTICAL** | sequence, period, formulation |
+| subject-by-formulation G | **MATHEMATICALLY EQUIVALENT** | `gmat(σ) = Symmetric([σ₁ cov; cov σ₂])`, `cov = √(σ₁σ₂)·σ₃` |
+| treatment-specific residuals | **IDENTICAL** | `rmat(σ, Z) = Diagonal(Z·σ)` |
+| parameter count | **IDENTICAL** | five, in different coordinates |
+| contrast and level | **IDENTICAL** | T vs R, `confint(level = 0.90)` |
+
+The G matrix uses a **CSH** parameterisation — two variances and a correlation
+— where FDA writes `FA0(2)` = `LL'`. Both span exactly the positive
+semi-definite 2×2 cone with three free parameters: they differ in coordinates,
+not in the model. And FDA **names CSH as an acceptable substitute**, so this is
+a permitted parameterisation rather than merely an equivalent one.
+
+### Satterthwaite, from source
+
+`sattdf(data, gradc, A, C, L, lcl)` in `src/generalfunc.jl`:
+
+```
+rank 1:  df = 2·(L'CL)² / (∇C' · A · ∇C)
+rank ≥2: vm[i] = 2λᵢ² / ((pᵢ'∇C)' A (pᵢ'∇C));  df = 2·Σvm / (Σvm − rank)
+```
+
+`A` is the information matrix of the variance parameters and `gradc` holds the
+gradient of the contrast variance with respect to each of them. That is the
+Satterthwaite construction proper — the same one SAS implements for
+`DDFM=SATTERTH` — not a different quantity wearing the name. Boundary handling:
+a guard on `vm[i] > 2.0` and a final `max(1, df)` floor.
+
+**Structurally correct on inspection.** Which is exactly why inspection was not
+enough: lmerTest also implements Satterthwaite correctly and returns 35.94
+where SAS implies 19.60, because it computes it for a structure that is not
+Appendix C. A correct formula on the wrong model gives a wrong df that looks
+entirely principled. So the numbers were run as well.
+
 ## Verdict
 
 **`BLOCKED_WITH_PRECISE_REASONS`.**

@@ -185,16 +185,57 @@
     "runtime_dependency": "None proposed. be-stats must never depend on SAS, and nothing here would make it."
   },
 
-  "leading_full_oracle_candidate": {
+  "replicatebe_jl": {
     "name": "ReplicateBE.jl",
     "ecosystem": "Julia",
+    "version_pinned": "1.0.15",
+    "julia_version_pinned": "1.10.5",
     "licence": "GPL-3.0",
-    "claim": "implements the FDA guidance model, described by its own documentation as EMA Method C, with FA0(2)/CSH random effects, treatment-specific residual variances and Satterthwaite df",
-    "validation_claim_quoted": "ReplicateBE is compliant to SAS/SPSS when comparing the following parameters: REML estimate, variance components estimate, fixed effect estimate, standard error of fixed effect estimate; Satterthwaite degree of freedom (DF) estimate is equal with SAS/SPSS DF estimate for full-replicated basic bioequivalence balanced and unbalanced datasets (2x2x4, 2x2x3)",
-    "status": "NOT VERIFIED BY THIS INVESTIGATION",
-    "why_not": "It requires a Julia toolchain in the validation container, which is a material addition and was out of scope for a feasibility PR. Its claims are recorded as claims.",
-    "licence_note": "GPL-3.0 is compatible with using it as an ORACLE - running it and comparing numbers creates no derivative work. Copying its code into be-stats would be a different question and is not proposed.",
-    "recommended_next_step": true
+    "role": "EXTERNAL ORACLE ONLY. be_stats does not depend on Julia and must never. Running it and comparing numbers creates no derivative work; none of its code is copied into be_stats. The boundary stays: regulatory source -> our implementation -> independent oracle.",
+
+    "version_note": "1.0.15, not the 1.0.10 the documentation site serves. 1.0.10 declares DataFrames 0.19-0.20, which cannot resolve on Julia 1.10 - SortingAlgorithms forces DataFrames >= 1.0 and the graph is unsatisfiable. 1.0.15 declares DataFrames = 1 and julia = 1.",
+
+    "appendix_numbering_caution": "Its documentation cites the FDA guidance by an OLDER appendix letter. That is a labelling difference and is not evidence either way: the current May 2026 guidance carries this model at Appendix C, and earlier editions lettered it differently. The model was therefore compared TERM BY TERM against the current Appendix C rather than accepted or rejected on the appendix letter.",
+
+    "model_equivalence_from_source": {
+      "method": "source inspection of src/generalfunc.jl on master, not documentation",
+      "fixed_effects": {
+        "verdict": "IDENTICAL",
+        "detail": "sequence, period, formulation, matching MODEL Y = SEQ PER TRT"
+      },
+      "subject_by_formulation_covariance": {
+        "verdict": "MATHEMATICALLY_EQUIVALENT",
+        "source": "gmat(s) = Symmetric([s[1] cov; cov s[2]]), cov = sqrt(s[1]*s[2])*s[3]",
+        "detail": "A CSH parameterisation - two variances and a correlation. FDA writes FA0(2), which is G = LL' with L lower triangular. Both span exactly the positive-semidefinite 2x2 cone with three free parameters; they differ in coordinates, not in the model. FDA NAMES CSH as an acceptable substitute: 'TYPE=FA0(2) could possibly be replaced by TYPE=CSH or UNR', so this is a permitted parameterisation rather than merely an equivalent one."
+      },
+      "treatment_specific_residuals": {
+        "verdict": "IDENTICAL",
+        "source": "rmat(s, Z) = Diagonal(Z*s)",
+        "detail": "A diagonal residual matrix with one variance per treatment, i.e. REPEATED/GRP=TRT SUB=SUBJ."
+      },
+      "parameter_count": {
+        "verdict": "IDENTICAL",
+        "detail": "five: two between-subject variances, one correlation, two within-subject residual variances - the same five FDA's model estimates, in different coordinates"
+      },
+      "contrast_and_level": {
+        "verdict": "IDENTICAL",
+        "detail": "T vs R contrast at a requestable level; confint(level = 0.90) gives FDA's ALPHA=0.1 interval"
+      }
+    },
+
+    "satterthwaite_implementation_from_source": {
+      "function": "sattdf(data, gradc, A, C, L, lcl)",
+      "file": "src/generalfunc.jl",
+      "formula_rank_1": "df = 2*(L'CL)^2 / (gradC' * A * gradC)",
+      "formula_rank_ge_2": "spectral decomposition of the contrast variance; vm[i] = 2*lambda_i^2 / ((p_i' gradC)' A (p_i' gradC)); df = 2*sum(vm) / (sum(vm) - rank)",
+      "uses_reml_information_matrix": true,
+      "uses_gradient_of_contrast_variance": true,
+      "detail": "A is the information matrix of the variance parameters and gradc holds the gradient of the contrast variance with respect to each of them. That is the Satterthwaite construction proper - the same one SAS PROC MIXED implements for DDFM=SATTERTH - and not a different quantity wearing the name.",
+      "boundary_handling": "guards on vm[i] > 2.0 in the multi-rank branch, and a final max(1, df) floor",
+      "verdict": "STRUCTURALLY CORRECT ON INSPECTION. Whether it agrees NUMERICALLY with SAS is a separate question and is what the run answers."
+    },
+
+    "why_inspection_was_not_enough": "lmerTest also implements Satterthwaite correctly, and returns 35.94 where SAS implies 19.60 - because it is computed for a covariance structure that is not Appendix C. A correct formula on the wrong model gives a wrong df that looks entirely principled. So structure was checked from source AND the numbers were run."
   },
 
   "what_would_unblock_this": [
