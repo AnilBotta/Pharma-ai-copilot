@@ -162,6 +162,14 @@ class Capability(StrEnum):
     #: separately from `Method.STANDARD_ABE`, which covers the 2x2 crossover
     #: and parallel designs Phase 1 implements.
     FDA_HVD_UNSCALED_BRANCH = "fda_hvd_unscaled_branch"
+    #: Appendix C itself: the mixed model, independent of which caller needs it.
+    #:
+    #: Distinct from the two capabilities that are BLOCKED BY it -
+    #: FDA_HVD_UNSCALED_BRANCH and FDA_NTI_UNSCALED_ABE. Those are call sites;
+    #: this is the model. One thing is missing and three statuses report it,
+    #: which is worth keeping straight when the model eventually arrives and
+    #: all three move together.
+    FDA_REPLICATE_STANDARD_ABE = "fda_replicate_standard_abe"
 
     # ------------------------------------ narrow therapeutic index drugs ---
     #: Enforce that an NTI drug is on a fully replicate design before any
@@ -226,6 +234,18 @@ CAPABILITY_VALIDATION: dict[Capability, ValidationStatus] = {
     #: number was a bioequivalence verdict from a different model. The branch
     #: refuses instead. See `replicate_abe.py` for the specification.
     Capability.FDA_HVD_UNSCALED_BRANCH: ValidationStatus.NOT_IMPLEMENTED,
+    #: NOT_IMPLEMENTED, and the oracle feasibility study (PR #61) did not
+    #: change that. It concluded BLOCKED_WITH_PRECISE_REASONS: nlme reproduces
+    #: the point estimate and the covariance parameters against EMA's published
+    #: Method C results, and NO available implementation reproduces the
+    #: Satterthwaite denominator df - which sets the width of the interval and
+    #: therefore the decision.
+    #:
+    #: ORACLE READINESS AND IMPLEMENTATION STATUS ARE DIFFERENT THINGS. This
+    #: field is the second one. The first lives in
+    #: validation/findings/VAL-FDA-APPENDIX-C-001.json, where it currently
+    #: reads `oracle_ready: false`.
+    Capability.FDA_REPLICATE_STANDARD_ABE: ValidationStatus.NOT_IMPLEMENTED,
     # ------------------------------------ narrow therapeutic index drugs ---
     #: Structural: the design gate either enforces III.B or it does not.
     Capability.FDA_NTI_DESIGN_VALIDATION: ValidationStatus.IMPLEMENTED,

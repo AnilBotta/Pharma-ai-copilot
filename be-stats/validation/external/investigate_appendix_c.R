@@ -343,8 +343,21 @@ fit_lme4 <- function(d, published) {
   has_lmertest <- available("lmerTest")
   if (has_lmertest) suppressMessages(library(lmerTest))
 
+  # lmerTest::lmer, NOT lme4::lmer.
+  #
+  # lmerTest supplies Satterthwaite df by MASKING lme4's `lmer` and returning
+  # an `lmerModLmerTest` that carries the extra machinery. Calling
+  # `lme4::lmer` by namespace bypasses the mask and yields a plain `lmerMod`,
+  # whose summary has no df column at all - which is why the first complete
+  # run reported `df NA` for this candidate and made requirement 4 look
+  # undetermined when it is in fact supported.
   fit <- tryCatch(
-    lme4::lmer(Y ~ SEQ + PER + TRT + (0 + TRT | SUBJ), data = d, REML = TRUE),
+    if (has_lmertest) {
+      lmerTest::lmer(Y ~ SEQ + PER + TRT + (0 + TRT | SUBJ), data = d,
+                     REML = TRUE)
+    } else {
+      lme4::lmer(Y ~ SEQ + PER + TRT + (0 + TRT | SUBJ), data = d, REML = TRUE)
+    },
     error = function(e) e
   )
   if (inherits(fit, "error")) {
@@ -365,6 +378,7 @@ fit_lme4 <- function(d, published) {
                        nlevels(droplevels(d$SUBJ)))
   res$status <- PARTIAL
   res$residual_variance_single <- stats::sigma(fit)^2
+  res$singular_fit <- tryCatch(lme4::isSingular(fit), error = function(e) NA)
   res$df_method <- if (has_lmertest && is.finite(df)) {
     "lmerTest Satterthwaite - genuine, but computed for a model with ONE residual variance"
   } else {

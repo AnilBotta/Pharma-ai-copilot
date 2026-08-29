@@ -139,6 +139,49 @@ def test_the_inclusion_rule_is_not_appendix_g_s_and_not_ema_s():
 # ----------------------------------------------- still not implemented ---
 
 
+def test_the_three_statuses_blocked_by_appendix_c_agree():
+    """One missing model, three capabilities reporting it.
+
+    `FDA_REPLICATE_STANDARD_ABE` is the model. `FDA_HVD_UNSCALED_BRANCH` and
+    `FDA_NTI_UNSCALED_ABE` are call sites that need it. They must move
+    together, and until the model exists all three are NOT_IMPLEMENTED.
+    """
+    from be_stats.spec import CAPABILITY_VALIDATION, Capability
+
+    for capability in (
+        Capability.FDA_REPLICATE_STANDARD_ABE,
+        Capability.FDA_HVD_UNSCALED_BRANCH,
+        Capability.FDA_NTI_UNSCALED_ABE,
+    ):
+        assert CAPABILITY_VALIDATION[capability] is (
+            ValidationStatus.NOT_IMPLEMENTED
+        ), capability
+
+
+def test_the_existing_fda_decisions_are_unchanged_by_the_investigation():
+    """Point 16 of the brief, as a regression guard.
+
+    FDA HVD below sWR = 0.294 still returns NOT DECIDED, and FDA NTI criterion
+    (b) is still unavailable - both because Appendix C is absent, and an
+    investigation that changed either would have stopped being an
+    investigation.
+    """
+    from be_stats.diagnostics import DiagnosticCode
+    from be_stats.replicate_abe import replicate_abe_unavailable
+
+    class _Dataset:
+        design = "fully_replicate"
+        endpoint = "AUC"
+        records = ()
+
+    diagnostic = replicate_abe_unavailable(_Dataset())
+    assert diagnostic.code is DiagnosticCode.REPLICATE_ABE_MODEL_NOT_IMPLEMENTED
+    assert "Appendix G" in diagnostic.detail, (
+        "the refusal must keep saying why the nearby Iij model is not a "
+        "substitute"
+    )
+
+
 def test_appendix_c_remains_not_implemented_after_the_oracle_investigation():
     """PR #61 investigated; it did not implement, and must not appear to have.
 
