@@ -306,37 +306,42 @@ entirely principled. So the numbers were run as well.
 
 **`BLOCKED_WITH_PRECISE_REASONS`.**
 
-Established: the model, the parameterisation, the missing-data rule, two
-regulator-published data sets, and a partial oracle for the estimate and the
-standard error.
+The blocker is now **one design**, not the whole method.
 
-Missing, and each of them blocking:
+**Settled — fully replicate (2×2×4):** model structure, estimate, SE,
+Satterthwaite df, 90% CI, covariance parameters and available-case handling all
+verified against EMA's published SAS output, on the *unbalanced* data set with
+eight incomplete subjects. `ReplicateBE.jl` reproduces every published quantity
+at the precision EMA printed.
 
-1. **An independent Satterthwaite df.** No available implementation computes it
-   for this covariance structure. One df value is recoverable indirectly, on
-   one data set, and that is not a validated df.
-2. **A published standard error.** Without it, SE and df cannot be separated —
-   the published CI constrains only their product.
-3. **Datasets covering the roles tier 3 requires.** Two exist, both broadly
-   central. Synthetic cases for the unbalanced, heteroscedastic,
-   unequal-subject-variance and near-boundary roles cannot be added, because
-   generating their expected values needs the oracle that is missing.
+**Not settled — partial replicate (2×3×3):** the df differs by 2.94 and the CI
+by ~0.035 percentage points. `VAL-FDA-APPENDIX-C-002`. The package's own
+validation claim covers 2×2×4 and 2×2×3 only, so this is a stated scope limit
+rather than a defect — but FDA HVD supports partial replicate designs, and an
+oracle verified for one of two designs is not enough to implement against.
+
+**Still absent:** the tier-3 dataset roles from point 13 — heteroscedastic
+residual variances, materially different subject variances, a near-boundary
+decision. These are now *generatable* for the fully replicate design, because a
+verified oracle for it exists. They are not for the partial replicate design.
 
 ### What would unblock it
 
-- **One PROC MIXED run in a licensed SAS environment** on the two published
-  data sets, reporting the SE and the Satterthwaite df. Shortest path; settles
-  it outright.
-- **Or** adding Julia and `ReplicateBE.jl` to the validation container and
-  testing its claim that its "Satterthwaite degree of freedom (DF) estimate is
-  equal with SAS/SPSS DF estimate for full-replicated basic bioequivalence
-  balanced and unbalanced datasets". That claim is recorded here as a claim; it
-  has not been verified. `ReplicateBE.jl` is GPL-3.0, which is fine for use as
-  an oracle — running it and comparing numbers creates no derivative work —
-  and would be a different question if its code were ever copied.
+**One PROC MIXED run in a licensed SAS environment on Data set II**, reporting
+the SE and the Satterthwaite df. That single number resolves
+`VAL-FDA-APPENDIX-C-002` and with it the last blocking gap — a far smaller ask
+than before the Julia work, because the fully replicate design is already done.
 
-Either also makes the missing dataset roles reachable, because expected values
-could then be generated for them.
+**SAS OnDemand for Academics remains inappropriate** — its licence prohibits
+commercial use, and this is commercial work. That conclusion is unchanged.
+
+### A scoping option, noted but not taken
+
+If Appendix C support were limited to **fully replicate designs only**, the
+oracle question is already answered for that scope. That would be a
+**regulatory scoping decision** — FDA permits partial replicate designs, and
+declining to support them is a product choice rather than a statistical one —
+so it is recorded here and left to the project owner.
 
 See `VAL-FDA-APPENDIX-C-001.json` for the machine-readable record and
 `appendix_c_investigation.json` (CI artifact) for the fitted numbers.

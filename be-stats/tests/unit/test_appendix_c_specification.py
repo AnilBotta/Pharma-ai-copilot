@@ -139,6 +139,71 @@ def test_the_inclusion_rule_is_not_appendix_g_s_and_not_ema_s():
 # ----------------------------------------------- still not implemented ---
 
 
+def test_the_oracle_verdict_is_recorded_per_design_not_globally():
+    """The Julia result split by design, and the record has to keep that split.
+
+    ReplicateBE.jl reproduces EMA's published SAS Method C output exactly on
+    the fully replicate design and differs on the partial replicate one. A
+    single "verified / not verified" flag would lose the only part of this
+    finding a future implementer can act on.
+    """
+    import json
+    from pathlib import Path
+
+    findings = (
+        Path(__file__).resolve().parents[2] / "validation" / "findings"
+    )
+    two = json.loads(
+        (findings / "VAL-FDA-APPENDIX-C-002.json").read_text(encoding="utf-8")
+    )
+
+    assert two["status"] == "OPEN"
+    assert two["data_set_i"]["covered_by_the_packages_own_claim"] is True
+    assert two["data_set_ii"]["covered_by_the_packages_own_claim"] is False
+
+    # Fully replicate: every published quantity matched.
+    statuses_i = {c["status"] for c in two["data_set_i"]["comparison"]}
+    assert statuses_i <= {"MATCH", "NOT_PUBLISHED"}
+
+    # Partial replicate: the interval and the df did not.
+    differing = {
+        c["quantity"]
+        for c in two["data_set_ii"]["comparison"]
+        if c["status"] == "DIFFERS"
+    }
+    assert differing == {"ci_lower_percent", "ci_upper_percent", "denominator_df"}
+
+    # And which of the two is right is explicitly NOT claimed.
+    assert two["what_is_not_established"][
+        "which_is_right_on_the_partial_replicate"
+    ] == "NOT_DETERMINED"
+
+
+def test_the_boundary_solution_is_recorded_for_a_future_implementer():
+    """rho = 1.000 exactly on Data set I.
+
+    The subject-by-formulation correlation sits on the boundary of the
+    parameter space for the one data set that otherwise validates everything.
+    An implementation assuming an interior optimum, or inverting a Hessian
+    without checking, fails precisely there - so it is recorded where whoever
+    writes the REML fit will meet it.
+    """
+    import json
+    from pathlib import Path
+
+    findings = (
+        Path(__file__).resolve().parents[2] / "validation" / "findings"
+    )
+    two = json.loads(
+        (findings / "VAL-FDA-APPENDIX-C-002.json").read_text(encoding="utf-8")
+    )
+    boundary = two["data_set_i"]["boundary_solution"]
+    assert boundary["subject_by_formulation_correlation"] == 1.0
+    assert "boundary of the parameter space" in (
+        boundary["consequence_for_a_future_implementation"]
+    )
+
+
 def test_the_three_statuses_blocked_by_appendix_c_agree():
     """One missing model, three capabilities reporting it.
 

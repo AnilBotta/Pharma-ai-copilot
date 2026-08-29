@@ -22,19 +22,21 @@
 
   "what_is_missing": [
     {
-      "gap": "an independent implementation of Satterthwaite df for THIS model",
-      "why_it_blocks": "df sets the width of the 90% CI and therefore the BE decision. An implementation that reproduces the estimate and the SE but not the df produces a correct point estimate inside a wrong interval, which is a wrong regulatory decision wearing the right numbers.",
-      "severity": "blocking"
-    },
-    {
-      "gap": "published standard error",
-      "why_it_blocks": "Without it, SE and df cannot be separated: the published CI constrains only their product t(df)*SE. nlme's SE can be checked against that product only where the recovery is well conditioned.",
-      "severity": "blocking"
+      "gap": "a verified Satterthwaite df for the PARTIAL REPLICATE (2x3x3) design",
+      "why_it_blocks": "FDA HVD supports partial AND fully replicate designs, so the Appendix C unscaled branch is reachable from both. ReplicateBE.jl reproduces SAS exactly on 2x2x4 and differs by 2.94 df on 2x3x3 - a design its own validation claim never covered. Implementing against an oracle verified for only one of the two designs would leave the other unvalidated, which is the situation this package exists to avoid.",
+      "severity": "blocking",
+      "recorded_as": "VAL-FDA-APPENDIX-C-002"
     },
     {
       "gap": "datasets covering the roles this package requires for tier 3",
-      "why_it_blocks": "Two data sets exist, both broadly central. PR #61 point 13 asks for balanced, unbalanced, heteroscedastic residuals, materially different subject variances, and a near-boundary decision. Synthetic cases cannot be added because generating their expected values needs the oracle that is missing.",
-      "severity": "blocking"
+      "why_it_blocks": "Two data sets exist - one per design - and both are broadly central. Point 13 of the PR #61 brief asks additionally for heteroscedastic residual variances, materially different subject variances, and a near-boundary decision.",
+      "severity": "blocking",
+      "what_changed": "These are now GENERATABLE for the fully replicate design, because a verified oracle for it exists. They are not for the partial replicate design."
+    },
+    {
+      "gap": "published standard error and denominator df",
+      "why_it_blocks": "Neither is published for either data set, so every df conclusion is indirect. On Data set I the inference is tight - matching a two-decimal CI pins the df, because the CI depends on estimate, SE and df together. On Data set II it rests on the SE, and although three implementations agree on that SE they could share a difference from SAS.",
+      "severity": "limiting rather than blocking"
     }
   ],
 
@@ -235,14 +237,56 @@
       "verdict": "STRUCTURALLY CORRECT ON INSPECTION. Whether it agrees NUMERICALLY with SAS is a separate question and is what the run answers."
     },
 
-    "why_inspection_was_not_enough": "lmerTest also implements Satterthwaite correctly, and returns 35.94 where SAS implies 19.60 - because it is computed for a covariance structure that is not Appendix C. A correct formula on the wrong model gives a wrong df that looks entirely principled. So structure was checked from source AND the numbers were run."
+    "why_inspection_was_not_enough": "lmerTest also implements Satterthwaite correctly, and returns 35.94 where SAS implies 19.60 - because it is computed for a covariance structure that is not Appendix C. A correct formula on the wrong model gives a wrong df that looks entirely principled. So structure was checked from source AND the numbers were run.",
+
+    "fitted_results": {
+      "data_set_i_2x2x4_fully_replicate": {
+        "converged": true,
+        "estimate_percent": 115.65764787434397,
+        "published": 115.66,
+        "standard_error": 0.04650123718563794,
+        "denominator_df": 208.08114726075297,
+        "ci_percent": [107.10447183782598, 124.89386560890081],
+        "published_ci": [107.10, 124.89],
+        "cv_within_reference_percent": 47.33,
+        "cv_within_test_percent": 35.29,
+        "published_cv": [47.3, 35.3],
+        "verdict": "EVERY PUBLISHED QUANTITY REPRODUCES at the precision EMA printed. The CI is the load-bearing one - it depends on the estimate, the SE and the df together - so matching it to two decimals confirms the Satterthwaite df indirectly but tightly. On the UNBALANCED data set, with 8 incomplete subjects."
+      },
+      "data_set_ii_2x3x3_partial_replicate": {
+        "converged": true,
+        "estimate_percent": 102.26439008224206,
+        "published": 102.26,
+        "standard_error": 0.030317219371948898,
+        "denominator_df": 22.540250688073332,
+        "df_implied_by_published_ci": 19.603,
+        "ci_percent": [97.08212028650071, 107.72329083903576],
+        "published_ci": [97.05, 107.76],
+        "cv_within_reference_percent": 11.55,
+        "published_cv_reference": 11.5,
+        "verdict": "Estimate and covariance parameters MATCH; the interval does NOT. Narrower than published by about 0.035 percentage points at each end. The whole difference is the df: 22.540 against an implied 19.603. Recorded as VAL-FDA-APPENDIX-C-002."
+      },
+      "available_case_behaviour": {
+        "verdict": "CONFIRMED",
+        "evidence": "298 observations and 77 subjects read for Data set I - every row, including the 8 subjects with missing periods - and the published estimate and CI reproduced. No complete-case deletion. This matches FDA section III's description of PROC MIXED as an available case analysis that uses all observed data."
+      },
+      "standard_error_agreement": {
+        "data_set_i": {"nlme": 0.046633, "glmmTMB": 0.046507, "replicatebe": 0.046501},
+        "data_set_ii": {"nlme": 0.030317, "glmmTMB": 0.030317, "replicatebe": 0.030317},
+        "reading": "Three independent implementations, three languages. Identical to five decimals on the balanced data set; within 0.28% on the unbalanced one, where glmmTMB and ReplicateBE agree to 0.013%."
+      }
+    },
+
+    "verdict": "VERIFIED FOR FULLY REPLICATE (2x2x4), UNVERIFIED FOR PARTIAL REPLICATE (2x3x3). The package's own claim is scoped to full-replicated 2x2x4 and 2x2x3 designs, and the results match that scope exactly: agreement where it claims agreement, divergence where it never claimed any."
   },
 
   "what_would_unblock_this": [
-    "One PROC MIXED run on the two EMA data sets in a licensed SAS environment, reporting the SE and the Satterthwaite df. This is the shortest path and settles the question completely.",
-    "OR: adding Julia and ReplicateBE.jl to the validation container and verifying its SAS-agreement claims against the two published data sets - which would establish the estimate, SE and df together.",
-    "EITHER of those also makes the additional dataset roles reachable, because expected values could then be generated for balanced, unbalanced, heteroscedastic, unequal-subject-variance and near-boundary cases."
+    "ONE PROC MIXED run in a licensed SAS environment on EMA Data set II, reporting the SE and the Satterthwaite df. That single number resolves VAL-FDA-APPENDIX-C-002 and, with it, the last blocking gap. This is now a much smaller ask than it was before the Julia work: the fully replicate design is already settled.",
+    "OR: independent evidence for the partial replicate df from another implementation that fits the same structure and computes Satterthwaite - none is currently known.",
+    "Once the partial replicate design is settled, the remaining dataset roles are generatable from the verified oracle for BOTH designs, and the tier-3 case set can be built."
   ],
+
+  "scope_note": "If a future decision limited Appendix C support to FULLY REPLICATE designs only, the oracle question would already be answered for that scope. That would be a REGULATORY scoping decision - FDA HVD permits partial replicate designs and refusing them is a product choice, not a statistical one - and it is not taken here.",
 
   "effect_on_existing_methods": "NONE. FDA HVD below sWR = 0.294 still selects STANDARD_ABE and returns NOT DECIDED; FDA NTI criterion (b) remains unavailable. Both for the same reason, unchanged: Appendix C is not implemented.",
 

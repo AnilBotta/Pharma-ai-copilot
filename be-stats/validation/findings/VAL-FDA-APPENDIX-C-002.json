@@ -1,0 +1,71 @@
+{
+  "finding_id": "VAL-FDA-APPENDIX-C-002",
+  "title": "ReplicateBE.jl reproduces SAS Method C exactly on the fully replicate design and not on the partial replicate one",
+  "raised_by": "PR #61, testing the ReplicateBE.jl Satterthwaite claim",
+  "raised_on": "2026-08-29",
+  "status": "OPEN",
+  "method": "fda_replicate_standard_abe",
+  "effect_on_be_stats": "none - Appendix C is NOT_IMPLEMENTED and stays so",
+
+  "oracle": {
+    "name": "ReplicateBE.jl",
+    "version": "1.0.15",
+    "julia": "1.10.5",
+    "licence": "GPL-3.0",
+    "role": "external oracle only; never a dependency of be_stats, never copied into it"
+  },
+
+  "data_set_i": {
+    "design": "2x2x4 fully replicate, 77 subjects, 8 incomplete, 298 observations",
+    "covered_by_the_packages_own_claim": true,
+    "converged": true,
+    "comparison": [
+      {"quantity": "point_estimate", "published": 115.66, "replicatebe": 115.65764787434397, "difference": -0.0024, "status": "MATCH"},
+      {"quantity": "ci_lower_percent", "published": 107.10, "replicatebe": 107.10447183782598, "difference": 0.0045, "status": "MATCH"},
+      {"quantity": "ci_upper_percent", "published": 124.89, "replicatebe": 124.89386560890081, "difference": 0.0039, "status": "MATCH"},
+      {"quantity": "cv_within_reference_percent", "published": 47.3, "replicatebe": 47.33, "difference": 0.03, "status": "MATCH"},
+      {"quantity": "cv_within_test_percent", "published": 35.3, "replicatebe": 35.29, "difference": -0.01, "status": "MATCH"},
+      {"quantity": "standard_error", "published": null, "replicatebe": 0.04650123718563794, "status": "NOT_PUBLISHED"},
+      {"quantity": "denominator_df", "published": null, "replicatebe": 208.08114726075297, "status": "NOT_PUBLISHED"}
+    ],
+    "reading": "Every published quantity reproduces at the precision EMA printed. The CI is the load-bearing one: it is a function of the estimate, the SE AND the df, so matching it to two decimals means the df matches too. That is the Satterthwaite denominator df - the quantity with no other oracle - confirmed indirectly but tightly, on the UNBALANCED data set with incomplete subjects.",
+    "boundary_solution": {
+      "subject_by_formulation_correlation": 1.0,
+      "note": "Exactly 1.000 - a boundary solution. sigma2_D = sigma2_BT + sigma2_BR - 2*rho*sqrt(sigma2_BT*sigma2_BR) collapses to (sqrt(sigma2_BT) - sqrt(sigma2_BR))^2 there, i.e. no subject-by-formulation interaction beyond a scale difference. SAS's FA0(2) is likewise constrained to the positive-semidefinite boundary and would reach the same edge.",
+      "consequence_for_a_future_implementation": "The optimum for REAL data can sit on the boundary of the parameter space. An implementation that assumes an interior optimum, or inverts a Hessian without checking, will fail on exactly the data set that otherwise validates it."
+    }
+  },
+
+  "data_set_ii": {
+    "design": "2x3x3 partial replicate (TRR/RTR/RRT), 24 subjects, balanced, 72 observations",
+    "covered_by_the_packages_own_claim": false,
+    "converged": true,
+    "comparison": [
+      {"quantity": "point_estimate", "published": 102.26, "replicatebe": 102.26439008224206, "difference": 0.0044, "status": "MATCH"},
+      {"quantity": "cv_within_reference_percent", "published": 11.5, "replicatebe": 11.55, "difference": 0.05, "status": "MATCH"},
+      {"quantity": "ci_lower_percent", "published": 97.05, "replicatebe": 97.08212028650071, "difference": 0.0321, "status": "DIFFERS"},
+      {"quantity": "ci_upper_percent", "published": 107.76, "replicatebe": 107.72329083903576, "difference": -0.0367, "status": "DIFFERS"},
+      {"quantity": "denominator_df", "published": null, "replicatebe": 22.540250688073332, "implied_by_published_ci": 19.603, "difference": -2.937, "status": "DIFFERS"}
+    ],
+    "reading": "The estimate and the covariance parameters match; the interval does not. It is narrower than published by about 0.035 percentage points at each end, roughly seven times the rounding bound. The whole difference is in the df: with SE = 0.030317 - a value nlme, glmmTMB and ReplicateBE.jl all agree on exactly - the published interval requires t = 1.72643, i.e. df about 19.60, against ReplicateBE's 22.540."
+  },
+
+  "explanation": {
+    "the_packages_own_scope": "Satterthwaite degree of freedom (DF) estimate is equal with SAS/SPSS DF estimate for full-replicated basic bioequivalence balanced and unbalanced datasets (2x2x4, 2x2x3)",
+    "reading": "Both named designs are TWO-SEQUENCE designs. Data set I is 2x2x4 and is covered. Data set II is a THREE-SEQUENCE partial replicate and is not. The observed pattern is exactly what the package claims - agreement where it says so, divergence where it never claimed any. A scope limitation honestly stated by its author, not a defect discovered here."
+  },
+
+  "what_is_not_established": {
+    "which_is_right_on_the_partial_replicate": "NOT_DETERMINED",
+    "why": [
+      "Three implementations agree the SE is 0.030317, which makes df about 19.60 the value consistent with SAS's published interval.",
+      "But all three could share a difference from SAS that only surfaces in this design.",
+      "Resolving it needs a SAS run - the same shortest path VAL-FDA-APPENDIX-C-001 already identifies."
+    ],
+    "nothing_was_tuned": "The recovered 19.60 is a diagnostic. SAS's actual df for this design remains unpublished, and no parameter was adjusted toward it."
+  },
+
+  "consequence": "The oracle is VERIFIED for fully replicate (2x2x4) and UNVERIFIED for partial replicate (2x3x3). FDA HVD supports both designs, so this is not enough to implement Appendix C against. VAL-FDA-APPENDIX-C-001 stays BLOCKED_WITH_PRECISE_REASONS with this as one of the reasons.",
+
+  "related_findings": ["VAL-FDA-APPENDIX-C-001"]
+}
