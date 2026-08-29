@@ -6,6 +6,93 @@ first question asked of a result years later.
 
 ---
 
+## 0.7.0 — FDA Appendix C, fully replicate designs
+
+The mixed model FDA specifies, fitted by REML, for the one design PR #61 found
+a trustworthy oracle for. **Partial replicate refuses and decides nothing.**
+
+### Against EMA's published SAS Method C — Data set I
+
+| quantity | published | be-stats | ReplicateBE.jl |
+|---|---|---|---|
+| estimate % | 115.66 | 115.65764 | 115.65765 |
+| 90% CI % | 107.10, 124.89 | 107.10441, 124.89393 | 107.10447, 124.89387 |
+| standard error | — | 0.046501 | 0.046501 |
+| denominator df | — | 207.7350 | 208.0811 |
+| CV within R % | 47.3 | 47.3278 | — |
+| CV within T % | 35.3 | 35.2934 | — |
+
+The *model* is FDA's; the *numbers* are EMA-published, from SAS 9.1, for the
+model EMA transcribes and attributes to FDA by name. Stronger than a
+peer-reviewed dataset, weaker than an FDA-published example of FDA's own model,
+and never described as the latter.
+
+### An identity that checks the module with no oracle at all
+
+For a **balanced, complete** fully replicate design with an **interior**
+optimum, Appendix C reduces *exactly* to the classical subject-level analysis —
+the one-sample analysis of per-subject (mean log T − mean log R), averaged over
+sequences — and its Satterthwaite df is **exactly n − 2**.
+
+The classical route contains no mixed model, no REML, no optimiser, no
+covariance structure and no Satterthwaite formula. It reproduces the estimate
+*and* the standard error to 8 decimal places on all seven qualifying cases.
+
+Where it stops is the diagnostic part. On the **incomplete** case the estimates
+differ, because available-case analysis uses partial subjects the subject-level
+route must discard. On the **boundary** case the estimate still matches but the
+df moves from 38 to 111 — which is what explains Data set I's 208 df on 77
+subjects, a number that otherwise looks impossible.
+
+### Parameterisation, dictated by the boundary
+
+`theta = (l11, l21, l22, log σ²_WT, log σ²_WR)` with `G = LL'` — FDA's `FA0(2)`
+exactly. On Data set I the fitted subject-by-formulation correlation is
+**exactly 1.000**. In correlation coordinates that is the edge of the parameter
+space; as `G = LL'` it is `l22 = 0`, an ordinary *interior* point of ℝ⁵, so the
+optimiser walks onto it unaided and nothing is clamped. `satterthwaite_df` uses
+a pseudo-inverse because the REML Hessian is near-singular there.
+
+The Hessian is taken by central differences of an **analytic** gradient with
+closed-form `dV/dθ`. An earlier version differenced the objective twice, which
+divides by `h²` and loses most of its significant figures; replacing it did not
+move the df, which is how we know the 0.17% difference against ReplicateBE is
+the boundary and not arithmetic.
+
+### Scope
+
+| capability | status |
+|---|---|
+| `FDA_REPLICATE_STANDARD_ABE_FULL` | `IMPLEMENTED_UNVALIDATED` |
+| `FDA_REPLICATE_STANDARD_ABE_PARTIAL` | `NOT_IMPLEMENTED` |
+
+Split deliberately: one undifferentiated status would have to say a single
+thing about two situations that differ, and whichever it said would be wrong
+about the other.
+
+### Integration
+
+- **FDA HVD** below `sWR = 0.294` now decides for a fully replicate design
+  given the raw observations. The 0.294 rule is untouched.
+- **FDA NTI** criterion (b) is computed, so all three criteria exist and the
+  method returns a verdict. `decided` is now a condition over the three
+  criteria rather than a hard-coded `False`.
+
+### Also
+
+- `within_acceptance_range()` is a named function. Inclusive containment is a
+  regulatory choice, and inline it was untestable — no dataset can be
+  constructed whose limit is exactly 80.00 in binary.
+- Nine synthetic full-replicate cases, and four NTI criterion-combination
+  datasets, both committed as data rather than regenerated from a seed.
+- A **gating** CI job runs ReplicateBE.jl over the nine cases and fails if any
+  comparison is skipped.
+- `appendix_c.satterthwaite_df` is deliberately **not** re-exported at package
+  level: `treatment_contrast` already owns that name and the two compute
+  different things for different models.
+
+---
+
 ## Unreleased — FDA Appendix C: oracle feasibility
 
 **No implementation. No version bump.** An investigation, run before writing a

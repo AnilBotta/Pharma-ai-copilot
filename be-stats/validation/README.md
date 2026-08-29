@@ -625,9 +625,29 @@ G's `ilat = seq` model, which has **one** variance component — no `RANDOM`, no
 asserts the collapse across several coefficients and dfs rather than asserting
 `n − 2`.
 
-It is **not** true of Appendix C, which has five components. Reusing `n − 2`
-there would be wrong in a way that produces a plausible interval, and both the
-docstring and a test say so.
+It is **not** true of Appendix C, which has five components — but the way it
+fails is worse than simple disagreement, and 0.7.0 pinned it down.
+
+For a **balanced, complete** fully replicate design with an **interior**
+optimum, Appendix C's Satterthwaite df is `n − 2` **exactly**. Measured to 1e-7
+on seven synthetic cases. The contrast collapses onto the subject-difference
+statistic, and the whole mixed model reduces to the classical subject-level
+analysis — estimate and standard error agreeing to 8 decimal places.
+
+So `n − 2` is not merely a plausible wrong answer here. It is the **right**
+answer, on the tidy data anyone would reach for while developing, and it stops
+being right exactly where the tidiness stops:
+
+| condition | df |
+|---|---|
+| balanced, complete, interior | `n − 2` exactly |
+| incomplete (available case) | departs — 28.41 against 28 on case B |
+| on the correlation boundary | jumps to the within-subject scale — 111 against 38 on case E, and **208 against 75** on EMA Data set I |
+
+A shortcut that hard-coded `n − 2` would therefore pass every balanced test
+written for it and be wrong by a factor of nearly three on the one dataset a
+regulator has published. That is the strongest argument in this package for
+computing the df from the fitted covariance rather than labelling one.
 
 ### Things that would not have raised
 
@@ -747,10 +767,38 @@ than returning something plausible:
 
 | Combination | Method | Phase |
 |---|---|---|
-| FDA + NTI | `FDA_NTI_RSABE` — two of its three criteria implemented in 0.5.0; the unscaled one needs Appendix C, so the method is still `NOT_IMPLEMENTED` | 2B |
-| EMA + highly variable | `EMA_HVD_ABEL` — expanding limits; a different procedure from RSABE, not a relabelling | 2C |
+| — | *(empty as of 0.7.0)* | |
 
-*`FDA_HVD_RSABE` was in this table until 0.4.0, where it was implemented.*
+*`FDA_HVD_RSABE` left this table in 0.4.0, `EMA_HVD_ABEL` in 0.6.0, and
+`FDA_NTI_RSABE` in 0.7.0 when Appendix C supplied its third criterion.*
+
+An empty table is a good place to be and a bad place to lose a safety
+mechanism, so `NotImplementedMethod` is exercised by a test that marks a method
+unimplemented rather than by waiting for one to be.
+
+### Appendix C support is uneven, and saying so is the point
+
+`FDA_REPLICATE_STANDARD_ABE` was split in 0.7.0 rather than implemented as one
+capability, because a single status would have to say one thing about two
+situations that differ:
+
+| capability | status | why |
+|---|---|---|
+| `FDA_REPLICATE_STANDARD_ABE_FULL` | `IMPLEMENTED_UNVALIDATED` | reproduces EMA's published SAS Method C output, and cross-checked against ReplicateBE.jl, which PR #61 verified for this design |
+| `FDA_REPLICATE_STANDARD_ABE_PARTIAL` | `NOT_IMPLEMENTED` | no trustworthy oracle. The oracle that works on the fully replicate design differs from published SAS by 2.94 denominator df here, on a design its own validation claim never covered — see `VAL-FDA-APPENDIX-C-002` |
+
+The partial replicate branch refuses: `decided = False`, `passes = None`, and
+the diagnostic `APPENDIX_C_PARTIAL_REPLICATE_NOT_VALIDATED`. The arithmetic
+would produce a number; there is nothing to check it against, and the correct
+partial replicate Satterthwaite df remains **NOT DETERMINED**. Neither of the
+two candidate values appears anywhere in the package, and an AST test enforces
+that.
+
+**FDA HVD therefore supports the two branches unevenly**, and the module
+docstring states it in those terms rather than as "Appendix C is implemented":
+the scaled branch (`sWR ≥ 0.294`) decides for both replicate designs; the
+unscaled branch decides for fully replicate given the raw observations, and
+refuses for partial replicate.
 
 ### The switching threshold is settled
 

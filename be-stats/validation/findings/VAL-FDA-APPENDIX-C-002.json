@@ -5,7 +5,7 @@
   "raised_on": "2026-08-29",
   "status": "OPEN",
   "method": "fda_replicate_standard_abe",
-  "effect_on_be_stats": "none - Appendix C is NOT_IMPLEMENTED and stays so",
+  "effect_on_be_stats": "DECISIVE, and in both directions. PR #62 implemented Appendix C for FULLY REPLICATE designs only, and this finding is the entire reason for that boundary: the oracle is verified for 2x2x4 and unverified for 2x3x3, so the fully replicate case has something to be checked against and the partial replicate case does not. FDA_REPLICATE_STANDARD_ABE_FULL is IMPLEMENTED_UNVALIDATED; FDA_REPLICATE_STANDARD_ABE_PARTIAL is NOT_IMPLEMENTED and refuses with APPENDIX_C_PARTIAL_REPLICATE_NOT_VALIDATED. Neither 19.603 nor 22.540 appears as a constant anywhere in the package, and an AST test enforces that.",
 
   "oracle": {
     "name": "ReplicateBE.jl",
@@ -73,7 +73,13 @@
     "nothing_was_tuned": "The recovered 19.60 is a diagnostic. SAS's actual df for this design remains unpublished, and no parameter was adjusted toward it."
   },
 
-  "consequence": "The oracle is VERIFIED for fully replicate (2x2x4) and UNVERIFIED for partial replicate (2x3x3). FDA HVD supports both designs, so this is not enough to implement Appendix C against. VAL-FDA-APPENDIX-C-001 stays BLOCKED_WITH_PRECISE_REASONS with this as one of the reasons.",
+  "consequence": "The oracle is VERIFIED for fully replicate (2x2x4) and UNVERIFIED for partial replicate (2x3x3). FDA HVD supports both designs, so this is not enough to implement Appendix C for BOTH - which is what PR #61 concluded when it recorded VAL-FDA-APPENDIX-C-001 as BLOCKED_WITH_PRECISE_REASONS. PR #62 took the other available route: implement the half the oracle covers and refuse the half it does not, rather than implementing neither or implementing both on one design's evidence.",
 
-  "related_findings": ["VAL-FDA-APPENDIX-C-001"]
+  "superseded_in_part_by": {
+    "pr": 62,
+    "what_changed": "The conclusion 'not enough to implement Appendix C against' was correct about implementing it for BOTH designs and too strong about the fully replicate case, where the evidence was always sufficient. The scope split is the resolution.",
+    "what_did_not_change": "Everything about the partial replicate design. The correct partial replicate Satterthwaite df remains NOT DETERMINED, and resolving it still needs a SAS run."
+  },
+
+  "related_findings": ["VAL-FDA-APPENDIX-C-001", "VAL-FDA-APPENDIX-C-003"]
 }

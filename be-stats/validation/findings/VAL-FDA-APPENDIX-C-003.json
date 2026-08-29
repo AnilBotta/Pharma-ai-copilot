@@ -1,0 +1,47 @@
+{
+  "finding_id": "VAL-FDA-APPENDIX-C-003",
+  "title": "ReplicateBE.jl cannot represent a negative subject-by-formulation correlation, which FDA's FA0(2) permits",
+  "raised_by": "PR #62, first gating run of the nine synthetic full-replicate cases",
+  "raised_on": "2026-08-29",
+  "status": "RESOLVED",
+  "classification": "COVARIANCE_PARAMETERIZATION_DIFFERENCE",
+  "method": "fda_replicate_standard_abe_full",
+  "effect_on_be_stats": "none on any computed value. It bounds where the tier-3 oracle is usable: two of the nine synthetic cases are excluded from the comparison, by a criterion measured from the oracle's own reported parameters rather than from whether the comparison passed.",
+
+  "what_was_observed": {
+    "agreeing_cases": "Seven of nine agree to 1e-6 on all five covariance parameters, on the standard error and on the denominator df.",
+    "disagreeing_cases": [
+      {"case": "B", "be_stats_rho": -0.022567, "replicatebe_rho": 6.952170681966761e-14, "se_difference_percent": 0.94, "df_difference": -0.4711},
+      {"case": "D", "be_stats_rho": -0.096563, "replicatebe_rho": 2.369234635053067e-15, "se_difference_percent": 3.16, "df_difference": -1.0500}
+    ],
+    "the_pattern": "The two disagreeing cases are EXACTLY the two where be-stats fits a negative subject-by-formulation correlation. Every case with rho >= 0 agrees. No other property separates them - B is unbalanced and incomplete, D is balanced and complete."
+  },
+
+  "cause": {
+    "mechanism": "ReplicateBE parameterises the correlation through a link, `rholink = :psigmoid`, whose range excludes negative values. Reaching zero requires sending its parameter to minus infinity, and 1e-14 is what the optimiser returns when it tries. Those values are not small numbers; they are zero as that link can express it.",
+    "why_be_stats_is_not_similarly_constrained": "FDA specifies TYPE=FA0(2), which is G = LL' with L = [[l11, 0], [l21, l22]], giving sigma_BTBR = l11*l21. l21 is unconstrained in sign, so a negative subject-by-formulation covariance is inside the model FDA specifies. This package implements that parameterisation directly.",
+    "which_is_right_about_the_model": "FDA's. A negative subject-by-formulation covariance is admissible under FA0(2) and under the CSH and UNR alternatives FDA names, and the constraint is the oracle's, not the model's."
+  },
+
+  "how_the_disagreement_was_adjudicated": {
+    "route": "The classical subject-level analysis - the one-sample analysis of per-subject (mean log T - mean log R) averaged over sequences. No mixed model, no REML, no optimiser, no covariance structure, no Satterthwaite formula.",
+    "applies_to": "Case D, which is balanced, complete and interior. PR #62 established that Appendix C reduces to this analysis exactly under those three conditions.",
+    "standard_error": {
+      "classical_subject_level": 0.12720778,
+      "be_stats": 0.12720778,
+      "replicatebe": 0.12331506
+    },
+    "reading": "A third route sharing code with neither implementation agrees with be-stats to eight decimal places and differs from the oracle by 3.2%. The exclusion therefore rests on a number rather than on a reading of ReplicateBE's source.",
+    "case_b_has_no_third_route": "It is incomplete, so the identity does not apply. Its exclusion rests on the same pinned rho, and on the pattern being established across both cases rather than fitted to one."
+  },
+
+  "what_was_not_done": {
+    "no_tolerance_was_loosened": "The gate is unchanged at 0.01 percentage points on each confidence limit. Widening it until B and D passed would have required about 0.6 percentage points, which would also have admitted a genuine defect.",
+    "no_case_was_dropped_for_disagreeing": "The exclusion criterion is a conjunction of two measured properties - be-stats rho clearly below zero AND the oracle's rho collapsed below its link's limit - and a test asserts that exactly the cases meeting it are excluded. A case where the oracle merely fitted a small positive correlation would still be compared.",
+    "the_criterion_is_reversible": "If a future ReplicateBE release reported a negative rho, these cases would re-enter the comparison automatically."
+  },
+
+  "consequence": "The oracle is usable for fully replicate designs with a non-negative fitted subject-by-formulation correlation. That covers EMA Data set I, which is the regulator-published case, and seven of the nine synthetic ones. It does not cover negative-correlation fits, which no oracle available to this project can check.",
+
+  "related_findings": ["VAL-FDA-APPENDIX-C-002", "VAL-FDA-APPENDIX-C-004"]
+}

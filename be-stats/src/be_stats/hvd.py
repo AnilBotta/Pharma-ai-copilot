@@ -33,27 +33,47 @@ Reducing that to one boolean is how the second one quietly disappears - the
 scaled criterion is the elaborate part, and it is easy to treat it as the
 answer. `RsabeResult` exposes each separately and computes `passes` from both.
 
-ONLY ONE OF THE TWO BRANCHES DECIDES
+WHAT EACH BRANCH CAN AND CANNOT DECIDE - STATE THIS PRECISELY OR NOT AT ALL
 
-The scaled branch is complete. The unscaled branch is not, and it refuses.
+The scaled branch (`sWR >= 0.294`) is complete for both replicate designs.
 
-Appendix G step 1a routes an endpoint with `sWR < 0.294` to the two one-sided
-tests procedure without naming a model. Appendix C names one: a mixed model on
-the subject-period observations, with a period term, an unstructured
-subject-by-formulation covariance and treatment-specific residual variances,
-which this package cannot fit and has nothing to check a from-scratch fit
-against. See `replicate_abe.py`.
+The unscaled branch (`sWR < 0.294`) is Appendix C's mixed model, and its support
+is deliberately UNEVEN. Saying "Appendix C is implemented" would be true of the
+fully replicate case and false of the partial replicate one, and a reader
+choosing a design on the strength of that sentence would be misled:
 
-So an endpoint below the threshold comes back with its sWR, its selected
-method, its treatment contrast - and `decided = False`. It does not come back
-with a bioequivalence verdict computed from the reference-scaled construction's
-intermediate, which is what an earlier version of this module did.
+    FULLY REPLICATE     decides, given the raw observations. Validated against
+                        EMA's published SAS Method C output for the model EMA
+                        attributes to FDA, and cross-checked against
+                        ReplicateBE.jl. See `appendix_c.py`.
+
+    PARTIAL REPLICATE   REFUSES. `decided = False`, `passes = None`. Not for
+                        want of arithmetic - the fit would produce a number -
+                        but because PR #61 found no trustworthy oracle for it:
+                        ReplicateBE.jl reproduces SAS exactly on the fully
+                        replicate design and differs by 2.94 denominator df on
+                        the partial replicate one, a design its own validation
+                        claim never covered. The correct partial replicate
+                        Satterthwaite df is NOT DETERMINED.
+
+    NO RAW OBSERVATIONS Refuses either way. Appendix C is an AVAILABLE CASE
+                        analysis and `ReplicateDataset` has already dropped
+                        subjects Appendix G's sWR could not use, so they cannot
+                        be recovered from it. Pass `observations=`.
+
+In every refusing case the endpoint comes back with its sWR, its selected
+method and its treatment contrast, and `decided = False`. It never comes back
+with a verdict computed from the reference-scaled construction's intermediate,
+which is what an early version of this module did.
 
 WHAT THIS MODULE DOES NOT DO
 
 FDA narrow therapeutic index drugs (Appendix F) and EMA's ABEL are different
-procedures and are not here. The constants for NTI exist in `spec.py` and are
-consumed by nothing.
+procedures and are not here. Each lives in its own module with its own
+constants and its own result type, and this one names neither - a test asserts
+that the FDA modules do not so much as mention the EMA one, because a
+polymorphic "highly variable result" shared between regulators would have to
+carry FDA's 0.294 and EMA's separate CV-scale threshold in the same object.
 """
 
 from __future__ import annotations

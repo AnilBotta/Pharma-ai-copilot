@@ -1,0 +1,67 @@
+{
+  "finding_id": "VAL-FDA-APPENDIX-C-004",
+  "title": "The denominator df difference against ReplicateBE.jl is a boundary effect, and appears only at the boundary",
+  "raised_by": "PR #62; closes the question PR #61 left open on EMA Data set I",
+  "raised_on": "2026-08-29",
+  "status": "RESOLVED",
+  "classification": "COVARIANCE_PARAMETERIZATION_DIFFERENCE",
+  "method": "fda_replicate_standard_abe_full",
+  "effect_on_be_stats": "none. The difference moves a 90% confidence limit by under 1e-4 percentage points, which is smaller than the rounding in every published figure this package is checked against.",
+
+  "the_open_question": {
+    "from": "PR #61",
+    "observed": "On EMA Data set I, be-stats gives a denominator df of 207.7350 and ReplicateBE.jl gives 208.0811 - a difference of 0.35, or 0.17%. Every other quantity agreed to six decimals.",
+    "leading_hypothesis": "Data set I sits exactly on the correlation boundary (rho = 1.000), and the two implementations parameterise that limit differently. Unconfirmed, because one dataset cannot distinguish a boundary effect from a general one."
+  },
+
+  "what_was_ruled_out_first": {
+    "finite_difference_error": "The Satterthwaite df needs the Hessian of the REML objective. An early version obtained it by second differences of the objective, which divides by h^2 and loses most of its significant figures. It was replaced with central differences of an ANALYTIC gradient with closed-form dV/dtheta. The df did not move, so the difference is not differencing error.",
+    "a_general_disagreement": "Ruled out by the evidence below, which is what PR #61 could not obtain from one dataset."
+  },
+
+  "the_evidence": {
+    "design": "Nine synthetic full-replicate cases, eight of them at interior optima and one constructed to land on the correlation boundary.",
+    "interior_cases": {
+      "comparable": ["A", "C", "F", "G", "H", "I"],
+      "df_difference": "below 1e-3 in every case; several agree to four decimal places at exactly n - 2",
+      "note": "Cases B and D are excluded for an unrelated reason - see VAL-FDA-APPENDIX-C-003 - and are not counted either way."
+    },
+    "boundary_case": {
+      "case": "E",
+      "fitted_rho": 1.0,
+      "be_stats_df": 111.3107,
+      "replicatebe_df": 111.6010,
+      "difference": -0.2903,
+      "percent": 0.26
+    },
+    "comparison_with_data_set_i": {
+      "fitted_rho": 1.0,
+      "difference": -0.3461,
+      "percent": 0.17,
+      "reading": "Same sign, same order of magnitude, same condition. The synthetic boundary case reproduces the real one."
+    },
+    "conclusion": "The difference appears at the boundary and only at the boundary. The hypothesis PR #61 recorded is confirmed."
+  },
+
+  "mechanism": {
+    "be_stats": "G = LL' with theta = (l11, l21, l22, log s2_WT, log s2_WR). rho = 1 is l22 = 0, an ORDINARY INTERIOR POINT of R^5. The optimiser reaches it unaided - l22 = 2.7e-07 on Data set I - and no bound is applied. The REML Hessian is near-singular there, so satterthwaite_df uses a pseudo-inverse.",
+    "replicatebe": "CSH coordinates with the correlation behind a link. rho = 1 sends its parameter to infinity.",
+    "reading": "Two different delicate limits of the same quantity, approached from two directions. Neither is wrong; they disagree about the last three significant figures of a Hessian that is singular at the point in question."
+  },
+
+  "why_the_tolerance_is_stated_in_df_and_not_in_percent": {
+    "reasoning": "df matters only through the t quantile it selects, and the same absolute difference means very different things at 22 df and at 208.",
+    "data_set_i": "t(0.95, 207.7350) = 1.652263 and t(0.95, 208.0811) = 1.652259 - a relative difference of 2.6e-6, moving the 90% interval by under 1e-4 percentage points.",
+    "the_test": "asserts the CONSEQUENCE as well as the difference: the two t quantiles must agree to 1e-3 relative, which bounds the effect on a confidence limit at well under the 0.01 percentage points the comparison gate allows."
+  },
+
+  "what_is_still_not_established": {
+    "which_implementation_is_closer_to_sas_at_the_boundary": "NOT_DETERMINED",
+    "why_it_does_not_matter_here": "EMA published Data set I's interval to two decimals, and both implementations reproduce it: 107.10 and 124.89 either way. The difference is four orders of magnitude below the published precision, so the published output cannot discriminate and does not need to.",
+    "what_would_settle_it": "A SAS run reporting the df directly - the same shortest path VAL-FDA-APPENDIX-C-001 identifies for the partial replicate question."
+  },
+
+  "consequence": "Accepted and bounded. The boundary is not an edge case to be avoided: EMA Data set I - the only regulator-published Appendix C result available - sits on it, so an implementation that refused boundary solutions would refuse the one dataset that validates it.",
+
+  "related_findings": ["VAL-FDA-APPENDIX-C-001", "VAL-FDA-APPENDIX-C-002", "VAL-FDA-APPENDIX-C-003"]
+}
