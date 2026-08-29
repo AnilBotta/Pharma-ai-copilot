@@ -98,6 +98,22 @@ jobs:
               be-stats/validation/ema/cases/ema_pkwp_qa_datasets.json \
               be-stats/validation/external/appendix_c_investigation.json
 
+      - name: Test the ReplicateBE.jl Satterthwaite claim
+        # The last open item in VAL-FDA-APPENDIX-C-001. No R package computes
+        # Satterthwaite df for Appendix C's covariance structure; this one
+        # claims to, and a claim is not evidence.
+        #
+        # `continue-on-error` for the same reason as the R investigation above:
+        # an oracle candidate that fails to converge is a finding to write
+        # down, not a reason to fail a cross-check that already passed.
+        if: always()
+        continue-on-error: true
+        run: |
+          docker run --rm -v "$PWD:/work" be-stats-validation \
+            julia be-stats/validation/external/investigate_appendix_c_julia.jl \
+              be-stats/validation/ema/cases/ema_pkwp_qa_datasets.json \
+              be-stats/validation/external/appendix_c_julia.json
+
       - name: Upload the report
         if: always()
         uses: actions/upload-artifact@v4
@@ -108,4 +124,5 @@ jobs:
             be-stats/validation/external/report.txt
             be-stats/validation/external/powertost_results.json
             be-stats/validation/external/appendix_c_investigation.json
+            be-stats/validation/external/appendix_c_julia.json
           if-no-files-found: warn

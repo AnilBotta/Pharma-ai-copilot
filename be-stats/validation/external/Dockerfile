@@ -36,6 +36,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         # letting each build compile its own.
         cmake \
         libnlopt-dev \
+        # for fetching the pinned Julia tarball below
+        curl \
+        ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 COPY install_r_packages.R /tmp/install_r_packages.R
@@ -52,6 +55,32 @@ COPY install_appendix_c_packages.R /tmp/install_appendix_c_packages.R
 RUN Rscript /tmp/install_appendix_c_packages.R || \
     echo "appendix C candidates: install script exited non-zero; the \
 investigation records NOT DETERMINED for whatever is absent"
+
+# Julia, for ONE question: no R package computes Satterthwaite denominator
+# degrees of freedom for Appendix C's covariance structure, and ReplicateBE.jl
+# claims to. That claim is the last open item in VAL-FDA-APPENDIX-C-001, and
+# quoting it is not testing it.
+#
+# `be_stats` does not depend on Julia and must never depend on Julia.
+# ReplicateBE.jl is GPL-3.0 and is used here as an ORACLE - run it, compare
+# numbers - which creates no derivative work. None of its code is copied.
+#
+# Pinned by version and checksum-bearing URL rather than a channel alias, for
+# the reason the R side is pinned: two runs a year apart must resolve the same
+# oracle.
+ENV JULIA_VERSION=1.10.5
+ENV JULIA_PATH=/opt/julia
+ENV PATH=$JULIA_PATH/bin:$PATH
+RUN set -eux; \
+    curl -fsSL -o /tmp/julia.tar.gz \
+      "https://julialang-s3.julialang.org/bin/linux/x64/1.10/julia-${JULIA_VERSION}-linux-x86_64.tar.gz"; \
+    mkdir -p "$JULIA_PATH"; \
+    tar -xzf /tmp/julia.tar.gz -C "$JULIA_PATH" --strip-components=1; \
+    rm /tmp/julia.tar.gz; \
+    julia --version
+
+COPY install_julia_packages.jl /tmp/install_julia_packages.jl
+RUN julia /tmp/install_julia_packages.jl
 
 # The Python side. `--break-system-packages` is deliberate in a throwaway
 # validation container; a venv here would add a layer of indirection with
