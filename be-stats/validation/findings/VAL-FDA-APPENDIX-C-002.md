@@ -84,6 +84,28 @@ deliberately so:
 **Nothing was tuned toward 19.60**, and nothing should be. The recovered value
 is a diagnostic; SAS's actual df for this design remains unpublished.
 
+## The oracle is not bit-reproducible, and that has a consequence
+
+Two identical CI runs gave Data set II a df of **22.540251** and **22.529500** —
+a difference of 0.0108, about 0.05%. Data set I gave **208.081147** both times,
+identical.
+
+The cause is REML optimiser tolerance. Data set I's fit sits on the correlation
+boundary (`ρ = 1.000` exactly), which pins it. Data set II's optimum is interior
+(`ρ = 0.966`) and flatter, so the search stops at slightly different points.
+
+No visible effect on the interval — both runs agree on the 90% CI to four
+decimal places, because a 0.05% change in df moves `t(0.95, 22.5)` by about
+`1e-5`.
+
+**But it constrains any future tier-3 case.** A tolerance on df has to
+accommodate the *oracle's own* run-to-run variation, not merely the difference
+between implementations. About 0.02 df is the floor here; anything tighter
+would fail against the oracle at random.
+
+Recorded because the alternative is discovering it months later as a mysterious
+intermittent failure — which is exactly how `VAL-FDA-HVD-001` began.
+
 ## One more thing worth recording
 
 On Data set I the fitted subject-by-formulation correlation is **exactly

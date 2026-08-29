@@ -50,6 +50,14 @@
     "reading": "The estimate and the covariance parameters match; the interval does not. It is narrower than published by about 0.035 percentage points at each end, roughly seven times the rounding bound. The whole difference is in the df: with SE = 0.030317 - a value nlme, glmmTMB and ReplicateBE.jl all agree on exactly - the published interval requires t = 1.72643, i.e. df about 19.60, against ReplicateBE's 22.540."
   },
 
+  "run_to_run_reproducibility": {
+    "observed": "Two identical CI runs gave df 22.540251 and 22.529500 for Data set II - a difference of 0.0108, about 0.05%. Data set I gave 208.081147 both times, identical.",
+    "cause": "REML optimiser tolerance. Data set I's fit sits on the correlation boundary (rho = 1.000 exactly), which pins it; Data set II's optimum is interior (rho = 0.966) and flatter, so the search terminates at slightly different points.",
+    "consequence_for_the_ci": "None visible. Both runs give the same 90% CI to four decimal places, because a 0.05% change in df moves t(0.95, 22.5) by about 1e-5.",
+    "consequence_for_a_future_validation": "A tolerance on df in any future tier-3 case must accommodate the ORACLE'S OWN run-to-run variation, not just the difference between implementations. Roughly 0.02 df is the floor here; a tolerance tighter than that would fail against the oracle at random.",
+    "why_it_is_recorded": "It would otherwise be discovered as a mysterious intermittent failure months later, which is exactly how VAL-FDA-HVD-001 started."
+  },
+
   "explanation": {
     "the_packages_own_scope": "Satterthwaite degree of freedom (DF) estimate is equal with SAS/SPSS DF estimate for full-replicated basic bioequivalence balanced and unbalanced datasets (2x2x4, 2x2x3)",
     "reading": "Both named designs are TWO-SEQUENCE designs. Data set I is 2x2x4 and is covered. Data set II is a THREE-SEQUENCE partial replicate and is not. The observed pattern is exactly what the package claims - agreement where it says so, divergence where it never claimed any. A scope limitation honestly stated by its author, not a defect discovered here."
