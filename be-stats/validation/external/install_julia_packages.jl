@@ -17,11 +17,24 @@
 
 using Pkg
 
-const WANTED = "1.0.10"
+# 1.0.15, NOT the 1.0.10 the documentation site happens to serve.
+#
+# 1.0.10's compat is `DataFrames = "0.19, 0.20"`, and DataFrames 0.20 does not
+# resolve on Julia 1.10 - SortingAlgorithms drags the requirement to
+# DataFrames >= 1.0 and the two are unsatisfiable. The first build failed
+# exactly there. 1.0.15 declares `DataFrames = "1"` and `julia = "1"`.
+#
+# Worth being explicit about what this pin is and is not: it is a pin to the
+# newest release, chosen because the older one cannot run, not a pin to
+# whatever resolves today. The resolved manifest is recorded either way.
+const WANTED = "1.0.15"
 
 Pkg.add(Pkg.PackageSpec(name = "ReplicateBE", version = WANTED))
 Pkg.add(Pkg.PackageSpec(name = "JSON"))
-Pkg.add(Pkg.PackageSpec(name = "DataFrames"))
+# DataFrames deliberately UNPINNED: ReplicateBE's own compat bound should pick
+# it, and pinning it separately is how the first build produced an
+# unsatisfiable graph rather than a clear error.
+Pkg.add("DataFrames")
 
 # Precompile here rather than on first use, so the investigation step measures
 # the fit and not the compiler.

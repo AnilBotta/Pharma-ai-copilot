@@ -52,6 +52,13 @@ using DataFrames
 using JSON
 using ReplicateBE
 
+# Accessors are reached through ReplicateBE rather than by `using StatsBase`:
+# they are methods ReplicateBE defines on StatsBase generics, and qualifying
+# them avoids depending on which package happens to own the generic in a given
+# release. `coefnames` is attempted the same way and falls back if absent.
+const coef = ReplicateBE.coef
+const stderror = ReplicateBE.stderror
+
 const ALPHA = 0.05          # one-sided; the 90% interval FDA's ALPHA=0.1 asks for
 const LEVEL = 0.90
 
@@ -157,20 +164,33 @@ function analyse(name, rows)
     ses = stderror(fitted)
     dfs = ReplicateBE.dof(fitted)
 
-    # The formulation coefficient is the last fixed effect in ReplicateBE's
-    # ordering (intercept, sequence, period, formulation). Located by taking
-    # the coefficient whose oriented value lands nearest the published
-    # estimate, and the index is REPORTED so the choice is auditable rather
-    # than assumed.
-    best_i, best_gap = 0, Inf
-    for i in eachindex(betas)
-        gap = min(
-            abs(100 * exp(betas[i]) - published["estimate_percent"]),
-            abs(100 * exp(-betas[i]) - published["estimate_percent"]),
-        )
-        if gap < best_gap
-            best_gap, best_i = gap, i
+    # LOCATE THE FORMULATION COEFFICIENT BY NAME, NOT BY PROXIMITY.
+    #
+    # An earlier draft picked the coefficient whose value landed nearest the
+    # published estimate. That is circular - it selects the answer that agrees
+    # - and it would have hidden a genuinely wrong fit by quietly reporting
+    # some other term instead. `coefnames` gives the fixed-effect names, and
+    # the position is reported so the choice can be checked.
+    names = try
+        String.(ReplicateBE.coefnames(fitted.model))
+    catch
+        try
+            String.(ReplicateBE.coefnames(fitted))
+        catch
+            String[]
         end
+    end
+    result["coefficient_names"] = names
+
+    best_i = findfirst(n -> occursin("formulation", lowercase(n)), names)
+    if best_i === nothing
+        # ReplicateBE orders intercept, sequence, period, formulation, so the
+        # last term is the fallback - recorded as a fallback, never silent.
+        best_i = length(betas)
+        result["coefficient_located_by"] = "position (last fixed effect); " *
+            "coefnames did not expose a formulation term"
+    else
+        result["coefficient_located_by"] = "name: $(names[best_i])"
     end
 
     estimate_raw = betas[best_i]
