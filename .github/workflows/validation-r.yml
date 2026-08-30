@@ -143,13 +143,23 @@ jobs:
     # will not converge is a finding to write down. `continue-on-error` is right
     # there.
     #
-    # This is not that. ReplicateBE.jl was ESTABLISHED as a tier-3 oracle for
-    # fully replicate designs in PR #61, by reproducing EMA's published SAS
-    # output exactly. The nine synthetic cases are checked against it, and a
-    # disagreement is a defect in one of the two implementations - so this job
-    # fails, and it fails just as hard when the comparison is SKIPPED. A
-    # validation that quietly does not run is worse than one that fails,
-    # because it reports green.
+    # This is not that. ReplicateBE.jl was established in PR #61 as a tier-3
+    # oracle for fully replicate designs by reproducing EMA's published SAS
+    # output exactly - but WITHIN THE COVARIANCE DOMAIN IT CAN REPRESENT, a
+    # qualifier PR #62 had to add after finding that its correlation link
+    # cannot express the negative subject-by-formulation covariance FDA's
+    # FA0(2) permits.
+    #
+    # So the gate covers the cases where the oracle can fit the same model
+    # this package fits. There, a disagreement IS a defect in one of the two
+    # implementations and this job fails. The cases outside that domain stay
+    # in the suite and are reported, but they are adjudicated by an
+    # independent algebraic identity rather than by the oracle - see
+    # VAL-FDA-APPENDIX-C-003.
+    #
+    # It fails just as hard when the comparison is SKIPPED. A validation that
+    # quietly does not run is worse than one that fails, because it reports
+    # green.
 
     steps:
       - uses: actions/checkout@v4

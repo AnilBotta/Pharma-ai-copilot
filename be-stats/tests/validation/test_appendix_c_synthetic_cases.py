@@ -7,8 +7,8 @@ reaches. That would ordinarily leave them dependent on ReplicateBE.jl to say
 whether the answers are right - a tier-3 comparison, run in CI, against an
 implementation rather than a regulator.
 
-They are not, and the reason is an algebraic identity that emerged while
-building them:
+They are not entirely, and the reason is an algebraic identity that emerged
+while building them:
 
     FOR A BALANCED, COMPLETE, FULLY REPLICATE DESIGN WITH AN INTERIOR
     OPTIMUM, THE APPENDIX C MIXED MODEL REDUCES EXACTLY TO THE CLASSICAL
@@ -19,8 +19,23 @@ building them:
 The classical route uses no mixed model, no REML, no optimiser, no covariance
 structure and no Satterthwaite formula. It is thirty lines of arithmetic over
 subject means. When it reproduces the estimate AND the standard error to eight
-decimal places, and the df to six, essentially every component of this module
-has been checked against something that shares no code with it.
+decimal places, and the df to six, the estimate, the standard error and the df
+have each been checked against something sharing no code with them.
+
+WHAT KIND OF EVIDENCE THIS IS, STATED CAREFULLY
+
+It is an INDEPENDENT ALGEBRAIC CROSS-CHECK - mathematical and structural
+conformance, established by a route with no part of the mixed-model
+implementation in it.
+
+It is NOT tier 1A. In this package tier 1A means conformance to a REGULATOR'S
+stated algorithm or decision rule, and no regulator states this identity;
+it is a property of the model that happens to be true and happens to be
+checkable. Calling it tier 1A would promote a mathematical fact into a
+regulatory attestation, which is the same category error as calling EMA's
+published output an FDA validation.
+
+Its reach is also bounded, and the bounds are the next section.
 
 WHERE THE IDENTITY STOPS, AND WHY THAT IS THE INTERESTING PART
 

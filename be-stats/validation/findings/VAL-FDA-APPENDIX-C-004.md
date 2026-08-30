@@ -6,6 +6,28 @@ and appears only at the boundary.**
 Raised by PR #62. Closes the question PR #61 left open. **Resolved** —
 `COVARIANCE_PARAMETERIZATION_DIFFERENCE`. No computed value changes.
 
+## What that classification means here — and what it does not
+
+It means a **boundary numerical and parameterisation difference between two
+implementations of the same regulatory model**, which take the ρ → 1 limit
+through different coordinates and so disagree about the last three significant
+figures of a Hessian that is singular at that point.
+
+It does **not** mean:
+
+- that FDA's required covariance model differs from what either implementation
+  fits;
+- that the two implementations are fitting different regulatory models;
+- anything at all about the **positive-correlation interior domain**, where the
+  two agree to 1e-6 on all five covariance parameters and are demonstrably
+  fitting the same model.
+
+This needs saying because the label is shared with
+[VAL-FDA-APPENDIX-C-003](VAL-FDA-APPENDIX-C-003.md), where the difference *is*
+structural — the oracle cannot represent part of FDA's model at all. Here it is
+numerical, in a region both implementations can represent. Same label,
+materially different severity.
+
 ## The open question
 
 On EMA Data set I, `be-stats` gives a denominator df of **207.7350** and
@@ -62,8 +84,9 @@ pseudo-inverse.
 sends its parameter to infinity.
 
 Two different delicate limits of the same quantity, approached from opposite
-directions. Neither is wrong; they disagree about the last three significant
-figures of a Hessian that is singular at the point in question.
+directions. Neither is wrong, and both are fitting FDA's model; they disagree
+about the last three significant figures of a Hessian that is singular at the
+point in question.
 
 ## Why the tolerance is stated in df, not in percent
 

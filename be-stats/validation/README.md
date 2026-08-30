@@ -784,7 +784,7 @@ situations that differ:
 
 | capability | status | why |
 |---|---|---|
-| `FDA_REPLICATE_STANDARD_ABE_FULL` | `IMPLEMENTED_UNVALIDATED` | reproduces EMA's published SAS Method C output, and cross-checked against ReplicateBE.jl, which PR #61 verified for this design |
+| `FDA_REPLICATE_STANDARD_ABE_FULL` | `IMPLEMENTED_UNVALIDATED` | reproduces EMA's published SAS Method C output; cross-checked against ReplicateBE.jl **within the covariance domain that oracle can represent**; and supported by an independent algebraic identity for balanced complete interior fits |
 | `FDA_REPLICATE_STANDARD_ABE_PARTIAL` | `NOT_IMPLEMENTED` | no trustworthy oracle. The oracle that works on the fully replicate design differs from published SAS by 2.94 denominator df here, on a design its own validation claim never covered — see `VAL-FDA-APPENDIX-C-002` |
 
 The partial replicate branch refuses: `decided = False`, `passes = None`, and
@@ -799,6 +799,45 @@ docstring states it in those terms rather than as "Appendix C is implemented":
 the scaled branch (`sWR ≥ 0.294`) decides for both replicate designs; the
 unscaled branch decides for fully replicate given the raw observations, and
 refuses for partial replicate.
+
+#### Why FULL is not `VALIDATED`, with more evidence than two that are
+
+`EMA_REPLICATE_METHOD_A` and `EMA_ABEL_LIMIT_CALCULATION` are `VALIDATED`.
+Appendix C FULL reproduces a regulator's published output on the *same dataset*
+to the *same printed precision*, and additionally carries a tier-3 oracle and
+an algebraic identity that neither of those has. It still sits below them, and
+the reason is worth stating because it looks like an oversight otherwise.
+
+The bar is a **regulator's own published output for the procedure being
+claimed**. Appendix C is FDA's procedure and FDA has published no worked
+example of it. What exists is EMA's published output for a model EMA
+transcribes and attributes to FDA by name — excellent evidence that the
+arithmetic is right, and not the same thing as FDA validating FDA's own model.
+
+`test_no_fda_capability_claims_validated` enforces this, and it earned its
+place: it caught an attempt to promote FULL during PR #62. What would move it
+is an FDA-published worked example, or a SAS PROC MIXED run on published
+inputs. Not another oracle, and not more synthetic cases.
+
+#### The tier-3 oracle is domain-limited, and that is a finding not a caveat
+
+ReplicateBE.jl is a tier-3 oracle **within the covariance domain it can
+represent**. PR #62 established the limit empirically: FDA's `FA0(2)` permits a
+negative subject-by-formulation covariance through the sign of `l₂₁`, and
+ReplicateBE 1.0.15 puts the correlation behind a link whose range excludes
+negative values. Where `be-stats` fits a negative correlation the oracle is
+fitting a *different, constrained* model and cannot adjudicate.
+
+Those cases stay in the suite, are still fitted by the oracle on every CI run,
+and are still reported — they are simply not gated on. Where the independent
+algebraic identity reaches them it adjudicates instead (case D, which it
+supports). Where it does not, the status is **`UNRESOLVED`**, not pass: case B
+is incomplete and has no independent check anywhere in this project. That is a
+standing validation limitation recorded in `VAL-FDA-APPENDIX-C-003`.
+
+That identity is **independent algebraic / structural conformance evidence**,
+not tier 1A. Tier 1A here means conformance to a *regulator's* stated algorithm
+or decision rule, and no regulator states this identity.
 
 ### The switching threshold is settled
 

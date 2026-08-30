@@ -9,9 +9,16 @@ TWO KINDS OF EVIDENCE, AND THE DIFFERENCE MATTERS
     of FDA's own model; never described as the latter.
 
     ReplicateBE.jl 1.0.15 on Julia 1.10.5 - an INDEPENDENT IMPLEMENTATION
-    ORACLE, frozen in PR #61 after being verified to reproduce that same SAS
-    output. It supplies the standard error and the denominator df, which EMA
-    did not publish.
+    ORACLE, WITHIN THE COVARIANCE DOMAIN IT CAN REPRESENT, frozen in PR #61
+    after being verified to reproduce that same SAS output. It supplies the
+    standard error and the denominator df, which EMA did not publish.
+
+    The domain qualifier is load-bearing in general and satisfied here. PR #62
+    found that ReplicateBE's correlation link cannot express the negative
+    subject-by-formulation covariance FDA's FA0(2) permits, so it is not an
+    oracle for such fits - see VAL-FDA-APPENDIX-C-003. Data set I fits rho =
+    +1.000, comfortably inside what the oracle represents, so the comparisons
+    below are valid on their own terms rather than by exception.
 
 The second is what makes this test worth having. EMA prints two decimals; the
 oracle prints full precision, so a 0.02% error in the standard error - which

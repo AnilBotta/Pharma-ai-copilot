@@ -27,7 +27,7 @@ model EMA transcribes and attributes to FDA by name. Stronger than a
 peer-reviewed dataset, weaker than an FDA-published example of FDA's own model,
 and never described as the latter.
 
-### An identity that checks the module with no oracle at all
+### An algebraic identity that checks the module with no oracle at all
 
 For a **balanced, complete** fully replicate design with an **interior**
 optimum, Appendix C reduces *exactly* to the classical subject-level analysis —
@@ -37,6 +37,11 @@ sequences — and its Satterthwaite df is **exactly n − 2**.
 The classical route contains no mixed model, no REML, no optimiser, no
 covariance structure and no Satterthwaite formula. It reproduces the estimate
 *and* the standard error to 8 decimal places on all seven qualifying cases.
+
+This is **independent algebraic / structural conformance evidence**, sharing no
+code with the REML implementation. It is *not* tier 1A: in this package tier 1A
+means conformance to a **regulator's** stated algorithm or decision rule, and
+no regulator states this identity.
 
 Where it stops is the diagnostic part. On the **incomplete** case the estimates
 differ, because available-case analysis uses partial subjects the subject-level
@@ -87,6 +92,27 @@ about the other.
   datasets, both committed as data rather than regenerated from a seed.
 - A **gating** CI job runs ReplicateBE.jl over the nine cases and fails if any
   comparison is skipped.
+
+### The tier-3 oracle turned out to be domain-limited
+
+ReplicateBE.jl is an oracle **within the covariance domain it can represent**.
+FDA's `FA0(2)` permits a negative subject-by-formulation covariance through the
+sign of `l₂₁`; ReplicateBE 1.0.15 puts the correlation behind a link whose
+range excludes negative values. On the two cases where `be-stats` fits a
+negative correlation, the oracle reports ρ ≈ 1e-14 — zero as that link can
+express it — and is fitting a *different, constrained* model.
+
+Those cases stay in the suite and are still fitted on every CI run; they are
+not gated on, no tolerance was widened, and nothing was deleted. Case D is
+adjudicated by the algebraic identity, which supports `be-stats` (classical SE
+0.12720778, `be-stats` 0.12720778, ReplicateBE 0.12331506). **Case B is
+incomplete, the identity does not reach it, and its independent oracle status
+is `UNRESOLVED`** — a standing validation limitation, not a pass.
+
+Recorded as `VAL-FDA-APPENDIX-C-003`. The separate boundary-df finding
+`VAL-FDA-APPENDIX-C-004` shares the classification name but not the severity:
+there the two implementations are fitting the **same** model and differ only in
+how they take the ρ → 1 limit numerically.
 - `appendix_c.satterthwaite_df` is deliberately **not** re-exported at package
   level: `treatment_contrast` already owns that name and the two compute
   different things for different models.

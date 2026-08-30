@@ -1,11 +1,31 @@
 """The nine synthetic cases against ReplicateBE.jl.
 
-TIER 3. AN IMPLEMENTATION, NOT A REGULATOR.
+TIER 3, WITHIN THE COVARIANCE DOMAIN THE ORACLE CAN REPRESENT.
 
-ReplicateBE.jl earned its place as an oracle in PR #61 by reproducing EMA's
-published SAS Method C output exactly on the fully replicate design - estimate,
-90% interval and both within-subject CVs. That is the whole basis for trusting
-it, and it extends exactly as far as it was tested.
+An implementation, not a regulator - and not an unconditional one.
+
+ReplicateBE.jl earned its place in PR #61 by reproducing EMA's published SAS
+Method C output exactly on the fully replicate design: estimate, 90% interval
+and both within-subject CVs. That is the whole basis for trusting it.
+
+PR #62 then found the second half of the qualification, and it is not a hedge
+added for safety. ReplicateBE 1.0.15 puts the subject-by-formulation
+correlation behind a link whose range excludes negative values, while FDA's
+FA0(2) admits negative covariance through the sign of l21. So there is a region
+of FDA's own model the oracle cannot represent at all.
+
+    where the oracle's fitted correlation is non-negative and its
+    parameterisation spans the fitted solution
+        -> it is a tier-3 oracle and the live comparison GATES
+
+    where this package fits a materially negative subject-by-formulation
+    covariance
+        -> the oracle is fitting a DIFFERENT, constrained model and cannot
+           adjudicate. Its disagreement is not evidence of a defect here.
+
+Both regions stay in the suite. Nothing is deleted, no tolerance is widened,
+and the second region is adjudicated by the independent algebraic identity
+where that applies - and left explicitly UNRESOLVED where it does not.
 
 WHAT THE FIRST RUN FOUND, AND WHY IT IS NOT A LOOSENED TOLERANCE
 
@@ -44,12 +64,21 @@ Case D is balanced, complete and interior, so the identity in
 analysis - no mixed model, no REML, no optimiser - gives a standard error of
 0.12720778. This package gives 0.12720778. ReplicateBE gives 0.12331506.
 
-So the two excluded cases are excluded because the oracle demonstrably cannot
-represent them, established from the ORACLE'S OWN reported parameters and
-confirmed by a third route that shares code with neither. Cases are never
-dropped because a comparison failed; the exclusion criterion is checked below
-rather than asserted, and it would stop excluding them the moment ReplicateBE
+So the two cases are held out of the GATE because the oracle demonstrably
+cannot represent them - established from the ORACLE'S OWN reported parameters
+and confirmed, for case D, by a third route sharing code with neither. Cases
+are never dropped because a comparison failed; the criterion is checked below
+rather than asserted, and it would stop applying the moment ReplicateBE
 reported a negative rho.
+
+CASE B IS NOT ADJUDICATED, AND IS NOT CLAIMED TO BE
+
+Case B is incomplete, so the identity does not apply and no independent full
+oracle for it exists anywhere in this project. Its status is UNRESOLVED, not
+PASS. It is held out of the gate for the same structural reason as case D and
+supported by none of the same evidence, and a test below asserts that
+distinction rather than letting the two blur together. See
+VAL-FDA-APPENDIX-C-003.
 
 WHAT CASE E SETTLED
 
@@ -176,8 +205,21 @@ def oracle_cannot_represent(key: str) -> bool:
 
 
 #: Resolved once at collection time so the parametrisation is stable.
-EXCLUDED = tuple(sorted(k for k in CASES if FROZEN.exists() and oracle_cannot_represent(k)))
-COMPARABLE = tuple(sorted(set(CASES) - set(EXCLUDED)))
+#:
+#: OUTSIDE_ORACLE_DOMAIN, not "excluded" - the difference is the whole point.
+#: These cases are not skipped, not deleted and not passed. They are compared
+#: by something else where something else exists, and recorded as UNRESOLVED
+#: where it does not.
+OUTSIDE_ORACLE_DOMAIN = tuple(
+    sorted(k for k in CASES if FROZEN.exists() and oracle_cannot_represent(k))
+)
+COMPARABLE = tuple(sorted(set(CASES) - set(OUTSIDE_ORACLE_DOMAIN)))
+
+#: Of those, the ones the independent algebraic identity can adjudicate: it
+#: needs a balanced, complete, interior fit. Case B is incomplete, so it has
+#: no independent check at all and that is a standing validation limitation.
+ADJUDICATED_BY_IDENTITY = ("D",)
+INDEPENDENT_ORACLE_UNRESOLVED = ("B",)
 
 
 def fitted_cases() -> dict[str, dict]:
@@ -254,18 +296,65 @@ def test_the_oracle_pins_rho_at_zero_for_exactly_the_negative_cases():
             assert theirs == pytest.approx(ours, abs=1e-6), key
 
 
-def test_exactly_the_pinned_cases_are_excluded():
-    """No case is excluded for any other reason, and none is excluded silently."""
-    assert set(EXCLUDED) == {"B", "D"}
+def test_exactly_the_pinned_cases_fall_outside_the_oracle_domain():
+    """No case leaves the gate for any other reason, and none leaves silently."""
+    assert set(OUTSIDE_ORACLE_DOMAIN) == {"B", "D"}
     assert len(COMPARABLE) == 7
-    assert set(COMPARABLE) | set(EXCLUDED) == set(CASES)
-    for key in EXCLUDED:
+    assert set(COMPARABLE) | set(OUTSIDE_ORACLE_DOMAIN) == set(CASES)
+    for key in OUTSIDE_ORACLE_DOMAIN:
         assert fit(key).subject_correlation < CLEARLY_NEGATIVE
         assert abs(oracle_rho(oracle()["cases"][key])) < PINNED_AT_ZERO
 
+    # And every one of them is accounted for as either adjudicated or
+    # explicitly unresolved. A case falling out of the gate and out of both
+    # lists would be silently unvalidated, which is the failure mode this
+    # whole arrangement exists to prevent.
+    assert set(ADJUDICATED_BY_IDENTITY) | set(INDEPENDENT_ORACLE_UNRESOLVED) == set(
+        OUTSIDE_ORACLE_DOMAIN
+    )
+    assert not set(ADJUDICATED_BY_IDENTITY) & set(INDEPENDENT_ORACLE_UNRESOLVED)
 
-@pytest.mark.parametrize("key", ["D"])
-def test_a_third_route_adjudicates_the_excluded_case(key: str):
+
+@pytest.mark.parametrize("key", INDEPENDENT_ORACLE_UNRESOLVED)
+def test_case_b_has_no_independent_oracle_and_is_not_claimed_to(key: str):
+    """UNRESOLVED, not PASS. Asserted so it cannot quietly become the latter.
+
+    Case B is incomplete, so the balanced-data identity does not apply, and
+    ReplicateBE cannot represent its negative correlation. That leaves no
+    independent check on it anywhere in this project.
+
+    The honest position is a standing validation limitation, recorded in
+    VAL-FDA-APPENDIX-C-003 as `independent_oracle_status: UNRESOLVED`. This
+    test asserts the three facts that make it unresolved, so that a future
+    change satisfying any of them - completing the data, or an oracle that
+    handles negative correlation - shows up here as a failure prompting the
+    finding to be revisited, rather than passing unnoticed.
+    """
+    f = fit(key)
+    rows = CASES[key]["observations"]
+
+    # 1. It is genuinely incomplete, so the identity does not reach it.
+    assert len(rows) != 4 * f.n_subjects
+
+    # 2. Its correlation is genuinely negative, so the oracle cannot reach it.
+    assert f.subject_correlation < CLEARLY_NEGATIVE
+
+    # 3. The finding says so, in the same words.
+    finding = json.loads(
+        (
+            ROOT / "validation/findings/VAL-FDA-APPENDIX-C-003.json"
+        ).read_text("utf-8")
+    )
+    assert (
+        finding["how_the_disagreement_was_adjudicated"]["case_b"][
+            "independent_oracle_status"
+        ]
+        == "UNRESOLVED"
+    )
+
+
+@pytest.mark.parametrize("key", ADJUDICATED_BY_IDENTITY)
+def test_a_third_route_adjudicates_the_case_it_can_reach(key: str):
     """Case D is decided by an analysis that shares code with neither side.
 
     It is balanced, complete and interior, so the classical subject-level
@@ -273,12 +362,12 @@ def test_a_third_route_adjudicates_the_excluded_case(key: str):
     no optimiser. It agrees with this package to eight decimal places and
     differs from the oracle by 3.2%.
 
-    Without this the exclusion would rest on reading ReplicateBE's source. With
-    it, the exclusion rests on a number.
+    Without this, holding the case out of the gate would rest on reading
+    ReplicateBE's source. With it, it rests on a number.
 
-    (Case B is incomplete, so the identity does not apply and no third route
-    exists for it. Its exclusion rests on the same pinned rho and on the
-    pattern being established across both.)
+    Case B gets none of this - see the test above. It is incomplete, the
+    identity does not reach it, and its independent oracle status is
+    UNRESOLVED.
     """
     from tests.validation.test_appendix_c_synthetic_cases import (
         classical_subject_level,

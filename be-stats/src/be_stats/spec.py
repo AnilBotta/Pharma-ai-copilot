@@ -287,18 +287,24 @@ CAPABILITY_VALIDATION: dict[Capability, ValidationStatus] = {
     #: Two further kinds of evidence support it, neither of which the tier-1B
     #: claim rests on:
     #:
-    #:   TIER 3 - ReplicateBE.jl 1.0.15 on Julia 1.10.5, verified in PR #61 to
-    #:   reproduce that same SAS output. Seven of nine synthetic cases agree to
-    #:   1e-6 on all five covariance parameters, the SE and the df. The other
-    #:   two are fits with a NEGATIVE subject-by-formulation correlation, which
-    #:   FA0(2) permits and the oracle's link cannot represent - see
-    #:   VAL-FDA-APPENDIX-C-003. No oracle available to this project covers
-    #:   that region.
+    #:   TIER 3, WITHIN THE COVARIANCE DOMAIN THE ORACLE CAN REPRESENT -
+    #:   ReplicateBE.jl 1.0.15 on Julia 1.10.5, verified in PR #61 to reproduce
+    #:   that same SAS output. Seven of nine synthetic cases agree to 1e-6 on
+    #:   all five covariance parameters, the SE and the df. The domain
+    #:   qualifier is not a hedge: the other two are fits with a NEGATIVE
+    #:   subject-by-formulation correlation, which FA0(2) permits through the
+    #:   sign of l21 and the oracle's correlation link cannot represent at all.
+    #:   There it is structurally incapable of fitting the same model, so it
+    #:   cannot adjudicate. See VAL-FDA-APPENDIX-C-003.
     #:
-    #:   TIER 1A - for a balanced, complete, interior fit the model reduces
-    #:   exactly to the classical subject-level analysis, and the Satterthwaite
-    #:   df is exactly n - 2. Verified to 1e-8 on seven cases by a route with
-    #:   no mixed model in it. This is what adjudicated the tier-3 exclusions.
+    #:   INDEPENDENT ALGEBRAIC CROSS-CHECK, sharing no code with the REML
+    #:   implementation - for a balanced, complete, interior fit the model
+    #:   reduces exactly to the classical subject-level analysis, and the
+    #:   Satterthwaite df is exactly n - 2. Verified to 1e-8 on seven cases.
+    #:   This is mathematical/structural conformance evidence and NOT tier 1A,
+    #:   which in this package means conformance to a REGULATOR'S stated
+    #:   algorithm or decision rule. It is what adjudicated case D above, and
+    #:   it does not reach case B, which is incomplete.
     #:
     #: What would move it to VALIDATED: an FDA-published worked example of
     #: Appendix C, or a SAS PROC MIXED run on a dataset with published inputs.

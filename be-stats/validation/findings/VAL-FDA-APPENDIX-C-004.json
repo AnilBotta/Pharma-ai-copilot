@@ -5,6 +5,16 @@
   "raised_on": "2026-08-29",
   "status": "RESOLVED",
   "classification": "COVARIANCE_PARAMETERIZATION_DIFFERENCE",
+
+  "what_the_classification_means_here": {
+    "it_means": "A BOUNDARY NUMERICAL AND PARAMETERIZATION DIFFERENCE between two implementations of the SAME regulatory model, which take the rho -> 1 limit through different coordinates and therefore disagree about the last three significant figures of a Hessian that is singular at that point.",
+    "it_does_NOT_mean": [
+      "that FDA's required covariance model differs from what either implementation fits",
+      "that the two implementations are fitting different regulatory models",
+      "anything at all about the positive-correlation interior domain, where the two agree to 1e-6 on all five covariance parameters and are demonstrably fitting the same model"
+    ],
+    "why_this_needs_saying": "The classification name is shared with VAL-FDA-APPENDIX-C-003, where the difference IS structural - the oracle cannot represent part of FDA's model. Here it is numerical, in a region both implementations can represent. Same label, materially different severity, and conflating them would either overstate this one or understate that one."
+  },
   "method": "fda_replicate_standard_abe_full",
   "effect_on_be_stats": "none. The difference moves a 90% confidence limit by under 1e-4 percentage points, which is smaller than the rounding in every published figure this package is checked against.",
 
