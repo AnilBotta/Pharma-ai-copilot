@@ -1,0 +1,94 @@
+{
+  "schema": "be-stats/appendix-c-partial-df-rounding/1",
+  "question": "Does EMA's two-decimal published output for Data set II distinguish df 19.603 from df 22.540 at all?",
+  "published": {
+    "estimate_percent": 102.26,
+    "ci_lower_percent": 97.05,
+    "ci_upper_percent": 107.76,
+    "printed_to_decimals": 2,
+    "standard_error": null,
+    "denominator_df": null
+  },
+  "assumed_standard_error": {
+    "value": 0.030317219371948898,
+    "basis": "Agreed to every digit shown by nlme, glmmTMB and ReplicateBE.jl - three independent fits. NOT published by EMA. See VAL-FDA-APPENDIX-C-001 and -002."
+  },
+  "df_range_compatible_with_two_decimal_rounding": {
+    "method": "log(U/L)/2 depends only on the ratio of the published limits, so the point estimate and its rounding do not enter. Each extreme of the admissible half-width inverts to one end of a df interval; t is decreasing in df, so the widest half-width gives the smallest df.",
+    "df_low_compatible_with_rounding": 19.239824755841706,
+    "df_high_compatible_with_rounding": 19.980384403308747
+  },
+  "df_range_that_reprints_all_three_published_numbers": {
+    "method": "Scan of df, keeping those for which estimate, lower and upper all round to the published two decimals.",
+    "using_the_published_estimate_exactly": {
+      "df_low": 19.575050723862248,
+      "df_high": 19.591951690009576
+    },
+    "union_over_every_estimate_that_prints_as_102_26": {
+      "df_low": 19.24850736558362,
+      "df_high": 19.949375825940116,
+      "why": "The strict window moves with the point estimate, and the true estimate is unknown - EMA printed 102.26, the fits give 102.2644. Fixing either would be a choice; the union over the rounding band is not."
+    }
+  },
+  "standard_error_each_candidate_df_would_require": {
+    "df_replicatebe": {
+      "df": 22.540250688073332,
+      "standard_error_low": 0.030484447958491066,
+      "standard_error_high": 0.030541532453971437,
+      "agreed_standard_error": 0.030317219371948898,
+      "relative_shift_low_percent": 0.5515960566518716,
+      "relative_shift_high_percent": 0.7398867266504154
+    },
+    "df_inverted_from_published_ci": {
+      "df": 19.603,
+      "standard_error_low": 0.030288877288222275,
+      "standard_error_high": 0.030345595562439324,
+      "agreed_standard_error": 0.030317219371948898,
+      "relative_shift_low_percent": -0.093485102901116,
+      "relative_shift_high_percent": 0.0935976025449114
+    }
+  },
+  "candidates": {
+    "df_inverted_from_published_ci": {
+      "value": 19.603,
+      "inside_rounding_compatible_range": true,
+      "note": "NOT a published df. It is one inversion of rounded output against an unpublished SE, and has been quoted to three decimals throughout this project."
+    },
+    "df_replicatebe": {
+      "value": 22.540250688073332,
+      "inside_rounding_compatible_range": false
+    }
+  },
+  "sensitivity_to_the_assumed_standard_error": {
+    "se_minus_0.1pct": {
+      "standard_error": 0.03028690215257695,
+      "df_low": 18.86636494616647,
+      "df_high": 19.57723026881678
+    },
+    "se_plus_0.1pct": {
+      "standard_error": 0.030347536591320844,
+      "df_low": 19.628343297746007,
+      "df_high": 20.40046597322798
+    },
+    "se_minus_0.5pct": {
+      "standard_error": 0.030165633275089154,
+      "df_low": 17.50685295740173,
+      "df_high": 18.114940714051173
+    },
+    "se_plus_0.5pct": {
+      "standard_error": 0.03046880546880864,
+      "df_low": 21.352833188604414,
+      "df_high": 22.27335929045196
+    },
+    "se_minus_1.0pct": {
+      "standard_error": 0.03001404717822941,
+      "df_low": 16.059798024377955,
+      "df_high": 16.567598420928775
+    },
+    "se_plus_1.0pct": {
+      "standard_error": 0.030620391565668387,
+      "df_low": 23.98639929431603,
+      "df_high": 25.159988437915732
+    }
+  }
+}

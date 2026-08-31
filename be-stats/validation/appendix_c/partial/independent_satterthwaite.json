@@ -1,0 +1,110 @@
+{
+  "schema": "be-stats/independent-satterthwaite/1",
+  "what_this_is": "A validation-only REML fit and Satterthwaite df written from the mathematical definitions, importing nothing from be_stats. Parameterised directly in the five covariance parameters, which makes V linear in theta and every derivative closed-form.",
+  "control_passed": true,
+  "control_note": "Data set I is the control. Without it this is a third number rather than an adjudication.",
+  "results": {
+    "data_set_i": {
+      "design": "2x2x4 fully replicate, 77 subjects, 8 incomplete",
+      "role": "CONTROL - the implementation must reproduce this to be trusted",
+      "n_observations": 298,
+      "n_subjects": 77,
+      "column_names": [
+        "intercept",
+        "sequence[TRTR]",
+        "period[2]",
+        "period[3]",
+        "period[4]",
+        "treatment[T]"
+      ],
+      "rank_X": 6,
+      "n_fixed_effects": 6,
+      "converged": true,
+      "n_optimiser_starts": 24,
+      "minus2_logreml": -6.5155848041837885,
+      "subject_correlation": 0.9999999999999486,
+      "on_psd_boundary": true,
+      "information_rank_observed": 5,
+      "theta_named": {
+        "s2_BT": 0.6862578014541438,
+        "s2_BR": 0.7276000226890313,
+        "s_BTBR": 0.7066266283607692,
+        "s2_WT": 0.1173942455773088,
+        "s2_WR": 0.20211804545498518
+      },
+      "estimate_log": 0.14546427775101378,
+      "estimate_percent": 115.65764183334515,
+      "standard_error": 0.046501236554846836,
+      "denominator_df_observed_information": 207.72693569131775,
+      "denominator_df_expected_information": 208.11463471271963,
+      "published": {
+        "estimate_percent": 115.66,
+        "ci": [
+          107.1,
+          124.89
+        ],
+        "design": "2x2x4 fully replicate, 77 subjects, 8 incomplete",
+        "role": "CONTROL - the implementation must reproduce this to be trusted"
+      },
+      "ci_percent_observed_information": [
+        107.10440360368811,
+        124.89393212950704
+      ],
+      "ci_percent_expected_information": [
+        107.10447227667821,
+        124.8938520503135
+      ]
+    },
+    "data_set_ii": {
+      "design": "2x3x3 partial replicate (TRR/RTR/RRT), 24 subjects",
+      "role": "THE QUESTION",
+      "n_observations": 72,
+      "n_subjects": 24,
+      "column_names": [
+        "intercept",
+        "sequence[RTR]",
+        "sequence[TRR]",
+        "period[2]",
+        "period[3]",
+        "treatment[T]"
+      ],
+      "rank_X": 6,
+      "n_fixed_effects": 6,
+      "converged": true,
+      "n_optimiser_starts": 24,
+      "minus2_logreml": -151.97444513609508,
+      "subject_correlation": 0.9032199479483956,
+      "on_psd_boundary": false,
+      "information_rank_observed": 4,
+      "theta_named": {
+        "s2_BT": 0.07049402870476013,
+        "s2_BR": 0.03621599221665346,
+        "s_BTBR": 0.045637293426919114,
+        "s2_WT": 5.611890088895616e-07,
+        "s2_WR": 0.013246497524070287
+      },
+      "estimate_log": 0.022391427052300794,
+      "estimate_percent": 102.26439966635559,
+      "standard_error": 0.03031724208173419,
+      "denominator_df_observed_information": 19.89060422087082,
+      "denominator_df_expected_information": 21.54250697644322,
+      "published": {
+        "estimate_percent": 102.26,
+        "ci": [
+          97.05,
+          107.76
+        ],
+        "design": "2x3x3 partial replicate (TRR/RTR/RRT), 24 subjects",
+        "role": "THE QUESTION"
+      },
+      "ci_percent_observed_information": [
+        97.05316856224265,
+        107.75544574222866
+      ],
+      "ci_percent_expected_information": [
+        97.072093248204,
+        107.73443828371963
+      ]
+    }
+  }
+}
