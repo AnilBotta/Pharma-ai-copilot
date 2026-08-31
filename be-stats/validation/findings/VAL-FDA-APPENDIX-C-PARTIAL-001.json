@@ -1,12 +1,12 @@
 {
   "finding_id": "VAL-FDA-APPENDIX-C-PARTIAL-001",
-  "title": "The partial-replicate denominator df is about 19.89, not 22.540; and FDA's Appendix C model is not fully identifiable on a partial replicate design",
+  "title": "The best-supported partial-replicate denominator df is about 19.89; 22.540 is incompatible with EMA's published interval under the corroborated SE; and Appendix C's covariance is not fully identifiable on a partial replicate design",
   "raised_by": "PR #63, partial-replicate oracle closure",
   "raised_on": "2026-08-31",
   "status": "RESOLVED",
   "classification": "PACKAGE_SCOPE_LIMITATION",
   "method": "fda_replicate_standard_abe_partial",
-  "effect_on_be_stats": "none. No production code was touched in PR #63 and FDA_REPLICATE_STANDARD_ABE_PARTIAL remains NOT_IMPLEMENTED. The finding tells a future implementation PR what the right answer is and what the design will not let it report.",
+  "effect_on_be_stats": "none. No production code was touched in PR #63 and FDA_REPLICATE_STANDARD_ABE_PARTIAL remains NOT_IMPLEMENTED. The finding gives a future implementation PR a best-supported candidate df, an excluded alternative, and a structural constraint on what the design will let it report.",
 
   "the_question": {
     "from": "VAL-FDA-APPENDIX-C-002",
@@ -18,13 +18,26 @@
   },
 
   "answer": {
-    "denominator_df": 19.8906,
+    "best_supported_candidate_df": 19.8906,
+    "status_of_that_number": "BEST-SUPPORTED INDEPENDENT CANDIDATE, not a regulator-confirmed value. EMA published neither a standard error nor a denominator df, and no licensed SAS run is available.",
     "source": "an independent REML fit and Satterthwaite calculation written from the mathematical definitions, importing nothing from be_stats - validation/external/independent_satterthwaite.py",
-    "information_used": "OBSERVED",
+    "information_used": "OBSERVED, with an explicit rank-1 reduction on the PSD boundary",
     "reproduces_published_ci": true,
-    "verdict_on_22_540": "REFUTED",
+    "what_reproducing_the_published_ci_does_and_does_not_show": {
+      "does": "Strong corroboration: of the constructions tried, only this one reprints EMA's published interval at the precision EMA printed it.",
+      "does_not": "It does not establish that SAS DDFM=SATTERTH uses exactly this rank-reduced observed-information construction in the partial-replicate case. Several constructions could land inside the same two-decimal window; this one does and the alternatives tried do not, which is evidence and not proof."
+    },
+    "expected_information_variant": 21.5425,
+    "verdict_on_22_540": "INCOMPATIBLE WITH THE PUBLISHED INTERVAL under the independently corroborated SE - not proven wrong, and not refuted by any regulator. See the statement below for exactly what is and is not claimed.",
     "verdict_on_19_603": "right region, wrong provenance - it is one inversion of two-decimal output and the published data cannot pin df to three decimals"
   },
+
+  "exactly_what_is_claimed_about_22_540": [
+    "ReplicateBE's point estimate and standard error agree with every other engine tried.",
+    "Its df of 22.540 produces a 90% CI that does not round to EMA's published CI.",
+    "Given the independently reproduced SE, 22.540 lies outside the ENTIRE df range compatible with the published rounded interval.",
+    "A licensed SAS denominator df remains the decisive missing oracle. Until one exists, this is an incompatibility with a published rounded interval under a corroborated but unpublished SE - not a proof that 22.540 is wrong."
+  ],
 
   "how_much_the_published_output_actually_pins_down": {
     "method": "log(U/L)/2 depends only on the RATIO of the published limits, so the point estimate and its rounding do not enter. Each extreme of the admissible half-width inverts to one end of a df interval.",
@@ -36,9 +49,10 @@
     "the_conclusion_rests_on_the_standard_error": {
       "assumed_standard_error": 0.030317219371948898,
       "basis": "agreed to seven significant figures by nlme, glmmTMB, ReplicateBE.jl and the independent implementation built for this PR - four fits, none of which share code",
+      "but_still_not_published": "EMA published no standard error. However strongly corroborated, 0.0303172 is an inference from independent software and not a regulator's number, so every conclusion resting on it inherits that status.",
       "standard_error_that_would_make_22_540_compatible": [0.0304844, 0.0305415],
       "relative_shift_required": "+0.55% to +0.74%",
-      "reading": "For ReplicateBE's df to be right, its OWN standard error would have to be wrong by more than half a percent, in a quantity four independent fits reproduce. That is the sense in which 22.540 is refuted rather than merely disagreed with."
+      "reading": "For ReplicateBE's df to reproduce the published interval, its OWN standard error would have to be off by more than half a percent, in a quantity four independent fits reproduce. That is the strength of the incompatibility - and its limit, since the SE it rests on is corroborated rather than published."
     }
   },
 
@@ -46,18 +60,25 @@
     "not_a_covariance_disagreement": "The independent fit reaches -2logREML = -151.974445, the same optimum ReplicateBE reports, and the same estimate and standard error to seven significant figures. The covariance fit is not in dispute.",
     "its_own_stated_scope": "'full-replicated basic bioequivalence balanced and unbalanced datasets (2x2x4, 2x2x3)' - both TWO-SEQUENCE designs. Data set II is a THREE-SEQUENCE partial replicate and was never claimed.",
     "source_inspected": "A = 2.0*inv(H) with H a ForwardDiff Hessian of -2logREML, falling back to 2.0*pinv(H) below a singular-value limit. So it uses observed information, as this package does - the difference is not observed-versus-expected.",
-    "what_is_NOT_claimed": "The exact line responsible for 22.540 was not isolated. The evidence that it is wrong is external - it does not reproduce the published interval and its own SE refutes it - rather than a located defect in its source."
+    "what_is_NOT_claimed": "The exact line responsible for 22.540 was not isolated, and no defect in ReplicateBE has been demonstrated. The evidence is external and negative: its df does not reproduce the published interval, and under the corroborated SE it falls outside the compatible range."
   },
 
   "the_structural_finding": {
-    "statement": "In a partial replicate design each subject contributes ONE test measurement, so sigma2_BT and sigma2_WT are EXACTLY non-identifiable. Only their sum is estimable.",
-    "evidence": [
-      "The observed information matrix has rank 4 of 5. Its null eigenvector is (+0.707, 0, 0, -0.707, 0) in (s2_BT, s2_BR, s_BTBR, s2_WT, s2_WR) coordinates - exactly the s2_BT minus s2_WT direction.",
-      "The independent fit and ReplicateBE report materially different splits - s2_BT 0.070494 with s2_WT 0.0000006, against 0.061604 with 0.008890 - while their SUMS agree to five decimals: 0.0704946 against 0.0704941.",
-      "EMA publishes a within-subject CV for the REFERENCE on Data set II and NONE for the test. The gap in the regulator's own table is the same fact."
-    ],
-    "why_the_decision_is_still_well_defined": "The treatment contrast depends only on the identified sum. The gradient of Var(L'beta) has equal components on s2_BT and s2_WT, so it is orthogonal to the null direction, and the df is stable across eight orders of magnitude of pseudo-inverse cutoff (1e-6 to 1e-16, df = 19.8906 throughout).",
-    "consequence_for_a_future_implementation": "Estimate, SE, df and the 90% CI are unique and reportable. The individual covariance parameters are NOT: any implementation will report an arbitrary point on a flat ridge, and two correct implementations will disagree about s2_BT and s2_WT while agreeing about every decision quantity. A production partial-replicate result must therefore refuse to report a within-subject CV for the test product, exactly as EMA's own table does."
+    "mathematical_identifiability_result": {
+      "status": "ESTABLISHED",
+      "statement": "For the TRR/RTR/RRT partial-replicate structure with ONE test observation per subject, sigma2_BT and sigma2_WT are not separately identifiable under the Appendix C covariance decomposition. Only their sum is identified from these data.",
+      "evidence": [
+        "The observed information matrix has rank 4 of 5. Its null eigenvector is (+0.707, 0, 0, -0.707, 0) in (s2_BT, s2_BR, s_BTBR, s2_WT, s2_WR) coordinates - exactly the s2_BT minus s2_WT direction.",
+        "The independent fit and ReplicateBE report materially different splits - s2_BT 0.070494 with s2_WT 0.0000006, against 0.061604 with 0.008890 - while their SUMS agree to five decimals: 0.0704946 against 0.0704941.",
+        "The T-R estimate and its standard error remain estimable, and the gradient of Var(L'beta) has equal components on s2_BT and s2_WT, so it is orthogonal to the null direction. The df is stable across eight orders of magnitude of pseudo-inverse cutoff (1e-6 to 1e-16, df = 19.8906 throughout)."
+      ],
+      "consistent_observation_not_an_attribution": "EMA publishes a within-subject CV for the REFERENCE on Data set II and does not publish one for the test. That is consistent with the identifiability result, but the document does not state that non-identifiability is the reason for the omission, and no rationale is attributed to EMA here."
+    },
+    "regulatory_handling_of_that_result": {
+      "status": "NOT DETERMINED",
+      "why": "No SAS output and no FDA text has been found explaining how PROC MIXED with DDFM=SATTERTH resolves this rank-deficient variance-parameter situation - whether it holds a parameter, reduces the dimension, or proceeds another way - nor what a submission is expected to report when one of the five covariance parameters is not identifiable.",
+      "what_this_means_for_a_future_implementation": "Estimate, SE, df and the 90% CI are unique and computable. The individual covariance parameters are not: any implementation reports an arbitrary point on a flat ridge, and two correct implementations will disagree about s2_BT and s2_WT while agreeing about every decision quantity. How that should be REPORTED is an open regulatory question, not a settled one."
+    }
   },
 
   "boundary_handling_confirmed_independently": {
@@ -66,7 +87,7 @@
     "boundary_reduced_four_parameter_df": 207.7269,
     "be_stats_production_df": 207.735,
     "published_ci_reproduced_by": "the boundary-reduced version only",
-    "reading": "Counting five free covariance parameters at a boundary solution overstates the uncertainty in theta and understates the df by a factor of nearly three. Production reaches the right answer through a Cholesky parameterisation in which the boundary is an interior point; this implementation reaches it by imposing the rank-1 constraint explicitly. Two different routes, same number, and the published interval selects both over the naive one."
+    "reading": "Counting five free covariance parameters at a boundary solution overstates the uncertainty in theta and understates the df by a factor of nearly three. Production reaches 207.735 through a Cholesky parameterisation in which the boundary is an interior point; this implementation reaches 207.727 by imposing the rank-1 constraint explicitly. Two different routes agreeing, and the published interval selecting both over the naive one, is what makes the boundary treatment credible - on the FULLY replicate design, where a published interval exists to select against."
   },
 
   "what_was_not_done": {
@@ -78,10 +99,11 @@
   },
 
   "partial_oracle_ready": false,
+  "blocking_reason": "We have a strongly supported candidate df and have excluded ReplicateBE's 22.540 from compatibility with the published CI under the independently corroborated SE, but no regulator or SAS output confirms the denominator-df construction in the rank-deficient partial-replicate case.",
   "why_not": [
-    "The df now rests on ONE independent derivation. It passes a control, reproduces the published interval, and refutes the alternative - but the brief's bar is independent AGREEMENT on the df, and the only other engine that computes one disagrees with cause.",
-    "EMA's two-decimal output constrains df to [19.24, 19.98]. That is consistent with 19.8906 and excludes 22.540, but it does not confirm 19.8906 to the precision an implementation would be validated against.",
-    "The non-identifiability of sigma2_WT is a new and material constraint on what a production implementation may report, and no regulator text has been found stating how Appendix C should be applied to a design that cannot identify one of its five parameters."
+    "The df rests on ONE independent derivation. It passes a full-replicate control and reproduces the published interval - but the brief's bar is independent AGREEMENT on the df, and the only other engine that computes one disagrees.",
+    "EMA's two-decimal output constrains df to [19.24, 19.98]. That is consistent with 19.8906 and excludes 22.540, but it does not confirm 19.8906 to the precision an implementation would be validated against, and more than one construction could land inside the same window.",
+    "The mathematical non-identifiability is established; its REGULATORY handling is not. No SAS output or FDA text has been found on how DDFM=SATTERTH resolves a rank-deficient variance-parameter situation, or on what must be reported when one of the five parameters is not identifiable."
   ],
 
   "recommendation": "BLOCKED_WITH_PRECISE_REASONS",
