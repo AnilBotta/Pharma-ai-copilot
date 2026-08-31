@@ -33,3 +33,16 @@ pypdf>=6.0
 
 # --- Logging ---
 structlog>=25.0
+
+# --- Bioequivalence engine ---
+#
+# The calculator of record, and the qualified source of FDA's Appendix C model
+# statements. The SAS validation package generator reads those statements from
+# `be_stats.replicate_abe.APPENDIX_C_MODEL` rather than retyping them, so the
+# program a customer runs cannot drift from the specification it claims to
+# implement.
+#
+# The dependency is one-directional and stays that way: be-stats imports no
+# web, database or LLM code, and above all no SAS. Installed from the path so
+# the engine keeps its own version and qualification cadence.
+-e ../be-stats
