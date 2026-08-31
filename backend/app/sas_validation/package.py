@@ -32,7 +32,15 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
-from app.sas_validation.program import DATASET_COLUMNS, generate_program
+from app.sas_validation.dataset import validate_observations
+from app.sas_validation.program import (
+    DATASET_COLUMNS,
+    DERIVED_ANALYSIS_DEFINITION,
+    DERIVED_ANALYSIS_VARIABLE,
+    RAW_ANALYSIS_INPUT,
+    SyntaxNormalization,
+    generate_program,
+)
 from app.sas_validation.targets import ValidationTarget
 
 PACKAGE_SCHEMA = "pharma-copilot/sas-validation-package/1"
@@ -109,14 +117,21 @@ def write_dataset_csv(rows: Iterable[Mapping[str, object]]) -> str:
 
     buffer = io.StringIO()
     writer = csv.writer(buffer, lineterminator="\n")
-    writer.writerow(["SUBJ", "SEQ", "PER", "TRT", "VALUE"])
+    # The header IS `DATASET_COLUMNS`, not a second copy of it. The first
+    # version declared one tuple and wrote a different list, so the manifest
+    # advertised a column (`Y`) the file did not contain.
+    writer.writerow(list(DATASET_COLUMNS))
     for row in materialised:
-        writer.writerow([row["SUBJ"], row["SEQ"], row["PER"], row["TRT"],
-                         repr(row["VALUE"])])
+        writer.writerow([row[column] for column in DATASET_COLUMNS[:-1]]
+                        + [repr(row["VALUE"])])
     return buffer.getvalue()
 
 
-def _readme(target: ValidationTarget, result_filename: str) -> str:
+def _readme(
+    target: ValidationTarget,
+    result_filename: str,
+    normalizations: tuple[SyntaxNormalization, ...],
+) -> str:
     lines = [
         f"# SAS validation package - {target.case_id}",
         "",
@@ -154,27 +169,43 @@ def _readme(target: ValidationTarget, result_filename: str) -> str:
         "An upload does NOT change any method's validation status. Only an",
         "explicit, recorded review can do that.",
         "",
-        "## Do not edit the model",
+        "## Do not edit the program",
         "",
-        "The PROC MIXED statements are reproduced verbatim from the cited",
-        "regulatory source. Editing them makes this a test of a different",
-        "model and the comparison meaningless. If the program will not run in",
-        "your environment, report that rather than adjusting it.",
+        "`validate.sas` is ready to run as supplied. The only line you should",
+        "change is `%let packagedir = ...;`, which tells SAS where the package",
+        "files are.",
         "",
-        "### One syntax note, and its limits",
-        "",
-        "The guidance writes `CLASSES`. If your SAS session rejects that word,",
-        "`CLASS` is the accepted spelling of the same statement - a SYNTAX",
-        "alias, not a change of model. That substitution is the only edit that",
-        "is safe to make without invalidating the run, and it must still be",
-        "reported with your result so the reviewer knows the program that ran",
-        "was not byte-identical to the one shipped.",
-        "",
-        "We cannot verify this against a live SAS session - this organisation",
-        "has no SAS licence, which is why we are asking you to run it. If the",
-        "program needs any other change to execute, please tell us what and",
-        "why instead of adjusting it locally.",
-        "",
+        "Any other edit breaks the program hash that ties your output back to",
+        "this package, and the upload will be rejected as evidence for a",
+        "different program. If the program genuinely cannot run without a",
+        "change, this package is invalid: tell us what was needed and why, and",
+        "we will generate a new one. Please do not adjust it locally.",
+        "",]
+    if normalizations:
+        lines += [
+            "### Syntax normalizations already applied for you",
+            "",
+            "The regulatory source and the executable SAS differ in one place,",
+            "and we have resolved it here rather than asking you to:",
+            "",
+        ]
+        for normalization in normalizations:
+            lines += [
+                f"- `{normalization.source_keyword}` -> "
+                f"`{normalization.executable_keyword}` "
+                f"(`{normalization.identifier}`)",
+                f"  - {normalization.reason}",
+                "  - Changes SAS syntax only. The statistical model is "
+                "unchanged.",
+            ]
+        lines += [
+            "",
+            "The regulator's original statements are recorded verbatim in",
+            "`model_specification.json`, so the source text and what actually",
+            "ran are both part of this package's evidence.",
+            "",
+        ]
+    lines += [
         "## Reference values",
         "",
         "For context only. None of these is a target to match.",
@@ -200,7 +231,15 @@ def build_package(
     git_sha: str,
     generated_at: datetime | None = None,
 ) -> ValidationPackage:
-    """Assemble the package. Pure, apart from the timestamp it is handed."""
+    """Assemble the package. Pure, apart from the timestamp it is handed.
+
+    Raises `InvalidObservations` before producing anything if any supplied
+    value cannot be analysed on the log scale. It never drops a row and
+    continues: a package whose manifest counts more observations than SAS will
+    fit is evidence for an analysis nobody specified.
+    """
+    validate_observations(observations)
+
     stamp = (generated_at or datetime.now(UTC)).replace(microsecond=0).isoformat()
 
     dataset_csv = write_dataset_csv(observations)
@@ -220,8 +259,31 @@ def build_package(
         "regulatory_method": target.regulatory_method,
         "design": target.design,
         "model_citation": program.model_citation,
-        "model_statements": list(program.model_statements),
+        # The regulator's text and what SAS actually runs, kept separate
+        # because for one statement they differ - see `syntax_normalizations`.
+        "regulatory_source_statements": list(program.source_statements),
+        "executable_sas_statements": list(program.executable_statements),
+        "syntax_normalizations": program.normalization_records(),
+        "syntax_normalization_note": (
+            "Each substitution above changes SAS SYNTAX ONLY and leaves the "
+            "statistical model unchanged. The program is ready to run as "
+            "supplied: a client must not hand-edit it, because any edit breaks "
+            "the program hash that ties the output back to this package. If a "
+            "further change is genuinely required, this package is invalid and "
+            "a new one must be generated."
+        ),
+        # The shipped CSV columns, and the variable derived from them. `Y` is
+        # NOT a column of dataset.csv.
         "dataset_columns": list(DATASET_COLUMNS),
+        "raw_analysis_input": RAW_ANALYSIS_INPUT,
+        "derived_analysis_variable": DERIVED_ANALYSIS_VARIABLE,
+        "derived_analysis_definition": DERIVED_ANALYSIS_DEFINITION,
+        "observation_validity_rule": (
+            "Every value was checked to be present, numeric, finite and "
+            "strictly positive before this package was generated. The program "
+            "therefore drops nothing; its defensive check aborts rather than "
+            "silently excluding an observation."
+        ),
         "expected_output_fields": [
             "fixed effect estimate (T vs. R, log scale)",
             "standard error",
@@ -244,7 +306,9 @@ def build_package(
     specification_text = json.dumps(specification, indent=2, sort_keys=True) + "\n"
     specification_hash = sha256_text(specification_text)
 
-    readme_text = _readme(target, program.result_filename)
+    readme_text = _readme(
+        target, program.result_filename, program.normalizations_applied
+    )
 
     files = (
         PackageFile(dataset_name, dataset_csv, dataset_hash),

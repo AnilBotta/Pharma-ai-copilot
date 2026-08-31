@@ -1,5 +1,16 @@
 """Tenant-scoped operations over packages, runs and evidence.
 
+PREPARED FOR TENANT ISOLATION; THIS DEPLOYMENT IS SINGLE-ORGANISATION.
+
+Say that precisely, because the two are different claims. What exists here is a
+tenant-scoped DATA MODEL and a set of isolation INVARIANTS enforced by this
+layer and exercised by its tests. What does not exist is runtime
+multi-tenancy: there is no identity-to-organisation mapping anywhere in the
+system, and `routes.resolve_tenant` returns one constant.
+
+So these checks are real code with real tests, and they are not yet protecting
+one live customer from another, because there is only one.
+
 EVERY READ AND WRITE TAKES A TENANT, AND CHECKS IT
 
 Not "the caller usually passes the right one" - the check happens here, on the
@@ -7,10 +18,14 @@ way out of the store, because that is the only place it cannot be forgotten. A
 repository method that returned a package without knowing who asked would be
 one call site away from returning another organisation's SAS configuration.
 
-This matters more than the current single-organisation deployment makes it
-look. `sas_integrations` will hold customer credentials and
-`sas_validation_runs` will hold their regulatory evidence; those are the two
-tables where a missing predicate is not a bug report but an incident.
+Writing the invariants now is cheap; retrofitting them onto populated tables is
+not. `sas_integrations` will hold customer credentials and
+`sas_validation_runs` will hold their regulatory evidence, and those are the
+two tables where a missing predicate is not a bug report but an incident.
+
+When multi-tenancy arrives, the tenant must be derived from the authenticated
+server-side identity - never from a client-supplied value. No method here
+accepts one from a request, and none should.
 
 WHAT THIS LAYER WILL NOT DO
 

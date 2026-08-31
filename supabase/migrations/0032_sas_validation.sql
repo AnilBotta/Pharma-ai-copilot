@@ -13,11 +13,16 @@
 -- anywhere. The columns for connected modes exist, and hold a REFERENCE into
 -- Supabase Vault rather than a value.
 --
--- THE TENANT COLUMN, AND WHY IT IS HERE BEFORE TENANTS ARE
+-- PREPARED FOR TENANT ISOLATION; THIS DEPLOYMENT IS SINGLE-ORGANISATION.
 --
 -- 0001 records that this is a single-organisation MVP: every profile belongs to
 -- the same implicit org and there is no organisations table. So `tenant_id`
 -- below is not yet a foreign key to anything, and today it holds one value.
+--
+-- What follows is therefore a tenant-scoped DATA MODEL with isolation
+-- invariants, not runtime multi-tenancy. There is no identity-to-organisation
+-- mapping to resolve against, and nothing here should be described as
+-- isolating one live customer from another until there is.
 --
 -- It is present anyway for one reason: retrofitting a tenant column onto tables
 -- that already hold customer credentials and regulatory evidence is exactly the
@@ -352,10 +357,14 @@ as $$
 $$;
 
 comment on function private.sas_tenant_matches(uuid, uuid) is
-  'Tenant isolation for SAS validation. Today every row shares one implicit '
-  'organisation (see 0001), so this compares a column that has one value. It '
-  'exists now so the check has a single home: when an organisations table '
-  'arrives this tightens, and no caller changes.';
+  'Tenant-scoping predicate for SAS validation. PREPARED FOR TENANT '
+  'ISOLATION; this deployment is single-organisation - every row shares one '
+  'implicit org (see 0001), so today this compares a column that has one '
+  'value and is not yet isolating live customers from one another. It exists '
+  'now so the check has a single home: when an organisations table arrives '
+  'this tightens, and no caller changes. The caller tenant must then be '
+  'derived from authenticated server-side identity, never from a '
+  'client-supplied value.';
 
 comment on column public.sas_integrations.tenant_id is
   'Not yet a foreign key — 0001 records that this is a single-organisation '

@@ -20,7 +20,14 @@ from app.sas_validation.package import (
     build_package,
     write_dataset_csv,
 )
-from app.sas_validation.program import generate_program
+from app.sas_validation.program import (
+    DATASET_COLUMNS,
+    DERIVED_ANALYSIS_VARIABLE,
+    SYNTAX_NORMALIZATIONS,
+    UnknownSyntaxNormalization,
+    generate_program,
+    leading_keyword,
+)
 from app.sas_validation.targets import EvidenceStatus, get_target
 
 TARGET = get_target("FDA_APPENDIX_C_PARTIAL_EMA_DATASET_II")
@@ -51,25 +58,122 @@ def make(**overrides):
 # ------------------------------------------------------------- faithful ---
 
 
-def test_the_model_statements_are_the_regulators_verbatim():
-    """Every line of FDA's block appears, in order, unaltered.
+def test_the_model_semantics_are_preserved_statement_for_statement():
+    """The executable program fits the regulator's model, statement for statement.
 
-    The one exception is `PROC MIXED;`, which must name its input dataset to
-    run at all - and the original is preserved beside it as a comment so the
-    substitution is visible in the program a customer reads.
+    NOT a verbatim check any more, and the change is the point. FDA's listing
+    prints `CLASSES`; PROC MIXED's documented statement is `CLASS`. A test
+    demanding the source text appear verbatim as executable SAS would enforce a
+    program that does not run, and the earlier version of this file did exactly
+    that - which is how the burden ended up on the customer.
+
+    So each source statement must correspond to exactly one executable
+    statement with the SAME operative content: same variables, same options,
+    same contrast. Only the leading keyword may differ, and only by an
+    allow-listed normalization.
     """
     program = generate_program(
         case_id="X", dataset_filename="dataset.csv", dataset_sha256="0" * 64
-    ).text
+    )
 
-    position = -1
-    for statement in APPENDIX_C_MODEL.sas:
-        if statement.strip().upper().startswith("PROC MIXED"):
-            assert f"/* specification: {statement} */" in program
-            continue
-        found = program.find(statement)
-        assert found > position, f"{statement!r} missing or out of order"
-        position = found
+    source = [s for s in APPENDIX_C_MODEL.sas if not s.upper().startswith("PROC MIXED")]
+    assert len(program.executable_statements) == len(source)
+
+    for original, executable in zip(
+        source, program.executable_statements, strict=True
+    ):
+        original_keyword = leading_keyword(original)
+        executable_keyword = leading_keyword(executable)
+
+        # Everything after the keyword is untouched.
+        assert original[len(original_keyword) :] == executable[len(executable_keyword) :]
+
+        if original_keyword != executable_keyword:
+            applied = {n.identifier for n in program.normalizations_applied}
+            match = [
+                n
+                for n in SYNTAX_NORMALIZATIONS
+                if n.source_keyword == original_keyword
+                and n.executable_keyword == executable_keyword
+            ]
+            assert match, f"{original_keyword} -> {executable_keyword} is not allow-listed"
+            assert match[0].identifier in applied
+            assert match[0].changes_statistical_model is False
+
+
+def test_classes_to_class_is_the_only_normalization_today():
+    """One entry, and a test that notices if a second appears.
+
+    A new normalization is a decision about what may be changed in a
+    regulator's model statement. It should require editing this test.
+    """
+    assert len(SYNTAX_NORMALIZATIONS) == 1
+    only = SYNTAX_NORMALIZATIONS[0]
+    assert only.identifier == "classes-to-class"
+    assert (only.source_keyword, only.executable_keyword) == ("CLASSES", "CLASS")
+    assert only.changes_statistical_model is False
+
+
+def test_the_executable_program_uses_class_and_not_classes():
+    """The customer receives runnable SAS, not a document to fix."""
+    program = generate_program(
+        case_id="X", dataset_filename="dataset.csv", dataset_sha256="0" * 64
+    )
+    class_statements = [
+        s for s in program.executable_statements if leading_keyword(s) == "CLASS"
+    ]
+    assert class_statements == ["CLASS SEQ SUBJ PER TRT;"]
+    assert not any(
+        leading_keyword(s) == "CLASSES" for s in program.executable_statements
+    )
+
+
+def test_the_regulatory_source_is_still_preserved_in_provenance():
+    """Normalizing for execution must not lose what the regulator wrote."""
+    program = generate_program(
+        case_id="X", dataset_filename="dataset.csv", dataset_sha256="0" * 64
+    )
+    assert program.source_statements == tuple(APPENDIX_C_MODEL.sas)
+    assert "CLASSES SEQ SUBJ PER TRT;" in program.source_statements
+    # And it appears in the program the customer reads, as a source comment.
+    assert "/* source: CLASSES SEQ SUBJ PER TRT; */" in program.text
+
+
+def test_an_unknown_transformation_fails_generation(monkeypatch):
+    """A statement needing a change that is not allow-listed must refuse.
+
+    The alternative - emitting it unchanged and hoping - produces a package
+    that fails in the customer's session; a general rewriter could change the
+    model without anyone noticing. Neither is acceptable, so generation stops.
+    """
+    import be_stats.replicate_abe as replicate_abe
+
+    from app.sas_validation import program as program_module
+
+    doctored = replicate_abe.APPENDIX_C_MODEL.__class__(
+        **{
+            **{
+                f.name: getattr(replicate_abe.APPENDIX_C_MODEL, f.name)
+                for f in replicate_abe.APPENDIX_C_MODEL.__dataclass_fields__.values()
+            },
+            "sas": ("PROC MIXED;", "PROCEDURE SEQ SUBJ;"),
+        }
+    )
+    monkeypatch.setattr(program_module, "APPENDIX_C_MODEL", doctored)
+
+    with pytest.raises(UnknownSyntaxNormalization, match="PROCEDURE"):
+        generate_program(
+            case_id="X", dataset_filename="d.csv", dataset_sha256="0" * 64
+        )
+
+
+def test_the_normalization_is_inside_the_program_hash():
+    """It is part of the text, so it is part of the hash, so it is evidence."""
+    program = generate_program(
+        case_id="X", dataset_filename="d.csv", dataset_sha256="0" * 64
+    )
+    assert "classes-to-class" in program.text
+    assert "CLASS SEQ SUBJ PER TRT;" in program.text
 
 
 def test_the_program_carries_its_citation():
@@ -93,19 +197,61 @@ def test_the_program_is_byte_identical_for_identical_inputs():
     assert first.text == second.text
 
 
-def test_the_program_never_filters_or_transforms_the_data():
-    """The only transform is the log the model is defined on.
+def test_the_program_can_never_silently_drop_an_observation():
+    """No `delete`, anywhere, for any reason.
 
-    A generator that could drop, winsorise or trim rows is a generator that
-    could be asked to produce a preferred answer.
+    The first version contained `if VALUE > 0 then Y = log(VALUE); else
+    delete;`, which silently removed non-positive rows. The manifest would then
+    count N observations, the CSV would contain N, and SAS would fit fewer -
+    with nothing recording the difference. Hashing a dataset does not help if
+    the program changes the analysis set after reading it.
+
+    Validity is now established before a package can exist, so the program has
+    nothing to drop and no statement that could.
     """
     program = generate_program(
         case_id="X", dataset_filename="d.csv", dataset_sha256="a" * 64
-    ).text
-    for forbidden in ("where ", "if _n_ <", "delete;\n    end", "trim", "winsor"):
-        assert forbidden.lower() not in program.lower().replace(
-            "if value > 0 then y = log(value);", ""
-        ), forbidden
+    ).text.lower()
+
+    assert "delete" not in program
+    for forbidden in ("where ", "if _n_ <", "trim", "winsor"):
+        assert forbidden not in program, forbidden
+
+    # And the defensive check stops rather than continuing on bad data.
+    assert "abort cancel" in program
+    assert "refusing to continue" in program
+
+
+# --------------------------------------------------------------- schema ---
+
+
+def test_the_declared_columns_are_the_actual_csv_header():
+    """The manifest's schema must be the file's schema.
+
+    The first version declared (SUBJ, SEQ, PER, TRT, Y) and wrote
+    SUBJ,SEQ,PER,TRT,VALUE - so the package advertised a column it did not
+    contain, and that false schema went into the hash and the provenance.
+    """
+    csv_text = make().file("dataset.csv").content
+    header = tuple(csv_text.splitlines()[0].split(","))
+
+    assert header == DATASET_COLUMNS
+
+    specification = json.loads(make().file("model_specification.json").content)
+    assert tuple(specification["dataset_columns"]) == header
+
+
+def test_the_derived_analysis_variable_is_not_claimed_to_be_in_the_file():
+    """Y is computed inside SAS from VALUE, and the spec says exactly that."""
+    specification = json.loads(make().file("model_specification.json").content)
+
+    assert DERIVED_ANALYSIS_VARIABLE not in specification["dataset_columns"]
+    assert specification["raw_analysis_input"] == "VALUE"
+    assert specification["derived_analysis_variable"] == "Y"
+    assert specification["derived_analysis_definition"] == "Y = log(VALUE)"
+
+    header = make().file("dataset.csv").content.splitlines()[0]
+    assert "Y" not in header.split(",")
 
 
 # -------------------------------------------------------------- neutral ---

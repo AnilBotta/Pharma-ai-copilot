@@ -1,10 +1,15 @@
 """Tenant A must never reach tenant B's SAS anything.
 
-WHY THESE TESTS EXIST BEFORE TENANTS DO
+WHAT THESE TESTS DO AND DO NOT DEMONSTRATE
 
-This deployment is a single-organisation MVP; migration 0001 says so. So every
-test below runs against two tenant ids that, today, no real deployment would
-produce.
+They demonstrate that the SERVICE LAYER enforces tenant-scoping invariants.
+They do NOT demonstrate runtime multi-tenant isolation, because this deployment
+has none: there is no identity-to-organisation mapping and
+`routes.resolve_tenant` returns a single constant.
+
+The honest description is "prepared for tenant isolation; current deployment is
+single-organisation". Every test below runs against two tenant ids that no real
+deployment produces today.
 
 They are still the right tests to write now. `sas_integrations` will hold
 customer SAS credentials and `sas_validation_runs` will hold their regulatory

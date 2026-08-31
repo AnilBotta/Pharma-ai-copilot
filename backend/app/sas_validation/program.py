@@ -1,33 +1,40 @@
-"""Generate the SAS program a customer runs, from the qualified model spec.
+"""Generate the executable SAS program, from the qualified model specification.
 
-THE ONE RULE THIS MODULE EXISTS TO ENFORCE
+TWO THINGS THAT ARE NOT THE SAME, AND WERE CONFLATED IN THE FIRST VERSION
 
-The `PROC MIXED` block is not written here. It is read from
-`be_stats.replicate_abe.APPENDIX_C_MODEL.sas`, which is the qualified record of
-FDA's Appendix C statements, carries the citation, and was verified against the
-primary document. Retyping those six lines into the backend would create a
-second copy that can drift from the first - and drift between a model
-specification and the program that implements it is precisely the failure this
-project has spent five pull requests avoiding.
+    the REGULATORY SOURCE STATEMENT   what FDA's Appendix C prints
+    the EXECUTABLE SAS STATEMENT      what a SAS session will actually run
 
-`test_program_generator.py` asserts the generated program contains those lines
-verbatim and in order, so a well-meaning edit here cannot quietly change the
-model a customer's SAS is asked to fit.
+They are identical for five of the six statements. They differ for one, and
+pretending otherwise pushed the problem onto the customer.
 
-WHY THE BACKEND MAY DEPEND ON be-stats
+FDA's text prints `CLASSES SEQ SUBJ PER TRT;`. The PROC MIXED statement is
+`CLASS`. The first version of this module shipped the source text unchanged and
+told the customer in the README that `CLASS` was "a syntax alias" they could
+substitute themselves. That was wrong twice: `CLASSES` is not documented PROC
+MIXED syntax, so calling `CLASS` an alias for it inverts which one is correct;
+and asking a client to hand-edit a regulatory model statement destroys the
+program hash that ties their output back to the package.
 
-It did not before this release. The dependency is one-directional and stays
-that way: the product layer consumes the engine, and be-stats gains nothing -
-no web import, no database import, and above all no SAS. A pure-Python package
-supplying a citation-carrying constant is the cheapest possible way to avoid
-duplicating a regulator's model.
+So the normalization happens HERE, once, deterministically, and lands inside
+the program hash like every other byte.
 
-WHAT THE PROGRAM DELIBERATELY DOES NOT DO
+THE NORMALIZATION IS ALLOW-LISTED, NOT PATTERN-MATCHED
 
-It does not transform, filter, winsorise or otherwise touch the data. It reads
-the CSV the package shipped, takes logs, fits the model and writes its output.
-A generator that could reshape data on the way in would be a generator that
-could be asked to produce a preferred answer.
+`SYNTAX_NORMALIZATIONS` holds exactly one entry. A statement that needs any
+transformation not on that list raises `UnknownSyntaxNormalization` and no
+package is produced - because a generator that could silently rewrite a model
+statement is a generator that could quietly change the model.
+
+Every normalization applied is recorded in the returned object, written into
+the model specification, and shown in the README, so a reviewer can see what
+executed and what the regulator wrote without diffing anything.
+
+THE ONE RULE THIS MODULE STILL ENFORCES
+
+The model statements are read from `be_stats.replicate_abe.APPENDIX_C_MODEL`,
+the qualified record of FDA's Appendix C, which carries the citation and was
+verified against the primary document. Nothing here retypes them.
 """
 
 from __future__ import annotations
@@ -36,12 +43,19 @@ from dataclasses import dataclass
 
 from be_stats.replicate_abe import APPENDIX_C_MODEL
 
-#: The dataset column names the package writes and the program reads. Fixed
-#: here so the CSV writer and the SAS reader cannot disagree.
-DATASET_COLUMNS = ("SUBJ", "SEQ", "PER", "TRT", "Y")
+#: What the shipped CSV actually contains. `Y` is NOT among them - it is
+#: derived inside SAS - and the first version of this module claimed otherwise,
+#: which put a false schema into the package manifest and its hash.
+DATASET_COLUMNS = ("SUBJ", "SEQ", "PER", "TRT", "VALUE")
 
-#: Output datasets the program creates. Parsing keys off these names, so they
-#: are part of the contract between the package and the ingestion code.
+#: The measured value, in its original units. Shipped raw so the data is
+#: inspectable as measured and its hash covers what was measured.
+RAW_ANALYSIS_INPUT = "VALUE"
+
+#: Derived in the DATA step from `VALUE`. The model is fitted on this.
+DERIVED_ANALYSIS_VARIABLE = "Y"
+DERIVED_ANALYSIS_DEFINITION = "Y = log(VALUE)"
+
 OUTPUT_ESTIMATE = "be_estimate"
 OUTPUT_COVPARMS = "be_covparms"
 OUTPUT_FITSTATS = "be_fitstats"
@@ -49,22 +63,170 @@ OUTPUT_CONVERGENCE = "be_convergence"
 OUTPUT_ENVIRONMENT = "be_environment"
 
 
+class UnknownSyntaxNormalization(ValueError):
+    """A source statement needs a transformation that is not allow-listed.
+
+    Deliberately fatal. The alternative - emitting the statement unchanged and
+    hoping - produces a package that fails in the customer's SAS session, and
+    the alternative to THAT - a general rewriter - is a component that can
+    change the model without anyone noticing.
+    """
+
+
+@dataclass(frozen=True, slots=True)
+class SyntaxNormalization:
+    """One allow-listed source-to-executable substitution."""
+
+    identifier: str
+    source_keyword: str
+    executable_keyword: str
+    reason: str
+    changes_statistical_model: bool = False
+
+
+#: THE COMPLETE ALLOW-LIST. One entry today.
+SYNTAX_NORMALIZATIONS: tuple[SyntaxNormalization, ...] = (
+    SyntaxNormalization(
+        identifier="classes-to-class",
+        source_keyword="CLASSES",
+        executable_keyword="CLASS",
+        reason=(
+            "PROC MIXED's documented statement is CLASS. The FDA guidance "
+            "prints CLASSES in its Appendix C listing. Substituting the "
+            "keyword changes SAS SYNTAX ONLY: the same four variables are "
+            "declared classification variables, so the fixed-effects design, "
+            "the covariance structure and every estimate are unchanged."
+        ),
+        changes_statistical_model=False,
+    ),
+)
+
+
+@dataclass(frozen=True, slots=True)
+class NormalizedStatement:
+    source: str
+    executable: str
+    normalization: SyntaxNormalization | None
+
+    @property
+    def was_normalized(self) -> bool:
+        return self.normalization is not None
+
+
 @dataclass(frozen=True, slots=True)
 class GeneratedProgram:
-    """A SAS program plus the facts a reviewer needs about how it was made."""
-
     text: str
     model_citation: str
-    model_statements: tuple[str, ...]
+    #: The regulator's statements, exactly as the specification records them.
+    source_statements: tuple[str, ...]
+    #: What the SAS session will run, after allow-listed normalization.
+    executable_statements: tuple[str, ...]
+    normalizations_applied: tuple[SyntaxNormalization, ...]
     output_datasets: tuple[str, ...]
     result_filename: str
 
+    def normalization_records(self) -> list[dict[str, object]]:
+        return [
+            {
+                "identifier": n.identifier,
+                "source_keyword": n.source_keyword,
+                "executable_keyword": n.executable_keyword,
+                "changes_statistical_model": n.changes_statistical_model,
+                "reason": n.reason,
+            }
+            for n in self.normalizations_applied
+        ]
 
-def _header(case_id: str, dataset_filename: str, dataset_sha256: str) -> list[str]:
+
+def leading_keyword(statement: str) -> str:
+    """The statement's opening keyword, uppercased.
+
+    Taken as the leading run of letters rather than by splitting on a space,
+    because Appendix C writes `REPEATED/GRP=TRT SUB=SUBJ;` with no space before
+    the slash. Splitting on whitespace yielded `REPEATED/GRP=TRT`, which
+    matched nothing and made the allow-list reject a statement it should have
+    accepted.
+    """
+    stripped = statement.strip()
+    end = 0
+    while end < len(stripped) and stripped[end].isalpha():
+        end += 1
+    return stripped[:end].upper()
+
+
+def normalize_statement(statement: str) -> NormalizedStatement:
+    """Apply an allow-listed keyword substitution, or none at all.
+
+    Only the leading keyword is considered, and only against the allow-list.
+    Nothing else is touched - the variable list, the options after the slash
+    and the spacing all pass through unaltered.
+    """
+    stripped = statement.strip()
+    keyword = leading_keyword(stripped)
+    for normalization in SYNTAX_NORMALIZATIONS:
+        if keyword == normalization.source_keyword:
+            executable = (
+                normalization.executable_keyword + stripped[len(keyword) :]
+            )
+            return NormalizedStatement(statement, executable, normalization)
+    return NormalizedStatement(statement, statement, None)
+
+
+def _model_statements() -> tuple[
+    list[NormalizedStatement], tuple[SyntaxNormalization, ...]
+]:
+    """Normalize every statement, and refuse anything unrecognised.
+
+    `PROC MIXED;` is handled separately by the caller because it must name its
+    input dataset - a structural requirement of running the program at all,
+    not a keyword substitution, and it is recorded as such.
+    """
+    statements: list[NormalizedStatement] = []
+    applied: list[SyntaxNormalization] = []
+
+    for source in APPENDIX_C_MODEL.sas:
+        if source.strip().upper().startswith("PROC MIXED"):
+            statements.append(NormalizedStatement(source, "", None))
+            continue
+
+        normalized = normalize_statement(source)
+        statements.append(normalized)
+        if normalized.normalization is not None:
+            applied.append(normalized.normalization)
+
+        # A statement that begins with a keyword PROC MIXED does not accept,
+        # and that is not on the allow-list, must not reach a customer.
+        first_word = leading_keyword(normalized.executable)
+        if first_word not in _PERMITTED_EXECUTABLE_KEYWORDS:
+            raise UnknownSyntaxNormalization(
+                f"the source statement {source!r} begins with {first_word!r}, "
+                "which is neither a PROC MIXED statement this generator knows "
+                "nor an allow-listed normalization. Generation refuses rather "
+                "than emitting a program that may not run, or silently "
+                "rewriting a regulatory model statement."
+            )
+
+    return statements, tuple(applied)
+
+
+#: The statements PROC MIXED accepts that Appendix C uses, after normalization.
+#: Kept explicit so a new statement in the specification is a decision here
+#: rather than something that flows through untested.
+_PERMITTED_EXECUTABLE_KEYWORDS = frozenset(
+    {"CLASS", "MODEL", "RANDOM", "REPEATED", "ESTIMATE", "LSMEANS", "PARMS"}
+)
+
+
+def _header(
+    case_id: str,
+    dataset_filename: str,
+    dataset_sha256: str,
+    normalizations: tuple[SyntaxNormalization, ...],
+) -> list[str]:
     citation = APPENDIX_C_MODEL.citation
-    return [
+    lines = [
         "/" + "*" * 76,
-        " * SAS validation program - generated, do not edit by hand.",
+        " * SAS validation program - generated. DO NOT EDIT.",
         " *",
         f" * validation case : {case_id}",
         f" * model           : {citation.authority} {citation.section}",
@@ -73,18 +235,54 @@ def _header(case_id: str, dataset_filename: str, dataset_sha256: str) -> list[st
         f" * dataset file    : {dataset_filename}",
         f" * dataset sha256  : {dataset_sha256}",
         " *",
-        " * The PROC MIXED statements below are reproduced verbatim from the",
-        " * cited section. Editing them makes this program a test of a",
-        " * different model, and the comparison that follows meaningless.",
+        " * This program is ready to run as supplied. Editing any line breaks",
+        " * the program hash that ties your output back to this package, and",
+        " * the upload will be rejected as evidence for a different program.",
         " *",
-        " * This program does not modify the supplied data. It reads the CSV,",
-        " * takes natural logs of the measured values, fits the model, and",
-        " * writes the results. Nothing is excluded and nothing is imputed:",
-        " * PROC MIXED performs the available-case analysis the guidance",
-        " * describes.",
+    ]
+    if normalizations:
+        lines += [
+            " * SYNTAX NORMALIZATIONS APPLIED (SAS syntax only, model unchanged):",
+            " *",
+        ]
+        for normalization in normalizations:
+            lines += [
+                f" *   [{normalization.identifier}] "
+                f"{normalization.source_keyword} -> "
+                f"{normalization.executable_keyword}",
+            ]
+            for line in _wrap(normalization.reason, 68):
+                lines.append(" *       " + line)
+        lines += [
+            " *",
+            " * The regulatory source statements are recorded verbatim in",
+            " * model_specification.json alongside these substitutions.",
+            " *",
+        ]
+    else:  # pragma: no cover - the allow-list currently always applies
+        lines += [" * No syntax normalization was required.", " *"]
+
+    lines += [
+        " * The data is NOT modified. Every observation supplied was validated",
+        " * before this package was generated, so the DATA step below derives",
+        " * the analysis variable and drops nothing.",
         " " + "*" * 75 + "/",
         "",
     ]
+    return lines
+
+
+def _wrap(text: str, width: int) -> list[str]:
+    words, line, out = text.split(), "", []
+    for word in words:
+        if len(line) + len(word) + 1 > width:
+            out.append(line)
+            line = word
+        else:
+            line = f"{line} {word}".strip()
+    if line:
+        out.append(line)
+    return out
 
 
 def _read_step(dataset_filename: str) -> list[str]:
@@ -101,29 +299,37 @@ def _read_step(dataset_filename: str) -> list[str]:
         "    guessingrows = max;",
         "run;",
         "",
+        "/* The CSV carries VALUE, the measurement in its original units. The",
+        "   model is fitted on the log scale, so Y is DERIVED here. Y is not a",
+        "   column of dataset.csv and the model specification says so.",
+        "",
+        "   Nothing is dropped. Package generation already refused to build a",
+        "   package containing a missing, non-numeric, non-finite or",
+        "   non-positive value, so every row reaching this step is valid. The",
+        "   check below is defensive: if invalid data somehow arrives, the",
+        "   program STOPS rather than silently analysing fewer observations",
+        "   than the package claims. */",
+        "",
         "data be_input;",
         "    set be_raw;",
-        "    /* The model is fitted on the LOG scale. The CSV carries measured",
-        "       values so that the shipped data is inspectable in its original",
-        "       units and its hash covers what was measured, not a transform. */",
-        "    if VALUE > 0 then Y = log(VALUE);",
-        "    else delete;",
-        "    keep SUBJ SEQ PER TRT Y;",
+        "    if missing(VALUE) or VALUE <= 0 then do;",
+        "        put 'ERROR: non-positive or missing VALUE for subject ' SUBJ",
+        "            ' period ' PER '. This package was generated from"
+        " validated data;';",
+        "        put 'ERROR: refusing to continue rather than dropping the"
+        " observation.';",
+        "        abort cancel;",
+        "    end;",
+        "    " + DERIVED_ANALYSIS_DEFINITION + ";",
+        "    keep SUBJ SEQ PER TRT " + DERIVED_ANALYSIS_VARIABLE + ";",
         "run;",
         "",
     ]
 
 
-def _model_step() -> list[str]:
-    """The regulator's statements, wrapped so their output can be captured.
-
-    `PROC MIXED;` from the specification becomes `proc mixed data=... ;` - the
-    only alteration made to any statement, and it names the input dataset
-    rather than changing the model. Every other line is passed through
-    untouched, including its spacing.
-    """
+def _model_step(statements: list[NormalizedStatement]) -> list[str]:
     lines = [
-        "/* ---- FDA Appendix C model, verbatim from the specification ---- */",
+        "/* ---- FDA Appendix C model ------------------------------------ */",
         "",
         "ods output Estimates        = " + OUTPUT_ESTIMATE + ";",
         "ods output CovParms         = " + OUTPUT_COVPARMS + ";",
@@ -131,12 +337,18 @@ def _model_step() -> list[str]:
         "ods output ConvergenceStatus = " + OUTPUT_CONVERGENCE + ";",
         "",
     ]
-    for statement in APPENDIX_C_MODEL.sas:
-        if statement.strip().upper().startswith("PROC MIXED"):
+    for statement in statements:
+        if statement.source.strip().upper().startswith("PROC MIXED"):
             lines.append("proc mixed data = be_input method = reml;")
-            lines.append("    /* specification: " + statement + " */")
-        else:
-            lines.append("    " + statement)
+            lines.append(f"    /* source: {statement.source} */")
+            continue
+        if statement.was_normalized:
+            lines.append(f"    /* source: {statement.source} */")
+            lines.append(
+                f"    /* normalization: {statement.normalization.identifier} "
+                "- SAS syntax only, statistical model unchanged */"
+            )
+        lines.append("    " + statement.executable)
     lines += ["run;", ""]
     return lines
 
@@ -156,13 +368,6 @@ def _environment_step() -> list[str]:
 
 
 def _export_step(result_filename: str) -> list[str]:
-    """One controlled result file, rather than a log to be scraped.
-
-    Parsing arbitrary SAS listing output or a PDF is a losing game and an
-    invitation to silently misread a number. The program writes a single
-    structured file whose shape this application defined, and the raw log is
-    kept separately as evidence rather than as the input to a parser.
-    """
     return [
         "/* ---- write ONE structured result file ------------------------- */",
         "",
@@ -212,10 +417,9 @@ def _export_step(result_filename: str) -> list[str]:
         "            replace;",
         "run;",
         "",
-        "/* Upload the file above, together with the SAS log, to complete the",
-        "   validation run. Neither file is interpreted as a regulatory",
-        "   conclusion: they are compared with the engine's own result and a",
-        "   reviewer decides what the comparison means. */",
+        "/* Upload the file above together with the SAS log. Neither is treated",
+        "   as a regulatory conclusion: they are compared with the engine's own",
+        "   result and a reviewer decides what the comparison means. */",
     ]
 
 
@@ -228,20 +432,25 @@ def generate_program(
 ) -> GeneratedProgram:
     """Deterministic: identical inputs give a byte-identical program.
 
-    No timestamp, no hostname, no random identifier. The program's hash is
-    recorded in the package manifest and re-derived when the result is
-    uploaded, so a generator that varied between calls would make every upload
-    look like evidence for a different program.
+    No timestamp, no hostname, no random identifier - the program's hash is
+    recorded in the manifest and re-derived on upload, so a generator that
+    varied between calls would make every upload look like evidence for a
+    different program.
+
+    The normalizations are part of the text and therefore part of that hash.
     """
+    statements, applied = _model_statements()
+
     lines: list[str] = []
-    lines += _header(case_id, dataset_filename, dataset_sha256)
+    lines += _header(case_id, dataset_filename, dataset_sha256, applied)
     lines += [
-        "/* Set this to the folder holding the package files before running. */",
+        "/* Set this to the folder holding the package files before running.",
+        "   This is the ONLY line you should change. */",
         "%let packagedir = .;",
         "",
     ]
     lines += _read_step(dataset_filename)
-    lines += _model_step()
+    lines += _model_step(statements)
     lines += _environment_step()
     lines += _export_step(result_filename)
 
@@ -252,7 +461,11 @@ def generate_program(
             f"{APPENDIX_C_MODEL.citation.section} "
             f"({APPENDIX_C_MODEL.citation.document_version})"
         ),
-        model_statements=tuple(APPENDIX_C_MODEL.sas),
+        source_statements=tuple(APPENDIX_C_MODEL.sas),
+        executable_statements=tuple(
+            s.executable for s in statements if s.executable
+        ),
+        normalizations_applied=applied,
         output_datasets=(
             OUTPUT_ESTIMATE,
             OUTPUT_COVPARMS,
@@ -266,6 +479,14 @@ def generate_program(
 
 __all__ = [
     "DATASET_COLUMNS",
+    "DERIVED_ANALYSIS_DEFINITION",
+    "DERIVED_ANALYSIS_VARIABLE",
+    "RAW_ANALYSIS_INPUT",
+    "SYNTAX_NORMALIZATIONS",
     "GeneratedProgram",
+    "NormalizedStatement",
+    "SyntaxNormalization",
+    "UnknownSyntaxNormalization",
     "generate_program",
+    "normalize_statement",
 ]

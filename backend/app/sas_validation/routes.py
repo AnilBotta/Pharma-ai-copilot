@@ -48,13 +48,90 @@ router = APIRouter(prefix="/sas-validation", tags=["sas-validation"])
 
 #: The single implicit organisation. Migration 0001: "Single-organisation MVP:
 #: every profile belongs to the same implicit org, so there is no organisations
-#: table yet." Resolved through one function so that when there is one, exactly
-#: this changes.
+#: table yet."
 IMPLICIT_TENANT_ID = "00000000-0000-0000-0000-000000000001"
 
 
 def resolve_tenant(user: AuthenticatedUser) -> str:
+    """The caller's organisation.
+
+    PREPARED FOR TENANT ISOLATION; THIS DEPLOYMENT IS SINGLE-ORGANISATION.
+
+    There is no identity-to-organisation mapping in this system, so this
+    returns one constant and the data model's isolation invariants are
+    exercised only by the service-layer tests. This is not runtime
+    multi-tenancy and must not be described as such.
+
+    When multi-tenancy arrives, this function derives membership from the
+    AUTHENTICATED SERVER-SIDE IDENTITY - never from a client-supplied
+    tenant_id, which would let a caller choose whose data to read. No route
+    below accepts one, and none should.
+    """
     return IMPLICIT_TENANT_ID
+
+
+# --------------------------------------------------- reviewer authorization ---
+
+#: Roles that could govern a validation review, in the vocabulary migration
+#: 0007 already seeds. Listed rather than invented: a duplicate role system
+#: would be a second answer to "who may decide", and nothing would say which
+#: one won.
+REVIEWER_ROLE_KEYS = ("system_administrator", "executive")
+
+#: WHY REVIEW RECORDING IS CLOSED AT THE HTTP BOUNDARY.
+#:
+#: The roles exist. What does not exist is any way for THIS BACKEND to check
+#: them:
+#:
+#:   private.has_role(role_key, project_id)  reads auth.uid(), which is NULL
+#:                                           when the backend connects as the
+#:                                           service role
+#:   private.user_capabilities(user, project) is project-scoped by signature
+#:                                            and cannot answer "is this user
+#:                                            an executive" globally
+#:
+#: and there is no `user_has_global_role(user_id, role_key)` twin. On top of
+#: that, `settings_module/routes.py` records that nobody currently holds either
+#: org-level role.
+#:
+#: So the honest options were: let every signed-in user record an oracle
+#: closure, invent a parallel permission system, or refuse. Recording a
+#: governed validation decision is not something to leave open by default, and
+#: a second role system would be worse than the gap it filled.
+REVIEWER_AUTHORIZATION_CONFIGURED = False
+
+REVIEWER_AUTHORIZATION_NOT_CONFIGURED = "REVIEWER_AUTHORIZATION_NOT_CONFIGURED"
+
+
+def require_reviewer(user: AuthenticatedUser) -> AuthenticatedUser:
+    """Refuse until privileged reviewer authorization exists.
+
+    Returns 501 rather than 403: 403 would tell an operator they lack a
+    permission, when the truth is that the permission cannot yet be checked by
+    anyone. The distinction matters to whoever reads the log.
+    """
+    if not REVIEWER_AUTHORIZATION_CONFIGURED:
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail={
+                "code": REVIEWER_AUTHORIZATION_NOT_CONFIGURED,
+                "message": (
+                    "Recording a validation review requires a privileged "
+                    "reviewer role, and this deployment cannot yet check one. "
+                    "The roles exist, but the backend connects as the service "
+                    "role, where private.has_role() reads a null auth.uid(), "
+                    "and no global-role check for an explicit user id exists."
+                ),
+                "required_roles": list(REVIEWER_ROLE_KEYS),
+                "what_would_enable_it": (
+                    "A private.user_has_global_role(p_user_id, p_role_key) "
+                    "function, of the explicit-user shape migration 0016 "
+                    "already established, plus at least one holder of a "
+                    "reviewer role granted through the CLI."
+                ),
+            },
+        )
+    return user  # pragma: no cover - unreachable until the flag flips
 
 
 class UploadRequest(BaseModel):
@@ -66,6 +143,14 @@ class UploadRequest(BaseModel):
 
 
 class ReviewRequest(BaseModel):
+    """Note what is absent: any field naming the reviewer.
+
+    The reviewer's identity comes from the authenticated server context. A
+    request-body user id would let a caller attribute a governed validation
+    decision to somebody else, which is the one thing an audit trail exists to
+    prevent.
+    """
+
     decision: OracleClosureDecision
     notes: str = Field(min_length=1)
 
@@ -228,11 +313,18 @@ def review_run(
     user: AuthenticatedUser = Depends(current_user),
     service: SASValidationService = Depends(_service),
 ) -> dict[str, object]:
-    """Record a decision. Acting on it is a separate, governed change."""
+    """Record a decision. Acting on it is a separate, governed change.
+
+    Closed in this release - see `require_reviewer`. The domain service is
+    complete and tested; only the HTTP door is shut, because there is no way
+    yet to tell a reviewer from any other signed-in user.
+    """
+    reviewer = require_reviewer(user)
     try:
         run = service.record_review(
-            tenant_id=resolve_tenant(user),
-            reviewer_user_id=user.id,
+            tenant_id=resolve_tenant(reviewer),
+            # From the authenticated context, never from the request body.
+            reviewer_user_id=reviewer.id,
             run_id=run_id,
             decision=request.decision,
             notes=request.notes,
