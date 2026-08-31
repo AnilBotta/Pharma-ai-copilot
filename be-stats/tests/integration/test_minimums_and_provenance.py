@@ -275,7 +275,10 @@ def test_implemented_is_derived_from_the_validation_table():
 
     assert Method.STANDARD_ABE in IMPLEMENTED
     assert Method.EMA_HVD_ABEL in IMPLEMENTED
-    assert Method.FDA_NTI_RSABE not in IMPLEMENTED
+    # Every method in the enum is implemented as of the Appendix C
+    # release. The set is still DERIVED from VALIDATION rather than
+    # maintained beside it, which is what the loop below checks.
+    assert Method.FDA_NTI_RSABE in IMPLEMENTED
     for method in Method:
         expected = VALIDATION[method] is not ValidationStatus.NOT_IMPLEMENTED
         assert (method in IMPLEMENTED) is expected

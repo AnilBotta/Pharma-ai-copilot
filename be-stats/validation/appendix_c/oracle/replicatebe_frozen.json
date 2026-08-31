@@ -1,0 +1,98 @@
+{
+  "data_set_i": {
+    "estimate_log": 0.14546432998274317,
+    "sign_flipped_to_T_minus_R": false,
+    "coefficient_located_by": "name: formulation: T",
+    "df_comparison_valid": false,
+    "published": {
+      "estimate_percent": 115.66,
+      "ci_upper_percent": 124.89,
+      "ci_lower_percent": 107.1
+    },
+    "theta": [
+      0.2021180927164913,
+      0.1173942079364334,
+      0.7275999852891062,
+      0.6862577684447095,
+      1.0
+    ],
+    "ci_lower_delta": 0.0044718378259887,
+    "estimate_delta": -0.0023521256560314896,
+    "status": "FITTED",
+    "n_observations_supplied": 298,
+    "n_fixed_effects": 6,
+    "reml2": 530.1445130332258,
+    "ci_upper_delta": 0.0038656089008100025,
+    "converged": true,
+    "coefficient_index": 6,
+    "coefficient_names": [
+      "(Intercept)",
+      "sequence: TRTR",
+      "period: 2",
+      "period: 3",
+      "period: 4",
+      "formulation: T"
+    ],
+    "estimate_percent": 115.65764787434397,
+    "ci_upper_percent": 124.89386560890081,
+    "n_subjects_supplied": 77,
+    "df_comparison_note": "Data set I is ill conditioned for reverse-solving df from the published rounded CI - it returns a value exceeding the observation count. The directly reported df is recorded; no comparison against a recovered df is made.",
+    "ci_lower_percent": 107.10447183782598,
+    "denominator_df": 208.08114726075297,
+    "standard_error": 0.04650123718563794
+  },
+  "environment": {
+    "julia": "1.10.5",
+    "JSON": "0.21.4",
+    "DataFrames": "1.8.2",
+    "ReplicateBE": "1.0.15"
+  },
+  "model_source": {
+    "oracle": "ReplicateBE.jl - external oracle only, GPL-3.0, never a dependency of be_stats and never copied into it",
+    "fda": "Statistical Approaches to Establishing Bioequivalence, May 2026, Appendix C",
+    "comparison_target": "EMA/618604/2008 Rev. 13 Method C, SAS 9.1"
+  },
+  "data_set_ii": {
+    "estimate_log": 0.022391333333332986,
+    "sign_flipped_to_T_minus_R": false,
+    "coefficient_located_by": "name: formulation: T",
+    "df_comparison_valid": true,
+    "published": {
+      "estimate_percent": 102.26,
+      "ci_upper_percent": 107.76,
+      "ci_lower_percent": 97.05
+    },
+    "theta": [
+      0.013246492714937183,
+      0.008890345543630131,
+      0.0362159961117806,
+      0.06160422032150619,
+      0.9661943199692274
+    ],
+    "ci_lower_delta": 0.032120286500713746,
+    "estimate_delta": 0.00439008224205395,
+    "status": "FITTED",
+    "df_recovered_from_published_ci": 19.603,
+    "n_observations_supplied": 72,
+    "n_fixed_effects": 6,
+    "reml2": -30.674599381259696,
+    "ci_upper_delta": -0.03670916096425003,
+    "df_delta_vs_recovered": 2.9372506880733305,
+    "converged": true,
+    "coefficient_index": 6,
+    "coefficient_names": [
+      "(Intercept)",
+      "sequence: RTR",
+      "sequence: TRR",
+      "period: 2",
+      "period: 3",
+      "formulation: T"
+    ],
+    "estimate_percent": 102.26439008224206,
+    "ci_upper_percent": 107.72329083903576,
+    "n_subjects_supplied": 24,
+    "ci_lower_percent": 97.08212028650071,
+    "denominator_df": 22.540250688073332,
+    "standard_error": 0.030317219371948898
+  }
+}

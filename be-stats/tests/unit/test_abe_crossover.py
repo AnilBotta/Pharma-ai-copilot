@@ -208,20 +208,50 @@ def test_estimator_refuses_a_spec_whose_method_it_cannot_run():
         jurisdiction=Jurisdiction.FDA,
         drug_class=DrugClass.NARROW_THERAPEUTIC_INDEX,
     )
-    with pytest.raises(NotImplementedMethod, match="fully replicated"):
+    # NTI is implemented as of the Appendix C release, and a 2x2 crossover
+    # still cannot be analysed under it - for the better reason that FDA's NTI
+    # procedure has no fixed acceptance interval to contain a CI in, and needs
+    # a fully replicate design it was not given.
+    from be_stats.spec import NotApplicable
+
+    with pytest.raises(NotApplicable, match="fixed acceptance interval"):
         analyse_crossover(BALANCED, fda_nti)
 
     # The highly-variable method is implemented now, and a 2x2 crossover still
-    # cannot be analysed under it - for a different and better reason. Its
-    # acceptance region moves with the reference variability, so there is no
-    # fixed interval for a confidence interval to sit inside.
-    from be_stats.spec import NotApplicable
-
+    # cannot be analysed under it - for the same reason. Its acceptance region
+    # moves with the reference variability, so there is no fixed interval for a
+    # confidence interval to sit inside.
     fda_hvd = resolve_be_spec(
         jurisdiction=Jurisdiction.FDA, drug_class=DrugClass.HIGHLY_VARIABLE
     )
     with pytest.raises(NotApplicable, match="fixed acceptance interval"):
         analyse_crossover(BALANCED, fda_hvd)
+
+
+def test_the_not_implemented_path_still_works_though_nothing_uses_it(monkeypatch):
+    """Every Method in the enum is implemented as of the Appendix C release.
+
+    That is a good place to be and a bad place to lose a safety mechanism.
+    `NotImplementedMethod` is how the package refuses a method it knows it
+    cannot run, and it will be needed again - so it is exercised here by
+    marking a method unimplemented rather than by waiting for one to be.
+    """
+    import be_stats.spec as spec_module
+    from be_stats.spec import Method, NotImplementedMethod
+
+    # IMPLEMENTED is a frozenset DERIVED from VALIDATION at import time. That
+    # is the right design - the set cannot drift from the table - and it means
+    # the SET is what a test has to patch; patching VALIDATION alone changes
+    # nothing, which is how this test first failed.
+    monkeypatch.setattr(
+        spec_module,
+        "IMPLEMENTED",
+        frozenset(m for m in Method if m is not Method.STANDARD_ABE),
+    )
+    spec = resolve_be_spec(jurisdiction=Jurisdiction.FDA)
+    assert not spec.is_implemented
+    with pytest.raises(NotImplementedMethod):
+        analyse_crossover(BALANCED, spec)
 
 
 def test_standard_interval_is_identical_across_jurisdictions():

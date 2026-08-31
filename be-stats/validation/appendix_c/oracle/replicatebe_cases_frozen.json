@@ -1,0 +1,274 @@
+{
+  "source_cases": "full_replicate_cases.json",
+  "note": "Raw unoriented coefficients; orientation is resolved once, globally, on the Python side.",
+  "tier": "3 (independent implementation, not a regulator's output)",
+  "oracle": {
+    "julia_version": "1.10.5",
+    "version_pinned": "1.0.15",
+    "package": "ReplicateBE.jl"
+  },
+  "cases": {
+    "B": {
+      "coefficient_located_by": "name: formulation: T",
+      "name": "unbalanced_with_missing_periods",
+      "theta": [
+        0.07513769604424408,
+        0.04975654275840411,
+        0.19654688330467368,
+        0.21819318187054773,
+        6.952170681966761e-14
+      ],
+      "status": "FITTED",
+      "n_observations_supplied": 115,
+      "reml2": 136.76426330177847,
+      "case": "B",
+      "converged": true,
+      "coefficient_index": 6,
+      "coefficient_names": [
+        "(Intercept)",
+        "sequence: TRTR",
+        "period: 2",
+        "period: 3",
+        "period: 4",
+        "formulation: T"
+      ],
+      "n_subjects_supplied": 30,
+      "denominator_df": 28.87934677131308,
+      "estimate_raw": 0.1096199746846668,
+      "standard_error": 0.13451981159884072
+    },
+    "A": {
+      "coefficient_located_by": "name: formulation: T",
+      "name": "central_balanced",
+      "theta": [
+        0.04999931598288679,
+        0.06698180295108666,
+        0.1301679192919777,
+        0.1671271094315966,
+        0.3811434831118862
+      ],
+      "status": "FITTED",
+      "n_observations_supplied": 96,
+      "reml2": 95.23179172119161,
+      "case": "A",
+      "converged": true,
+      "coefficient_index": 6,
+      "coefficient_names": [
+        "(Intercept)",
+        "sequence: TRTR",
+        "period: 2",
+        "period: 3",
+        "period: 4",
+        "formulation: T"
+      ],
+      "n_subjects_supplied": 24,
+      "denominator_df": 21.99999999999987,
+      "estimate_raw": 0.07288919847547881,
+      "standard_error": 0.100696026726501
+    },
+    "I": {
+      "coefficient_located_by": "name: formulation: T",
+      "name": "upper_limit_just_outside_125",
+      "theta": [
+        0.049999315982886726,
+        0.0669818029510866,
+        0.13016791929197744,
+        0.1671271094315961,
+        0.38114348311188817
+      ],
+      "status": "FITTED",
+      "n_observations_supplied": 96,
+      "reml2": 95.23179172119175,
+      "case": "I",
+      "converged": true,
+      "coefficient_index": 6,
+      "coefficient_names": [
+        "(Intercept)",
+        "sequence: TRTR",
+        "period: 2",
+        "period: 3",
+        "period: 4",
+        "formulation: T"
+      ],
+      "n_subjects_supplied": 24,
+      "denominator_df": 22.000000000000092,
+      "estimate_raw": 0.05039392287718566,
+      "standard_error": 0.10069602672650071
+    },
+    "C": {
+      "coefficient_located_by": "name: formulation: T",
+      "name": "unequal_residual_variances",
+      "theta": [
+        0.1421263748533084,
+        0.034246829374142834,
+        0.18930679652507731,
+        0.1594428439081896,
+        0.4203949227436662
+      ],
+      "status": "FITTED",
+      "n_observations_supplied": 128,
+      "reml2": 147.90020717756008,
+      "case": "C",
+      "converged": true,
+      "coefficient_index": 6,
+      "coefficient_names": [
+        "(Intercept)",
+        "sequence: TRTR",
+        "period: 2",
+        "period: 3",
+        "period: 4",
+        "formulation: T"
+      ],
+      "n_subjects_supplied": 32,
+      "denominator_df": 30.00000000000028,
+      "estimate_raw": -0.10855178563110951,
+      "standard_error": 0.09533857271674394
+    },
+    "D": {
+      "coefficient_located_by": "name: formulation: T",
+      "name": "correlation_near_zero",
+      "theta": [
+        0.11963400959900847,
+        0.08694962912213976,
+        0.08372561173310186,
+        0.23876749800772493,
+        2.369234635053067e-15
+      ],
+      "status": "FITTED",
+      "n_observations_supplied": 112,
+      "reml2": 150.24317221455544,
+      "case": "D",
+      "converged": true,
+      "coefficient_index": 6,
+      "coefficient_names": [
+        "(Intercept)",
+        "sequence: TRTR",
+        "period: 2",
+        "period: 3",
+        "period: 4",
+        "formulation: T"
+      ],
+      "n_subjects_supplied": 28,
+      "denominator_df": 27.050007290695806,
+      "estimate_raw": -0.012391381293940767,
+      "standard_error": 0.12331506238397755
+    },
+    "G": {
+      "coefficient_located_by": "name: formulation: T",
+      "name": "lower_limit_just_outside_80",
+      "theta": [
+        0.049999315982886594,
+        0.06698180295108642,
+        0.13016791929197805,
+        0.16712710943159745,
+        0.3811434831118887
+      ],
+      "status": "FITTED",
+      "n_observations_supplied": 96,
+      "reml2": 95.2317917211917,
+      "case": "G",
+      "converged": true,
+      "coefficient_index": 6,
+      "coefficient_names": [
+        "(Intercept)",
+        "sequence: TRTR",
+        "period: 2",
+        "period: 3",
+        "period: 4",
+        "formulation: T"
+      ],
+      "n_subjects_supplied": 24,
+      "denominator_df": 21.99999999999999,
+      "estimate_raw": -0.05048396693103048,
+      "standard_error": 0.1006960267265009
+    },
+    "E": {
+      "coefficient_located_by": "name: formulation: T",
+      "name": "correlation_on_the_boundary",
+      "theta": [
+        0.061710505480021965,
+        0.10041866189329292,
+        0.22885651438268548,
+        0.24485770529750692,
+        1.0
+      ],
+      "status": "FITTED",
+      "n_observations_supplied": 160,
+      "reml2": 166.09691790230255,
+      "case": "E",
+      "converged": true,
+      "coefficient_index": 6,
+      "coefficient_names": [
+        "(Intercept)",
+        "sequence: TRTR",
+        "period: 2",
+        "period: 3",
+        "period: 4",
+        "formulation: T"
+      ],
+      "n_subjects_supplied": 40,
+      "denominator_df": 111.60100890117369,
+      "estimate_raw": 0.04847140997147389,
+      "standard_error": 0.04509293352209019
+    },
+    "F": {
+      "coefficient_located_by": "name: formulation: T",
+      "name": "lower_limit_just_inside_80",
+      "theta": [
+        0.049999315982886705,
+        0.06698180295108669,
+        0.13016791929197744,
+        0.16712710943159526,
+        0.38114348311188745
+      ],
+      "status": "FITTED",
+      "n_observations_supplied": 96,
+      "reml2": 95.2317917211918,
+      "case": "F",
+      "converged": true,
+      "coefficient_index": 6,
+      "coefficient_names": [
+        "(Intercept)",
+        "sequence: TRTR",
+        "period: 2",
+        "period: 3",
+        "period: 4",
+        "formulation: T"
+      ],
+      "n_subjects_supplied": 24,
+      "denominator_df": 22.000000000000007,
+      "estimate_raw": -0.04998396692061394,
+      "standard_error": 0.1006960267265008
+    },
+    "H": {
+      "coefficient_located_by": "name: formulation: T",
+      "name": "upper_limit_just_inside_125",
+      "theta": [
+        0.04999931598288679,
+        0.06698180295108669,
+        0.13016791929197766,
+        0.16712710943159564,
+        0.3811434831118854
+      ],
+      "status": "FITTED",
+      "n_observations_supplied": 96,
+      "reml2": 95.23179172119161,
+      "case": "H",
+      "converged": true,
+      "coefficient_index": 6,
+      "coefficient_names": [
+        "(Intercept)",
+        "sequence: TRTR",
+        "period: 2",
+        "period: 3",
+        "period: 4",
+        "formulation: T"
+      ],
+      "n_subjects_supplied": 24,
+      "denominator_df": 21.999999999999876,
+      "estimate_raw": 0.05007392287445532,
+      "standard_error": 0.10069602672650094
+    }
+  },
+  "schema": "be-stats/appendix-c-replicatebe-case-oracle/1"
+}

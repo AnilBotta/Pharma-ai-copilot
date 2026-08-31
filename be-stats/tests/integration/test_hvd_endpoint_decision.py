@@ -398,20 +398,35 @@ def test_phase_one_routes_through_the_shared_core_too():
         assert "abe_from_log_contrast" in calls, name
 
 
-def test_the_unscaled_branch_is_not_implemented_rather_than_experimental():
+def test_the_unscaled_branch_was_never_marked_experimental():
     """A status field does not travel with a number.
 
     Marking this EXPERIMENTAL while returning a bioequivalence verdict put the
-    caveat somewhere the verdict would not carry it. The branch refuses now,
-    and the status says so.
+    caveat somewhere the verdict would not carry it. The branch refused for
+    three releases instead, and now decides - from FDA's actual model, for the
+    design that has an oracle.
+
+    What must never come back is the middle option: a number with a caveat
+    attached to something other than the number.
     """
     from be_stats import CAPABILITY_VALIDATION, Capability, ValidationStatus
 
     assert (
         CAPABILITY_VALIDATION[Capability.FDA_HVD_UNSCALED_BRANCH]
-        is ValidationStatus.NOT_IMPLEMENTED
+        is ValidationStatus.IMPLEMENTED_UNVALIDATED
     )
     assert ValidationStatus.EXPERIMENTAL not in CAPABILITY_VALIDATION.values()
+
+    # And the design split is what the status is hedging: fully replicate
+    # decides, partial replicate does not.
+    assert (
+        CAPABILITY_VALIDATION[Capability.FDA_REPLICATE_STANDARD_ABE_FULL]
+        is ValidationStatus.IMPLEMENTED_UNVALIDATED
+    )
+    assert (
+        CAPABILITY_VALIDATION[Capability.FDA_REPLICATE_STANDARD_ABE_PARTIAL]
+        is ValidationStatus.NOT_IMPLEMENTED
+    )
 
 
 def test_the_summary_says_the_endpoint_was_not_decided():
@@ -539,7 +554,10 @@ def test_rsabe_is_implemented_but_not_validated():
     assert VALIDATION[Method.FDA_HVD_RSABE] is (
         ValidationStatus.IMPLEMENTED_UNVALIDATED
     )
-    assert VALIDATION[Method.FDA_NTI_RSABE] is ValidationStatus.NOT_IMPLEMENTED
+    # NTI became implementable once Appendix C supplied criterion (b).
+    assert VALIDATION[Method.FDA_NTI_RSABE] is (
+        ValidationStatus.IMPLEMENTED_UNVALIDATED
+    )
     # EMA ABEL is implemented as of the EMA release and is still not VALIDATED.
     # It has tier-1B evidence, which FDA HVD does not — EMA published two
     # worked data sets and both reproduce — but the cap reading remains open

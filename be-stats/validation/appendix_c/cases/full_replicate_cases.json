@@ -1,0 +1,7031 @@
+{
+  "schema": "be-stats/appendix-c-full-replicate-cases/1",
+  "generator": "validation/appendix_c/generate_cases.py",
+  "seed": 20260829,
+  "boundary_case_seed": {
+    "E": 0
+  },
+  "design": "fully replicate, TRTR/RTRT",
+  "note": "Simulated from the Appendix C model. These cases exercise the implementation across conditions the one published dataset does not reach; they are not evidence that the model is the right model. Committed as data - regenerating is inspection, not validation.",
+  "cases": {
+    "A": {
+      "name": "central_balanced",
+      "purpose": "The ordinary case. Balanced sequences, equal residual variances, an interior correlation and a true ratio of 1. Nothing here is difficult, which is the point: if this one disagrees, none of the harder ones tell you anything.",
+      "observations": [
+        {
+          "subject": "1",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 1.5014472980754596
+        },
+        {
+          "subject": "1",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 1.0062254015558676
+        },
+        {
+          "subject": "1",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 1.0022197640594046
+        },
+        {
+          "subject": "1",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 1.1664427200830993
+        },
+        {
+          "subject": "2",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 1.7331934318107227
+        },
+        {
+          "subject": "2",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 1.400134864651128
+        },
+        {
+          "subject": "2",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 1.9440141204996586
+        },
+        {
+          "subject": "2",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 1.2471183871139644
+        },
+        {
+          "subject": "3",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 1.0386639564774764
+        },
+        {
+          "subject": "3",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 0.9752198672149995
+        },
+        {
+          "subject": "3",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 0.7876525422037222
+        },
+        {
+          "subject": "3",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 0.5780066279722341
+        },
+        {
+          "subject": "4",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 1.0725545752036474
+        },
+        {
+          "subject": "4",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 1.2085503138537235
+        },
+        {
+          "subject": "4",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 1.5393927139692432
+        },
+        {
+          "subject": "4",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 1.286009410123032
+        },
+        {
+          "subject": "5",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 0.9931973116233378
+        },
+        {
+          "subject": "5",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 1.049882013394606
+        },
+        {
+          "subject": "5",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 1.4575834078276604
+        },
+        {
+          "subject": "5",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 1.1306584958687935
+        },
+        {
+          "subject": "6",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 0.6207008012013469
+        },
+        {
+          "subject": "6",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 1.9688792704153133
+        },
+        {
+          "subject": "6",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 0.8059036574851469
+        },
+        {
+          "subject": "6",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 1.1111337871644533
+        },
+        {
+          "subject": "7",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 1.6645700530595529
+        },
+        {
+          "subject": "7",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 1.3525693756594492
+        },
+        {
+          "subject": "7",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 1.3582116656740097
+        },
+        {
+          "subject": "7",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 2.7598461008452855
+        },
+        {
+          "subject": "8",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 1.4527236304388342
+        },
+        {
+          "subject": "8",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 2.2752547696228915
+        },
+        {
+          "subject": "8",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 1.5831254791327212
+        },
+        {
+          "subject": "8",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 2.4480168939684246
+        },
+        {
+          "subject": "9",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 1.2324583311469497
+        },
+        {
+          "subject": "9",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 1.2741887475089517
+        },
+        {
+          "subject": "9",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 0.46355949519733364
+        },
+        {
+          "subject": "9",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 1.0390661421132246
+        },
+        {
+          "subject": "10",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 0.7779335083676128
+        },
+        {
+          "subject": "10",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 0.7302001163081603
+        },
+        {
+          "subject": "10",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 0.8201164767939539
+        },
+        {
+          "subject": "10",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 0.8330225011695314
+        },
+        {
+          "subject": "11",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 0.5575690087894652
+        },
+        {
+          "subject": "11",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 0.7545182196720611
+        },
+        {
+          "subject": "11",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 0.6029375509608891
+        },
+        {
+          "subject": "11",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 0.9526172560051507
+        },
+        {
+          "subject": "12",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 1.17221357216831
+        },
+        {
+          "subject": "12",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 0.6817822071738401
+        },
+        {
+          "subject": "12",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 1.3499601773906882
+        },
+        {
+          "subject": "12",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 0.9639740643291395
+        },
+        {
+          "subject": "13",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 0.3939172024572045
+        },
+        {
+          "subject": "13",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 0.7918650258779693
+        },
+        {
+          "subject": "13",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 0.36741815289940716
+        },
+        {
+          "subject": "13",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 0.7331292262298512
+        },
+        {
+          "subject": "14",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 0.6276130251168214
+        },
+        {
+          "subject": "14",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 1.1083583072982872
+        },
+        {
+          "subject": "14",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 0.49892130602826384
+        },
+        {
+          "subject": "14",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 1.3243242123811103
+        },
+        {
+          "subject": "15",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 0.6102954129226872
+        },
+        {
+          "subject": "15",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 1.189653988474549
+        },
+        {
+          "subject": "15",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 0.49420971910385925
+        },
+        {
+          "subject": "15",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 1.2110216834837721
+        },
+        {
+          "subject": "16",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 0.3397737134493581
+        },
+        {
+          "subject": "16",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 0.882634041165358
+        },
+        {
+          "subject": "16",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 0.48659112143955513
+        },
+        {
+          "subject": "16",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 0.8892923425072188
+        },
+        {
+          "subject": "17",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 1.6585611177100053
+        },
+        {
+          "subject": "17",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 1.2556328784641515
+        },
+        {
+          "subject": "17",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 1.5533327662907532
+        },
+        {
+          "subject": "17",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 1.4332681083193095
+        },
+        {
+          "subject": "18",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 0.9707342692164218
+        },
+        {
+          "subject": "18",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 1.4083009929814712
+        },
+        {
+          "subject": "18",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 1.4968925397645125
+        },
+        {
+          "subject": "18",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 0.6798987052808115
+        },
+        {
+          "subject": "19",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 0.7906002891260624
+        },
+        {
+          "subject": "19",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 2.269686959130819
+        },
+        {
+          "subject": "19",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 1.1658892799498506
+        },
+        {
+          "subject": "19",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 4.389799737603535
+        },
+        {
+          "subject": "20",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 0.955569837090847
+        },
+        {
+          "subject": "20",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 0.40145890857437067
+        },
+        {
+          "subject": "20",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 0.7333209243190499
+        },
+        {
+          "subject": "20",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 0.5297938328825338
+        },
+        {
+          "subject": "21",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 0.9555300270058236
+        },
+        {
+          "subject": "21",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 1.1796267773977633
+        },
+        {
+          "subject": "21",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 0.977906443105009
+        },
+        {
+          "subject": "21",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 0.9234860247119842
+        },
+        {
+          "subject": "22",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 0.7849965555827337
+        },
+        {
+          "subject": "22",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 0.6836136903381133
+        },
+        {
+          "subject": "22",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 0.97029335005043
+        },
+        {
+          "subject": "22",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 0.6129339639525454
+        },
+        {
+          "subject": "23",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 0.6396206991939689
+        },
+        {
+          "subject": "23",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 0.8661804195411869
+        },
+        {
+          "subject": "23",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 0.7968946752231623
+        },
+        {
+          "subject": "23",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 0.9886049226185747
+        },
+        {
+          "subject": "24",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 0.9035512221970732
+        },
+        {
+          "subject": "24",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 0.3282225597155403
+        },
+        {
+          "subject": "24",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 0.6006826109252233
+        },
+        {
+          "subject": "24",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 0.5813796165020964
+        }
+      ]
+    },
+    "B": {
+      "name": "unbalanced_with_missing_periods",
+      "purpose": "Twenty subjects against ten, plus four dropped observations. Unbalanced sequences break the algebraic shortcuts that make a balanced design tractable by hand, and the dropped periods force the available-case rule to do something visible - three subjects contribute three observations and one contributes two.",
+      "observations": [
+        {
+          "subject": "1",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 0.8253321267840937
+        },
+        {
+          "subject": "1",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 0.967491050110731
+        },
+        {
+          "subject": "1",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 0.5905787595922646
+        },
+        {
+          "subject": "1",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 0.6861964266602879
+        },
+        {
+          "subject": "2",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 1.1057942737429614
+        },
+        {
+          "subject": "2",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 1.4009511567217143
+        },
+        {
+          "subject": "2",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 1.52165571640707
+        },
+        {
+          "subject": "2",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 1.2459933305987023
+        },
+        {
+          "subject": "3",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 1.5369234210157559
+        },
+        {
+          "subject": "3",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 1.293194708910742
+        },
+        {
+          "subject": "3",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 2.662029070895047
+        },
+        {
+          "subject": "4",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 0.3379524051472809
+        },
+        {
+          "subject": "4",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 0.8221201804386269
+        },
+        {
+          "subject": "4",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 0.5584877253157281
+        },
+        {
+          "subject": "4",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 0.8046985150788643
+        },
+        {
+          "subject": "5",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 0.6280466116458481
+        },
+        {
+          "subject": "5",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 0.6671658599618475
+        },
+        {
+          "subject": "5",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 0.6567099196080681
+        },
+        {
+          "subject": "5",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 0.766099074268427
+        },
+        {
+          "subject": "6",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 0.9342835257007167
+        },
+        {
+          "subject": "6",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 0.4689219199787139
+        },
+        {
+          "subject": "6",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 0.8240369983300003
+        },
+        {
+          "subject": "6",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 0.49645427139838255
+        },
+        {
+          "subject": "7",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 1.1173802241987414
+        },
+        {
+          "subject": "7",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 1.139928547343525
+        },
+        {
+          "subject": "7",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 1.1729128376975289
+        },
+        {
+          "subject": "8",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 0.4306676050200006
+        },
+        {
+          "subject": "8",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 2.295056857679027
+        },
+        {
+          "subject": "8",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 0.6919791298554306
+        },
+        {
+          "subject": "8",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 4.918058310164521
+        },
+        {
+          "subject": "9",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 1.4717807698307244
+        },
+        {
+          "subject": "9",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 0.44712961873959844
+        },
+        {
+          "subject": "9",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 1.4620556907191946
+        },
+        {
+          "subject": "9",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 0.6623260765770878
+        },
+        {
+          "subject": "10",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 1.1650329797127283
+        },
+        {
+          "subject": "10",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 0.8086187032514668
+        },
+        {
+          "subject": "10",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 1.0208510381538443
+        },
+        {
+          "subject": "10",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 0.9587429422049046
+        },
+        {
+          "subject": "11",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 1.1052448612704502
+        },
+        {
+          "subject": "11",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 0.499215273219163
+        },
+        {
+          "subject": "11",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 1.0894811173660461
+        },
+        {
+          "subject": "12",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 1.2677052194318692
+        },
+        {
+          "subject": "12",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 1.1472903099748086
+        },
+        {
+          "subject": "12",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 1.0962640591617843
+        },
+        {
+          "subject": "12",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 0.9246647755910744
+        },
+        {
+          "subject": "13",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 2.5869256072061497
+        },
+        {
+          "subject": "13",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 1.0266676337140863
+        },
+        {
+          "subject": "13",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 1.8857520658745661
+        },
+        {
+          "subject": "13",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 0.34540237867034396
+        },
+        {
+          "subject": "14",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 0.760430680880859
+        },
+        {
+          "subject": "14",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 1.3018246899701005
+        },
+        {
+          "subject": "14",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 0.5711476553981806
+        },
+        {
+          "subject": "14",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 1.414374426541208
+        },
+        {
+          "subject": "15",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 0.9185988041300975
+        },
+        {
+          "subject": "15",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 0.8558068055599864
+        },
+        {
+          "subject": "15",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 0.8780027817231344
+        },
+        {
+          "subject": "15",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 1.0550374818421397
+        },
+        {
+          "subject": "16",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 0.5432695028586801
+        },
+        {
+          "subject": "16",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 0.5467427153149336
+        },
+        {
+          "subject": "16",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 0.38870058373335187
+        },
+        {
+          "subject": "16",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 0.900909322108925
+        },
+        {
+          "subject": "17",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 0.7705032162201033
+        },
+        {
+          "subject": "17",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 2.5564541485237338
+        },
+        {
+          "subject": "17",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 0.6337946643485366
+        },
+        {
+          "subject": "17",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 1.610819865580949
+        },
+        {
+          "subject": "18",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 1.4894877379120959
+        },
+        {
+          "subject": "18",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 1.1405761716971445
+        },
+        {
+          "subject": "18",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 1.7039383861639203
+        },
+        {
+          "subject": "18",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 1.2454821178083046
+        },
+        {
+          "subject": "19",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 1.0548086628454023
+        },
+        {
+          "subject": "19",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 1.5385773239454499
+        },
+        {
+          "subject": "19",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 0.6801652930537586
+        },
+        {
+          "subject": "19",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 1.4119597900312466
+        },
+        {
+          "subject": "20",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 0.6143791145571983
+        },
+        {
+          "subject": "20",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 0.8729003506808907
+        },
+        {
+          "subject": "20",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 0.7240844965148401
+        },
+        {
+          "subject": "20",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 1.047686001869934
+        },
+        {
+          "subject": "21",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 0.9916794719968705
+        },
+        {
+          "subject": "21",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 2.557901439492278
+        },
+        {
+          "subject": "21",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 0.5856961191577387
+        },
+        {
+          "subject": "21",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 1.9707134998924145
+        },
+        {
+          "subject": "22",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 0.33140018523380954
+        },
+        {
+          "subject": "22",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 0.6186111458335536
+        },
+        {
+          "subject": "22",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 0.41640430568104
+        },
+        {
+          "subject": "22",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 0.9325611908349788
+        },
+        {
+          "subject": "23",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 0.8177580916396832
+        },
+        {
+          "subject": "23",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 0.943558798748646
+        },
+        {
+          "subject": "23",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 0.5751356543741196
+        },
+        {
+          "subject": "23",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 0.5472779722637127
+        },
+        {
+          "subject": "24",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 0.2945493666750741
+        },
+        {
+          "subject": "24",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 0.5293357258545693
+        },
+        {
+          "subject": "25",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 1.927606746206285
+        },
+        {
+          "subject": "25",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 0.6660715603545833
+        },
+        {
+          "subject": "25",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 1.05821863052979
+        },
+        {
+          "subject": "25",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 0.6220779930703321
+        },
+        {
+          "subject": "26",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 0.7745691700768885
+        },
+        {
+          "subject": "26",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 1.3133869896058354
+        },
+        {
+          "subject": "26",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 0.6036621401089337
+        },
+        {
+          "subject": "26",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 1.7608189916382753
+        },
+        {
+          "subject": "27",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 0.7159625935072949
+        },
+        {
+          "subject": "27",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 2.686393196056825
+        },
+        {
+          "subject": "27",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 0.6346574447219635
+        },
+        {
+          "subject": "27",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 1.6201184230473742
+        },
+        {
+          "subject": "28",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 1.1926402072105562
+        },
+        {
+          "subject": "28",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 2.9228484388774776
+        },
+        {
+          "subject": "28",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 0.7527303235022103
+        },
+        {
+          "subject": "28",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 2.0736545000812074
+        },
+        {
+          "subject": "29",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 1.1813699213221802
+        },
+        {
+          "subject": "29",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 0.8839392495083803
+        },
+        {
+          "subject": "29",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 0.8884606339169582
+        },
+        {
+          "subject": "29",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 0.8099172256721604
+        },
+        {
+          "subject": "30",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 1.3098666468496365
+        },
+        {
+          "subject": "30",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 0.9391011418604419
+        },
+        {
+          "subject": "30",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 0.7212571419505208
+        },
+        {
+          "subject": "30",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 0.46738280111923963
+        }
+      ]
+    },
+    "C": {
+      "name": "unequal_residual_variances",
+      "purpose": "Within-subject CV of 20% on test against 45% on reference. This is the whole reason Appendix C carries REPEATED/GRP=TRT: a model with a single residual variance fits this data too, and gets a different standard error. The case exists to make that difference visible.",
+      "observations": [
+        {
+          "subject": "1",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 0.9013397157389624
+        },
+        {
+          "subject": "1",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 0.8219671619203396
+        },
+        {
+          "subject": "1",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 0.6757842027035115
+        },
+        {
+          "subject": "1",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 1.3528848315644497
+        },
+        {
+          "subject": "2",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 1.310855390768553
+        },
+        {
+          "subject": "2",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 1.0366606752056948
+        },
+        {
+          "subject": "2",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 1.3263923905736044
+        },
+        {
+          "subject": "2",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 0.8290812418471776
+        },
+        {
+          "subject": "3",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 0.5897012235107487
+        },
+        {
+          "subject": "3",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 0.5277098430179183
+        },
+        {
+          "subject": "3",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 0.4059830795674083
+        },
+        {
+          "subject": "3",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 1.12863793380738
+        },
+        {
+          "subject": "4",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 0.7912999884996758
+        },
+        {
+          "subject": "4",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 0.6788883113781751
+        },
+        {
+          "subject": "4",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 1.0685763302323619
+        },
+        {
+          "subject": "4",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 0.9529300797276847
+        },
+        {
+          "subject": "5",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 1.3715597298158488
+        },
+        {
+          "subject": "5",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 0.6369855505999671
+        },
+        {
+          "subject": "5",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 1.0639188158667203
+        },
+        {
+          "subject": "5",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 0.869529207837753
+        },
+        {
+          "subject": "6",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 0.995479124652258
+        },
+        {
+          "subject": "6",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 0.8187817098820618
+        },
+        {
+          "subject": "6",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 0.9836825521033946
+        },
+        {
+          "subject": "6",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 1.2388177231627062
+        },
+        {
+          "subject": "7",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 1.1499295314488787
+        },
+        {
+          "subject": "7",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 0.6264670949984837
+        },
+        {
+          "subject": "7",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 0.8870207358594868
+        },
+        {
+          "subject": "7",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 0.7518493363396175
+        },
+        {
+          "subject": "8",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 0.8000364963100091
+        },
+        {
+          "subject": "8",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 2.1365195582800838
+        },
+        {
+          "subject": "8",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 0.9803206717752495
+        },
+        {
+          "subject": "8",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 1.3911215792622564
+        },
+        {
+          "subject": "9",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 0.46820492470743763
+        },
+        {
+          "subject": "9",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 0.47013538241382824
+        },
+        {
+          "subject": "9",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 0.46295209712203134
+        },
+        {
+          "subject": "9",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 1.0367306003716605
+        },
+        {
+          "subject": "10",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 0.549514975433839
+        },
+        {
+          "subject": "10",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 0.661659415736216
+        },
+        {
+          "subject": "10",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 0.3937085928698099
+        },
+        {
+          "subject": "10",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 0.6377209318428355
+        },
+        {
+          "subject": "11",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 0.7934969616144987
+        },
+        {
+          "subject": "11",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 0.6557967177662666
+        },
+        {
+          "subject": "11",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 0.5672047529808861
+        },
+        {
+          "subject": "11",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 0.3236039890724288
+        },
+        {
+          "subject": "12",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 2.201589734370029
+        },
+        {
+          "subject": "12",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 2.4799492575034767
+        },
+        {
+          "subject": "12",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 3.051429675758897
+        },
+        {
+          "subject": "12",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 3.01951516615528
+        },
+        {
+          "subject": "13",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 0.7249251933047371
+        },
+        {
+          "subject": "13",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 0.5181496932738415
+        },
+        {
+          "subject": "13",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 0.7964525767555948
+        },
+        {
+          "subject": "13",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 0.6596505449633234
+        },
+        {
+          "subject": "14",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 0.7323826232830372
+        },
+        {
+          "subject": "14",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 0.949843829743022
+        },
+        {
+          "subject": "14",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 0.7019943925475929
+        },
+        {
+          "subject": "14",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 2.1885655172926355
+        },
+        {
+          "subject": "15",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 1.1364177058606983
+        },
+        {
+          "subject": "15",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 0.9367286667776243
+        },
+        {
+          "subject": "15",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 1.3767692574881363
+        },
+        {
+          "subject": "15",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 2.6991922888064526
+        },
+        {
+          "subject": "16",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 0.5861636881854465
+        },
+        {
+          "subject": "16",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 0.5024462076964492
+        },
+        {
+          "subject": "16",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 0.7285213996531966
+        },
+        {
+          "subject": "16",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 0.6117087166350677
+        },
+        {
+          "subject": "17",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 1.570222255014082
+        },
+        {
+          "subject": "17",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 0.6606780843951633
+        },
+        {
+          "subject": "17",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 2.5620237360990803
+        },
+        {
+          "subject": "17",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 0.5537979950221856
+        },
+        {
+          "subject": "18",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 0.7006590076667175
+        },
+        {
+          "subject": "18",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 0.6737471768990417
+        },
+        {
+          "subject": "18",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 0.6284541868752491
+        },
+        {
+          "subject": "18",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 0.7540093661945811
+        },
+        {
+          "subject": "19",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 1.7558560430647372
+        },
+        {
+          "subject": "19",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 1.3869461397283713
+        },
+        {
+          "subject": "19",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 1.5228485865922976
+        },
+        {
+          "subject": "19",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 1.39430094932013
+        },
+        {
+          "subject": "20",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 0.9910211469076818
+        },
+        {
+          "subject": "20",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 0.6919659352342558
+        },
+        {
+          "subject": "20",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 1.7063496710356878
+        },
+        {
+          "subject": "20",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 0.7311213587391807
+        },
+        {
+          "subject": "21",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 1.33160890745252
+        },
+        {
+          "subject": "21",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 1.0648371347053287
+        },
+        {
+          "subject": "21",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 0.5160910123584949
+        },
+        {
+          "subject": "21",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 1.4559456530808221
+        },
+        {
+          "subject": "22",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 1.4563596249042448
+        },
+        {
+          "subject": "22",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 0.9337800468629048
+        },
+        {
+          "subject": "22",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 1.0826856784325578
+        },
+        {
+          "subject": "22",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 1.077185784180479
+        },
+        {
+          "subject": "23",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 1.2845658938076814
+        },
+        {
+          "subject": "23",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 0.8367824786195351
+        },
+        {
+          "subject": "23",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 0.8949587661057038
+        },
+        {
+          "subject": "23",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 0.7733758143207832
+        },
+        {
+          "subject": "24",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 0.7248881945357932
+        },
+        {
+          "subject": "24",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 1.6205754436565927
+        },
+        {
+          "subject": "24",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 1.266913163700537
+        },
+        {
+          "subject": "24",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 1.255897573270743
+        },
+        {
+          "subject": "25",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 3.6160020892647333
+        },
+        {
+          "subject": "25",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 0.8134408658437468
+        },
+        {
+          "subject": "25",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 3.4888273026474015
+        },
+        {
+          "subject": "25",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 0.5711956983076163
+        },
+        {
+          "subject": "26",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 1.807541911779585
+        },
+        {
+          "subject": "26",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 0.8986454674581235
+        },
+        {
+          "subject": "26",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 1.500662777556428
+        },
+        {
+          "subject": "26",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 1.096155120278207
+        },
+        {
+          "subject": "27",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 0.43725934935998156
+        },
+        {
+          "subject": "27",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 1.0060149655212733
+        },
+        {
+          "subject": "27",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 1.3353334574126607
+        },
+        {
+          "subject": "27",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 0.8656970336239419
+        },
+        {
+          "subject": "28",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 0.4866149174051944
+        },
+        {
+          "subject": "28",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 1.0934138666406998
+        },
+        {
+          "subject": "28",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 0.7504631245065343
+        },
+        {
+          "subject": "28",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 1.4681441496335492
+        },
+        {
+          "subject": "29",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 1.5252982425778128
+        },
+        {
+          "subject": "29",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 2.551513098125619
+        },
+        {
+          "subject": "29",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 1.692651534868995
+        },
+        {
+          "subject": "29",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 2.2366211718247935
+        },
+        {
+          "subject": "30",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 2.1081116748318185
+        },
+        {
+          "subject": "30",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 1.4619940390563158
+        },
+        {
+          "subject": "30",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 3.450720422031267
+        },
+        {
+          "subject": "30",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 1.8108096171060626
+        },
+        {
+          "subject": "31",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 0.8278374909867815
+        },
+        {
+          "subject": "31",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 0.7855792335252214
+        },
+        {
+          "subject": "31",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 0.6766215112561484
+        },
+        {
+          "subject": "31",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 0.43531758581026603
+        },
+        {
+          "subject": "32",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 0.9643462096617531
+        },
+        {
+          "subject": "32",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 0.919842499137847
+        },
+        {
+          "subject": "32",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 0.33825445986514324
+        },
+        {
+          "subject": "32",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 1.4726126238529094
+        }
+      ]
+    },
+    "D": {
+      "name": "correlation_near_zero",
+      "purpose": "Simulated at a subject-by-formulation correlation of 0.02, the opposite extreme from the only real dataset available, where it is 1. The FITTED correlation lands slightly negative, which is ordinary sampling noise around a true value of nearly zero and is itself worth having: a negative correlation is perfectly admissible under FA0(2) and an implementation that forced it non-negative would fail here. Near zero the two subject effects are almost independent and G is well conditioned, so a disagreement here cannot be blamed on the boundary.",
+      "observations": [
+        {
+          "subject": "1",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 0.7878902100903773
+        },
+        {
+          "subject": "1",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 1.3314170061256867
+        },
+        {
+          "subject": "1",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 0.9780993013794883
+        },
+        {
+          "subject": "1",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 1.1507199253069786
+        },
+        {
+          "subject": "2",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 0.6318201883691518
+        },
+        {
+          "subject": "2",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 1.1589445113564778
+        },
+        {
+          "subject": "2",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 0.39677162279543066
+        },
+        {
+          "subject": "2",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 1.9753546421804
+        },
+        {
+          "subject": "3",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 1.258218607237583
+        },
+        {
+          "subject": "3",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 2.270526571631208
+        },
+        {
+          "subject": "3",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 1.013937170038873
+        },
+        {
+          "subject": "3",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 1.4182529787923932
+        },
+        {
+          "subject": "4",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 2.7126035191918634
+        },
+        {
+          "subject": "4",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 0.8264052585490016
+        },
+        {
+          "subject": "4",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 4.343271308123333
+        },
+        {
+          "subject": "4",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 0.9646457955789464
+        },
+        {
+          "subject": "5",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 0.7013747398438306
+        },
+        {
+          "subject": "5",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 1.3034566948965558
+        },
+        {
+          "subject": "5",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 0.5665101230121855
+        },
+        {
+          "subject": "5",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 0.9967637283685967
+        },
+        {
+          "subject": "6",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 1.0069814820230865
+        },
+        {
+          "subject": "6",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 1.8012551936609924
+        },
+        {
+          "subject": "6",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 0.8119534957611947
+        },
+        {
+          "subject": "6",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 0.7848640763284555
+        },
+        {
+          "subject": "7",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 1.2176868434622214
+        },
+        {
+          "subject": "7",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 0.7324124312231731
+        },
+        {
+          "subject": "7",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 1.852292307875105
+        },
+        {
+          "subject": "7",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 0.7804914269949101
+        },
+        {
+          "subject": "8",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 2.870013175685352
+        },
+        {
+          "subject": "8",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 1.0036092959597713
+        },
+        {
+          "subject": "8",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 4.272148181872292
+        },
+        {
+          "subject": "8",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 1.6981186295872317
+        },
+        {
+          "subject": "9",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 2.007760141970017
+        },
+        {
+          "subject": "9",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 1.540969429206813
+        },
+        {
+          "subject": "9",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 0.994260607810739
+        },
+        {
+          "subject": "9",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 1.6318890424209969
+        },
+        {
+          "subject": "10",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 0.511920821350226
+        },
+        {
+          "subject": "10",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 0.9774269540858462
+        },
+        {
+          "subject": "10",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 0.6405223861377333
+        },
+        {
+          "subject": "10",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 0.9642798731356245
+        },
+        {
+          "subject": "11",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 2.4601571606005006
+        },
+        {
+          "subject": "11",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 0.6256796733274365
+        },
+        {
+          "subject": "11",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 2.535394158941747
+        },
+        {
+          "subject": "11",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 0.7445441673571859
+        },
+        {
+          "subject": "12",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 1.2474997432253299
+        },
+        {
+          "subject": "12",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 0.6492905436379854
+        },
+        {
+          "subject": "12",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 1.0819199381498077
+        },
+        {
+          "subject": "12",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 0.6844609258483115
+        },
+        {
+          "subject": "13",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 1.2997849731267062
+        },
+        {
+          "subject": "13",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 1.0998321813022385
+        },
+        {
+          "subject": "13",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 0.7008699576268484
+        },
+        {
+          "subject": "13",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 1.6180594386174663
+        },
+        {
+          "subject": "14",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 0.3874629981711578
+        },
+        {
+          "subject": "14",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 0.8775183348786479
+        },
+        {
+          "subject": "14",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 0.3429321071790031
+        },
+        {
+          "subject": "14",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 2.1869254333275716
+        },
+        {
+          "subject": "15",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 0.5343390848993881
+        },
+        {
+          "subject": "15",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 1.0977750434552578
+        },
+        {
+          "subject": "15",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 0.6948759801480682
+        },
+        {
+          "subject": "15",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 1.261678106475781
+        },
+        {
+          "subject": "16",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 3.0864260055376906
+        },
+        {
+          "subject": "16",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 1.625853964778998
+        },
+        {
+          "subject": "16",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 1.0659138728796727
+        },
+        {
+          "subject": "16",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 1.7871674291321944
+        },
+        {
+          "subject": "17",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 2.502273438280967
+        },
+        {
+          "subject": "17",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 1.661224682700322
+        },
+        {
+          "subject": "17",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 1.8705360838444554
+        },
+        {
+          "subject": "17",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 1.9154456310728185
+        },
+        {
+          "subject": "18",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 1.7575802223825805
+        },
+        {
+          "subject": "18",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 2.415616126555386
+        },
+        {
+          "subject": "18",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 1.7494159640094111
+        },
+        {
+          "subject": "18",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 1.5446929611014482
+        },
+        {
+          "subject": "19",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 1.2317192401752617
+        },
+        {
+          "subject": "19",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 1.1505950487870094
+        },
+        {
+          "subject": "19",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 1.8577629146068424
+        },
+        {
+          "subject": "19",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 0.8073019074615507
+        },
+        {
+          "subject": "20",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 0.5843595505513328
+        },
+        {
+          "subject": "20",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 0.9930416591422425
+        },
+        {
+          "subject": "20",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 0.49740375034303985
+        },
+        {
+          "subject": "20",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 1.0998492867521017
+        },
+        {
+          "subject": "21",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 2.3319955897147846
+        },
+        {
+          "subject": "21",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 0.7450765350754576
+        },
+        {
+          "subject": "21",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 0.7057613739995859
+        },
+        {
+          "subject": "21",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 1.6840436730174069
+        },
+        {
+          "subject": "22",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 1.4876259433605032
+        },
+        {
+          "subject": "22",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 0.5676602421887381
+        },
+        {
+          "subject": "22",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 1.7679593302727752
+        },
+        {
+          "subject": "22",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 0.949440974449316
+        },
+        {
+          "subject": "23",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 0.8553710800171124
+        },
+        {
+          "subject": "23",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 0.8194485069683115
+        },
+        {
+          "subject": "23",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 0.9165443188119797
+        },
+        {
+          "subject": "23",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 1.3344188398500691
+        },
+        {
+          "subject": "24",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 0.9087917657784917
+        },
+        {
+          "subject": "24",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 1.049416180791802
+        },
+        {
+          "subject": "24",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 0.7503740111565267
+        },
+        {
+          "subject": "24",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 1.7612057740754865
+        },
+        {
+          "subject": "25",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 1.4302465113818608
+        },
+        {
+          "subject": "25",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 0.7998119993705595
+        },
+        {
+          "subject": "25",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 1.7594787398662384
+        },
+        {
+          "subject": "25",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 1.0180411824805715
+        },
+        {
+          "subject": "26",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 0.9900887123135695
+        },
+        {
+          "subject": "26",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 0.6750655168229663
+        },
+        {
+          "subject": "26",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 1.4871325159853956
+        },
+        {
+          "subject": "26",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 2.312277269040329
+        },
+        {
+          "subject": "27",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 1.058659702994737
+        },
+        {
+          "subject": "27",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 0.5151941714726331
+        },
+        {
+          "subject": "27",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 0.5350298594396431
+        },
+        {
+          "subject": "27",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 1.0380992653242616
+        },
+        {
+          "subject": "28",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 1.9588665488942778
+        },
+        {
+          "subject": "28",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 1.3366319713332098
+        },
+        {
+          "subject": "28",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 0.90897588810449
+        },
+        {
+          "subject": "28",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 1.302125112709276
+        }
+      ]
+    },
+    "E": {
+      "name": "correlation_on_the_boundary",
+      "purpose": "Simulated at correlation exactly 1 with equal between-subject variances, so the true subject-by-formulation variance is zero and the fit lands ON the boundary - l22 driven to 1e-9, rho to 1.000000, with no bound applied.\n\nThis is the case the oracle comparison needs most, and it took two attempts to build. Simulating at rho = 0.999 with 28 subjects never reached the boundary in any seed tried: the fitted correlation settled around 0.96-0.97 and the df came out at exactly n-2, indistinguishable from the interior cases. Forty subjects at rho = 1 reaches it in roughly half of all seeds, because the boundary is hit when sampling noise pushes the estimated subject-by-formulation variance below the floor that a PSD G permits, and that floor is easier to cross with a tighter estimate.\n\nThe df tells the two regimes apart unmistakably. Interior balanced fits give exactly n-2, because the contrast collapses onto the subject-difference statistic. On the boundary that term vanishes and the contrast becomes essentially within-subject, so the df jumps to the within-subject scale - about 100 here, and 208 on Data set I. Any implementation that quietly kept the interior form would be off by a factor of three, not a rounding.",
+      "observations": [
+        {
+          "subject": "1",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 1.2992622308874853
+        },
+        {
+          "subject": "1",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 1.1216330960603176
+        },
+        {
+          "subject": "1",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 0.901714406315378
+        },
+        {
+          "subject": "1",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 1.2338522775069454
+        },
+        {
+          "subject": "2",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 1.4523447881690312
+        },
+        {
+          "subject": "2",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 1.2441941209370868
+        },
+        {
+          "subject": "2",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 1.4576119424858598
+        },
+        {
+          "subject": "2",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 1.8628308721675393
+        },
+        {
+          "subject": "3",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 0.26070510133216285
+        },
+        {
+          "subject": "3",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 0.3062410810021398
+        },
+        {
+          "subject": "3",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 0.313991873598608
+        },
+        {
+          "subject": "3",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 0.35300567265834654
+        },
+        {
+          "subject": "4",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 1.1721420613325335
+        },
+        {
+          "subject": "4",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 1.8365753884641556
+        },
+        {
+          "subject": "4",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 0.9814647114054289
+        },
+        {
+          "subject": "4",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 1.3909021013216196
+        },
+        {
+          "subject": "5",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 1.2086573547877748
+        },
+        {
+          "subject": "5",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 1.15880276843469
+        },
+        {
+          "subject": "5",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 1.2884009476544487
+        },
+        {
+          "subject": "5",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 1.6530300386726677
+        },
+        {
+          "subject": "6",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 0.6309736589228542
+        },
+        {
+          "subject": "6",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 0.782876102469228
+        },
+        {
+          "subject": "6",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 0.6902277974866539
+        },
+        {
+          "subject": "6",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 0.7563671915470883
+        },
+        {
+          "subject": "7",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 0.9696489102248093
+        },
+        {
+          "subject": "7",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 1.2064042126693184
+        },
+        {
+          "subject": "7",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 0.5217445845056942
+        },
+        {
+          "subject": "7",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 1.238201637135443
+        },
+        {
+          "subject": "8",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 1.964787322023885
+        },
+        {
+          "subject": "8",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 1.6749653757562348
+        },
+        {
+          "subject": "8",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 2.7340045869034557
+        },
+        {
+          "subject": "8",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 3.3314310921460484
+        },
+        {
+          "subject": "9",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 2.455611690166124
+        },
+        {
+          "subject": "9",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 1.566660438926447
+        },
+        {
+          "subject": "9",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 2.16442687878103
+        },
+        {
+          "subject": "9",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 2.763162208678783
+        },
+        {
+          "subject": "10",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 0.6654735521618612
+        },
+        {
+          "subject": "10",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 0.7269341829154294
+        },
+        {
+          "subject": "10",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 0.40613995913563294
+        },
+        {
+          "subject": "10",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 0.49782853824731477
+        },
+        {
+          "subject": "11",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 1.4091652306540023
+        },
+        {
+          "subject": "11",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 0.7386031338835191
+        },
+        {
+          "subject": "11",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 0.912981601443294
+        },
+        {
+          "subject": "11",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 0.807896399942321
+        },
+        {
+          "subject": "12",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 2.4246979860738738
+        },
+        {
+          "subject": "12",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 1.0651483675942788
+        },
+        {
+          "subject": "12",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 2.0038160429871796
+        },
+        {
+          "subject": "12",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 2.53623443551747
+        },
+        {
+          "subject": "13",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 2.6799430412577654
+        },
+        {
+          "subject": "13",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 1.0762645151292143
+        },
+        {
+          "subject": "13",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 1.2670948714612886
+        },
+        {
+          "subject": "13",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 2.128922767426196
+        },
+        {
+          "subject": "14",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 1.1009896894493765
+        },
+        {
+          "subject": "14",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 0.8738772894120141
+        },
+        {
+          "subject": "14",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 0.9139586416101715
+        },
+        {
+          "subject": "14",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 0.7793836334986889
+        },
+        {
+          "subject": "15",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 0.6988960230913857
+        },
+        {
+          "subject": "15",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 0.8705484050166218
+        },
+        {
+          "subject": "15",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 0.4628358065538108
+        },
+        {
+          "subject": "15",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 0.9971958699312329
+        },
+        {
+          "subject": "16",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 0.7940121014990841
+        },
+        {
+          "subject": "16",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 0.7339466342885158
+        },
+        {
+          "subject": "16",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 0.9509624415471516
+        },
+        {
+          "subject": "16",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 1.2578243908206226
+        },
+        {
+          "subject": "17",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 0.7372815885988471
+        },
+        {
+          "subject": "17",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 0.7317693329608993
+        },
+        {
+          "subject": "17",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 1.2417371792580834
+        },
+        {
+          "subject": "17",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 1.5063377977661585
+        },
+        {
+          "subject": "18",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 1.2281900747259842
+        },
+        {
+          "subject": "18",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 0.6594001672680634
+        },
+        {
+          "subject": "18",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 0.7557251523103837
+        },
+        {
+          "subject": "18",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 1.175571572322037
+        },
+        {
+          "subject": "19",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 0.32719373923176753
+        },
+        {
+          "subject": "19",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 0.40487435782532144
+        },
+        {
+          "subject": "19",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 0.37206784099930557
+        },
+        {
+          "subject": "19",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 0.4244649269896158
+        },
+        {
+          "subject": "20",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 2.0855631626317526
+        },
+        {
+          "subject": "20",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 1.718143818900789
+        },
+        {
+          "subject": "20",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 1.7256113262657806
+        },
+        {
+          "subject": "20",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 1.993815375107168
+        },
+        {
+          "subject": "21",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 1.4339008974125913
+        },
+        {
+          "subject": "21",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 0.9696361090993624
+        },
+        {
+          "subject": "21",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 1.3212304358387756
+        },
+        {
+          "subject": "21",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 1.1997471665305743
+        },
+        {
+          "subject": "22",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 0.4593883754648022
+        },
+        {
+          "subject": "22",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 0.42169925285760324
+        },
+        {
+          "subject": "22",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 0.39174682908758857
+        },
+        {
+          "subject": "22",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 0.62979778397925
+        },
+        {
+          "subject": "23",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 1.1617608117964708
+        },
+        {
+          "subject": "23",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 1.6647365888944836
+        },
+        {
+          "subject": "23",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 1.7257659571850248
+        },
+        {
+          "subject": "23",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 1.7532427821043242
+        },
+        {
+          "subject": "24",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 0.4001111404194143
+        },
+        {
+          "subject": "24",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 0.4310604407024277
+        },
+        {
+          "subject": "24",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 0.3958443358468645
+        },
+        {
+          "subject": "24",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 0.43450531278882565
+        },
+        {
+          "subject": "25",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 0.6563365853240143
+        },
+        {
+          "subject": "25",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 1.1676496406868628
+        },
+        {
+          "subject": "25",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 0.8880026238890417
+        },
+        {
+          "subject": "25",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 1.688869050546059
+        },
+        {
+          "subject": "26",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 0.6883807718510978
+        },
+        {
+          "subject": "26",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 0.7992364776499049
+        },
+        {
+          "subject": "26",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 0.8629589547603408
+        },
+        {
+          "subject": "26",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 0.6124749795970615
+        },
+        {
+          "subject": "27",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 0.8033540498026015
+        },
+        {
+          "subject": "27",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 0.5914944935617826
+        },
+        {
+          "subject": "27",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 1.296583050238885
+        },
+        {
+          "subject": "27",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 1.1180256991570836
+        },
+        {
+          "subject": "28",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 1.357504907050792
+        },
+        {
+          "subject": "28",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 0.8249653371188977
+        },
+        {
+          "subject": "28",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 0.8007800252800116
+        },
+        {
+          "subject": "28",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 0.5519267210081833
+        },
+        {
+          "subject": "29",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 2.7748940093517116
+        },
+        {
+          "subject": "29",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 2.1623596808060985
+        },
+        {
+          "subject": "29",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 2.6025618189461968
+        },
+        {
+          "subject": "29",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 2.425652447589513
+        },
+        {
+          "subject": "30",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 0.8442060953217699
+        },
+        {
+          "subject": "30",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 1.8499340703378027
+        },
+        {
+          "subject": "30",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 0.7227361904912215
+        },
+        {
+          "subject": "30",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 1.3004147188692325
+        },
+        {
+          "subject": "31",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 1.096542648829721
+        },
+        {
+          "subject": "31",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 0.9077079751698295
+        },
+        {
+          "subject": "31",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 0.7897224627741162
+        },
+        {
+          "subject": "31",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 1.1440575909478934
+        },
+        {
+          "subject": "32",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 0.9034994764724816
+        },
+        {
+          "subject": "32",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 0.7452049675301535
+        },
+        {
+          "subject": "32",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 0.4513951326397866
+        },
+        {
+          "subject": "32",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 0.5952611113182944
+        },
+        {
+          "subject": "33",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 1.4675495959926408
+        },
+        {
+          "subject": "33",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 2.7153057753904526
+        },
+        {
+          "subject": "33",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 1.0726941397887186
+        },
+        {
+          "subject": "33",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 1.4399164321539346
+        },
+        {
+          "subject": "34",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 0.6718455409229098
+        },
+        {
+          "subject": "34",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 0.7166183968356911
+        },
+        {
+          "subject": "34",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 0.4995001223746864
+        },
+        {
+          "subject": "34",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 1.0843399510386726
+        },
+        {
+          "subject": "35",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 1.4830837666811716
+        },
+        {
+          "subject": "35",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 1.0166434020230122
+        },
+        {
+          "subject": "35",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 1.2064326250292279
+        },
+        {
+          "subject": "35",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 2.271607904281792
+        },
+        {
+          "subject": "36",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 0.8413036767052601
+        },
+        {
+          "subject": "36",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 1.3210631380837763
+        },
+        {
+          "subject": "36",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 0.9810746178841872
+        },
+        {
+          "subject": "36",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 1.3420388780035364
+        },
+        {
+          "subject": "37",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 0.7727538640079692
+        },
+        {
+          "subject": "37",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 2.5773785668905744
+        },
+        {
+          "subject": "37",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 0.9552308534340405
+        },
+        {
+          "subject": "37",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 0.5913745170473828
+        },
+        {
+          "subject": "38",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 0.6535700637128309
+        },
+        {
+          "subject": "38",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 1.1860788249449659
+        },
+        {
+          "subject": "38",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 0.9957505980768583
+        },
+        {
+          "subject": "38",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 0.7761255896403294
+        },
+        {
+          "subject": "39",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 0.6648045388234536
+        },
+        {
+          "subject": "39",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 0.5568644450095122
+        },
+        {
+          "subject": "39",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 1.1397207400647509
+        },
+        {
+          "subject": "39",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 1.396528802545729
+        },
+        {
+          "subject": "40",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 0.34694891678466777
+        },
+        {
+          "subject": "40",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 0.4618295794527746
+        },
+        {
+          "subject": "40",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 0.22962445206134888
+        },
+        {
+          "subject": "40",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 0.44711575337737364
+        }
+      ]
+    },
+    "F": {
+      "name": "lower_limit_just_inside_80",
+      "purpose": "Lower confidence limit at 80.02%. PASSES, by two hundredths of a percentage point.",
+      "observations": [
+        {
+          "subject": "1",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 1.3278436927870096
+        },
+        {
+          "subject": "1",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 1.0062254015558676
+        },
+        {
+          "subject": "1",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 0.886338930576225
+        },
+        {
+          "subject": "1",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 1.1664427200830993
+        },
+        {
+          "subject": "2",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 1.5327943709776992
+        },
+        {
+          "subject": "2",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 1.400134864651128
+        },
+        {
+          "subject": "2",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 1.7192390914440372
+        },
+        {
+          "subject": "2",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 1.2471183871139644
+        },
+        {
+          "subject": "3",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 0.9185692933089573
+        },
+        {
+          "subject": "3",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 0.9752198672149995
+        },
+        {
+          "subject": "3",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 0.6965808667500114
+        },
+        {
+          "subject": "3",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 0.5780066279722341
+        },
+        {
+          "subject": "4",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 0.9485413372014587
+        },
+        {
+          "subject": "4",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 1.2085503138537235
+        },
+        {
+          "subject": "4",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 1.3614017012694415
+        },
+        {
+          "subject": "4",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 1.286009410123032
+        },
+        {
+          "subject": "5",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 0.8783596917604114
+        },
+        {
+          "subject": "5",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 1.049882013394606
+        },
+        {
+          "subject": "5",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 1.2890515286655657
+        },
+        {
+          "subject": "5",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 1.1306584958687935
+        },
+        {
+          "subject": "6",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 0.5489327830816941
+        },
+        {
+          "subject": "6",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 1.9688792704153133
+        },
+        {
+          "subject": "6",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 0.7127217118824595
+        },
+        {
+          "subject": "6",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 1.1111337871644533
+        },
+        {
+          "subject": "7",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 1.4721055137868588
+        },
+        {
+          "subject": "7",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 1.3525693756594492
+        },
+        {
+          "subject": "7",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 1.2011695622261747
+        },
+        {
+          "subject": "7",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 2.7598461008452855
+        },
+        {
+          "subject": "8",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 1.2847536590284674
+        },
+        {
+          "subject": "8",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 2.2752547696228915
+        },
+        {
+          "subject": "8",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 1.400077901536273
+        },
+        {
+          "subject": "8",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 2.4480168939684246
+        },
+        {
+          "subject": "9",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 1.0899563532692396
+        },
+        {
+          "subject": "9",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 1.2741887475089517
+        },
+        {
+          "subject": "9",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 0.40996081095773107
+        },
+        {
+          "subject": "9",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 1.0390661421132246
+        },
+        {
+          "subject": "10",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 0.6879855881839216
+        },
+        {
+          "subject": "10",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 0.7302001163081603
+        },
+        {
+          "subject": "10",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 0.7252911856829127
+        },
+        {
+          "subject": "10",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 0.8330225011695314
+        },
+        {
+          "subject": "11",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 0.49310055208969916
+        },
+        {
+          "subject": "11",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 0.7545182196720611
+        },
+        {
+          "subject": "11",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 0.5332233939972937
+        },
+        {
+          "subject": "11",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 0.9526172560051507
+        },
+        {
+          "subject": "12",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 1.0366773448512965
+        },
+        {
+          "subject": "12",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 0.6817822071738401
+        },
+        {
+          "subject": "12",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 1.1938721454689174
+        },
+        {
+          "subject": "12",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 0.9639740643291395
+        },
+        {
+          "subject": "13",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 0.3939172024572045
+        },
+        {
+          "subject": "13",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 0.7003062854743229
+        },
+        {
+          "subject": "13",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 0.36741815289940716
+        },
+        {
+          "subject": "13",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 0.6483617642090582
+        },
+        {
+          "subject": "14",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 0.6276130251168214
+        },
+        {
+          "subject": "14",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 0.9802052923073369
+        },
+        {
+          "subject": "14",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 0.49892130602826384
+        },
+        {
+          "subject": "14",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 1.1712003177663337
+        },
+        {
+          "subject": "15",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 0.6102954129226872
+        },
+        {
+          "subject": "15",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 1.0521012274088148
+        },
+        {
+          "subject": "15",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 0.49420971910385925
+        },
+        {
+          "subject": "15",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 1.0709983003089172
+        },
+        {
+          "subject": "16",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 0.3397737134493581
+        },
+        {
+          "subject": "16",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 0.7805802082449306
+        },
+        {
+          "subject": "16",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 0.48659112143955513
+        },
+        {
+          "subject": "16",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 0.7864686489866053
+        },
+        {
+          "subject": "17",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 1.6585611177100053
+        },
+        {
+          "subject": "17",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 1.1104513626696921
+        },
+        {
+          "subject": "17",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 1.5533327662907532
+        },
+        {
+          "subject": "17",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 1.2675476656050535
+        },
+        {
+          "subject": "18",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 0.9707342692164218
+        },
+        {
+          "subject": "18",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 1.245467352382652
+        },
+        {
+          "subject": "18",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 1.4968925397645125
+        },
+        {
+          "subject": "18",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 0.6012859783346234
+        },
+        {
+          "subject": "19",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 0.7906002891260624
+        },
+        {
+          "subject": "19",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 2.007256276757653
+        },
+        {
+          "subject": "19",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 1.1658892799498506
+        },
+        {
+          "subject": "19",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 3.8822327641112926
+        },
+        {
+          "subject": "20",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 0.955569837090847
+        },
+        {
+          "subject": "20",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 0.3550405534359579
+        },
+        {
+          "subject": "20",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 0.7333209243190499
+        },
+        {
+          "subject": "20",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 0.4685368579851225
+        },
+        {
+          "subject": "21",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 0.9555300270058236
+        },
+        {
+          "subject": "21",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 1.043233404341285
+        },
+        {
+          "subject": "21",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 0.977906443105009
+        },
+        {
+          "subject": "21",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 0.8167087148929874
+        },
+        {
+          "subject": "22",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 0.7849965555827337
+        },
+        {
+          "subject": "22",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 0.6045714213091846
+        },
+        {
+          "subject": "22",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 0.97029335005043
+        },
+        {
+          "subject": "22",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 0.5420639799828817
+        },
+        {
+          "subject": "23",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 0.6396206991939689
+        },
+        {
+          "subject": "23",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 0.7660290230483778
+        },
+        {
+          "subject": "23",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 0.7968946752231623
+        },
+        {
+          "subject": "23",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 0.874298293946039
+        },
+        {
+          "subject": "24",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 0.9035512221970732
+        },
+        {
+          "subject": "24",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 0.29027209700089257
+        },
+        {
+          "subject": "24",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 0.6006826109252233
+        },
+        {
+          "subject": "24",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 0.5141580779270489
+        }
+      ]
+    },
+    "G": {
+      "name": "lower_limit_just_outside_80",
+      "purpose": "Lower confidence limit at 79.98%. FAILS, by the same margin. Together with F this pins the direction of the comparison as well as its strictness - an implementation that had the inequality backwards would pass exactly one of them.",
+      "observations": [
+        {
+          "subject": "1",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 1.3271799368795933
+        },
+        {
+          "subject": "1",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 1.0062254015558676
+        },
+        {
+          "subject": "1",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 0.8858958718756123
+        },
+        {
+          "subject": "1",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 1.1664427200830993
+        },
+        {
+          "subject": "2",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 1.5320281653436194
+        },
+        {
+          "subject": "2",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 1.400134864651128
+        },
+        {
+          "subject": "2",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 1.7183796867494892
+        },
+        {
+          "subject": "2",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 1.2471183871139644
+        },
+        {
+          "subject": "3",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 0.9181101234547665
+        },
+        {
+          "subject": "3",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 0.9752198672149995
+        },
+        {
+          "subject": "3",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 0.6962326633674822
+        },
+        {
+          "subject": "3",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 0.5780066279722341
+        },
+        {
+          "subject": "4",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 0.9480671850708908
+        },
+        {
+          "subject": "4",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 1.2085503138537235
+        },
+        {
+          "subject": "4",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 1.3607211705514863
+        },
+        {
+          "subject": "4",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 1.286009410123032
+        },
+        {
+          "subject": "5",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 0.877920621682051
+        },
+        {
+          "subject": "5",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 1.049882013394606
+        },
+        {
+          "subject": "5",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 1.2884071639924015
+        },
+        {
+          "subject": "5",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 1.1306584958687935
+        },
+        {
+          "subject": "6",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 0.5486583852896014
+        },
+        {
+          "subject": "6",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 1.9688792704153133
+        },
+        {
+          "subject": "6",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 0.7123654400944653
+        },
+        {
+          "subject": "6",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 1.1111337871644533
+        },
+        {
+          "subject": "7",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 1.471369644997163
+        },
+        {
+          "subject": "7",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 1.3525693756594492
+        },
+        {
+          "subject": "7",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 1.2005691275537298
+        },
+        {
+          "subject": "7",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 2.7598461008452855
+        },
+        {
+          "subject": "8",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 1.2841114427530225
+        },
+        {
+          "subject": "8",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 2.2752547696228915
+        },
+        {
+          "subject": "8",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 1.3993780375515015
+        },
+        {
+          "subject": "8",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 2.4480168939684246
+        },
+        {
+          "subject": "9",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 1.0894115113030967
+        },
+        {
+          "subject": "9",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 1.2741887475089517
+        },
+        {
+          "subject": "9",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 0.4097558817845456
+        },
+        {
+          "subject": "9",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 1.0390661421132246
+        },
+        {
+          "subject": "10",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 0.6876416813665343
+        },
+        {
+          "subject": "10",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 0.7302001163081603
+        },
+        {
+          "subject": "10",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 0.7249286307288099
+        },
+        {
+          "subject": "10",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 0.8330225011695314
+        },
+        {
+          "subject": "11",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 0.49285406343581784
+        },
+        {
+          "subject": "11",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 0.7545182196720611
+        },
+        {
+          "subject": "11",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 0.5329568489365603
+        },
+        {
+          "subject": "11",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 0.9526172560051507
+        },
+        {
+          "subject": "12",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 1.036159135731151
+        },
+        {
+          "subject": "12",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 0.6817822071738401
+        },
+        {
+          "subject": "12",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 1.1932753585929021
+        },
+        {
+          "subject": "12",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 0.9639740643291395
+        },
+        {
+          "subject": "13",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 0.3939172024572045
+        },
+        {
+          "subject": "13",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 0.6999562198479925
+        },
+        {
+          "subject": "13",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 0.36741815289940716
+        },
+        {
+          "subject": "13",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 0.6480376643519181
+        },
+        {
+          "subject": "14",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 0.6276130251168214
+        },
+        {
+          "subject": "14",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 0.9797153121562211
+        },
+        {
+          "subject": "14",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 0.49892130602826384
+        },
+        {
+          "subject": "14",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 1.1706148639708998
+        },
+        {
+          "subject": "15",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 0.6102954129226872
+        },
+        {
+          "subject": "15",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 1.0515753082748942
+        },
+        {
+          "subject": "15",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 0.49420971910385925
+        },
+        {
+          "subject": "15",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 1.07046293500009
+        },
+        {
+          "subject": "16",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 0.3397737134493581
+        },
+        {
+          "subject": "16",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 0.7801900156889472
+        },
+        {
+          "subject": "16",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 0.48659112143955513
+        },
+        {
+          "subject": "16",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 0.7860755129461223
+        },
+        {
+          "subject": "17",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 1.6585611177100053
+        },
+        {
+          "subject": "17",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 1.1098962757600848
+        },
+        {
+          "subject": "17",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 1.5533327662907532
+        },
+        {
+          "subject": "17",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 1.2669140501761085
+        },
+        {
+          "subject": "18",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 0.9707342692164218
+        },
+        {
+          "subject": "18",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 1.244844774350969
+        },
+        {
+          "subject": "18",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 1.4968925397645125
+        },
+        {
+          "subject": "18",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 0.6009854104874179
+        },
+        {
+          "subject": "19",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 0.7906002891260624
+        },
+        {
+          "subject": "19",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 2.006252899463598
+        },
+        {
+          "subject": "19",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 1.1658892799498506
+        },
+        {
+          "subject": "19",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 3.880292132887044
+        },
+        {
+          "subject": "20",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 0.955569837090847
+        },
+        {
+          "subject": "20",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 0.35486307752821694
+        },
+        {
+          "subject": "20",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 0.7333209243190499
+        },
+        {
+          "subject": "20",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 0.4683026481085992
+        },
+        {
+          "subject": "21",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 0.9555300270058236
+        },
+        {
+          "subject": "21",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 1.0427119180106974
+        },
+        {
+          "subject": "21",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 0.977906443105009
+        },
+        {
+          "subject": "21",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 0.8163004625986147
+        },
+        {
+          "subject": "22",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 0.7849965555827337
+        },
+        {
+          "subject": "22",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 0.6042692111510697
+        },
+        {
+          "subject": "22",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 0.97029335005043
+        },
+        {
+          "subject": "22",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 0.5417930157339527
+        },
+        {
+          "subject": "23",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 0.6396206991939689
+        },
+        {
+          "subject": "23",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 0.7656461042665492
+        },
+        {
+          "subject": "23",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 0.7968946752231623
+        },
+        {
+          "subject": "23",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 0.8738612540590379
+        },
+        {
+          "subject": "24",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 0.9035512221970732
+        },
+        {
+          "subject": "24",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 0.2901269972273356
+        },
+        {
+          "subject": "24",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 0.6006826109252233
+        },
+        {
+          "subject": "24",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 0.5139010631417817
+        }
+      ]
+    },
+    "H": {
+      "name": "upper_limit_just_inside_125",
+      "purpose": "Upper confidence limit at 124.98%. PASSES.",
+      "observations": [
+        {
+          "subject": "1",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 1.4675791884177933
+        },
+        {
+          "subject": "1",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 1.0062254015558676
+        },
+        {
+          "subject": "1",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 0.9796127175691598
+        },
+        {
+          "subject": "1",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 1.1664427200830993
+        },
+        {
+          "subject": "2",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 1.6940978303322336
+        },
+        {
+          "subject": "2",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 1.400134864651128
+        },
+        {
+          "subject": "2",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 1.9001630419479656
+        },
+        {
+          "subject": "2",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 1.2471183871139644
+        },
+        {
+          "subject": "3",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 1.0152348392380401
+        },
+        {
+          "subject": "3",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 0.9752198672149995
+        },
+        {
+          "subject": "3",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 0.7698854832428857
+        },
+        {
+          "subject": "3",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 0.5780066279722341
+        },
+        {
+          "subject": "4",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 1.0483609881137839
+        },
+        {
+          "subject": "4",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 1.2085503138537235
+        },
+        {
+          "subject": "4",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 1.5046686705014833
+        },
+        {
+          "subject": "4",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 1.286009410123032
+        },
+        {
+          "subject": "5",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 0.9707937843700836
+        },
+        {
+          "subject": "5",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 1.049882013394606
+        },
+        {
+          "subject": "5",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 1.4247047348600654
+        },
+        {
+          "subject": "5",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 1.1306584958687935
+        },
+        {
+          "subject": "6",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 0.6066996685431215
+        },
+        {
+          "subject": "6",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 1.9688792704153133
+        },
+        {
+          "subject": "6",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 0.7877249085672149
+        },
+        {
+          "subject": "6",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 1.1111337871644533
+        },
+        {
+          "subject": "7",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 1.627022387442418
+        },
+        {
+          "subject": "7",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 1.3525693756594492
+        },
+        {
+          "subject": "7",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 1.3275745186423882
+        },
+        {
+          "subject": "7",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 2.7598461008452855
+        },
+        {
+          "subject": "8",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 1.4199545793498944
+        },
+        {
+          "subject": "8",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 2.2752547696228915
+        },
+        {
+          "subject": "8",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 1.5474149567601818
+        },
+        {
+          "subject": "8",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 2.4480168939684246
+        },
+        {
+          "subject": "9",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 1.2046577989795586
+        },
+        {
+          "subject": "9",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 1.2741887475089517
+        },
+        {
+          "subject": "9",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 0.453102995101513
+        },
+        {
+          "subject": "9",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 1.0390661421132246
+        },
+        {
+          "subject": "10",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 0.7603856814132209
+        },
+        {
+          "subject": "10",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 0.7302001163081603
+        },
+        {
+          "subject": "10",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 0.8016171296615442
+        },
+        {
+          "subject": "10",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 0.8330225011695314
+        },
+        {
+          "subject": "11",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 0.5449919384150319
+        },
+        {
+          "subject": "11",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 0.7545182196720611
+        },
+        {
+          "subject": "11",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 0.5893371035000673
+        },
+        {
+          "subject": "11",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 0.9526172560051507
+        },
+        {
+          "subject": "12",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 1.1457719795427888
+        },
+        {
+          "subject": "12",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 0.6817822071738401
+        },
+        {
+          "subject": "12",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 1.3195091589766854
+        },
+        {
+          "subject": "12",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 0.9639740643291395
+        },
+        {
+          "subject": "13",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 0.3939172024572045
+        },
+        {
+          "subject": "13",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 0.7740029460268268
+        },
+        {
+          "subject": "13",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 0.36741815289940716
+        },
+        {
+          "subject": "13",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 0.7165920483621904
+        },
+        {
+          "subject": "14",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 0.6276130251168214
+        },
+        {
+          "subject": "14",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 1.083357096306946
+        },
+        {
+          "subject": "14",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 0.49892130602826384
+        },
+        {
+          "subject": "14",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 1.2944514637973157
+        },
+        {
+          "subject": "15",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 0.6102954129226872
+        },
+        {
+          "subject": "15",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 1.162818992808713
+        },
+        {
+          "subject": "15",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 0.49420971910385925
+        },
+        {
+          "subject": "15",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 1.1837046972488157
+        },
+        {
+          "subject": "16",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 0.3397737134493581
+        },
+        {
+          "subject": "16",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 0.8627244868759106
+        },
+        {
+          "subject": "16",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 0.48659112143955513
+        },
+        {
+          "subject": "16",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 0.8692325970786825
+        },
+        {
+          "subject": "17",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 1.6585611177100053
+        },
+        {
+          "subject": "17",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 1.227309598604709
+        },
+        {
+          "subject": "17",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 1.5533327662907532
+        },
+        {
+          "subject": "17",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 1.400937914962796
+        },
+        {
+          "subject": "18",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 0.9707342692164218
+        },
+        {
+          "subject": "18",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 1.3765339822296228
+        },
+        {
+          "subject": "18",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 1.4968925397645125
+        },
+        {
+          "subject": "18",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 0.6645622469608482
+        },
+        {
+          "subject": "19",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 0.7906002891260624
+        },
+        {
+          "subject": "19",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 2.2184896863934083
+        },
+        {
+          "subject": "19",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 1.1658892799498506
+        },
+        {
+          "subject": "19",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 4.290779133231393
+        },
+        {
+          "subject": "20",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 0.955569837090847
+        },
+        {
+          "subject": "20",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 0.39240320987880417
+        },
+        {
+          "subject": "20",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 0.7333209243190499
+        },
+        {
+          "subject": "20",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 0.5178432864657396
+        },
+        {
+          "subject": "21",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 0.9555300270058236
+        },
+        {
+          "subject": "21",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 1.1530179652847863
+        },
+        {
+          "subject": "21",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 0.977906443105009
+        },
+        {
+          "subject": "21",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 0.9026549732376115
+        },
+        {
+          "subject": "22",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 0.7849965555827337
+        },
+        {
+          "subject": "22",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 0.6681934331918717
+        },
+        {
+          "subject": "22",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 0.97029335005043
+        },
+        {
+          "subject": "22",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 0.5991080276505111
+        },
+        {
+          "subject": "23",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 0.6396206991939689
+        },
+        {
+          "subject": "23",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 0.8466420091887578
+        },
+        {
+          "subject": "23",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 0.7968946752231623
+        },
+        {
+          "subject": "23",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 0.9663049857707934
+        },
+        {
+          "subject": "24",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 0.9035512221970732
+        },
+        {
+          "subject": "24",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 0.3208188515342311
+        },
+        {
+          "subject": "24",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 0.6006826109252233
+        },
+        {
+          "subject": "24",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 0.5682654508369653
+        }
+      ]
+    },
+    "I": {
+      "name": "upper_limit_just_outside_125",
+      "purpose": "Upper confidence limit at 125.02%. FAILS. The upper limit is not a mirror of the lower one on the log scale - log(1.25) and -log(0.8) are the same number, but the estimate is not centred between them - so both ends need their own pair.",
+      "observations": [
+        {
+          "subject": "1",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 1.468048888910166
+        },
+        {
+          "subject": "1",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 1.0062254015558676
+        },
+        {
+          "subject": "1",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 0.9799262438029794
+        },
+        {
+          "subject": "1",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 1.1664427200830993
+        },
+        {
+          "subject": "2",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 1.6946400283896292
+        },
+        {
+          "subject": "2",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 1.400134864651128
+        },
+        {
+          "subject": "2",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 1.9007711914253056
+        },
+        {
+          "subject": "2",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 1.2471183871139644
+        },
+        {
+          "subject": "3",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 1.0155597663749383
+        },
+        {
+          "subject": "3",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 0.9752198672149995
+        },
+        {
+          "subject": "3",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 0.7701318860219681
+        },
+        {
+          "subject": "3",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 0.5780066279722341
+        },
+        {
+          "subject": "4",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 1.0486965173146525
+        },
+        {
+          "subject": "4",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 1.2085503138537235
+        },
+        {
+          "subject": "4",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 1.505150241527408
+        },
+        {
+          "subject": "4",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 1.286009410123032
+        },
+        {
+          "subject": "5",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 0.9711044880936778
+        },
+        {
+          "subject": "5",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 1.049882013394606
+        },
+        {
+          "subject": "5",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 1.4251607133317763
+        },
+        {
+          "subject": "5",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 1.1306584958687935
+        },
+        {
+          "subject": "6",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 0.6068938435050493
+        },
+        {
+          "subject": "6",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 1.9688792704153133
+        },
+        {
+          "subject": "6",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 0.7879770208759258
+        },
+        {
+          "subject": "6",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 1.1111337871644533
+        },
+        {
+          "subject": "7",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 1.6275431179232764
+        },
+        {
+          "subject": "7",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 1.3525693756594492
+        },
+        {
+          "subject": "7",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 1.3279994104710464
+        },
+        {
+          "subject": "7",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 2.7598461008452855
+        },
+        {
+          "subject": "8",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 1.420409037528595
+        },
+        {
+          "subject": "8",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 2.2752547696228915
+        },
+        {
+          "subject": "8",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 1.5479102087866694
+        },
+        {
+          "subject": "8",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 2.4480168939684246
+        },
+        {
+          "subject": "9",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 1.2050433511635816
+        },
+        {
+          "subject": "9",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 1.2741887475089517
+        },
+        {
+          "subject": "9",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 0.4532480112625312
+        },
+        {
+          "subject": "9",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 1.0390661421132246
+        },
+        {
+          "subject": "10",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 0.7606290437692502
+        },
+        {
+          "subject": "10",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 0.7302001163081603
+        },
+        {
+          "subject": "10",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 0.8018736881924009
+        },
+        {
+          "subject": "10",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 0.8330225011695314
+        },
+        {
+          "subject": "11",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 0.5451663637433772
+        },
+        {
+          "subject": "11",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 0.7545182196720611
+        },
+        {
+          "subject": "11",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 0.5895257215520756
+        },
+        {
+          "subject": "11",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 0.9526172560051507
+        },
+        {
+          "subject": "12",
+          "sequence": "TRTR",
+          "period": 1,
+          "treatment": "T",
+          "value": 1.1461386852491555
+        },
+        {
+          "subject": "12",
+          "sequence": "TRTR",
+          "period": 2,
+          "treatment": "R",
+          "value": 0.6817822071738401
+        },
+        {
+          "subject": "12",
+          "sequence": "TRTR",
+          "period": 3,
+          "treatment": "T",
+          "value": 1.3199314694772382
+        },
+        {
+          "subject": "12",
+          "sequence": "TRTR",
+          "period": 4,
+          "treatment": "R",
+          "value": 0.9639740643291395
+        },
+        {
+          "subject": "13",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 0.3939172024572045
+        },
+        {
+          "subject": "13",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 0.774250666604848
+        },
+        {
+          "subject": "13",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 0.36741815289940716
+        },
+        {
+          "subject": "13",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 0.7168213945130505
+        },
+        {
+          "subject": "14",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 0.6276130251168214
+        },
+        {
+          "subject": "14",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 1.083703826054524
+        },
+        {
+          "subject": "14",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 0.49892130602826384
+        },
+        {
+          "subject": "14",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 1.2948657545522517
+        },
+        {
+          "subject": "15",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 0.6102954129226872
+        },
+        {
+          "subject": "15",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 1.1631911544322717
+        },
+        {
+          "subject": "15",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 0.49420971910385925
+        },
+        {
+          "subject": "15",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 1.1840835433673143
+        },
+        {
+          "subject": "16",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 0.3397737134493581
+        },
+        {
+          "subject": "16",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 0.8630006028902732
+        },
+        {
+          "subject": "16",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 0.48659112143955513
+        },
+        {
+          "subject": "16",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 0.8695107960215785
+        },
+        {
+          "subject": "17",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 1.6585611177100053
+        },
+        {
+          "subject": "17",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 1.2277024005245698
+        },
+        {
+          "subject": "17",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 1.5533327662907532
+        },
+        {
+          "subject": "17",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 1.401386286835084
+        },
+        {
+          "subject": "18",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 0.9707342692164218
+        },
+        {
+          "subject": "18",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 1.3769745435937546
+        },
+        {
+          "subject": "18",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 1.4968925397645125
+        },
+        {
+          "subject": "18",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 0.6647749409109077
+        },
+        {
+          "subject": "19",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 0.7906002891260624
+        },
+        {
+          "subject": "19",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 2.219199716697903
+        },
+        {
+          "subject": "19",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 1.1658892799498506
+        },
+        {
+          "subject": "19",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 4.2921524022770745
+        },
+        {
+          "subject": "20",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 0.955569837090847
+        },
+        {
+          "subject": "20",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 0.3925287990002248
+        },
+        {
+          "subject": "20",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 0.7333209243190499
+        },
+        {
+          "subject": "20",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 0.5180090228352278
+        },
+        {
+          "subject": "21",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 0.9555300270058236
+        },
+        {
+          "subject": "21",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 1.1533869900776443
+        },
+        {
+          "subject": "21",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 0.977906443105009
+        },
+        {
+          "subject": "21",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 0.9029438690523779
+        },
+        {
+          "subject": "22",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 0.7849965555827337
+        },
+        {
+          "subject": "22",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 0.6684072893074716
+        },
+        {
+          "subject": "22",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 0.97029335005043
+        },
+        {
+          "subject": "22",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 0.5992997728985989
+        },
+        {
+          "subject": "23",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 0.6396206991939689
+        },
+        {
+          "subject": "23",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 0.8469129779867058
+        },
+        {
+          "subject": "23",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 0.7968946752231623
+        },
+        {
+          "subject": "23",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 0.9666142528489726
+        },
+        {
+          "subject": "24",
+          "sequence": "RTRT",
+          "period": 1,
+          "treatment": "R",
+          "value": 0.9035512221970732
+        },
+        {
+          "subject": "24",
+          "sequence": "RTRT",
+          "period": 2,
+          "treatment": "T",
+          "value": 0.3209215299952759
+        },
+        {
+          "subject": "24",
+          "sequence": "RTRT",
+          "period": 3,
+          "treatment": "R",
+          "value": 0.6006826109252233
+        },
+        {
+          "subject": "24",
+          "sequence": "RTRT",
+          "period": 4,
+          "treatment": "T",
+          "value": 0.5684473248810802
+        }
+      ]
+    }
+  }
+}

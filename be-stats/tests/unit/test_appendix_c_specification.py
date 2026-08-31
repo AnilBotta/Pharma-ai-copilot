@@ -204,23 +204,26 @@ def test_the_boundary_solution_is_recorded_for_a_future_implementer():
     )
 
 
-def test_the_three_statuses_blocked_by_appendix_c_agree():
-    """One missing model, three capabilities reporting it.
+def test_the_capability_split_never_implies_partial_replicate_support():
+    """One model, two designs, and the statuses must not blur them.
 
-    `FDA_REPLICATE_STANDARD_ABE` is the model. `FDA_HVD_UNSCALED_BRANCH` and
-    `FDA_NTI_UNSCALED_ABE` are call sites that need it. They must move
-    together, and until the model exists all three are NOT_IMPLEMENTED.
+    A single `FDA_REPLICATE_STANDARD_ABE` reading IMPLEMENTED would tell a
+    reader that Appendix C works, full stop - and it does not. It works for the
+    design PR #61 found an oracle for. The split is the only way the report can
+    be read correctly by someone who does not know that history.
     """
     from be_stats.spec import CAPABILITY_VALIDATION, Capability
 
-    for capability in (
-        Capability.FDA_REPLICATE_STANDARD_ABE,
-        Capability.FDA_HVD_UNSCALED_BRANCH,
-        Capability.FDA_NTI_UNSCALED_ABE,
-    ):
-        assert CAPABILITY_VALIDATION[capability] is (
-            ValidationStatus.NOT_IMPLEMENTED
-        ), capability
+    assert CAPABILITY_VALIDATION[
+        Capability.FDA_REPLICATE_STANDARD_ABE_FULL
+    ] is not ValidationStatus.NOT_IMPLEMENTED
+    assert CAPABILITY_VALIDATION[
+        Capability.FDA_REPLICATE_STANDARD_ABE_PARTIAL
+    ] is ValidationStatus.NOT_IMPLEMENTED
+
+    # The undifferentiated name must not exist: it is exactly the thing that
+    # would let a future edit re-merge the two.
+    assert not hasattr(Capability, "FDA_REPLICATE_STANDARD_ABE")
 
 
 def test_the_existing_fda_decisions_are_unchanged_by_the_investigation():
@@ -335,18 +338,25 @@ def test_the_ema_module_cannot_be_reached_from_the_appendix_c_module():
     )
 
 
-def test_no_module_has_started_fitting_a_mixed_model():
-    """The structural guard against Appendix C arriving by accident.
+def test_the_optimiser_lives_only_where_appendix_c_does():
+    """The guard from PR #61, narrowed rather than deleted.
 
-    A REML objective or a variance-component optimiser appearing anywhere in
-    the package would mean this investigation had turned into an
-    implementation without the oracle question being settled.
+    It used to assert that NO module called an optimiser, because a REML fit
+    appearing anywhere would have meant Appendix C had arrived before the
+    oracle question was settled. That question is settled for the fully
+    replicate design, so `appendix_c.py` now legitimately optimises.
+
+    Everything else still must not. A second module reaching for `minimize`
+    would mean a second mixed model had appeared somewhere it could not be
+    checked - which is the original hazard, not a historical one.
     """
     import ast
     from pathlib import Path
 
     package = Path(replicate_abe.__file__).parent
     for path in package.glob("*.py"):
+        if path.name == "appendix_c.py":
+            continue
         tree = ast.parse(path.read_text(encoding="utf-8"))
         called = {
             node.func.attr
@@ -359,7 +369,27 @@ def test_no_module_has_started_fitting_a_mixed_model():
         }
         for forbidden in ("minimize", "fmin", "least_squares", "nnls"):
             assert forbidden not in called, (
-                f"{path.name} calls {forbidden}; a numerical optimiser in the "
-                "package would mean the mixed model had arrived without the "
-                "oracle question being answered"
+                f"{path.name} calls {forbidden}. Appendix C's REML fit belongs "
+                "in appendix_c.py and nowhere else; a second optimiser means a "
+                "second model somewhere it cannot be checked"
             )
+
+
+def test_appendix_c_is_the_only_module_fitting_a_mixed_model():
+    """And it is reached from the two call sites, not reimplemented in them."""
+    import ast
+    from pathlib import Path
+
+    package = Path(replicate_abe.__file__).parent
+    for name in ("hvd.py", "nti.py"):
+        tree = ast.parse((package / name).read_text(encoding="utf-8"))
+        imported = {
+            alias.name
+            for node in ast.walk(tree)
+            if isinstance(node, ast.ImportFrom)
+            and (node.module or "").endswith("appendix_c")
+            for alias in node.names
+        }
+        assert "analyse_replicate_abe_full" in imported, (
+            f"{name} must reach Appendix C through its public entry point"
+        )

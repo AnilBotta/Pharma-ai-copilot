@@ -33,27 +33,47 @@ Reducing that to one boolean is how the second one quietly disappears - the
 scaled criterion is the elaborate part, and it is easy to treat it as the
 answer. `RsabeResult` exposes each separately and computes `passes` from both.
 
-ONLY ONE OF THE TWO BRANCHES DECIDES
+WHAT EACH BRANCH CAN AND CANNOT DECIDE - STATE THIS PRECISELY OR NOT AT ALL
 
-The scaled branch is complete. The unscaled branch is not, and it refuses.
+The scaled branch (`sWR >= 0.294`) is complete for both replicate designs.
 
-Appendix G step 1a routes an endpoint with `sWR < 0.294` to the two one-sided
-tests procedure without naming a model. Appendix C names one: a mixed model on
-the subject-period observations, with a period term, an unstructured
-subject-by-formulation covariance and treatment-specific residual variances,
-which this package cannot fit and has nothing to check a from-scratch fit
-against. See `replicate_abe.py`.
+The unscaled branch (`sWR < 0.294`) is Appendix C's mixed model, and its support
+is deliberately UNEVEN. Saying "Appendix C is implemented" would be true of the
+fully replicate case and false of the partial replicate one, and a reader
+choosing a design on the strength of that sentence would be misled:
 
-So an endpoint below the threshold comes back with its sWR, its selected
-method, its treatment contrast - and `decided = False`. It does not come back
-with a bioequivalence verdict computed from the reference-scaled construction's
-intermediate, which is what an earlier version of this module did.
+    FULLY REPLICATE     decides, given the raw observations. Validated against
+                        EMA's published SAS Method C output for the model EMA
+                        attributes to FDA, and cross-checked against
+                        ReplicateBE.jl. See `appendix_c.py`.
+
+    PARTIAL REPLICATE   REFUSES. `decided = False`, `passes = None`. Not for
+                        want of arithmetic - the fit would produce a number -
+                        but because PR #61 found no trustworthy oracle for it:
+                        ReplicateBE.jl reproduces SAS exactly on the fully
+                        replicate design and differs by 2.94 denominator df on
+                        the partial replicate one, a design its own validation
+                        claim never covered. The correct partial replicate
+                        Satterthwaite df is NOT DETERMINED.
+
+    NO RAW OBSERVATIONS Refuses either way. Appendix C is an AVAILABLE CASE
+                        analysis and `ReplicateDataset` has already dropped
+                        subjects Appendix G's sWR could not use, so they cannot
+                        be recovered from it. Pass `observations=`.
+
+In every refusing case the endpoint comes back with its sWR, its selected
+method and its treatment contrast, and `decided = False`. It never comes back
+with a verdict computed from the reference-scaled construction's intermediate,
+which is what an early version of this module did.
 
 WHAT THIS MODULE DOES NOT DO
 
 FDA narrow therapeutic index drugs (Appendix F) and EMA's ABEL are different
-procedures and are not here. The constants for NTI exist in `spec.py` and are
-consumed by nothing.
+procedures and are not here. Each lives in its own module with its own
+constants and its own result type, and this one names neither - a test asserts
+that the FDA modules do not so much as mention the EMA one, because a
+polymorphic "highly variable result" shared between regulators would have to
+carry FDA's 0.294 and EMA's separate CV-scale threshold in the same object.
 """
 
 from __future__ import annotations
@@ -309,6 +329,12 @@ class FdaHvdResult:
 
     standard_abe_result: AbeResult | None = None
     rsabe_result: RsabeResult | None = None
+    #: The unscaled branch, when it decided. Appendix C's mixed model, for a
+    #: fully replicate design. Separate from `standard_abe_result`, which is
+    #: Phase 1's 2x2 crossover TOST and is a different model on a different
+    #: design - collapsing the two would lose exactly the distinction
+    #: `replicate_abe.py` spent four PRs defending.
+    appendix_c_result: object | None = None
 
     decided: bool = True
     diagnostics: tuple[Diagnostic, ...] = ()
@@ -335,6 +361,8 @@ class FdaHvdResult:
             return None
         if self.rsabe_result is not None:
             return self.rsabe_result.passes
+        if self.appendix_c_result is not None:
+            return self.appendix_c_result.passes
         if self.standard_abe_result is not None:
             return self.standard_abe_result.within_acceptance_interval
         return None
@@ -393,12 +421,30 @@ def assess_endpoint(
     dataset: ReplicateDataset,
     *,
     spec: BeSpec | None = None,
+    observations: list | None = None,
 ) -> FdaHvdResult:
     """The whole Appendix G flow for one PK endpoint.
 
     Estimates sWR, applies FDA's switching rule to it, and runs whichever
     procedure that selects. Every component is returned; nothing is collapsed
     to a verdict on the way.
+
+    WHY `observations` EXISTS, AND WHY THE DATASET IS NOT ENOUGH
+
+    Below the switch, FDA routes to Appendix C - and Appendix C is an AVAILABLE
+    CASE analysis that uses all observed data, while `ReplicateDataset` has
+    already excluded any subject missing a reference replicate because that is
+    what Appendix G's sWR requires. Those excluded subjects are gone and cannot
+    be recovered from the dataset, so the raw rows have to be supplied
+    separately for the unscaled branch to be answerable at all.
+
+    Two inclusion rules, one study, and the difference is regulatory rather
+    than cosmetic - which PR #60 established for EMA and PR #61 confirmed here
+    from FDA section III.
+
+    Omitting `observations` is legitimate: the scaled branch does not need
+    them, and the unscaled branch then refuses with a diagnostic saying what is
+    missing rather than guessing.
     """
     threshold = FDA_HVD_CONSTANTS["swr_switching_threshold"]
     variance = estimate_reference_variance(dataset)
@@ -466,11 +512,48 @@ def assess_endpoint(
         # `replicate_abe.py` records the model that has to be fitted and why it
         # is not fitted here.
         #
-        # The contrast IS still computed and returned - it is a real quantity a
-        # reviewer may want - but it does not become a decision.
-        diagnostics.append(replicate_abe_unavailable(dataset))
+        # THE UNSCALED BRANCH NOW DECIDES - FOR FULLY REPLICATE DESIGNS.
+        #
+        # The paragraph above is the history and it is kept because it is the
+        # reason this took four PRs. Appendix C is implemented as of the
+        # full-replicate release, so a fully replicate study below the switch
+        # gets a real verdict from the model FDA actually specifies rather than
+        # a refusal.
+        #
+        # THREE WAYS THIS STILL DOES NOT DECIDE, ALL OF THEM DELIBERATE:
+        #
+        #   no `observations`  Appendix C is available-case and needs the raw
+        #                      rows; `dataset` has already dropped subjects
+        #                      that Appendix G excluded.
+        #   partial replicate  no trustworthy oracle exists for its
+        #                      Satterthwaite df - VAL-FDA-APPENDIX-C-002.
+        #   the fit refuses    a degenerate covariance for this contrast.
+        #
+        # In every one of them `decided` stays False and `passes` stays None.
+        from be_stats.appendix_c import (
+            SUPPORTED_DESIGNS,
+            analyse_replicate_abe_full,
+        )
+
+        if observations is None:
+            diagnostics.append(replicate_abe_unavailable(dataset))
+            return FdaHvdResult(
+                **common, decided=False, diagnostics=tuple(diagnostics)
+            )
+
+        appendix_c = analyse_replicate_abe_full(observations)
+        diagnostics.extend(appendix_c.diagnostics)
+        if not appendix_c.decided:
+            return FdaHvdResult(
+                **common, decided=False, diagnostics=tuple(diagnostics)
+            )
+
+        _ = SUPPORTED_DESIGNS
         return FdaHvdResult(
-            **common, decided=False, diagnostics=tuple(diagnostics)
+            **common,
+            appendix_c_result=appendix_c,
+            decided=True,
+            diagnostics=tuple(diagnostics),
         )
 
     rsabe = RsabeResult(

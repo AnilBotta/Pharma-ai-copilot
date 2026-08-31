@@ -26,6 +26,28 @@ from be_stats.abe import (
     analyse_parallel,
     tost_p_values,
 )
+from be_stats.appendix_c import (
+    AppendixCDataset,
+    AppendixCNotSupported,
+    AppendixCObservation,
+    ReplicateAbeFit,
+    ReplicateAbeResult,
+    analyse_replicate_abe_full,
+    fit_appendix_c,
+)
+
+# NOTE: `appendix_c.satterthwaite_df` is deliberately NOT re-exported here.
+#
+# `treatment_contrast.satterthwaite_df` already occupies that name at package
+# level, and the two are DIFFERENT FUNCTIONS for different models: Appendix G's
+# collapses a single variance component on the Iij contrast, while Appendix C's
+# takes the fitted five-parameter covariance and the REML information matrix.
+# Importing both here made the second silently shadow the first.
+#
+# Two functions called `satterthwaite_df` that compute different things is
+# precisely the confusion PR #61 measured the cost of - lmerTest's correct
+# Satterthwaite on the wrong model was out by a factor of 1.8. Reach Appendix
+# C's through its module: `from be_stats.appendix_c import satterthwaite_df`.
 from be_stats.hvd import (
     FdaHvdResult,
     NotDecidable,
@@ -166,13 +188,16 @@ from be_stats.study import (
 #: Bumped on any change that can alter a computed result. An analysis record
 #: stores this, because "which version produced this number" is the first
 #: question asked of a result years later.
-__version__ = "0.6.0"
+__version__ = "0.7.0"
 
 __all__ = [
     "APPENDIX_C_MODEL",
     "AbeResult",
     "AbelLimits",
     "AcceptanceInterval",
+    "AppendixCDataset",
+    "AppendixCNotSupported",
+    "AppendixCObservation",
     "BeSpec",
     "CAPABILITY_VALIDATION",
     "Capability",
@@ -224,7 +249,9 @@ __all__ = [
     "ReferenceVarianceResult",
     "RegulatoryMinimum",
     "RegulatoryValue",
+    "ReplicateAbeFit",
     "ReplicateAbeModelSpecification",
+    "ReplicateAbeResult",
     "ReplicateDataset",
     "ReplicateDesign",
     "ReplicateObservation",
@@ -249,6 +276,7 @@ __all__ = [
     "analyse_crossover",
     "analyse_parallel",
     "analyse_replicate_abe",
+    "analyse_replicate_abe_full",
     "assess_ema_endpoint",
     "assess_ema_study",
     "assess_endpoint",
@@ -271,6 +299,7 @@ __all__ = [
     "fda_hvd_theta",
     "fda_nti_theta",
     "fda_nti_theta_sas_example",
+    "fit_appendix_c",
     "fit_least_squares",
     "howe_upper_bound",
     "identify_design",
