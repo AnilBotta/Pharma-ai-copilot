@@ -990,6 +990,15 @@ FINDING_CLASSIFICATIONS = {
     "NUMERICAL_OPTIMIZER_DIFFERENCE",
     "SOURCE_DATA_AMBIGUITY",
     "OPEN_UNEXPLAINED",
+    # Partial-replicate oracle findings, per the PR #63 brief. The first is the
+    # one that matters most: an oracle can be correct within its stated scope
+    # and wrong outside it, and that is a different thing from a defect.
+    "PACKAGE_SCOPE_LIMITATION",
+    "DF_ROUNDING_ARTIFACT",
+    "INFORMATION_MATRIX_DIFFERENCE",
+    "DESIGN_MATRIX_DIFFERENCE",
+    "COVARIANCE_FIT_DIFFERENCE",
+    "SAS_VERSION_DIFFERENCE",
 }
 
 
