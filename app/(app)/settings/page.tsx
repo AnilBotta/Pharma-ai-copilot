@@ -7,7 +7,13 @@
 // which breaks the production build rather than the page.
 
 import Link from "next/link";
-import { BellRing, ChevronRight, Plug, Settings as SettingsIcon } from "lucide-react";
+import {
+  BellRing,
+  ChevronRight,
+  FileCheck2,
+  Plug,
+  Settings as SettingsIcon,
+} from "lucide-react";
 
 import { PageHeader } from "@/components/shared/page-header";
 import { Card, CardContent } from "@/components/ui/card";
@@ -38,6 +44,13 @@ const AREAS = [
     icon: Plug,
     description:
       "Which external providers are configured, and what stops working when one is not.",
+  },
+  {
+    href: "/settings/sas-validation",
+    label: "SAS Validation",
+    icon: FileCheck2,
+    description:
+      "An optional independent check of results the engine already computed. Nothing here is required to use any supported calculation.",
   },
 ];
 
