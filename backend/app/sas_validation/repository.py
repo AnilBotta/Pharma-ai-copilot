@@ -46,9 +46,19 @@ ACTION_HASH_MISMATCH = "SAS_VALIDATION_HASH_MISMATCH"
 ACTION_PARSED = "SAS_VALIDATION_PARSED"
 ACTION_COMPARISON_CREATED = "SAS_VALIDATION_COMPARISON_CREATED"
 ACTION_REVIEW_BLOCKED = "SAS_VALIDATION_REVIEW_ATTEMPT_BLOCKED"
-#: Reserved for when reviewer authorization exists. Emitted by nothing today.
+
+#: Active as of PR #66, now that `private.user_has_global_role` lets the
+#: backend identify an authorised human. Both carry actor_type = HUMAN.
 ACTION_REVIEW_ACCEPTED = "SAS_VALIDATION_REVIEW_ACCEPTED"
 ACTION_REVIEW_REJECTED = "SAS_VALIDATION_REVIEW_REJECTED"
+
+#: The assistant's activity, kept separate from the human's so a query for
+#: "who approved what" cannot pick up an AI row.
+ACTION_AI_REVIEW_GENERATED = "SAS_VALIDATION_AI_REVIEW_GENERATED"
+ACTION_AI_REVIEW_FAILED = "SAS_VALIDATION_AI_REVIEW_FAILED"
+
+ENTITY_AI_REVIEW = "sas_ai_review"
+ENTITY_HUMAN_REVIEW = "sas_human_review"
 
 AUDIT_ACTIONS = (
     ACTION_PACKAGE_GENERATED,
@@ -61,6 +71,8 @@ AUDIT_ACTIONS = (
     ACTION_REVIEW_BLOCKED,
     ACTION_REVIEW_ACCEPTED,
     ACTION_REVIEW_REJECTED,
+    ACTION_AI_REVIEW_GENERATED,
+    ACTION_AI_REVIEW_FAILED,
 )
 
 
@@ -417,6 +429,163 @@ class SASValidationRepository:
             )
         return [dict(row) for row in rows]
 
+    # ------------------------------------------------------- AI reviews ---
+
+    async def insert_ai_review(
+        self, *, tenant_id: str, run_id: str, requested_by: str, outcome: Any
+    ) -> str:
+        """Append an AI analysis. Never replaces an earlier one.
+
+        Model output is non-deterministic and model versions change, so a
+        re-run is a genuinely different artefact. Overwriting would destroy the
+        record of what a human reviewer actually read.
+        """
+        async with self._pool.acquire() as conn, conn.transaction():
+            row = await conn.fetchrow(
+                """
+                insert into public.sas_ai_reviews
+                    (tenant_id, run_id, actor_type, model_provider, model_name,
+                     prompt_version, evidence_snapshot_hash, response,
+                     response_hash, recommendation, confidence, succeeded,
+                     failure_reason, requested_by)
+                values ($1, $2::uuid, 'ai_system', $3, $4, $5, $6, $7, $8,
+                        $9::public.ai_review_recommendation,
+                        $10::public.ai_review_confidence, $11, $12, $13)
+                returning id
+                """,
+                tenant_id, run_id,
+                outcome.model_provider, outcome.model_name,
+                outcome.prompt_version, outcome.evidence_snapshot_hash,
+                json.dumps(outcome.response.model_dump(mode="json"))
+                if outcome.response else None,
+                outcome.response_hash(),
+                outcome.recommendation.value if outcome.recommendation else None,
+                outcome.response.confidence.value if outcome.response else None,
+                outcome.succeeded,
+                outcome.failure_reason,
+                requested_by,
+            )
+            review_id = str(row["id"])
+            await self._audit(
+                conn,
+                actor=requested_by,
+                action=(
+                    ACTION_AI_REVIEW_GENERATED if outcome.succeeded
+                    else ACTION_AI_REVIEW_FAILED
+                ),
+                entity_type=ENTITY_AI_REVIEW,
+                entity_id=review_id,
+                new={
+                    "run_id": run_id,
+                    "actor_type": "ai_system",
+                    "prompt_version": outcome.prompt_version,
+                    "model_provider": outcome.model_provider,
+                    "evidence_snapshot_hash": outcome.evidence_snapshot_hash,
+                    "response_hash": outcome.response_hash(),
+                    "recommendation": (
+                        outcome.recommendation.value
+                        if outcome.recommendation else None
+                    ),
+                },
+                reason=outcome.failure_reason,
+            )
+        return review_id
+
+    async def latest_ai_review(self, *, tenant_id: str, run_id: str) -> dict | None:
+        async with self._pool.acquire() as conn:
+            row = await conn.fetchrow(
+                """
+                select * from public.sas_ai_reviews
+                 where run_id = $1::uuid and tenant_id = $2
+                 order by generated_at desc
+                 limit 1
+                """,
+                run_id, tenant_id,
+            )
+        return dict(row) if row else None
+
+    # ---------------------------------------------------- human reviews ---
+
+    async def insert_human_review(self, *, record: Any) -> str:
+        """Append a governed decision.
+
+        A later review by another authorised reviewer is a NEW record: two
+        people disagreeing is information, and overwriting the first opinion
+        destroys it.
+        """
+        async with self._pool.acquire() as conn, conn.transaction():
+            row = await conn.fetchrow(
+                """
+                insert into public.sas_human_reviews
+                    (tenant_id, run_id, actor_type, reviewer_user_id,
+                     reviewer_role_key, decision, notes,
+                     acknowledgement_version, acknowledgement_text,
+                     acknowledgement_hash, evidence_snapshot,
+                     evidence_snapshot_hash, ai_review_id,
+                     ai_recommendation_at_time)
+                values ($1, $2::uuid, 'human', $3, $4,
+                        $5::public.oracle_closure_decision, $6, $7, $8, $9,
+                        $10, $11, $12::uuid,
+                        $13::public.ai_review_recommendation)
+                returning id
+                """,
+                record.tenant_id, record.run_id, record.reviewer_user_id,
+                record.reviewer_role_key, record.decision.value, record.notes,
+                record.acknowledgement_version, record.acknowledgement_text,
+                record.acknowledgement_hash,
+                json.dumps(record.evidence_snapshot, default=str),
+                record.evidence_snapshot_hash,
+                record.ai_review_id,
+                record.ai_recommendation_at_time.value
+                if record.ai_recommendation_at_time else None,
+            )
+            review_id = str(row["id"])
+            await self._audit(
+                conn,
+                actor=record.reviewer_user_id,
+                action=(
+                    ACTION_REVIEW_ACCEPTED
+                    if record.decision.value == "oracle_closure_accepted"
+                    else ACTION_REVIEW_REJECTED
+                ),
+                entity_type=ENTITY_HUMAN_REVIEW,
+                entity_id=review_id,
+                new={
+                    "run_id": record.run_id,
+                    # Recorded, not inferred: "was this approved by a person"
+                    # must be answerable from the audit row alone.
+                    "actor_type": "human",
+                    "reviewer_role_key": record.reviewer_role_key,
+                    "decision": record.decision.value,
+                    "evidence_snapshot_hash": record.evidence_snapshot_hash,
+                    "acknowledgement_hash": record.acknowledgement_hash,
+                    "ai_review_id": record.ai_review_id,
+                    "ai_recommendation_at_time": (
+                        record.ai_recommendation_at_time.value
+                        if record.ai_recommendation_at_time else None
+                    ),
+                },
+                reason=record.notes[:500],
+            )
+        return review_id
+
+    async def list_human_reviews(
+        self, *, tenant_id: str, run_id: str
+    ) -> list[dict]:
+        async with self._pool.acquire() as conn:
+            rows = await conn.fetch(
+                """
+                select id, reviewer_user_id, reviewer_role_key, decision,
+                       notes, decided_at, evidence_snapshot_hash,
+                       ai_review_id, ai_recommendation_at_time
+                  from public.sas_human_reviews
+                 where run_id = $1::uuid and tenant_id = $2
+                 order by decided_at
+                """,
+                run_id, tenant_id,
+            )
+        return [dict(row) for row in rows]
+
     # ------------------------------------------------------------- events ---
 
     async def record_event(
@@ -437,6 +606,8 @@ class SASValidationRepository:
 
 
 __all__ = [
+    "ACTION_AI_REVIEW_FAILED",
+    "ACTION_AI_REVIEW_GENERATED",
     "ACTION_COMPARISON_CREATED",
     "ACTION_HASH_MISMATCH",
     "ACTION_LOG_UPLOADED",
@@ -448,6 +619,8 @@ __all__ = [
     "ACTION_REVIEW_BLOCKED",
     "ACTION_REVIEW_REJECTED",
     "AUDIT_ACTIONS",
+    "ENTITY_AI_REVIEW",
+    "ENTITY_HUMAN_REVIEW",
     "ENTITY_PACKAGE",
     "ENTITY_RUN",
     "PackageNotFound",

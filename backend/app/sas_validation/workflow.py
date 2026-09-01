@@ -35,9 +35,17 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
+from app.sas_validation.ai_reviewer import AIRecommendation, SASValidationAIReviewer
 from app.sas_validation.archive import archive_filename, build_archive
+from app.sas_validation.authorization import REVIEWER_ROLE_KEYS, ReviewerIdentity
 from app.sas_validation.canonical_data import load_canonical_observations
 from app.sas_validation.compare import ComparisonReport, compare
+from app.sas_validation.human_review import (
+    AcceptancePreconditions,
+    OracleClosureDecision,
+    build_evidence_snapshot,
+    prepare_review,
+)
 from app.sas_validation.ingest import (
     IngestOutcome,
     ParsedSASResult,
@@ -48,6 +56,7 @@ from app.sas_validation.integrity import (
     DatasetProvenance,
     EvidenceIntegrity,
     PackageIntegrity,
+    ProgramExecutionIntegrity,
     manual_execution_integrity,
 )
 from app.sas_validation.logscan import contradicts_convergence, scan_log
@@ -92,6 +101,105 @@ class UploadRejected(ValueError):
 _COMPARABLE = frozenset(
     {SASValidationRunStatus.PARSED, SASValidationRunStatus.REVIEW_REQUIRED}
 )
+
+
+def build_preconditions(
+    *, run: Mapping[str, Any], acknowledged: bool
+) -> AcceptancePreconditions:
+    """Read the deterministic evidence into the acceptance gate.
+
+    Everything here comes from stored facts, never from an opinion: the
+    integrity states the comparison recorded, whether SAS reported each field,
+    and whether the fit converged.
+    """
+    comparison = run.get("comparison") or {}
+    integrity = comparison.get("integrity") or {}
+
+    return AcceptancePreconditions(
+        package_integrity=PackageIntegrity(
+            integrity.get("package_integrity", PackageIntegrity.ABSENT.value)
+        ),
+        dataset_provenance=DatasetProvenance(
+            integrity.get("dataset_provenance", DatasetProvenance.MISSING.value)
+        ),
+        case_stamp=DatasetProvenance(
+            integrity.get("validation_case_stamp", DatasetProvenance.MISSING.value)
+        ),
+        program_execution=ProgramExecutionIntegrity(
+            integrity.get(
+                "program_execution_integrity",
+                ProgramExecutionIntegrity.UNVERIFIED_MANUAL_EXECUTION.value,
+            )
+        ),
+        result_complete=run.get("estimate_log") is not None,
+        sas_version_present=bool(run.get("sas_version")),
+        denominator_df_present=run.get("denominator_df") is not None,
+        confidence_interval_present=(
+            run.get("ci_lower_ratio") is not None
+            and run.get("ci_upper_ratio") is not None
+        ),
+        # Only an explicit failure blocks. An unreported status is "not known",
+        # which the reviewer can weigh; treating it as failure would refuse
+        # runs SAS simply did not comment on.
+        convergence_failed=(
+            run.get("convergence_status") is not None
+            and str(run["convergence_status"]).strip() != "0"
+        ),
+        comparison_available=bool(comparison),
+        acknowledged=acknowledged,
+    )
+
+
+def build_ai_evidence(
+    *, run: Mapping[str, Any], package: Mapping[str, Any]
+) -> dict[str, Any]:
+    """Assemble the FACTS the assistant is shown.
+
+    Reference values carry their evidence status inline rather than in a
+    legend, because a model - like a reader - attaches whatever label sits
+    nearest the number. `19.8906` unlabelled would be read as authoritative.
+    """
+    comparison = run.get("comparison") or {}
+    integrity = comparison.get("integrity") or {}
+
+    return {
+        "validation_case": run.get("case_id"),
+        "package_id": package.get("id"),
+        "integrity": {
+            "package_archive": integrity.get("package_integrity"),
+            "dataset_provenance_stamp": integrity.get("dataset_provenance"),
+            "validation_case_stamp": integrity.get("validation_case_stamp"),
+            "program_execution": integrity.get("program_execution_integrity"),
+            "program_execution_meaning": integrity.get("qualification"),
+        },
+        "sas_reported": {
+            "sas_version": run.get("sas_version"),
+            "estimate_percent": run.get("estimate_ratio"),
+            "standard_error": run.get("standard_error"),
+            "denominator_df": run.get("denominator_df"),
+            "ci_lower_percent": run.get("ci_lower_ratio"),
+            "ci_upper_percent": run.get("ci_upper_ratio"),
+            "convergence_status": run.get("convergence_status"),
+        },
+        "log_signals": run.get("warnings") or [],
+        "reference_values": [
+            f"{reference['quantity']} = {reference['value']} "
+            f"[{str(reference['evidence_status']).upper()}] "
+            f"source: {reference['source']}"
+            for reference in comparison.get("reference_context", [])
+        ],
+        "method_validation_status": (
+            "FDA_REPLICATE_STANDARD_ABE_PARTIAL is NOT_IMPLEMENTED and "
+            "partial_oracle_ready is false. The engine does not compute this "
+            "case, so there is no in-house number to compare against."
+        ),
+        "known_limitations": [
+            "SAS executed in a customer-controlled environment; the exact "
+            "program bytes cannot be cryptographically verified.",
+            "EMA published no standard error and no denominator df for this "
+            "dataset, which is why the df is the open question.",
+        ],
+    }
 
 
 def _manual_integrity(
@@ -321,11 +429,17 @@ class ManualValidationWorkflow:
         storage: SASValidationStorage,
         be_stats_version: str,
         git_sha: str,
+        ai_reviewer: SASValidationAIReviewer | None = None,
     ) -> None:
         self._repository = repository
         self._storage = storage
         self._be_stats_version = be_stats_version
         self._git_sha = git_sha
+        # No provider configured is a SUPPORTED STATE, not a failure. The
+        # assistant is advisory, so its absence must not block a human review -
+        # a reviewer with no AI analysis is exactly a reviewer working from
+        # deterministic evidence, which is the authoritative evidence anyway.
+        self._ai_reviewer = ai_reviewer or SASValidationAIReviewer(provider=None)
 
     # ------------------------------------------------------- generation ---
 
@@ -599,6 +713,144 @@ class ManualValidationWorkflow:
             artifact_created=created,
         )
 
+    async def generate_ai_review(
+        self, *, tenant_id: str, actor: str, run_id: str
+    ) -> dict[str, Any]:
+        """Run the assistant over this run's evidence and store the analysis.
+
+        Appends a new version rather than replacing any earlier one: model
+        output is non-deterministic, so a re-run is a genuinely different
+        artefact and overwriting would destroy what a reviewer already read.
+        """
+        run = await self._repository.get_run(tenant_id=tenant_id, run_id=run_id)
+        package = await self._repository.get_package(
+            tenant_id=tenant_id, package_id=str(run["package_id"])
+        )
+        evidence = build_ai_evidence(run=run, package=package)
+
+        outcome = await self._ai_reviewer.review(evidence)
+        review_id = await self._repository.insert_ai_review(
+            tenant_id=tenant_id, run_id=run_id, requested_by=actor,
+            outcome=outcome,
+        )
+        return {
+            "ai_review_id": review_id,
+            "succeeded": outcome.succeeded,
+            "recommendation": (
+                outcome.recommendation.value if outcome.recommendation else None
+            ),
+            "response": (
+                outcome.response.model_dump(mode="json")
+                if outcome.response else None
+            ),
+            "failure_reason": outcome.failure_reason,
+        }
+
+    async def review_context(
+        self, *, tenant_id: str, run_id: str
+    ) -> dict[str, Any]:
+        """Everything the review screen renders, decided server-side.
+
+        The three sections a reviewer sees are three different KINDS of thing,
+        and the API keeps them apart so the interface cannot blend them:
+
+            deterministic   what the system checked. Authoritative.
+            ai_review       what an assistant thinks. Advisory, and absent
+                            whenever no analysis has been requested or the
+                            provider was unavailable.
+            preconditions   what would block an acceptance right now.
+
+        Preconditions are returned BEFORE a decision is attempted rather than
+        only as a 422 afterwards, so a reviewer sees what is missing while they
+        can still fix it instead of discovering it on submit.
+        """
+        run = await self._repository.get_run(tenant_id=tenant_id, run_id=run_id)
+        ai_review = await self._repository.latest_ai_review(
+            tenant_id=tenant_id, run_id=run_id
+        )
+        reviews = await self._repository.list_human_reviews(
+            tenant_id=tenant_id, run_id=run_id
+        )
+
+        # `acknowledged=True` here asks "what BESIDES the acknowledgement is
+        # unmet", because the acknowledgement is a checkbox the reviewer has
+        # not reached yet. Listing it as a failure before they see the form
+        # would read as a fault in the evidence.
+        preconditions = build_preconditions(run=run, acknowledged=True)
+
+        return {
+            "run_id": run_id,
+            "status": run.get("status"),
+            "deterministic": {
+                "comparison": run.get("comparison"),
+                "sas_version": run.get("sas_version"),
+                "convergence_status": run.get("convergence_status"),
+                "warnings": run.get("warnings") or [],
+            },
+            "ai_review": ai_review,
+            "preconditions": {
+                "acceptable": preconditions.acceptable,
+                "blocking": preconditions.failures(),
+            },
+            "human_reviews": reviews,
+        }
+
+    async def record_human_review(
+        self,
+        *,
+        tenant_id: str,
+        reviewer: ReviewerIdentity,
+        run_id: str,
+        decision: OracleClosureDecision,
+        notes: str,
+        acknowledged: bool,
+    ) -> dict[str, Any]:
+        """Freeze the evidence, check the preconditions, store the decision."""
+        run = await self._repository.get_run(tenant_id=tenant_id, run_id=run_id)
+        package = await self._repository.get_package(
+            tenant_id=tenant_id, package_id=str(run["package_id"])
+        )
+        artifacts = await self._repository.list_artifacts(
+            tenant_id=tenant_id, run_id=run_id
+        )
+        ai_review = await self._repository.latest_ai_review(
+            tenant_id=tenant_id, run_id=run_id
+        )
+
+        snapshot, snapshot_hash = build_evidence_snapshot(
+            run=run,
+            package=package,
+            artifacts=artifacts,
+            ai_review_id=str(ai_review["id"]) if ai_review else None,
+            ai_review_hash=(
+                str(ai_review.get("response_hash")) if ai_review else None
+            ),
+        )
+
+        record = prepare_review(
+            reviewer=reviewer,
+            run_id=run_id,
+            tenant_id=tenant_id,
+            decision=decision,
+            notes=notes,
+            acknowledged=acknowledged,
+            preconditions=build_preconditions(run=run, acknowledged=acknowledged),
+            evidence_snapshot=snapshot,
+            evidence_snapshot_hash=snapshot_hash,
+            ai_review_id=str(ai_review["id"]) if ai_review else None,
+            ai_recommendation=(
+                AIRecommendation(ai_review["recommendation"])
+                if ai_review and ai_review.get("recommendation")
+                else None
+            ),
+        )
+        review_id = await self._repository.insert_human_review(record=record)
+        return {
+            "review_id": review_id,
+            "decision": record.decision.value,
+            "evidence_snapshot_hash": record.evidence_snapshot_hash,
+        }
+
     async def record_blocked_review(
         self, *, tenant_id: str, actor: str, run_id: str
     ) -> None:
@@ -607,6 +859,10 @@ class ManualValidationWorkflow:
         "Who tried to accept an oracle closure" is a question worth being able
         to answer, and it is only answerable if the attempt is recorded rather
         than only the refusal being returned.
+
+        The refusal is now about the CALLER, not the deployment: migration 0034
+        gives the backend a working global-role check, so an unauthorised
+        attempt means a signed-in user genuinely lacks the role.
         """
         await self._repository.record_event(
             actor=actor,
@@ -615,8 +871,8 @@ class ManualValidationWorkflow:
             entity_id=run_id,
             detail={"tenant_id": tenant_id},
             reason=(
-                "reviewer authorization is not configured: there is no "
-                "backend-safe global role check for the service-role connection"
+                "the authenticated user holds none of the reviewer roles "
+                f"({', '.join(REVIEWER_ROLE_KEYS)})"
             ),
         )
 

@@ -250,8 +250,28 @@ def test_no_module_hard_codes_a_program_verification():
     `program_hash_matched=True` was a keyword argument nobody looked at twice.
     Searching the source is the only way to be sure an equivalent has not been
     reintroduced under another name.
+
+    WHAT COUNTS AS AN OFFENCE, AND WHY IT IS THE VALUE AND NOT THE NAME
+
+    The offence is ASSERTING a program verification the application cannot
+    perform - writing the answer into the source. Passing a value that was READ
+    from stored evidence is the opposite: it carries whatever the evidence
+    actually said, including UNVERIFIED_MANUAL_EXECUTION.
+
+    So this checks the argument's VALUE. A constant (`True`, a string) or a
+    dotted `.VERIFIED` is a claim made by the author; anything computed at
+    runtime is a fact carried from elsewhere. Flagging the parameter NAME
+    instead would fail on any honest pass-through and push the next author to
+    rename the field to something vaguer, which is worse than the bug.
     """
     offenders: list[str] = []
+    watched = ("program_hash_matched", "program_execution", "program_verified")
+
+    def is_authored_claim(value: ast.expr) -> bool:
+        if isinstance(value, ast.Constant):
+            return value.value not in (False, None)
+        # ProgramExecutionIntegrity.VERIFIED, or any .VERIFIED
+        return isinstance(value, ast.Attribute) and value.attr == "VERIFIED"
 
     for module in sorted(SAS_PACKAGE.glob("*.py")):
         if module.name == "integrity.py":
@@ -262,14 +282,39 @@ def test_no_module_hard_codes_a_program_verification():
             if not isinstance(node, ast.Call):
                 continue
             for keyword in node.keywords:
-                if keyword.arg in (
-                    "program_hash_matched",
-                    "program_execution",
-                    "program_verified",
-                ):
-                    offenders.append(f"{module.name} passes {keyword.arg}=")
+                if keyword.arg in watched and is_authored_claim(keyword.value):
+                    offenders.append(
+                        f"{module.name} passes {keyword.arg}="
+                        f"{ast.unparse(keyword.value)}"
+                    )
 
     assert not offenders, offenders
+
+
+def test_the_guard_above_still_catches_the_original_bug():
+    """The guard was tightened from name-matching to value-matching, so prove
+    it still fails on the exact line PR #65 shipped, and on its enum twin."""
+    watched = ("program_hash_matched", "program_execution", "program_verified")
+
+    def offends(source: str) -> bool:
+        call = ast.parse(source, mode="eval").body
+        assert isinstance(call, ast.Call)
+        for keyword in call.keywords:
+            if keyword.arg not in watched:
+                continue
+            value = keyword.value
+            if isinstance(value, ast.Constant) and value.value not in (False, None):
+                return True
+            if isinstance(value, ast.Attribute) and value.attr == "VERIFIED":
+                return True
+        return False
+
+    assert offends("EvidenceIntegrity(program_hash_matched=True)")
+    assert offends("f(program_execution=ProgramExecutionIntegrity.VERIFIED)")
+    assert offends("f(program_verified='yes')")
+    # An honest pass-through of stored evidence is not an offence.
+    assert not offends("f(program_execution=ProgramExecutionIntegrity(stored))")
+    assert not offends("f(program_execution=row['program_execution_integrity'])")
 
 
 def test_the_word_verified_is_never_asserted_of_a_manual_program():

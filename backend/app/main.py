@@ -15,11 +15,17 @@ from app.api.routes import router
 from app.config import get_settings
 from app.documents.repository import DocumentRepository
 from app.documents.routes import router as documents_router
+from app.llm.provider import ModelProvider
 from app.manager.repository import ManagerRepository
 from app.manager.routes import router as manager_router
 from app.pdp.repository import PdpRepository
 from app.pdp.routes import router as pdp_router
 from app.repository import Repository
+from app.sas_validation.ai_reviewer import (
+    ModelProviderReviewAdapter,
+    SASValidationAIReviewer,
+)
+from app.sas_validation.authorization import ReviewerAuthorizationService
 from app.sas_validation.repository import SASValidationRepository
 from app.sas_validation.routes import router as sas_validation_router
 from app.sas_validation.storage import SASValidationStorage
@@ -69,7 +75,20 @@ async def lifespan(app: FastAPI):
             # produced this" is answerable years later without archaeology.
             be_stats_version=be_stats_version,
             git_sha=os.environ.get("VERCEL_GIT_COMMIT_SHA", "unknown"),
+            # ADVISORY ONLY. This assistant reads evidence and recommends; it
+            # cannot approve anything, and a deployment without a model is a
+            # supported state rather than a degraded one - the human review
+            # runs on the deterministic evidence either way.
+            ai_reviewer=SASValidationAIReviewer(
+                provider=ModelProviderReviewAdapter(ModelProvider(settings))
+            ),
         )
+
+        # Who may record an oracle closure. Separate from the workflow because
+        # it answers a different question - "may this person decide" rather
+        # than "what does the evidence say" - and because the route must be
+        # able to refuse before the workflow is ever consulted.
+        app.state.sas_reviewer_authorization = ReviewerAuthorizationService(pool)
     except Exception:
         # Start anyway so /health can report the problem rather than the whole
         # service being unreachable.
@@ -82,6 +101,11 @@ async def lifespan(app: FastAPI):
         # None rather than a half-built workflow: the SAS routes then answer
         # 503 with an explanation instead of failing somewhere less legible.
         app.state.sas_validation_workflow = None
+        # And no authorization service, so the review endpoint refuses rather
+        # than reaching a pool that does not exist. FAILING CLOSED IS THE ONLY
+        # ACCEPTABLE DIRECTION for a governed decision: a degraded start must
+        # never be the reason an unauthorised user records an oracle closure.
+        app.state.sas_reviewer_authorization = None
 
     yield
 

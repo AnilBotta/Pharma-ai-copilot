@@ -35,6 +35,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
+import { StatisticalReview } from "./statistical-review";
+
 const CASE_ID = "FDA_APPENDIX_C_PARTIAL_EMA_DATASET_II";
 
 type GeneratedPackage = {
@@ -494,14 +496,20 @@ export function ManualValidation() {
 
                 <p className="flex items-start gap-2 text-xs text-muted-foreground">
                   <CheckCircle2 className="mt-0.5 size-4 shrink-0" />
-                  Statistical review authorization is not yet configured, so
-                  this comparison cannot be accepted or rejected here.
+                  A decision on this comparison is recorded below, by an
+                  authorized human reviewer.
                 </p>
               </>
             )}
           </CardContent>
         </Card>
       )}
+
+      {/* The review panel loads its own context, including whether this caller
+          may decide at all. It is rendered only once there is a comparison to
+          review — a decision against an unparsed upload would be a record of
+          nothing. */}
+      {upload?.comparison && <StatisticalReview runId={upload.run_id} />}
     </div>
   );
 }
