@@ -98,7 +98,31 @@ type UploadResponse = {
   detail: string;
   duplicate: boolean;
   comparison: Comparison | null;
+  evidence_origin: string;
+  is_regulatory_evidence: boolean;
 };
+
+/**
+ * Where the uploaded result came from — declared, never inferred.
+ *
+ * A fixture CSV and a real SAS CSV are the same shape, so nothing about the
+ * file could answer this. The default is the fixture, because of the two
+ * possible mistakes only one is recoverable: real evidence mislabelled as a
+ * rehearsal can be re-declared, while a rehearsal artefact recorded as
+ * regulatory evidence is fiction in a submission.
+ */
+const ORIGINS = [
+  {
+    value: "test_fixture",
+    label: "Operational dry run",
+    hint: "A rehearsal. Never regulatory evidence, whatever the numbers say.",
+  },
+  {
+    value: "manual_external_sas",
+    label: "Real SAS run",
+    hint: "Output from a licensed SAS environment we do not operate.",
+  },
+] as const;
 
 /** The stages a customer moves through, so progress is legible at a glance. */
 const STAGES = [
@@ -143,6 +167,7 @@ export function ManualValidation() {
   const [pkg, setPackage] = useState<GeneratedPackage | null>(null);
   const [upload, setUpload] = useState<UploadResponse | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [origin, setOrigin] = useState<string>("test_fixture");
   const resultInput = useRef<HTMLInputElement>(null);
   const logInput = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
@@ -192,6 +217,10 @@ export function ManualValidation() {
       try {
         const form = new FormData();
         form.append("file", file);
+        // Sent explicitly on every upload. The server also defaults to the
+        // fixture, so a client that forgot cannot silently create a run that
+        // claims to be real evidence.
+        form.append("evidence_origin", origin);
         setUpload(
           await call(`/sas-validation/packages/${pkg.package_id}/result`, {
             method: "POST",
@@ -204,7 +233,7 @@ export function ManualValidation() {
         setBusy(null);
       }
     },
-    [pkg],
+    [pkg, origin],
   );
 
   const uploadLog = useCallback(
@@ -348,6 +377,35 @@ export function ManualValidation() {
             />
           </div>
 
+          {/* Declared before the file is chosen, so the answer is a decision
+              rather than something confirmed after the fact. */}
+          <fieldset className="space-y-1.5">
+            <legend className="text-xs font-medium">
+              What is this upload?
+            </legend>
+            {ORIGINS.map((option) => (
+              <label
+                key={option.value}
+                className="flex items-start gap-2 text-xs"
+              >
+                <input
+                  type="radio"
+                  name="evidence-origin"
+                  value={option.value}
+                  checked={origin === option.value}
+                  onChange={(event) => setOrigin(event.target.value)}
+                  className="mt-0.5 size-4 shrink-0"
+                />
+                <span>
+                  <span className="font-medium">{option.label}</span>
+                  <span className="block text-muted-foreground">
+                    {option.hint}
+                  </span>
+                </span>
+              </label>
+            ))}
+          </fieldset>
+
           {error && (
             <p className="flex items-start gap-2 text-sm text-destructive">
               <AlertTriangle className="mt-0.5 size-4 shrink-0" />
@@ -379,6 +437,17 @@ export function ManualValidation() {
             </Badge>
           </CardHeader>
           <CardContent className="space-y-4 text-sm">
+            {/* First, and loud. Everything below looks exactly like a real
+                result — that is what a fixture is for. */}
+            {upload.is_regulatory_evidence === false && (
+              <p className="flex items-start gap-2 rounded-lg border border-dashed p-3 text-xs font-medium">
+                <ShieldAlert className="mt-0.5 size-4 shrink-0" />
+                OPERATIONAL DRY RUN — NOT SAS VALIDATION EVIDENCE. This run is
+                recorded as a test fixture and must never be cited as
+                regulatory evidence, whatever the values below.
+              </p>
+            )}
+
             <p className="text-muted-foreground">{upload.detail}</p>
 
             {upload.duplicate && (

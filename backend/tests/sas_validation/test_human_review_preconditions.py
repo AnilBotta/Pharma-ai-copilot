@@ -21,6 +21,7 @@ from __future__ import annotations
 import pytest
 
 from app.sas_validation.ai_reviewer import AIRecommendation
+from app.sas_validation.attestation import EvidenceOrigin
 from app.sas_validation.authorization import ReviewerIdentity
 from app.sas_validation.human_review import (
     ACCEPTANCE_MEANING,
@@ -46,6 +47,10 @@ REVIEWER = ReviewerIdentity.for_human(
 
 def preconditions(**overrides) -> AcceptancePreconditions:
     fields = {
+        # A sound REAL run, so these tests exercise whether GOOD EVIDENCE is
+        # accepted. Whether a fixture can be accepted at all is a different
+        # question, answered in test_first_live_run_readiness.py.
+        "evidence_origin": EvidenceOrigin.MANUAL_EXTERNAL_SAS,
         "package_integrity": PackageIntegrity.VERIFIED,
         "dataset_provenance": DatasetProvenance.MATCH,
         "case_stamp": DatasetProvenance.MATCH,

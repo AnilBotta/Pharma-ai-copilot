@@ -57,8 +57,15 @@ ACTION_REVIEW_REJECTED = "SAS_VALIDATION_REVIEW_REJECTED"
 ACTION_AI_REVIEW_GENERATED = "SAS_VALIDATION_AI_REVIEW_GENERATED"
 ACTION_AI_REVIEW_FAILED = "SAS_VALIDATION_AI_REVIEW_FAILED"
 
+#: The operator's declaration. A separate action from every review action,
+#: because "somebody said they ran it" and "somebody decided about it" are
+#: different claims by different people, and a query that conflated them would
+#: report an operator as an approver.
+ACTION_ATTESTATION_RECORDED = "SAS_VALIDATION_OPERATOR_ATTESTATION_RECORDED"
+
 ENTITY_AI_REVIEW = "sas_ai_review"
 ENTITY_HUMAN_REVIEW = "sas_human_review"
+ENTITY_ATTESTATION = "sas_operator_attestation"
 
 AUDIT_ACTIONS = (
     ACTION_PACKAGE_GENERATED,
@@ -73,6 +80,7 @@ AUDIT_ACTIONS = (
     ACTION_REVIEW_REJECTED,
     ACTION_AI_REVIEW_GENERATED,
     ACTION_AI_REVIEW_FAILED,
+    ACTION_ATTESTATION_RECORDED,
 )
 
 
@@ -255,11 +263,12 @@ class SASValidationRepository:
                      estimate_log, estimate_ratio, standard_error, denominator_df,
                      ci_lower_log, ci_upper_log, ci_lower_ratio, ci_upper_ratio,
                      covariance_parameters, convergence_status, warnings,
-                     status, comparison)
+                     status, comparison, evidence_origin)
                 values (coalesce($1::uuid, gen_random_uuid()), $2, $3, $4, $5,
                         $6, $7, $8::timestamptz, $9, $10, $11,
                         $12, $13, $14, $15, $16, $17, $18, $19,
-                        $20, $21, $22, $23, $24)
+                        $20, $21, $22, $23, $24,
+                        $25::public.sas_evidence_origin)
                 on conflict (id) do update set
                     sas_version           = excluded.sas_version,
                     estimate_log          = excluded.estimate_log,
@@ -275,6 +284,11 @@ class SASValidationRepository:
                     warnings              = excluded.warnings,
                     status                = excluded.status,
                     comparison            = excluded.comparison
+                    -- evidence_origin is deliberately NOT updated. It is
+                    -- declared once, when the evidence arrives. A later write
+                    -- that could flip a run from test_fixture to
+                    -- manual_external_sas would be the exact laundering step
+                    -- this column exists to prevent.
                 returning id
                 """,
                 run.get("id"),
@@ -301,6 +315,9 @@ class SASValidationRepository:
                 json.dumps(run.get("warnings") or []),
                 run["status"],
                 json.dumps(run.get("comparison")) if run.get("comparison") else None,
+                # No default here. The caller must say what this is, because
+                # the honest answer cannot be derived from the file.
+                run["evidence_origin"],
             )
             run_id = str(row["id"])
             await self._audit(
@@ -314,6 +331,10 @@ class SASValidationRepository:
                     "case_id": run["case_id"],
                     "status": run["status"],
                     "sas_version": run.get("sas_version"),
+                    # In the audit row as well as the run row, so "was this
+                    # ever real SAS evidence" is answerable from the trail
+                    # alone.
+                    "evidence_origin": run["evidence_origin"],
                 },
                 reason=reason,
             )
@@ -503,6 +524,82 @@ class SASValidationRepository:
                 run_id, tenant_id,
             )
         return dict(row) if row else None
+
+    # ------------------------------------------------ operator attestation ---
+
+    async def insert_attestation(
+        self, *, tenant_id: str, run_id: str, attestation: Any, actor: str
+    ) -> str:
+        """Record what the operator declared. Append-only, by trigger.
+
+        Audited under its own action. An operator declaring they ran a package
+        is not a reviewer approving evidence, and a query for "who approved
+        what" must not be able to pick this row up.
+        """
+        async with self._pool.acquire() as conn, conn.transaction():
+            row = await conn.fetchrow(
+                """
+                insert into public.sas_operator_attestations
+                    (tenant_id, run_id, package_id, archive_sha256,
+                     operator_name, operator_organization, operator_email,
+                     sas_version, operating_environment, executed_at,
+                     attestation_version, attestation_text, attestation_hash,
+                     submitted_by)
+                values ($1, $2::uuid, $3, $4, $5, $6, $7, $8, $9,
+                        $10::timestamptz, $11, $12, $13, $14)
+                returning id
+                """,
+                tenant_id, run_id, attestation.package_id,
+                attestation.archive_sha256, attestation.operator_name,
+                attestation.operator_organization, attestation.operator_email,
+                attestation.sas_version, attestation.operating_environment,
+                attestation.executed_at, attestation.attestation_version,
+                attestation.attestation_text, attestation.attestation_hash,
+                attestation.submitted_by,
+            )
+            attestation_id = str(row["id"])
+            await self._audit(
+                conn,
+                actor=actor,
+                action=ACTION_ATTESTATION_RECORDED,
+                entity_type=ENTITY_ATTESTATION,
+                entity_id=attestation_id,
+                new={
+                    "run_id": run_id,
+                    "package_id": attestation.package_id,
+                    "operator_name": attestation.operator_name,
+                    "operator_organization": attestation.operator_organization,
+                    "sas_version": attestation.sas_version,
+                    "attestation_hash": attestation.attestation_hash,
+                    # Recorded in the audit row itself so no reader of the
+                    # trail can take an attestation for a verification.
+                    "program_execution_integrity": "unverified_manual_execution",
+                },
+                reason=(
+                    "operator declaration; NOT cryptographic verification of "
+                    "the executed program"
+                ),
+            )
+        return attestation_id
+
+    async def list_attestations(
+        self, *, tenant_id: str, run_id: str
+    ) -> list[dict]:
+        async with self._pool.acquire() as conn:
+            rows = await conn.fetch(
+                """
+                select id, package_id, archive_sha256, operator_name,
+                       operator_organization, operator_email, sas_version,
+                       operating_environment, executed_at, attestation_version,
+                       attestation_text, attestation_hash, attested_at,
+                       submitted_by
+                  from public.sas_operator_attestations
+                 where run_id = $1::uuid and tenant_id = $2
+                 order by attested_at
+                """,
+                run_id, tenant_id,
+            )
+        return [dict(row) for row in rows]
 
     # ---------------------------------------------------- human reviews ---
 

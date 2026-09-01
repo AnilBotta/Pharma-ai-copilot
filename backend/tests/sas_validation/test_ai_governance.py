@@ -31,6 +31,7 @@ from app.sas_validation.ai_reviewer import (
     SASValidationAIReviewer,
     build_prompt,
 )
+from app.sas_validation.attestation import EvidenceOrigin
 from app.sas_validation.authorization import ActorType, ReviewerIdentity
 from app.sas_validation.human_review import (
     AcceptancePreconditions,
@@ -49,6 +50,10 @@ SAS_PACKAGE = BACKEND / "app" / "sas_validation"
 
 def sound_preconditions(**overrides) -> AcceptancePreconditions:
     fields = {
+        # A sound REAL run. These tests ask whether the AI can influence a
+        # decision about good evidence; whether a FIXTURE can be accepted at
+        # all is a separate question, in test_first_live_run_readiness.py.
+        "evidence_origin": EvidenceOrigin.MANUAL_EXTERNAL_SAS,
         "package_integrity": PackageIntegrity.VERIFIED,
         "dataset_provenance": DatasetProvenance.MATCH,
         "case_stamp": DatasetProvenance.MATCH,
