@@ -128,13 +128,45 @@ def test_the_review_request_body_cannot_name_the_reviewer():
 
 
 def test_no_route_accepts_a_client_supplied_tenant():
-    """Choosing your own tenant is choosing whose data to read."""
+    """Choosing your own tenant is choosing whose data to read.
+
+    Every request model is checked rather than a named list, so a model added
+    later is covered without anyone remembering to add it here.
+    """
     import inspect
 
-    for name in ("UploadRequest", "ReviewRequest"):
-        model = getattr(routes, name)
-        assert "tenant_id" not in model.model_fields, name
+    from pydantic import BaseModel
+
+    models = [
+        value
+        for value in vars(routes).values()
+        if isinstance(value, type)
+        and issubclass(value, BaseModel)
+        and value is not BaseModel
+    ]
+    assert models, "no request models found - has this test gone stale?"
+
+    for model in models:
+        assert "tenant_id" not in model.model_fields, model.__name__
 
     source = inspect.getsource(routes)
     assert "tenant_id=resolve_tenant(" in source
     assert "tenant_id=request." not in source
+
+
+def test_the_package_endpoint_accepts_a_case_id_and_nothing_else():
+    """No dataset, no SAS, no expected answer, no package hash.
+
+    The server loads the approved data for a predefined case itself. A browser
+    that could submit observations could submit a modified version of the
+    regulatory dataset under a case id claiming to be EMA Data set II, and the
+    comparison against EMA's published interval would become meaningless.
+    """
+    fields = set(routes.GeneratePackageRequest.model_fields)
+    assert fields == {"validation_case_id"}
+
+    for forbidden in (
+        "observations", "dataset", "sas", "sas_code", "program",
+        "model", "expected_df", "denominator_df", "package_hash", "manifest",
+    ):
+        assert forbidden not in fields

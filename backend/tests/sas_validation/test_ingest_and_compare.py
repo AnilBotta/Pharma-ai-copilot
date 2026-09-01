@@ -1,4 +1,4 @@
-﻿"""Uploading, parsing and comparing - including all the ways it should refuse.
+"""Uploading, parsing and comparing - including all the ways it should refuse.
 
 The happy path is the least interesting part. What matters is that evidence for
 a different question is rejected rather than parsed, that a partial result is
