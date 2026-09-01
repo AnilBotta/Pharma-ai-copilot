@@ -22,10 +22,21 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Request,
+    UploadFile,
+    status,
+)
 from pydantic import BaseModel, Field
 
 from app.auth import AuthenticatedUser, current_user
+from app.sas_validation.canonical_data import CanonicalDatasetUnavailable
+from app.sas_validation.compare import ComparisonReport
 from app.sas_validation.modes import (
     ACKNOWLEDGEMENT_TEXT,
     CUSTOMER_CONTROL_NOTICE,
@@ -35,12 +46,10 @@ from app.sas_validation.modes import (
     SASIntegrationMode,
     mode_is_available,
 )
-from app.sas_validation.service import (
-    SASValidationDisabled,
-    SASValidationService,
-    TenantIsolationError,
-)
+from app.sas_validation.repository import PackageNotFound
+from app.sas_validation.storage import StorageError
 from app.sas_validation.targets import TARGETS
+from app.sas_validation.workflow import ManualValidationWorkflow, UploadRejected
 
 logger = logging.getLogger(__name__)
 
@@ -134,12 +143,44 @@ def require_reviewer(user: AuthenticatedUser) -> AuthenticatedUser:
     return user  # pragma: no cover - unreachable until the flag flips
 
 
-class UploadRequest(BaseModel):
-    package_id: str = Field(min_length=64, max_length=64)
-    result_content: str
-    declared_dataset_sha256: str = Field(min_length=64, max_length=64)
-    declared_program_sha256: str = Field(min_length=64, max_length=64)
-    sas_log: str | None = None
+def _serialise(report: ComparisonReport) -> dict[str, object]:
+    """The comparison as the interface renders it.
+
+    Every reference value carries its evidence status, so a reader can see
+    which numbers a regulator published and which came from software - without
+    that, `19.8906` and `102.26` look equally authoritative on a screen.
+    """
+    return {
+        "status": report.status.value,
+        "sas_version": report.sas_version,
+        "convergence_status": report.convergence_status,
+        # Three answers, never one. In particular the API must not imply that
+        # the executed program was verified: for a customer-run upload it
+        # cannot be. See integrity.py.
+        "integrity": report.integrity.as_dict(),
+        "quantities": [
+            {
+                "quantity": q.quantity,
+                "sas_value": q.sas_value,
+                "engine_value": q.engine_value,
+                "agreement": q.agreement.value,
+            }
+            for q in report.quantities
+        ],
+        "reference_context": [
+            {
+                "quantity": r.quantity,
+                "value": r.value,
+                "evidence_status": r.status.value,
+                "regulator_confirmed": r.is_regulator_confirmed,
+                "source": r.source,
+                "note": r.note,
+            }
+            for r in report.reference_context
+        ],
+        "reviewer_question": report.reviewer_question,
+        "notes": list(report.notes),
+    }
 
 
 class ReviewRequest(BaseModel):
@@ -224,128 +265,209 @@ def list_options() -> dict[str, object]:
     }
 
 
-def _service() -> SASValidationService:  # pragma: no cover - wired at startup
-    raise HTTPException(
-        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-        detail=(
-            "SAS validation storage is not wired up in this deployment. The "
-            "package generator, parser and comparison are available; "
-            "persistence arrives with the store implementation."
-        ),
-    )
+def get_workflow(request: Request) -> ManualValidationWorkflow:
+    """The workflow, assembled at startup and hung off app state.
+
+    The same shape as `documents/routes.py::get_document_repository`, so there
+    is one way this application resolves a per-request collaborator rather than
+    two.
+    """
+    workflow = getattr(request.app.state, "sas_validation_workflow", None)
+    if workflow is None:  # pragma: no cover - misconfiguration, not a path
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=(
+                "SAS validation is not configured in this deployment. The "
+                "package generator, parser and comparison are available; "
+                "storage and persistence are not."
+            ),
+        )
+    return workflow
 
 
-@router.get("")
-def get_integration(
+class GeneratePackageRequest(BaseModel):
+    """A case id, and deliberately nothing else.
+
+    No observations, no SAS code, no model text, no expected denominator df, no
+    package hash. The server loads the approved dataset for a predefined case
+    itself, so a browser cannot submit a modified version of the regulatory
+    data under a case id that claims to be about EMA Data set II.
+    """
+
+    validation_case_id: str = Field(min_length=1, max_length=128)
+
+
+@router.post("/packages", status_code=status.HTTP_201_CREATED)
+async def generate_package(
+    request: GeneratePackageRequest,
     user: AuthenticatedUser = Depends(current_user),
-    service: SASValidationService = Depends(_service),
+    workflow: ManualValidationWorkflow = Depends(get_workflow),
 ) -> dict[str, object]:
-    """Never returns a secret - `configured: true` and nothing more."""
-    integration = service.get_integration(tenant_id=resolve_tenant(user))
-    if integration is None:
-        return {"mode": SASIntegrationMode.NOT_CONFIGURED.value, "configured": False}
-    return integration.public_view()
+    """Generate an immutable package for a predefined case."""
+    try:
+        generated = await workflow.generate(
+            tenant_id=resolve_tenant(user),
+            actor=user.id,
+            case_id=request.validation_case_id,
+        )
+    except (KeyError, CanonicalDatasetUnavailable) as error:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(error)) from error
+    except StorageError as error:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(error)) from error
 
-
-@router.get("/runs")
-def list_runs(
-    user: AuthenticatedUser = Depends(current_user),
-    service: SASValidationService = Depends(_service),
-) -> dict[str, object]:
-    runs = service.list_runs(tenant_id=resolve_tenant(user))
+    manifest = generated.package.manifest
     return {
-        "runs": [
-            {
-                "run_id": run.run_id,
-                "package_id": run.package_id,
-                "case_id": run.case_id,
-                "status": run.status.value,
-                "review_status": run.review_status.value,
-                "sas_version": run.sas_version,
-                "uploaded_at": run.uploaded_at,
-            }
-            for run in runs
-        ]
+        "package_id": generated.package.package_id,
+        "case_id": generated.package.case_id,
+        "filename": generated.filename,
+        "archive_sha256": generated.archive_sha256,
+        "archive_bytes": generated.archive_bytes,
+        "dataset_sha256": manifest["dataset_sha256"],
+        "program_sha256": manifest["program_sha256"],
+        "n_observations": manifest["n_observations"],
+        "generated_at": generated.package.generated_at,
+        "be_stats_version": generated.package.be_stats_version,
+        "note": (
+            "Run this package in your organisation's SAS environment. The "
+            "application does not need your SAS username, password or licence "
+            "key."
+        ),
     }
 
 
-@router.post("/uploads", status_code=status.HTTP_201_CREATED)
-def upload_result(
-    request: UploadRequest,
+@router.get("/packages/{package_id}/download")
+async def download_package(
+    package_id: str,
     user: AuthenticatedUser = Depends(current_user),
-    service: SASValidationService = Depends(_service),
+    workflow: ManualValidationWorkflow = Depends(get_workflow),
 ) -> dict[str, object]:
+    """A short-lived signed link to the exact stored bytes.
+
+    Returns the URL rather than redirecting, so the client can show the archive
+    hash beside the link and a customer can check what they downloaded.
+    """
     try:
-        run = service.record_upload(
-            tenant_id=resolve_tenant(user),
-            actor_user_id=user.id,
-            package_id=request.package_id,
-            result_content=request.result_content,
-            declared_dataset_sha256=request.declared_dataset_sha256,
-            declared_program_sha256=request.declared_program_sha256,
-            sas_log=request.sas_log,
-            # The engine declines to compute the partial-replicate case: the
-            # capability is NOT_IMPLEMENTED and refuses rather than producing
-            # an unvalidated number. The SAS result is still recorded.
-            engine_result=None,
+        url, row = await workflow.download_url(
+            tenant_id=resolve_tenant(user), actor=user.id, package_id=package_id
         )
-    except TenantIsolationError as error:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, str(error)) from error
-    except SASValidationDisabled as error:
+    except PackageNotFound as error:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "no such package") from error
+    except FileNotFoundError as error:
         raise HTTPException(status.HTTP_409_CONFLICT, str(error)) from error
-    except KeyError as error:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, str(error)) from error
+    except StorageError as error:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(error)) from error
 
     return {
-        "run_id": run.run_id,
-        "status": run.status.value,
-        "note": (
-            "Recorded as external validation evidence. This does not change "
-            "any method's validation status."
+        "download_url": url,
+        "archive_sha256": row["archive_sha256"],
+        "archive_bytes": row["archive_bytes"],
+        "expires_in_seconds": 300,
+    }
+
+
+@router.post("/packages/{package_id}/result", status_code=status.HTTP_201_CREATED)
+async def upload_result(
+    package_id: str,
+    file: UploadFile = File(...),
+    run_id: str | None = Form(default=None),
+    user: AuthenticatedUser = Depends(current_user),
+    workflow: ManualValidationWorkflow = Depends(get_workflow),
+) -> dict[str, object]:
+    """Upload the structured result validate.sas wrote."""
+    payload = await file.read()
+    try:
+        outcome = await workflow.upload_result(
+            tenant_id=resolve_tenant(user),
+            actor=user.id,
+            package_id=package_id,
+            filename=file.filename or "be_result.csv",
+            content_type=file.content_type,
+            payload=payload,
+            run_id=run_id,
+        )
+    except UploadRejected as error:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY, str(error)
+        ) from error
+    except PackageNotFound as error:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "no such package") from error
+    except StorageError as error:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(error)) from error
+
+    return {
+        "run_id": outcome.run_id,
+        "status": outcome.status.value,
+        "detail": outcome.detail,
+        "artifact_sha256": outcome.artifact_sha256,
+        "duplicate": not outcome.artifact_created,
+        "comparison": (
+            _serialise(outcome.comparison) if outcome.comparison else None
         ),
+        "note": (
+            "Recorded as external validation evidence. Uploading a SAS result "
+            "does not automatically validate or approve a statistical method."
+        ),
+    }
+
+
+@router.post("/runs/{run_id}/log", status_code=status.HTTP_201_CREATED)
+async def upload_log(
+    run_id: str,
+    file: UploadFile = File(...),
+    user: AuthenticatedUser = Depends(current_user),
+    workflow: ManualValidationWorkflow = Depends(get_workflow),
+) -> dict[str, object]:
+    """Archive the SAS log. It is never parsed for regulatory numbers."""
+    payload = await file.read()
+    try:
+        outcome = await workflow.upload_log(
+            tenant_id=resolve_tenant(user),
+            actor=user.id,
+            run_id=run_id,
+            filename=file.filename or "sas.log",
+            content_type=file.content_type,
+            payload=payload,
+        )
+    except UploadRejected as error:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY, str(error)
+        ) from error
+    except PackageNotFound as error:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "no such run") from error
+    except StorageError as error:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(error)) from error
+
+    return {
+        "run_id": outcome.run_id,
+        "status": outcome.status.value,
+        "detail": outcome.detail,
+        "artifact_sha256": outcome.artifact_sha256,
+        "duplicate": not outcome.artifact_created,
     }
 
 
 @router.post("/runs/{run_id}/review")
-def review_run(
+async def review_run(
     run_id: str,
     request: ReviewRequest,
     user: AuthenticatedUser = Depends(current_user),
-    service: SASValidationService = Depends(_service),
+    workflow: ManualValidationWorkflow = Depends(get_workflow),
 ) -> dict[str, object]:
     """Record a decision. Acting on it is a separate, governed change.
 
-    Closed in this release - see `require_reviewer`. The domain service is
-    complete and tested; only the HTTP door is shut, because there is no way
-    yet to tell a reviewer from any other signed-in user.
-    """
-    reviewer = require_reviewer(user)
-    try:
-        run = service.record_review(
-            tenant_id=resolve_tenant(reviewer),
-            # From the authenticated context, never from the request body.
-            reviewer_user_id=reviewer.id,
-            run_id=run_id,
-            decision=request.decision,
-            notes=request.notes,
-        )
-    except TenantIsolationError as error:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, str(error)) from error
-    except ValueError as error:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(error)) from error
-    except KeyError as error:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, str(error)) from error
+    STILL CLOSED - see `require_reviewer`. PR #64 established that there is no
+    backend-safe global reviewer-role check, and PR #65 did not weaken that.
 
-    return {
-        "run_id": run.run_id,
-        "review_status": run.review_status.value,
-        "status": run.status.value,
-        "note": (
-            "The decision is recorded. Changing FDA_REPLICATE_STANDARD_ABE_"
-            "PARTIAL remains a separate statistical change that only a "
-            "governed implementation PR may make."
-        ),
-    }
+    The attempt is audited before it is refused, because "who tried to accept
+    an oracle closure" is a question worth being able to answer.
+    """
+    await workflow.record_blocked_review(
+        tenant_id=resolve_tenant(user), actor=user.id, run_id=run_id
+    )
+    require_reviewer(user)
+    raise AssertionError(  # pragma: no cover - require_reviewer always raises
+        "require_reviewer must refuse while authorization is unconfigured"
+    )
 
 
 __all__ = ["IMPLICIT_TENANT_ID", "resolve_tenant", "router"]

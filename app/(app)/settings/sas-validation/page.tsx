@@ -19,6 +19,8 @@ import { PageHeader } from "@/components/shared/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
+import { ManualValidation } from "./manual-validation";
+
 /**
  * SAS Validation.
  *
@@ -175,6 +177,8 @@ export default function SasValidationSettingsPage() {
           );
         })}
       </section>
+
+      <ManualValidation />
 
       <section className="space-y-3">
         <h2 className="text-sm font-medium">How manual validation works</h2>

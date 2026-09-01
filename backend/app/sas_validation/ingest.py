@@ -52,6 +52,14 @@ class ParsedSASResult:
     convergence_reason: str | None = None
     sas_version: str | None = None
     run_datetime: str | None = None
+
+    #: Stamped into the output by the generated program, so the result
+    #: identifies its own package. PROGRAM-EMITTED evidence - distinct from
+    #: anything a person types into a form, and the only kind used to decide
+    #: whether an upload belongs to the package it was uploaded against.
+    emitted_case_id: str | None = None
+    emitted_dataset_sha256: str | None = None
+
     problems: tuple[str, ...] = ()
 
     @property
@@ -128,6 +136,7 @@ def parse_result_csv(content: str) -> ParsedSASResult:
     covariance: dict[str, float] = {}
     convergence_status = convergence_reason = None
     sas_version = run_datetime = None
+    emitted_case_id = emitted_dataset_sha256 = None
     problems: list[str] = []
 
     for row in rows:
@@ -166,6 +175,10 @@ def parse_result_csv(content: str) -> ParsedSASResult:
                 sas_version = value or None
             elif name == "run_datetime":
                 run_datetime = value or None
+            elif name == "case_id":
+                emitted_case_id = value or None
+            elif name == "dataset_sha256":
+                emitted_dataset_sha256 = value or None
 
     if estimate is None and not covariance:
         raise ResultParseError(
@@ -184,6 +197,8 @@ def parse_result_csv(content: str) -> ParsedSASResult:
         convergence_reason=convergence_reason,
         sas_version=sas_version,
         run_datetime=run_datetime,
+        emitted_case_id=emitted_case_id,
+        emitted_dataset_sha256=emitted_dataset_sha256,
         problems=tuple(problems),
     )
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, status
@@ -19,6 +20,10 @@ from app.manager.routes import router as manager_router
 from app.pdp.repository import PdpRepository
 from app.pdp.routes import router as pdp_router
 from app.repository import Repository
+from app.sas_validation.repository import SASValidationRepository
+from app.sas_validation.routes import router as sas_validation_router
+from app.sas_validation.storage import SASValidationStorage
+from app.sas_validation.workflow import ManualValidationWorkflow
 from app.settings_module.repository import RecipientRepository
 from app.settings_module.routes import router as settings_router
 
@@ -37,6 +42,8 @@ def configure_logging(level: str) -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    from be_stats import __version__ as be_stats_version
+
     settings = get_settings()
     configure_logging(settings.log_level)
     logger.info("Starting Pharma R&D Copilot API")
@@ -49,6 +56,20 @@ async def lifespan(app: FastAPI):
         app.state.manager_repository = ManagerRepository(pool)
         app.state.document_repository = DocumentRepository(pool)
         app.state.recipient_repository = RecipientRepository(pool)
+
+        # SAS validation is an OPTIONAL service beside the engine, never in
+        # front of it. It is assembled here so the routes have a collaborator;
+        # no ordinary calculation path reads it, and a deployment where
+        # Supabase Storage is unavailable still serves every bioequivalence
+        # calculation.
+        app.state.sas_validation_workflow = ManualValidationWorkflow(
+            repository=SASValidationRepository(pool),
+            storage=SASValidationStorage(settings),
+            # Recorded in every package manifest, so "which engine version
+            # produced this" is answerable years later without archaeology.
+            be_stats_version=be_stats_version,
+            git_sha=os.environ.get("VERCEL_GIT_COMMIT_SHA", "unknown"),
+        )
     except Exception:
         # Start anyway so /health can report the problem rather than the whole
         # service being unreachable.
@@ -58,6 +79,9 @@ async def lifespan(app: FastAPI):
         app.state.manager_repository = None
         app.state.document_repository = None
         app.state.recipient_repository = None
+        # None rather than a half-built workflow: the SAS routes then answer
+        # 503 with an explanation instead of failing somewhere less legible.
+        app.state.sas_validation_workflow = None
 
     yield
 
@@ -93,6 +117,7 @@ def create_app() -> FastAPI:
     app.include_router(manager_router, prefix="/api")
     app.include_router(documents_router, prefix="/api")
     app.include_router(settings_router, prefix="/api")
+    app.include_router(sas_validation_router, prefix="/api")
 
     @app.exception_handler(Exception)
     async def unhandled_exception(request: Request, exc: Exception):

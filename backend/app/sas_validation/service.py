@@ -44,6 +44,11 @@ from typing import Protocol
 from app.sas_validation.compare import ComparisonReport, compare
 from app.sas_validation.config import SASIntegration
 from app.sas_validation.ingest import ingest_upload
+from app.sas_validation.integrity import (
+    DatasetProvenance,
+    PackageIntegrity,
+    manual_execution_integrity,
+)
 from app.sas_validation.modes import (
     OracleClosureDecision,
     SASCapability,
@@ -211,8 +216,16 @@ class SASValidationService:
                 package_id=package.package_id,
                 parsed=outcome.parsed,
                 engine_result=engine_result,
-                dataset_hash_matched=True,
-                program_hash_matched=True,
+                # The hashes reaching here were already checked by
+                # `ingest_upload`, so provenance is sound - but the PROGRAM
+                # that ran is a separate question, and for a customer-executed
+                # upload it is unverifiable. `manual_execution_integrity` fixes
+                # that answer so this call cannot claim otherwise.
+                integrity=manual_execution_integrity(
+                    package=PackageIntegrity.VERIFIED,
+                    dataset_provenance=DatasetProvenance.MATCH,
+                    case_stamp=DatasetProvenance.MATCH,
+                ),
             )
             status = report.status
 

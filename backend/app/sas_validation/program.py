@@ -353,7 +353,22 @@ def _model_step(statements: list[NormalizedStatement]) -> list[str]:
     return lines
 
 
-def _environment_step() -> list[str]:
+def _environment_step(case_id: str, dataset_sha256: str) -> list[str]:
+    """Make the OUTPUT self-identifying, not just the program.
+
+    The result file must be able to say which package produced it. Without
+    that, the only way to check an upload against a package is to trust hashes
+    the uploader types in - and a hash supplied by the party being checked is a
+    claim, not a check.
+
+    So the program stamps the dataset hash and the case id into its own output.
+    A result produced by a different package carries different values and is
+    caught, whatever the uploader says about it.
+
+    The PROGRAM's own hash cannot be embedded here - a file cannot contain its
+    own digest. The customer-side check for program integrity is the archive
+    hash, which covers validate.sas and is recorded at generation.
+    """
     return [
         "/* ---- record the environment, so evidence identifies itself ---- */",
         "",
@@ -362,6 +377,9 @@ def _environment_step() -> list[str]:
         "    name = 'sas_version';      value = \"&sysvlong.\";      output;",
         "    name = 'sas_scp';          value = \"&syscp.\";         output;",
         "    name = 'run_datetime';     value = put(datetime(), datetime20.); output;",
+        "    /* Written by the generator, so the result identifies its package. */",
+        f"    name = 'case_id';          value = \"{case_id}\";      output;",
+        f"    name = 'dataset_sha256';   value = \"{dataset_sha256}\"; output;",
         "run;",
         "",
     ]
@@ -451,7 +469,7 @@ def generate_program(
     ]
     lines += _read_step(dataset_filename)
     lines += _model_step(statements)
-    lines += _environment_step()
+    lines += _environment_step(case_id, dataset_sha256)
     lines += _export_step(result_filename)
 
     return GeneratedProgram(
