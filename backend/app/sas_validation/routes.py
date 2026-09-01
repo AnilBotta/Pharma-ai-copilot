@@ -21,6 +21,7 @@ are really several.
 from __future__ import annotations
 
 import logging
+from datetime import datetime
 
 from fastapi import (
     APIRouter,
@@ -36,6 +37,11 @@ from pydantic import BaseModel, Field
 
 from app.auth import AuthenticatedUser, current_user
 from app.sas_validation.ai_reviewer import ADVISORY_LABEL
+from app.sas_validation.attestation import (
+    ATTESTATION_LIMITATION,
+    AttestationRejected,
+    EvidenceOrigin,
+)
 from app.sas_validation.authorization import (
     GRANT_INSTRUCTIONS,
     REVIEWER_ROLE_KEYS,
@@ -51,6 +57,7 @@ from app.sas_validation.human_review import (
     OracleClosureDecision,
     PreconditionFailed,
 )
+from app.sas_validation.integrity import ProgramExecutionIntegrity
 from app.sas_validation.modes import (
     CUSTOMER_CONTROL_NOTICE,
     ENVIRONMENT_ACKNOWLEDGEMENT_TEXT,
@@ -62,7 +69,11 @@ from app.sas_validation.modes import (
 from app.sas_validation.repository import PackageNotFound
 from app.sas_validation.storage import StorageError
 from app.sas_validation.targets import TARGETS
-from app.sas_validation.workflow import ManualValidationWorkflow, UploadRejected
+from app.sas_validation.workflow import (
+    DeterministicEvidenceNotReady,
+    ManualValidationWorkflow,
+    UploadRejected,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -380,11 +391,38 @@ async def upload_result(
     package_id: str,
     file: UploadFile = File(...),
     run_id: str | None = Form(default=None),
+    evidence_origin: str = Form(default=EvidenceOrigin.TEST_FIXTURE.value),
     user: AuthenticatedUser = Depends(current_user),
     workflow: ManualValidationWorkflow = Depends(get_workflow),
 ) -> dict[str, object]:
-    """Upload the structured result validate.sas wrote."""
+    """Upload the structured result validate.sas wrote.
+
+    `evidence_origin` DEFAULTS TO TEST_FIXTURE, and that direction is the whole
+    point. A fixture CSV and a real SAS CSV are the same shape, so an omitted
+    field cannot be resolved from the file - and of the two possible mistakes,
+    "real evidence recorded as a fixture" is recoverable by re-declaring it,
+    while "a dry-run artefact recorded as regulatory evidence" is the failure
+    that puts fiction in a submission.
+    """
     payload = await file.read()
+    try:
+        origin = EvidenceOrigin(evidence_origin)
+    except ValueError as error:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            f"unknown evidence origin '{evidence_origin}'; expected one of "
+            + ", ".join(member.value for member in EvidenceOrigin),
+        ) from error
+
+    if origin is EvidenceOrigin.MANAGED_SAS:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "managed_sas is a reserved value with no implementation behind it. "
+            "Nothing in this deployment can produce managed SAS output, so an "
+            "upload claiming that origin would be describing something that "
+            "did not happen.",
+        )
+
     try:
         outcome = await workflow.upload_result(
             tenant_id=resolve_tenant(user),
@@ -393,6 +431,7 @@ async def upload_result(
             filename=file.filename or "be_result.csv",
             content_type=file.content_type,
             payload=payload,
+            evidence_origin=origin,
             run_id=run_id,
         )
     except UploadRejected as error:
@@ -413,9 +452,15 @@ async def upload_result(
         "comparison": (
             _serialise(outcome.comparison) if outcome.comparison else None
         ),
+        "evidence_origin": origin.value,
+        "is_regulatory_evidence": origin.is_regulatory_evidence,
         "note": (
             "Recorded as external validation evidence. Uploading a SAS result "
             "does not automatically validate or approve a statistical method."
+            if origin.is_regulatory_evidence
+            else "OPERATIONAL DRY RUN - NOT SAS VALIDATION EVIDENCE. This run "
+            "is recorded as a test fixture and must never be cited as "
+            "regulatory evidence, whatever the numbers in it say."
         ),
     }
 
@@ -456,6 +501,82 @@ async def upload_log(
     }
 
 
+class AttestationRequest(BaseModel):
+    """What the operator declares. Note what is absent: the archive hash.
+
+    The hash comes from the stored package, not from the request. An operator
+    who could supply it could attest to a package other than the one we
+    generated, and the attestation would then name bytes nobody sent them.
+    """
+
+    operator_name: str = Field(min_length=1, max_length=200)
+    operator_organization: str = Field(min_length=1, max_length=200)
+
+    #: Must be an explicit true. An unaffirmed attestation is a skipped form,
+    #: not a weaker claim, and storing one would put an unmade statement into
+    #: the evidence record.
+    confirmed: bool = False
+
+    operator_email: str | None = Field(default=None, max_length=320)
+    sas_version: str | None = Field(default=None, max_length=120)
+    operating_environment: str | None = Field(default=None, max_length=200)
+    executed_at: datetime | None = None
+
+
+@router.post("/runs/{run_id}/attestation", status_code=status.HTTP_201_CREATED)
+async def record_attestation(
+    run_id: str,
+    request: AttestationRequest,
+    user: AuthenticatedUser = Depends(current_user),
+    workflow: ManualValidationWorkflow = Depends(get_workflow),
+) -> dict[str, object]:
+    """Record the operator's declaration about one execution.
+
+    NOT A REVIEW, AND NOT A VERIFICATION.
+
+    Any authenticated user may submit this, because the person entering a
+    client's execution details is doing clerical work, not deciding anything.
+    The governed act is the human review, which is gated separately.
+
+    And it upgrades no integrity state. The response says so explicitly rather
+    than leaving the caller to infer it from an absence.
+    """
+    try:
+        attestation = await workflow.record_attestation(
+            tenant_id=resolve_tenant(user),
+            actor=user.id,
+            run_id=run_id,
+            operator_name=request.operator_name,
+            operator_organization=request.operator_organization,
+            confirmed=request.confirmed,
+            operator_email=request.operator_email,
+            sas_version=request.sas_version,
+            operating_environment=request.operating_environment,
+            executed_at=request.executed_at,
+        )
+    except AttestationRejected as error:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY, str(error)
+        ) from error
+    except PackageNotFound as error:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "no such run") from error
+
+    return {
+        "attestation_version": attestation.attestation_version,
+        "attestation_text": attestation.attestation_text,
+        "attestation_hash": attestation.attestation_hash,
+        "operator_name": attestation.operator_name,
+        "operator_organization": attestation.operator_organization,
+        "sas_version": attestation.sas_version,
+        # Returned on every attestation, so no client can render this as a
+        # green tick. It is the same string the stored row carries.
+        "limitation": ATTESTATION_LIMITATION,
+        "program_execution_integrity": (
+            ProgramExecutionIntegrity.UNVERIFIED_MANUAL_EXECUTION.value
+        ),
+    }
+
+
 @router.get("/runs/{run_id}/review")
 async def review_context(
     run_id: str,
@@ -490,6 +611,11 @@ async def review_context(
     return {
         "run_id": context["run_id"],
         "status": context["status"],
+        # The reviewer's document: package, execution, integrity, statistics,
+        # reference context, AI analysis, human reviews - each labelled.
+        "evidence_report": context["evidence_report"],
+        "evidence_origin": context["evidence_origin"],
+        "is_regulatory_evidence": context["is_regulatory_evidence"],
         # SECTION A. Authoritative.
         "deterministic": context["deterministic"],
         # SECTION B. Advisory, and projected rather than passed through: the
@@ -610,6 +736,14 @@ async def generate_ai_review(
         )
     except PackageNotFound as error:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "no such run") from error
+    except DeterministicEvidenceNotReady as error:
+        # 409, not 422: the request is well-formed and the run exists. What is
+        # wrong is the ORDER - the deterministic facts the assistant reads have
+        # not been assembled yet.
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            {"code": "DETERMINISTIC_EVIDENCE_NOT_READY", "message": str(error)},
+        ) from error
 
     return {
         "ai_review_id": outcome["ai_review_id"],

@@ -177,9 +177,13 @@ async def main() -> int:
     await tx.start()
     try:
         # ------------------------------------------------------- migrations ---
-        for name in ("0032_sas_validation.sql", "0034_sas_validation_review.sql"):
+        for name in (
+            "0032_sas_validation.sql",
+            "0034_sas_validation_review.sql",
+            "0035_sas_operator_attestation.sql",
+        ):
             await conn.execute((MIGRATIONS / name).read_text(encoding="utf-8"))
-        print("    migrations 0032 and 0034 applied inside the transaction")
+        print("    migrations 0032, 0034 and 0035 applied inside the transaction")
 
         # ------------------------------------------------------------ setup ---
         await conn.execute(
@@ -382,6 +386,62 @@ async def main() -> int:
                 )
             )
             check(f"rejection persists with {label}", bool(written))
+
+        # --- G. the attestation and evidence origin (migration 0035) --------
+        print("\n  G. operator attestation and evidence origin")
+        origin = await conn.fetchval(
+            "select evidence_origin from public.sas_validation_runs where id = $1",
+            run_id,
+        )
+        check(
+            "a run defaults to test_fixture, the safe answer",
+            origin == "test_fixture",
+            str(origin),
+        )
+
+        attestation_id = await conn.fetchval(
+            """
+            insert into public.sas_operator_attestations
+                (tenant_id, run_id, package_id, archive_sha256, operator_name,
+                 operator_organization, sas_version, attestation_version,
+                 attestation_text, attestation_hash, submitted_by)
+            values ($1,$2::uuid,$3,$4,'A. Operator','Client Pharma Ltd',
+                    '9.04.01M8','sas-operator-attestation/1',
+                    'I confirm that I executed ...',$5,$6)
+            returning id
+            """,
+            TENANT, str(run_id), PACKAGE_ID, "d" * 64, "e" * 64, REVIEWER_ID,
+        )
+        check("an attestation persists", bool(attestation_id))
+
+        ok, detail = await refused(
+            conn,
+            conn.execute(
+                "update public.sas_operator_attestations "
+                "   set operator_name = 'Somebody Else' where id = $1::uuid",
+                attestation_id,
+            ),
+        )
+        check("and it cannot be edited afterwards", ok, detail)
+
+        ok, detail = await refused(
+            conn,
+            conn.execute(
+                """
+                insert into public.sas_operator_attestations
+                    (tenant_id, run_id, package_id, archive_sha256,
+                     operator_name, operator_organization,
+                     attestation_version, attestation_text, attestation_hash)
+                values ($1,$2::uuid,$3,$4,'   ','   ','v','t',$5)
+                """,
+                TENANT, str(run_id), PACKAGE_ID, "d" * 64, "e" * 64,
+            ),
+        )
+        check(
+            "an attestation with no named operator is refused",
+            ok and detail == "sas_operator_attestations_operator_named",
+            detail,
+        )
 
         # ------------------------------------------------ nothing promoted ---
         print("\n  and the run's own status was not promoted by any of it")

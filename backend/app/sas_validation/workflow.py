@@ -37,9 +37,15 @@ from typing import Any
 
 from app.sas_validation.ai_reviewer import AIRecommendation, SASValidationAIReviewer
 from app.sas_validation.archive import archive_filename, build_archive
+from app.sas_validation.attestation import (
+    EvidenceOrigin,
+    OperatorAttestation,
+    build_attestation,
+)
 from app.sas_validation.authorization import REVIEWER_ROLE_KEYS, ReviewerIdentity
 from app.sas_validation.canonical_data import load_canonical_observations
 from app.sas_validation.compare import ComparisonReport, compare
+from app.sas_validation.evidence_report import build_evidence_report
 from app.sas_validation.human_review import (
     AcceptancePreconditions,
     OracleClosureDecision,
@@ -101,6 +107,42 @@ class UploadRejected(ValueError):
 _COMPARABLE = frozenset(
     {SASValidationRunStatus.PARSED, SASValidationRunStatus.REVIEW_REQUIRED}
 )
+
+
+class DeterministicEvidenceNotReady(RuntimeError):
+    """The assistant was asked to analyse a run whose facts do not exist yet."""
+
+
+def require_deterministic_evidence(run: Mapping[str, Any]) -> None:
+    """The deterministic layer owns the facts, and it goes first.
+
+    ORDER, NOT POLITENESS
+
+    Parsing, hashing, numerical extraction, provenance and comparison are
+    deterministic code's job, and the assistant's input is their OUTPUT. A run
+    that failed its hash check, or that SAS left incomplete, has no assembled
+    facts - only raw files and an explanation.
+
+    Handing that to a model produces a confident paragraph about nothing, and
+    a reviewer skimming Section B would read it as analysis. So this refuses,
+    and the refusal names the state rather than failing vaguely.
+    """
+    comparison = run.get("comparison") or {}
+    status = str(run.get("status") or "unknown")
+
+    if not comparison:
+        raise DeterministicEvidenceNotReady(
+            f"This run is {status.replace('_', ' ')} and has no comparison "
+            "report. The deterministic checks - parsing, provenance and "
+            "comparison - produce the facts the assistant reads, so there is "
+            "nothing for it to analyse yet."
+        )
+
+    if not comparison.get("integrity"):
+        raise DeterministicEvidenceNotReady(
+            "This run has a comparison but no recorded integrity statuses. "
+            "The assistant must not be asked to infer provenance."
+        )
 
 
 def build_preconditions(
@@ -530,9 +572,16 @@ class ManualValidationWorkflow:
         filename: str,
         content_type: str | None,
         payload: bytes,
+        evidence_origin: EvidenceOrigin,
         run_id: str | None = None,
     ) -> UploadOutcome:
-        """Store, hash, verify, parse, compare - strictly in that order."""
+        """Store, hash, verify, parse, compare - strictly in that order.
+
+        `evidence_origin` HAS NO DEFAULT, deliberately. A fixture CSV and a
+        real SAS CSV are the same shape, so nothing here could derive the
+        honest answer from the bytes; the caller has to say. A default would
+        make the safe answer implicit and the wrong one silent.
+        """
         check_upload(
             filename=filename,
             content_type=content_type,
@@ -573,6 +622,7 @@ class ManualValidationWorkflow:
             "case_id": str(package_row["case_id"]),
             "sas_mode": SASIntegrationMode.MANUAL_UPLOAD.value,
             "status": outcome.status.value,
+            "evidence_origin": EvidenceOrigin(evidence_origin).value,
             "declared_dataset_sha256": str(package_row["dataset_sha256"]),
             "declared_program_sha256": str(package_row["program_sha256"]),
         }
@@ -713,16 +763,79 @@ class ManualValidationWorkflow:
             artifact_created=created,
         )
 
+    async def record_attestation(
+        self,
+        *,
+        tenant_id: str,
+        actor: str,
+        run_id: str,
+        operator_name: str,
+        operator_organization: str,
+        confirmed: bool,
+        operator_email: str | None = None,
+        sas_version: str | None = None,
+        operating_environment: str | None = None,
+        executed_at: Any = None,
+    ) -> OperatorAttestation:
+        """Store what the operator declares about one execution.
+
+        `actor` is the SUBMITTER - whoever is signed in here - and is recorded
+        separately from the declared operator. An account manager entering a
+        client's details is the ordinary case, and merging the two would
+        attribute the claim to the wrong person.
+
+        This adds provenance and changes no integrity state. The run's
+        `program_execution_integrity` was, is and remains
+        UNVERIFIED_MANUAL_EXECUTION.
+        """
+        run = await self._repository.get_run(tenant_id=tenant_id, run_id=run_id)
+        package = await self._repository.get_package(
+            tenant_id=tenant_id, package_id=str(run["package_id"])
+        )
+
+        attestation = build_attestation(
+            package_id=str(package["id"]),
+            # From the STORED package, never from the request. An operator who
+            # could supply the archive hash could attest to a package other
+            # than the one we generated.
+            archive_sha256=str(package["archive_sha256"]),
+            operator_name=operator_name,
+            operator_organization=operator_organization,
+            confirmed=confirmed,
+            operator_email=operator_email,
+            sas_version=sas_version,
+            operating_environment=operating_environment,
+            executed_at=executed_at,
+            submitted_by=actor,
+        )
+        await self._repository.insert_attestation(
+            tenant_id=tenant_id,
+            run_id=run_id,
+            attestation=attestation,
+            actor=actor,
+        )
+        return attestation
+
     async def generate_ai_review(
         self, *, tenant_id: str, actor: str, run_id: str
     ) -> dict[str, Any]:
         """Run the assistant over this run's evidence and store the analysis.
+
+        THE ASSISTANT RUNS LAST, AND ONLY ON ASSEMBLED FACTS.
+
+        `require_deterministic_evidence` below refuses to proceed until the
+        result has been parsed, provenance evaluated and the comparison built.
+        Without that guard the model would be handed a dict of nulls for a
+        run that failed its hash check, and would interpret the absence of
+        evidence as evidence - the one failure mode a language model reliably
+        has here.
 
         Appends a new version rather than replacing any earlier one: model
         output is non-deterministic, so a re-run is a genuinely different
         artefact and overwriting would destroy what a reviewer already read.
         """
         run = await self._repository.get_run(tenant_id=tenant_id, run_id=run_id)
+        require_deterministic_evidence(run)
         package = await self._repository.get_package(
             tenant_id=tenant_id, package_id=str(run["package_id"])
         )
@@ -765,10 +878,16 @@ class ManualValidationWorkflow:
         can still fix it instead of discovering it on submit.
         """
         run = await self._repository.get_run(tenant_id=tenant_id, run_id=run_id)
+        package = await self._repository.get_package(
+            tenant_id=tenant_id, package_id=str(run["package_id"])
+        )
         ai_review = await self._repository.latest_ai_review(
             tenant_id=tenant_id, run_id=run_id
         )
         reviews = await self._repository.list_human_reviews(
+            tenant_id=tenant_id, run_id=run_id
+        )
+        attestations = await self._repository.list_attestations(
             tenant_id=tenant_id, run_id=run_id
         )
 
@@ -778,9 +897,22 @@ class ManualValidationWorkflow:
         # would read as a fault in the evidence.
         preconditions = build_preconditions(run=run, acknowledged=True)
 
+        report = build_evidence_report(
+            run={**run, "id": run_id},
+            package=package,
+            attestations=attestations,
+            human_reviews=reviews,
+        )
+
         return {
             "run_id": run_id,
             "status": run.get("status"),
+            # The seven labelled sections, assembled once. The screen renders
+            # from this rather than deciding for itself which numbers are
+            # authoritative.
+            "evidence_report": report.as_dict(),
+            "evidence_origin": report.evidence_origin.value,
+            "is_regulatory_evidence": report.is_regulatory_evidence,
             "deterministic": {
                 "comparison": run.get("comparison"),
                 "sas_version": run.get("sas_version"),

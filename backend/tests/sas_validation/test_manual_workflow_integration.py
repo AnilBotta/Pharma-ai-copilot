@@ -26,6 +26,7 @@ from io import BytesIO
 
 import pytest
 
+from app.sas_validation.attestation import EvidenceOrigin
 from app.sas_validation.modes import SASValidationRunStatus
 from app.sas_validation.repository import (
     ACTION_COMPARISON_CREATED,
@@ -215,6 +216,7 @@ async def test_the_whole_manual_workflow_from_generation_to_review_required():
         tenant_id=TENANT, actor=ACTOR,
         package_id=generated.package.package_id,
         filename="be_result.csv", content_type="text/csv", payload=result_for(generated),
+        evidence_origin=EvidenceOrigin.TEST_FIXTURE,
     )
 
     # The engine declines to compute this case, so nothing is comparable and a
@@ -280,6 +282,7 @@ async def test_a_result_for_a_different_package_is_hash_mismatch_and_kept():
         tenant_id=TENANT, actor=ACTOR,
         package_id=generated.package.package_id,
         filename="be_result.csv", content_type="text/csv", payload=result_for(generated),
+        evidence_origin=EvidenceOrigin.TEST_FIXTURE,
     )
 
     assert outcome.status is SASValidationRunStatus.HASH_MISMATCH
@@ -303,6 +306,7 @@ async def test_another_tenants_package_cannot_be_read_or_uploaded_against():
             tenant_id=OTHER_TENANT, actor=ACTOR,
             package_id=generated.package.package_id,
             filename="be_result.csv", content_type="text/csv", payload=result_for(generated),
+        evidence_origin=EvidenceOrigin.TEST_FIXTURE,
         )
 
 
@@ -324,11 +328,13 @@ async def test_a_duplicate_upload_is_idempotent():
     first = await workflow.upload_result(
         tenant_id=TENANT, actor=ACTOR, package_id=generated.package.package_id,
         filename="be_result.csv", content_type="text/csv", payload=result_for(generated),
+        evidence_origin=EvidenceOrigin.TEST_FIXTURE,
         run_id="run-fixed",
     )
     second = await workflow.upload_result(
         tenant_id=TENANT, actor=ACTOR, package_id=generated.package.package_id,
         filename="be_result.csv", content_type="text/csv", payload=result_for(generated),
+        evidence_origin=EvidenceOrigin.TEST_FIXTURE,
         run_id="run-fixed",
     )
 
@@ -347,6 +353,7 @@ async def test_different_bytes_for_the_same_run_are_a_second_artifact():
     await workflow.upload_result(
         tenant_id=TENANT, actor=ACTOR, package_id=generated.package.package_id,
         filename="be_result.csv", content_type="text/csv", payload=result_for(generated),
+        evidence_origin=EvidenceOrigin.TEST_FIXTURE,
         run_id="run-fixed",
     )
     await workflow.upload_result(
@@ -356,6 +363,7 @@ async def test_different_bytes_for_the_same_run_are_a_second_artifact():
             dataset_sha256=str(generated.package.manifest['dataset_sha256']),
             df='22.5403',
         ),
+        evidence_origin=EvidenceOrigin.TEST_FIXTURE,
         run_id="run-fixed",
     )
     assert len(repository.artifacts) == 2
@@ -370,6 +378,7 @@ async def test_a_malformed_result_is_incomplete_and_not_compared():
         tenant_id=TENANT, actor=ACTOR, package_id=generated.package.package_id,
         filename="be_result.csv", content_type="text/csv",
         payload=b"NOTE: PROCEDURE MIXED used (Total process time):\n",
+        evidence_origin=EvidenceOrigin.TEST_FIXTURE,
     )
     assert outcome.status is SASValidationRunStatus.INCOMPLETE
     assert outcome.comparison is None
@@ -387,6 +396,7 @@ async def test_a_result_missing_fields_is_incomplete():
             dataset_sha256=str(generated.package.manifest['dataset_sha256']),
             df='.',
         ),
+        evidence_origin=EvidenceOrigin.TEST_FIXTURE,
     )
     assert outcome.status is SASValidationRunStatus.INCOMPLETE
 
@@ -430,6 +440,7 @@ async def test_a_log_contradicting_convergence_raises_review_required():
     result = await workflow.upload_result(
         tenant_id=TENANT, actor=ACTOR, package_id=generated.package.package_id,
         filename="be_result.csv", content_type="text/csv", payload=result_for(generated),
+        evidence_origin=EvidenceOrigin.TEST_FIXTURE,
         run_id="run-fixed",
     )
 
@@ -478,5 +489,6 @@ async def test_unacceptable_uploads_are_refused_before_storage(
             tenant_id=TENANT, actor=ACTOR,
             package_id=generated.package.package_id,
             filename=filename, content_type=content_type, payload=payload,
+            evidence_origin=EvidenceOrigin.TEST_FIXTURE,
         )
     assert len(storage.objects) == before, "a refused upload became an object"

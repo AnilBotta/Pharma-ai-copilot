@@ -27,7 +27,9 @@ import {
   AlertTriangle,
   Bot,
   CheckCircle2,
+  ClipboardCheck,
   Loader2,
+  ShieldAlert,
   ShieldCheck,
   Sparkles,
   UserCheck,
@@ -71,9 +73,40 @@ type HumanReview = {
   ai_recommendation_at_time: string | null;
 };
 
+type Attestation = {
+  operator_name: string;
+  operator_organization: string;
+  sas_version: string | null;
+  operating_environment: string | null;
+  executed_at: string | null;
+  attested_at: string | null;
+  attestation_version: string;
+  attestation_hash: string;
+};
+
+type EvidenceReport = {
+  evidence_origin: string;
+  is_regulatory_evidence: boolean;
+  banner: string | null;
+  package: Record<string, string | number | null>;
+  execution: {
+    sas_version: string | null;
+    execution_timestamp: string | null;
+    operator_attestations: Attestation[];
+    attestation_limitation: string;
+  };
+  decision_semantics: {
+    accepted_means: string;
+    accepted_does_not_mean: string[];
+  };
+};
+
 type ReviewContext = {
   run_id: string;
   status: string;
+  evidence_report: EvidenceReport;
+  evidence_origin: string;
+  is_regulatory_evidence: boolean;
   deterministic: {
     comparison: {
       integrity?: Record<string, string | boolean | null>;
@@ -198,8 +231,71 @@ export function StatisticalReview({ runId }: { runId: string }) {
   const ai = context.ai_review;
   const canAccept = context.preconditions.acceptable && acknowledged;
 
+  const report = context.evidence_report;
+  const attestations = report?.execution.operator_attestations ?? [];
+
   return (
     <div className="space-y-4">
+      {/* Before every section, because everything under it looks like a real
+          result — which is exactly what a fixture is for. */}
+      {report?.banner && (
+        <p className="flex items-start gap-2 rounded-lg border border-dashed p-3 text-xs font-medium">
+          <ShieldAlert className="mt-0.5 size-4 shrink-0" />
+          {report.banner}
+        </p>
+      )}
+
+      {/* ------------------------------------------ operator attestation --- */}
+      <Card>
+        <CardHeader className="flex flex-row items-center gap-2 space-y-0 pb-3">
+          <ClipboardCheck className="size-4 shrink-0" />
+          <CardTitle className="text-sm">Who ran the SAS</CardTitle>
+          <Badge variant="outline">Declared, not verified</Badge>
+        </CardHeader>
+        <CardContent className="space-y-3 text-sm">
+          {attestations.length === 0 ? (
+            <p className="text-xs text-muted-foreground">
+              No operator attestation has been recorded for this run. It is
+              optional, and its absence does not block a review — but for a
+              real SAS run it is the only record of who executed the package.
+            </p>
+          ) : (
+            attestations.map((attestation) => (
+              <dl
+                key={attestation.attestation_hash}
+                className="grid gap-x-4 gap-y-1 text-xs sm:grid-cols-[12rem_1fr]"
+              >
+                <dt className="text-muted-foreground">Operator</dt>
+                <dd>{attestation.operator_name}</dd>
+                <dt className="text-muted-foreground">Organization</dt>
+                <dd>{attestation.operator_organization}</dd>
+                <dt className="text-muted-foreground">SAS version</dt>
+                <dd className="font-mono">
+                  {attestation.sas_version ?? "not reported"}
+                </dd>
+                <dt className="text-muted-foreground">Environment</dt>
+                <dd>{attestation.operating_environment ?? "not reported"}</dd>
+                <dt className="text-muted-foreground">Executed</dt>
+                <dd>{attestation.executed_at ?? "not reported"}</dd>
+                <dt className="text-muted-foreground">Attested</dt>
+                <dd>{attestation.attested_at ?? "—"}</dd>
+                <dt className="text-muted-foreground">Attestation hash</dt>
+                <dd className="font-mono break-all">
+                  {attestation.attestation_hash}
+                </dd>
+              </dl>
+            ))
+          )}
+
+          {/* Shown whether or not anyone attested. Its absence is what a
+              reader would otherwise take for verification. */}
+          <p className="flex items-start gap-2 rounded-lg bg-muted p-3 text-xs">
+            <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+            {report?.execution.attestation_limitation}
+          </p>
+        </CardContent>
+      </Card>
+
       {/* ---------------------------------------- A. deterministic checks --- */}
       <Card>
         <CardHeader className="flex flex-row items-center gap-2 space-y-0 pb-3">
@@ -402,6 +498,22 @@ export function StatisticalReview({ runId }: { runId: string }) {
               <p className="text-xs text-muted-foreground">
                 {context.acceptance_meaning}
               </p>
+
+              {/* Spelled out beside the button, not only in documentation. A
+                  green "accepted" is read as a statement about the method
+                  unless something on the same screen says otherwise. */}
+              {report?.decision_semantics && (
+                <div className="space-y-1 rounded-lg bg-muted p-3 text-xs">
+                  <p className="font-medium">Accepting does NOT mean:</p>
+                  <ul className="ml-4 list-disc space-y-0.5 text-muted-foreground">
+                    {report.decision_semantics.accepted_does_not_mean.map(
+                      (item) => (
+                        <li key={item}>{item}</li>
+                      ),
+                    )}
+                  </ul>
+                </div>
+              )}
 
               <label className="flex flex-col gap-1.5">
                 <span className="text-xs font-medium">
