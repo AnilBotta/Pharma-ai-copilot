@@ -18,6 +18,11 @@ from app.sas_validation.ingest import (
     ingest_upload,
     parse_result_csv,
 )
+from app.sas_validation.integrity import (
+    DatasetProvenance,
+    PackageIntegrity,
+    manual_execution_integrity,
+)
 from app.sas_validation.modes import SASValidationRunStatus
 from app.sas_validation.targets import get_target
 
@@ -169,8 +174,7 @@ def test_a_disagreement_on_df_alone_is_reported_as_a_mismatch():
             "standard_error": 0.0303172,
             "denominator_df": 22.5403,
         },
-        dataset_hash_matched=True,
-        program_hash_matched=True,
+        integrity=SOUND_MANUAL_INTEGRITY,
     )
     assert report.status is SASValidationRunStatus.MISMATCH
     assert report.quantity("estimate_log").agreement is QuantityAgreement.AGREES
@@ -190,8 +194,7 @@ def test_the_engine_declining_to_compute_still_produces_a_usable_report():
         package_id="p" * 64,
         parsed=parse_result_csv(GOOD_RESULT),
         engine_result=None,
-        dataset_hash_matched=True,
-        program_hash_matched=True,
+        integrity=SOUND_MANUAL_INTEGRITY,
     )
     assert report.status is SASValidationRunStatus.REVIEW_REQUIRED
     assert all(
@@ -206,8 +209,7 @@ def test_the_report_shows_every_reference_with_its_evidence_status():
         package_id="p" * 64,
         parsed=parse_result_csv(GOOD_RESULT),
         engine_result=None,
-        dataset_hash_matched=True,
-        program_hash_matched=True,
+        integrity=SOUND_MANUAL_INTEGRITY,
     )
     rendered = render_report(report)
     assert "regulator_published" in rendered
@@ -224,3 +226,12 @@ def test_every_tolerance_states_why_it_is_what_it_is():
     for quantity, (value, basis) in TOLERANCES.items():
         assert value > 0, quantity
         assert len(basis) > 80, f"{quantity} tolerance has no real justification"
+
+#: A manual upload whose provenance stamps matched. Program execution
+#: integrity is UNVERIFIED_MANUAL_EXECUTION and cannot be anything else -
+#: `manual_execution_integrity` does not take it as a parameter.
+SOUND_MANUAL_INTEGRITY = manual_execution_integrity(
+    package=PackageIntegrity.VERIFIED,
+    dataset_provenance=DatasetProvenance.MATCH,
+    case_stamp=DatasetProvenance.MATCH,
+)

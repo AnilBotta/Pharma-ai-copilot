@@ -40,8 +40,15 @@ from app.sas_validation.canonical_data import load_canonical_observations
 from app.sas_validation.compare import ComparisonReport, compare
 from app.sas_validation.ingest import (
     IngestOutcome,
+    ParsedSASResult,
     ResultParseError,
     parse_result_csv,
+)
+from app.sas_validation.integrity import (
+    DatasetProvenance,
+    EvidenceIntegrity,
+    PackageIntegrity,
+    manual_execution_integrity,
 )
 from app.sas_validation.logscan import contradicts_convergence, scan_log
 from app.sas_validation.modes import SASIntegrationMode, SASValidationRunStatus
@@ -85,6 +92,49 @@ class UploadRejected(ValueError):
 _COMPARABLE = frozenset(
     {SASValidationRunStatus.PARSED, SASValidationRunStatus.REVIEW_REQUIRED}
 )
+
+
+def _manual_integrity(
+    parsed: ParsedSASResult, package_row: Mapping[str, Any]
+) -> EvidenceIntegrity:
+    """What we actually checked, for a customer-run upload.
+
+    PACKAGE INTEGRITY is ours: we hashed the archive when we built it and
+    stored both. It is VERIFIED whenever the row has an archive hash, and that
+    conclusion depends on nothing the customer did.
+
+    DATASET PROVENANCE and the CASE STAMP come from values the generated
+    program wrote into its own output. Self-reported, checked against the
+    package we own - which catches the realistic failure of a result uploaded
+    against the wrong package, and is not attestation.
+
+    PROGRAM EXECUTION INTEGRITY is not a parameter. `manual_execution_integrity`
+    fixes it at UNVERIFIED_MANUAL_EXECUTION so this function cannot claim
+    otherwise even by mistake.
+    """
+    package = (
+        PackageIntegrity.VERIFIED
+        if package_row.get("archive_sha256")
+        else PackageIntegrity.ABSENT
+    )
+
+    if not parsed.emitted_dataset_sha256:
+        dataset = DatasetProvenance.MISSING
+    elif parsed.emitted_dataset_sha256 == str(package_row["dataset_sha256"]):
+        dataset = DatasetProvenance.MATCH
+    else:
+        dataset = DatasetProvenance.MISMATCH
+
+    if not parsed.emitted_case_id:
+        case_stamp = DatasetProvenance.MISSING
+    elif parsed.emitted_case_id == str(package_row["case_id"]):
+        case_stamp = DatasetProvenance.MATCH
+    else:
+        case_stamp = DatasetProvenance.MISMATCH
+
+    return manual_execution_integrity(
+        package=package, dataset_provenance=dataset, case_stamp=case_stamp
+    )
 
 
 def _verify_and_parse(text: str, package_row: Mapping[str, Any]) -> IngestOutcome:
@@ -445,8 +495,10 @@ class ManualValidationWorkflow:
                 # that capability is NOT_IMPLEMENTED and refuses rather than
                 # producing an unvalidated number.
                 engine_result=None,
-                dataset_hash_matched=True,
-                program_hash_matched=True,
+                # Computed from what we actually checked. The earlier version
+                # passed `program_hash_matched=True` here, which asserted
+                # something the manual workflow cannot establish.
+                integrity=_manual_integrity(parsed, package_row),
             )
             run["status"] = report.status.value
             run["comparison"] = _serialise_report(report)
@@ -618,8 +670,10 @@ def _serialise_report(report: ComparisonReport) -> dict[str, Any]:
         "status": report.status.value,
         "sas_version": report.sas_version,
         "convergence_status": report.convergence_status,
-        "dataset_hash_matched": report.dataset_hash_matched,
-        "program_hash_matched": report.program_hash_matched,
+        # The three integrity answers, stored separately so a reviewer reading
+        # a persisted run months later sees the same qualification the report
+        # showed at the time.
+        "integrity": report.integrity.as_dict(),
         "quantities": [
             {
                 "quantity": q.quantity,

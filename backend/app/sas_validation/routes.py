@@ -154,6 +154,10 @@ def _serialise(report: ComparisonReport) -> dict[str, object]:
         "status": report.status.value,
         "sas_version": report.sas_version,
         "convergence_status": report.convergence_status,
+        # Three answers, never one. In particular the API must not imply that
+        # the executed program was verified: for a customer-run upload it
+        # cannot be. See integrity.py.
+        "integrity": report.integrity.as_dict(),
         "quantities": [
             {
                 "quantity": q.quantity,

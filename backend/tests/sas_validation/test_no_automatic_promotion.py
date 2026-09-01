@@ -20,6 +20,12 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
+from app.sas_validation.integrity import (
+    DatasetProvenance,
+    PackageIntegrity,
+    manual_execution_integrity,
+)
+
 BACKEND = Path(__file__).resolve().parents[2]
 SAS_PACKAGE = BACKEND / "app" / "sas_validation"
 
@@ -125,8 +131,7 @@ def test_a_matching_comparison_is_still_not_a_conclusion():
             "standard_error": 0.0303172,
             "denominator_df": 19.8906,
         },
-        dataset_hash_matched=True,
-        program_hash_matched=True,
+        integrity=SOUND_MANUAL_INTEGRITY,
     )
 
     assert report.status is SASValidationRunStatus.MATCH
@@ -202,3 +207,12 @@ def test_the_comparison_module_has_no_write_path_at_all():
     }
     for forbidden in ("execute", "commit", "save", "update", "insert", "write_text"):
         assert forbidden not in called, f"compare.py calls {forbidden}()"
+
+#: A manual upload whose provenance stamps matched. Program execution
+#: integrity is UNVERIFIED_MANUAL_EXECUTION and cannot be anything else -
+#: `manual_execution_integrity` does not take it as a parameter.
+SOUND_MANUAL_INTEGRITY = manual_execution_integrity(
+    package=PackageIntegrity.VERIFIED,
+    dataset_provenance=DatasetProvenance.MATCH,
+    case_stamp=DatasetProvenance.MATCH,
+)

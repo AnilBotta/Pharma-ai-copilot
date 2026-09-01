@@ -57,9 +57,28 @@ type Reference = {
   note: string;
 };
 
+/**
+ * Three separate integrity answers.
+ *
+ * Rendered as three rows rather than one "verified" badge, because they are
+ * three different questions. In particular `program_execution_integrity` is
+ * `unverified_manual_execution` for every manual run — the application cannot
+ * prove which validate.sas a customer executed — and showing a single green
+ * tick would tell a reviewer something untrue.
+ */
+type Integrity = {
+  package_integrity: string;
+  dataset_provenance: string;
+  validation_case_stamp: string;
+  program_execution_integrity: string;
+  program_execution_is_failure: boolean;
+  qualification: string | null;
+};
+
 type Comparison = {
   status: string;
   sas_version: string | null;
+  integrity: Integrity;
   quantities: {
     quantity: string;
     sas_value: number | null;
@@ -369,6 +388,48 @@ export function ManualValidation() {
 
             {upload.comparison && (
               <>
+                <div className="space-y-1.5">
+                  <p className="text-xs font-medium">Evidence integrity</p>
+                  {(
+                    [
+                      ["Package archive", upload.comparison.integrity.package_integrity],
+                      [
+                        "Dataset provenance stamp",
+                        upload.comparison.integrity.dataset_provenance,
+                      ],
+                      [
+                        "Validation case stamp",
+                        upload.comparison.integrity.validation_case_stamp,
+                      ],
+                      [
+                        "Program execution",
+                        upload.comparison.integrity.program_execution_integrity,
+                      ],
+                    ] as const
+                  ).map(([label, value]) => (
+                    <div
+                      key={label}
+                      className="flex flex-wrap items-baseline justify-between gap-2 text-xs"
+                    >
+                      <span className="text-muted-foreground">{label}</span>
+                      <Badge
+                        variant={
+                          value === "verified" || value === "match"
+                            ? "secondary"
+                            : "outline"
+                        }
+                      >
+                        {value.replace(/_/g, " ")}
+                      </Badge>
+                    </div>
+                  ))}
+                  {upload.comparison.integrity.qualification && (
+                    <p className="pt-1 text-xs text-muted-foreground">
+                      {upload.comparison.integrity.qualification}
+                    </p>
+                  )}
+                </div>
+
                 <div className="overflow-x-auto">
                   <table className="w-full text-xs">
                     <thead className="text-muted-foreground">

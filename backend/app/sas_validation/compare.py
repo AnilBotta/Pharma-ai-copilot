@@ -30,6 +30,7 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 
 from app.sas_validation.ingest import ParsedSASResult
+from app.sas_validation.integrity import EvidenceIntegrity
 from app.sas_validation.modes import SASValidationRunStatus
 from app.sas_validation.targets import ReferenceValue, ValidationTarget
 
@@ -91,8 +92,15 @@ class ComparisonReport:
 
     case_id: str
     package_id: str
-    dataset_hash_matched: bool
-    program_hash_matched: bool
+
+    #: THREE INTEGRITY ANSWERS, NOT ONE.
+    #:
+    #: This replaced `dataset_hash_matched` and `program_hash_matched`, a pair
+    #: of booleans the workflow filled with a hard-coded True for the program.
+    #: The report then said the program hash was verified, which nothing in the
+    #: manual workflow establishes. See `integrity.py`.
+    integrity: EvidenceIntegrity
+
     sas_version: str | None
     convergence_status: str | None
     quantities: tuple[QuantityComparison, ...]
@@ -152,8 +160,7 @@ def compare(
     package_id: str,
     parsed: ParsedSASResult,
     engine_result: dict[str, float | None] | None,
-    dataset_hash_matched: bool,
-    program_hash_matched: bool,
+    integrity: EvidenceIntegrity,
 ) -> ComparisonReport:
     """Build the report.
 
@@ -184,11 +191,20 @@ def compare(
         )
     )
 
-    if not (dataset_hash_matched and program_hash_matched):
+    # PROVENANCE, not program execution. Folding the latter in here would make
+    # every honest manual upload a mismatch, since manual execution is
+    # permanently unverifiable - see integrity.py.
+    if not integrity.provenance_is_sound:
         status = SASValidationRunStatus.HASH_MISMATCH
         notes.append(
-            "Hashes do not match the generated package, so this output is not "
-            "evidence about the question that was asked."
+            "The result does not belong to this package: its provenance stamps "
+            "do not match the dataset and case this package was generated for. "
+            "It is not evidence about the question that was asked."
+        )
+    elif integrity.program_execution.is_failure:
+        status = SASValidationRunStatus.HASH_MISMATCH
+        notes.append(
+            "The evidence indicates a different program was executed."
         )
     elif parsed.converged is False:
         status = SASValidationRunStatus.REVIEW_REQUIRED
@@ -204,6 +220,12 @@ def compare(
     else:
         status = SASValidationRunStatus.MATCH
 
+    # The standing qualification, carried on every report that has one rather
+    # than mentioned once at the top of a page nobody scrolls back to.
+    qualification = integrity.qualification
+    if qualification:
+        notes.append(qualification)
+
     notes.append(
         "This report does not change any method's validation status. A "
         "reviewer records an explicit decision, and only a later statistical "
@@ -216,8 +238,7 @@ def compare(
     return ComparisonReport(
         case_id=target.case_id,
         package_id=package_id,
-        dataset_hash_matched=dataset_hash_matched,
-        program_hash_matched=program_hash_matched,
+        integrity=integrity,
         sas_version=parsed.sas_version,
         convergence_status=parsed.convergence_status,
         quantities=quantities,
@@ -230,12 +251,17 @@ def compare(
 
 def render_report(report: ComparisonReport) -> str:
     """A plain-text rendering, because a reviewer should not need the UI."""
+    integrity = report.integrity
     lines = [
         f"SAS validation comparison - {report.case_id}",
         f"package {report.package_id[:16]}...",
         "",
-        f"  dataset hash matched : {report.dataset_hash_matched}",
-        f"  program hash matched : {report.program_hash_matched}",
+        "  EVIDENCE INTEGRITY - three questions, three answers:",
+        f"    package archive integrity  : {integrity.package.value.upper()}",
+        f"    dataset provenance stamp   : {integrity.dataset_provenance.value.upper()}",
+        f"    validation case stamp      : {integrity.case_stamp.value.upper()}",
+        f"    program execution integrity: {integrity.program_execution.value.upper()}",
+        "",
         f"  SAS version          : {report.sas_version or 'not reported'}",
         f"  convergence status   : {report.convergence_status or 'not reported'}",
         f"  comparison status    : {report.status.value.upper()}",
@@ -272,6 +298,7 @@ def _unused_guard() -> None:  # pragma: no cover
 __all__ = [
     "TOLERANCES",
     "ComparisonReport",
+    "EvidenceIntegrity",
     "QuantityAgreement",
     "QuantityComparison",
     "compare",
