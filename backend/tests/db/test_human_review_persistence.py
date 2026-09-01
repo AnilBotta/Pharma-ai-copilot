@@ -38,6 +38,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2]))
 import asyncpg
 
 from app.db import _init_connection
+from app.sas_validation.attestation import EvidenceOrigin
 from app.sas_validation.authorization import ReviewerIdentity
 from app.sas_validation.human_review import (
     ACKNOWLEDGEMENT_HASH,
@@ -132,6 +133,10 @@ async def refused(conn, coro):
 
 def preconditions(**overrides) -> AcceptancePreconditions:
     fields = {
+        # A sound REAL run. This file is about the PERSISTENCE contract; that
+        # a fixture cannot be accepted at all is asserted in
+        # tests/sas_validation/test_first_live_run_readiness.py.
+        "evidence_origin": EvidenceOrigin.MANUAL_EXTERNAL_SAS,
         "package_integrity": PackageIntegrity.VERIFIED,
         "dataset_provenance": DatasetProvenance.MATCH,
         "case_stamp": DatasetProvenance.MATCH,

@@ -43,6 +43,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from app.sas_validation.ai_reviewer import AIRecommendation
+from app.sas_validation.attestation import EvidenceOrigin
 from app.sas_validation.authorization import ActorType, ReviewerIdentity
 from app.sas_validation.integrity import (
     DatasetProvenance,
@@ -94,9 +95,29 @@ class PreconditionFailed(ValueError):
         )
 
 
+#: Origins from which oracle evidence may be accepted TODAY.
+#:
+#: `TEST_FIXTURE` is absent because a rehearsal is not evidence about a
+#: regulatory question, however complete it is. `MANAGED_SAS` is absent because
+#: no managed service exists: an accepted run claiming that origin would
+#: describe something that did not happen.
+#:
+#: A tuple rather than a boolean flag, so adding a future origin is a decision
+#: someone makes here rather than a property something acquires.
+ACCEPTABLE_EVIDENCE_ORIGINS = (EvidenceOrigin.MANUAL_EXTERNAL_SAS,)
+
+
 @dataclass(frozen=True, slots=True)
 class AcceptancePreconditions:
     """What must hold before acceptance is even offered."""
+
+    #: WHAT THIS RUN ACTUALLY IS.
+    #:
+    #: Listed first because it is the precondition that no amount of good
+    #: evidence can satisfy. Everything below asks "is this evidence sound";
+    #: this one asks "is it evidence at all", and a complete, hash-matching,
+    #: converged fixture answers no.
+    evidence_origin: EvidenceOrigin
 
     package_integrity: PackageIntegrity
     dataset_provenance: DatasetProvenance
@@ -110,6 +131,10 @@ class AcceptancePreconditions:
     comparison_available: bool
     acknowledged: bool
 
+    @property
+    def is_regulatory_evidence(self) -> bool:
+        return self.evidence_origin.is_regulatory_evidence
+
     def failures(self) -> list[str]:
         """Every unmet condition, not just the first.
 
@@ -117,6 +142,22 @@ class AcceptancePreconditions:
         attempt at a time.
         """
         problems: list[str] = []
+
+        # First, and phrased as what the run IS rather than what it lacks. A
+        # dry-run fixture can satisfy every other condition on this list -
+        # matching hashes, complete fields, a converged fit - and the reviewer
+        # needs to know that none of that is the problem.
+        if self.evidence_origin not in ACCEPTABLE_EVIDENCE_ORIGINS:
+            if self.evidence_origin is EvidenceOrigin.TEST_FIXTURE:
+                problems.append(
+                    "this run is an operational test fixture, not external SAS "
+                    "evidence, and cannot be accepted as oracle evidence"
+                )
+            else:
+                problems.append(
+                    f"evidence origin is {self.evidence_origin.value}, which is "
+                    "not a supported source of oracle evidence in this release"
+                )
 
         if self.package_integrity is not PackageIntegrity.VERIFIED:
             problems.append(
@@ -196,6 +237,18 @@ class HumanReviewRecord:
         return recommended_acceptable is not accepted
 
 
+def _snapshot_origin(run: dict[str, Any]) -> EvidenceOrigin:
+    """The same conservative reading the acceptance gate uses.
+
+    Imported lazily because `workflow` imports this module. Deferring rather
+    than reimplementing means the snapshot can never record an origin the gate
+    disagreed with.
+    """
+    from app.sas_validation.workflow import read_evidence_origin
+
+    return read_evidence_origin(run)
+
+
 def build_evidence_snapshot(
     *,
     run: dict[str, Any],
@@ -209,8 +262,19 @@ def build_evidence_snapshot(
     Hashes rather than contents: an artefact is identified without being
     reproduced, which keeps the snapshot small and keeps raw SAS output out of
     a record that will be read by people who do not need it.
+
+    THE ORIGIN IS PART OF THE FROZEN RECORD.
+
+    "Was this decision made against real external SAS evidence or an
+    operational fixture?" must be answerable from the snapshot alone, years
+    later, without re-reading a run row that may since have been re-examined
+    for other reasons. It is also inside the hash, so a stored decision cannot
+    later be re-described as having been about a different kind of run.
     """
+    origin = _snapshot_origin(run)
     snapshot = {
+        "evidence_origin": origin.value,
+        "is_regulatory_evidence": origin.is_regulatory_evidence,
         "package_id": package.get("id"),
         "archive_sha256": package.get("archive_sha256"),
         "dataset_sha256": package.get("dataset_sha256"),

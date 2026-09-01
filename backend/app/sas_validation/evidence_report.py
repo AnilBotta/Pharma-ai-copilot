@@ -104,19 +104,18 @@ class EvidenceReport:
 
 
 def _origin(run: dict[str, Any]) -> EvidenceOrigin:
-    """Read the declared origin, defaulting to the safe answer.
+    """Read the declared origin, deferring to the acceptance gate's own rule.
 
-    A row with no origin recorded predates the column, which means it was an
-    operational exercise - no licensed SAS result had been collected. Treating
-    an unknown origin as real evidence would be the one guess that matters.
+    Imported from `workflow` rather than reimplemented, so the report and the
+    gate can never disagree about what a run is. A second copy of this that
+    drifted would put "MANUAL_EXTERNAL_SAS" at the top of a report for a run
+    the gate was refusing as a fixture, which is the worst of both.
+
+    Imported lazily because `workflow` imports this module.
     """
-    raw = run.get("evidence_origin")
-    if not raw:
-        return EvidenceOrigin.TEST_FIXTURE
-    try:
-        return EvidenceOrigin(str(raw))
-    except ValueError:
-        return EvidenceOrigin.TEST_FIXTURE
+    from app.sas_validation.workflow import read_evidence_origin
+
+    return read_evidence_origin(run)
 
 
 def build_evidence_report(
@@ -168,6 +167,26 @@ def build_evidence_report(
                 }
                 for row in attestations
             ],
+            # PRESENT or ABSENT, said explicitly rather than left to be
+            # inferred from an empty list. For a real SAS run the absence of an
+            # attestation is something a reviewer should weigh - there is then
+            # no record of who executed the package - and an empty section
+            # reads as "nothing to report" rather than "nobody said".
+            #
+            # It is NOT a precondition. The reviewer weighs it; the machine
+            # does not decide it, and nothing here manufactures one.
+            "operator_attestation": "present" if attestations else "absent",
+            "attestation_absent_note": (
+                None
+                if attestations
+                else (
+                    "No operator attestation has been recorded. For a real SAS "
+                    "run this means there is no named account of who executed "
+                    "the package, in which organisation, or on which SAS "
+                    "version. It does not block a decision; it is for the "
+                    "reviewer to weigh."
+                )
+            ),
             # Present whether or not anyone attested, because its absence is
             # what a reader would otherwise take for verification.
             "attestation_limitation": ATTESTATION_LIMITATION,

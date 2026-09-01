@@ -21,6 +21,7 @@ from pathlib import Path
 
 import pytest
 
+from app.sas_validation.ai_reviewer import AIRecommendation
 from app.sas_validation.attestation import (
     ATTESTATION_LIMITATION,
     ATTESTATION_VERSION,
@@ -30,14 +31,29 @@ from app.sas_validation.attestation import (
     attestation_text,
     build_attestation,
 )
+from app.sas_validation.authorization import ReviewerIdentity
 from app.sas_validation.evidence_report import (
     DECISION_SEMANTICS,
     DRY_RUN_BANNER,
     build_evidence_report,
 )
-from app.sas_validation.integrity import ProgramExecutionIntegrity
+from app.sas_validation.human_review import (
+    ACCEPTABLE_EVIDENCE_ORIGINS,
+    AcceptancePreconditions,
+    OracleClosureDecision,
+    PreconditionFailed,
+    build_evidence_snapshot,
+    prepare_review,
+)
+from app.sas_validation.integrity import (
+    DatasetProvenance,
+    PackageIntegrity,
+    ProgramExecutionIntegrity,
+)
 from app.sas_validation.workflow import (
     DeterministicEvidenceNotReady,
+    build_preconditions,
+    read_evidence_origin,
     require_deterministic_evidence,
 )
 
@@ -455,6 +471,363 @@ def test_the_reference_values_keep_their_labels_in_the_report():
     reference = report.reference_context[0]
     assert reference["regulator_confirmed"] is False
     assert reference["evidence_status"] == "independent_candidate"
+
+
+# ========= 7/8. a fixture cannot be laundered into oracle evidence ===
+#
+# The gap this section closes: a dry-run fixture that satisfied every OTHER
+# acceptance precondition could previously be accepted as oracle evidence. The
+# labelling was right and the gate did not consult it.
+
+
+def sound_preconditions(**overrides) -> AcceptancePreconditions:
+    """Everything a reviewer could want, except that it may be a rehearsal."""
+    fields = {
+        "evidence_origin": EvidenceOrigin.MANUAL_EXTERNAL_SAS,
+        "package_integrity": PackageIntegrity.VERIFIED,
+        "dataset_provenance": DatasetProvenance.MATCH,
+        "case_stamp": DatasetProvenance.MATCH,
+        "program_execution": ProgramExecutionIntegrity.UNVERIFIED_MANUAL_EXECUTION,
+        "result_complete": True,
+        "sas_version_present": True,
+        "denominator_df_present": True,
+        "confidence_interval_present": True,
+        "convergence_failed": False,
+        "comparison_available": True,
+        "acknowledged": True,
+    }
+    fields.update(overrides)
+    return AcceptancePreconditions(**fields)
+
+
+REVIEWER = ReviewerIdentity.for_human(
+    user_id="human-1", role_key="system_administrator"
+)
+
+
+def decide(decision: OracleClosureDecision, **overrides):
+    kwargs = {
+        "reviewer": REVIEWER,
+        "run_id": "run-1",
+        "tenant_id": "t-1",
+        "decision": decision,
+        "notes": "Reviewed.",
+        "acknowledged": True,
+        "preconditions": sound_preconditions(),
+        "evidence_snapshot": {},
+        "evidence_snapshot_hash": "a" * 64,
+    }
+    kwargs.update(overrides)
+    return prepare_review(**kwargs)
+
+
+# --- A. a perfect fixture is still refused --------------------------------
+
+
+def test_a_flawless_test_fixture_cannot_be_accepted_as_oracle_evidence():
+    """EVERY other precondition passes. Hashes match, the result is complete,
+    the fit converged, an authorised reviewer acknowledged the limitation.
+
+    None of that makes a rehearsal into evidence about a regulatory question.
+    """
+    preconditions = sound_preconditions(
+        evidence_origin=EvidenceOrigin.TEST_FIXTURE
+    )
+
+    # Precisely one thing is wrong, and it is not the evidence quality.
+    assert preconditions.failures() == [
+        "this run is an operational test fixture, not external SAS evidence, "
+        "and cannot be accepted as oracle evidence"
+    ]
+
+    with pytest.raises(PreconditionFailed, match="operational test fixture"):
+        decide(
+            OracleClosureDecision.ORACLE_CLOSURE_ACCEPTED,
+            preconditions=preconditions,
+        )
+
+
+def test_the_refusal_says_what_the_run_is_not_what_it_lacks():
+    """A reviewer whose fixture has matching hashes and complete fields needs
+    to be told the category is wrong, not to go looking for a missing field."""
+    failure = sound_preconditions(
+        evidence_origin=EvidenceOrigin.TEST_FIXTURE
+    ).failures()[0]
+
+    assert "operational test fixture" in failure
+    assert "not external SAS evidence" in failure
+
+
+def test_managed_sas_cannot_reach_acceptance_either():
+    """No managed service exists. An accepted run claiming that origin would
+    describe something that did not happen."""
+    with pytest.raises(PreconditionFailed, match="managed_sas"):
+        decide(
+            OracleClosureDecision.ORACLE_CLOSURE_ACCEPTED,
+            preconditions=sound_preconditions(
+                evidence_origin=EvidenceOrigin.MANAGED_SAS
+            ),
+        )
+
+
+def test_only_manual_external_sas_is_an_acceptable_origin_today():
+    assert ACCEPTABLE_EVIDENCE_ORIGINS == (EvidenceOrigin.MANUAL_EXTERNAL_SAS,)
+    assert EvidenceOrigin.TEST_FIXTURE not in ACCEPTABLE_EVIDENCE_ORIGINS
+    assert EvidenceOrigin.MANAGED_SAS not in ACCEPTABLE_EVIDENCE_ORIGINS
+
+
+# --- B. rejection stays available -----------------------------------------
+
+
+@pytest.mark.parametrize(
+    "origin",
+    [
+        EvidenceOrigin.TEST_FIXTURE,
+        EvidenceOrigin.MANUAL_EXTERNAL_SAS,
+        EvidenceOrigin.MANAGED_SAS,
+    ],
+)
+def test_an_authorized_reviewer_may_always_reject(origin):
+    """Whatever the origin. A reviewer may need to document WHY a run is
+    unsuitable, and a run nobody can close out is worse than one rejected."""
+    record = decide(
+        OracleClosureDecision.ORACLE_CLOSURE_REJECTED,
+        notes="Not suitable as oracle evidence for this question.",
+        acknowledged=False,
+        preconditions=sound_preconditions(evidence_origin=origin),
+    )
+    assert record.decision is OracleClosureDecision.ORACLE_CLOSURE_REJECTED
+
+
+def test_rejecting_a_fixture_alongside_broken_evidence_still_works():
+    record = decide(
+        OracleClosureDecision.ORACLE_CLOSURE_REJECTED,
+        notes="A rehearsal, and the provenance does not match either.",
+        acknowledged=False,
+        preconditions=sound_preconditions(
+            evidence_origin=EvidenceOrigin.TEST_FIXTURE,
+            dataset_provenance=DatasetProvenance.MISMATCH,
+            result_complete=False,
+        ),
+    )
+    assert record.decision is OracleClosureDecision.ORACLE_CLOSURE_REJECTED
+
+
+# --- C. a real run may proceed --------------------------------------------
+
+
+def test_a_real_external_sas_run_may_be_accepted():
+    """Otherwise the gate would block the only path that exists."""
+    assert sound_preconditions().acceptable is True
+
+    record = decide(OracleClosureDecision.ORACLE_CLOSURE_ACCEPTED)
+    assert record.decision is OracleClosureDecision.ORACLE_CLOSURE_ACCEPTED
+
+
+# --- D. an unknown origin is treated as a fixture --------------------------
+
+
+@pytest.mark.parametrize("stored", [None, "", "  ", "something_else", "SAS"])
+def test_an_absent_or_unreadable_origin_cannot_be_accepted(stored):
+    """Both are guesses, so both go the direction where being wrong is
+    recoverable. Guessing MANUAL_EXTERNAL_SAS would let an unreadable value
+    open the acceptance gate."""
+    assert (
+        read_evidence_origin({"evidence_origin": stored})
+        is EvidenceOrigin.TEST_FIXTURE
+    )
+
+    preconditions = build_preconditions(
+        run={
+            "evidence_origin": stored,
+            "estimate_log": 0.0,
+            "sas_version": "9.4",
+            "denominator_df": 19.9,
+            "ci_lower_ratio": 97.0,
+            "ci_upper_ratio": 107.0,
+            "convergence_status": "0",
+            "comparison": {
+                "integrity": {
+                    "package_integrity": "verified",
+                    "dataset_provenance": "match",
+                    "validation_case_stamp": "match",
+                    "program_execution_integrity": "unverified_manual_execution",
+                }
+            },
+        },
+        acknowledged=True,
+    )
+    assert preconditions.acceptable is False
+    assert "operational test fixture" in preconditions.failures()[0]
+
+
+def test_the_gate_and_the_report_read_the_origin_the_same_way():
+    """Two copies of this rule that drifted would put MANUAL_EXTERNAL_SAS at
+    the top of a report for a run the gate was refusing as a fixture."""
+    for stored in (None, "", "nonsense", "test_fixture", "manual_external_sas"):
+        run = {"id": "r", "evidence_origin": stored}
+        assert (
+            build_evidence_report(run=run, package={}).evidence_origin
+            is read_evidence_origin(run)
+        )
+
+
+# --- E. the AI cannot change the refusal ----------------------------------
+
+
+def test_an_ai_recommending_acceptance_does_not_unlock_a_fixture():
+    """The AI may analyse a rehearsal - that is what a dry run exercises. What
+    it cannot do is make one acceptable."""
+    with pytest.raises(PreconditionFailed, match="operational test fixture"):
+        decide(
+            OracleClosureDecision.ORACLE_CLOSURE_ACCEPTED,
+            preconditions=sound_preconditions(
+                evidence_origin=EvidenceOrigin.TEST_FIXTURE
+            ),
+            ai_recommendation=AIRecommendation.ACCEPTABLE_FOR_HUMAN_REVIEW,
+        )
+
+
+def test_no_reviewer_role_can_accept_a_fixture():
+    """Seniority is not a category error's solution."""
+    for role in ("system_administrator", "executive"):
+        with pytest.raises(PreconditionFailed, match="operational test fixture"):
+            decide(
+                OracleClosureDecision.ORACLE_CLOSURE_ACCEPTED,
+                reviewer=ReviewerIdentity.for_human(
+                    user_id="human-1", role_key=role
+                ),
+                preconditions=sound_preconditions(
+                    evidence_origin=EvidenceOrigin.TEST_FIXTURE
+                ),
+            )
+
+
+# --- F. the snapshot records what the decision was made against ------------
+
+
+def test_the_evidence_snapshot_records_the_origin():
+    """"Was this decision made against real SAS evidence or a fixture?" must be
+    answerable from the frozen record alone, years later."""
+    snapshot, digest = build_evidence_snapshot(
+        run={"case_id": "X", "evidence_origin": "manual_external_sas"},
+        package={"id": PACKAGE_ID},
+        artifacts=[],
+        ai_review_id=None,
+        ai_review_hash=None,
+    )
+    assert snapshot["evidence_origin"] == "manual_external_sas"
+    assert snapshot["is_regulatory_evidence"] is True
+    assert len(digest) == 64
+
+
+def test_the_origin_is_inside_the_snapshot_hash():
+    """So a stored decision cannot later be re-described as having been about a
+    different kind of run."""
+    common = {
+        "package": {"id": PACKAGE_ID}, "artifacts": [],
+        "ai_review_id": None, "ai_review_hash": None,
+    }
+    fixture = build_evidence_snapshot(
+        run={"case_id": "X", "evidence_origin": "test_fixture"}, **common
+    )[1]
+    real = build_evidence_snapshot(
+        run={"case_id": "X", "evidence_origin": "manual_external_sas"}, **common
+    )[1]
+    assert fixture != real
+
+
+def test_an_unreadable_origin_is_frozen_as_a_fixture():
+    snapshot, _ = build_evidence_snapshot(
+        run={"case_id": "X", "evidence_origin": "nonsense"},
+        package={}, artifacts=[], ai_review_id=None, ai_review_hash=None,
+    )
+    assert snapshot["evidence_origin"] == "test_fixture"
+    assert snapshot["is_regulatory_evidence"] is False
+
+
+# --- G. the AI is told what the run is, never left to infer it -------------
+
+
+def test_the_ai_facts_state_the_origin_explicitly():
+    from app.sas_validation.workflow import build_ai_evidence
+
+    real = build_ai_evidence(
+        run={"evidence_origin": "manual_external_sas", "comparison": {}},
+        package={"id": PACKAGE_ID},
+    )
+    assert real["evidence_origin"] == "manual_external_sas"
+    assert real["is_regulatory_evidence"] is True
+    assert "dry_run_qualification" not in real
+
+
+def test_the_ai_facts_carry_a_dry_run_qualification_for_a_fixture():
+    """A fixture and a real result carry the same fields, so the assistant
+    could not tell them apart from the numbers."""
+    from app.sas_validation.workflow import build_ai_evidence
+
+    fixture = build_ai_evidence(
+        run={"evidence_origin": "test_fixture", "comparison": {}},
+        package={"id": PACKAGE_ID},
+    )
+    assert fixture["evidence_origin"] == "test_fixture"
+    assert fixture["is_regulatory_evidence"] is False
+
+    qualification = fixture["dry_run_qualification"]
+    assert "NOT SAS VALIDATION EVIDENCE" in qualification
+    # And it says the refusal is not the model's to make or avoid.
+    assert "will refuse the attempt" in qualification
+    # The rehearsal caveat leads the limitations, not third behind two others.
+    assert "rehearsal" in fixture["known_limitations"][0]
+
+
+def test_an_unreadable_origin_reaches_the_ai_as_a_fixture():
+    from app.sas_validation.workflow import build_ai_evidence
+
+    evidence = build_ai_evidence(
+        run={"evidence_origin": "nonsense", "comparison": {}}, package={}
+    )
+    assert evidence["is_regulatory_evidence"] is False
+    assert "dry_run_qualification" in evidence
+
+
+# --- 6. attestation presence is visible, and is not a precondition ---------
+
+
+def test_the_report_says_whether_an_attestation_exists():
+    """An empty section reads as "nothing to report" rather than "nobody
+    said"."""
+    absent = build_evidence_report(
+        run={"id": "r", "evidence_origin": "manual_external_sas"},
+        package={}, attestations=[],
+    )
+    assert absent.execution["operator_attestation"] == "absent"
+    assert "no named account of who executed" in (
+        absent.execution["attestation_absent_note"]
+    )
+
+    present = build_evidence_report(
+        run={"id": "r", "evidence_origin": "manual_external_sas"},
+        package={},
+        attestations=[{"operator_name": "A. Operator", "attestation_hash": "x"}],
+    )
+    assert present.execution["operator_attestation"] == "present"
+    assert present.execution["attestation_absent_note"] is None
+
+
+def test_a_missing_attestation_does_not_block_acceptance():
+    """The reviewer weighs it; the machine does not decide it.
+
+    Deliberately NOT a precondition. An operator's declaration is provenance,
+    not verification, and gating acceptance on it would let a form stand in for
+    evidence quality - while giving a reviewer no way to accept a run whose
+    operator has since left the company.
+    """
+    assert "attestation" not in AcceptancePreconditions.__dataclass_fields__
+
+    # A sound real run with no attestation recorded is acceptable.
+    assert sound_preconditions().acceptable is True
+    assert sound_preconditions().failures() == []
 
 
 def test_the_runbook_names_the_only_line_an_operator_may_change():

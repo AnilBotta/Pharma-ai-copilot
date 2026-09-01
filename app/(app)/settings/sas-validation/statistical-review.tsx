@@ -538,19 +538,34 @@ export function StatisticalReview({ runId }: { runId: string }) {
                 <span>{context.acknowledgement.text}</span>
               </label>
 
+              {/* A dry run is a category error, not a quality problem, so it
+                  is said in place of the control rather than as a reason the
+                  control is greyed out. The endpoint enforces this regardless;
+                  hiding the button is a convenience, never the rule. */}
+              {context.is_regulatory_evidence === false && (
+                <p className="flex items-start gap-2 rounded-lg border border-dashed p-3 text-xs">
+                  <ShieldAlert className="mt-0.5 size-4 shrink-0" />
+                  Operational dry-run evidence cannot be accepted as regulatory
+                  oracle evidence. Rejection remains available if you want to
+                  record why this run is unsuitable.
+                </p>
+              )}
+
               <div className="flex flex-wrap gap-2">
-                <Button
-                  onClick={() => decide("oracle_closure_accepted")}
-                  disabled={busy !== null || !canAccept || notes.trim() === ""}
-                  size="sm"
-                >
-                  {busy === "oracle_closure_accepted" ? (
-                    <Loader2 className="size-4 animate-spin" />
-                  ) : (
-                    <CheckCircle2 className="size-4" />
-                  )}
-                  Accept as oracle evidence
-                </Button>
+                {context.is_regulatory_evidence && (
+                  <Button
+                    onClick={() => decide("oracle_closure_accepted")}
+                    disabled={busy !== null || !canAccept || notes.trim() === ""}
+                    size="sm"
+                  >
+                    {busy === "oracle_closure_accepted" ? (
+                      <Loader2 className="size-4 animate-spin" />
+                    ) : (
+                      <CheckCircle2 className="size-4" />
+                    )}
+                    Accept as oracle evidence
+                  </Button>
+                )}
 
                 <Button
                   onClick={() => decide("oracle_closure_rejected")}
@@ -567,12 +582,13 @@ export function StatisticalReview({ runId }: { runId: string }) {
                 </Button>
               </div>
 
-              {!context.preconditions.acceptable && (
-                <p className="text-xs text-muted-foreground">
-                  Acceptance is disabled because Section A lists unmet
-                  conditions. Rejection stays available.
-                </p>
-              )}
+              {context.is_regulatory_evidence &&
+                !context.preconditions.acceptable && (
+                  <p className="text-xs text-muted-foreground">
+                    Acceptance is disabled because Section A lists unmet
+                    conditions. Rejection stays available.
+                  </p>
+                )}
             </>
           )}
 

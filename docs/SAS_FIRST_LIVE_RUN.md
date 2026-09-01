@@ -208,6 +208,27 @@ below is computed into a verdict.
 - an authorized human reviewed the evidence
 - the manual-execution limitation was explicitly acknowledged
 
+### And one that no amount of good evidence can satisfy
+
+```
+evidence_origin = manual_external_sas
+```
+
+Every other item above asks *"is this evidence sound?"*. This one asks *"is it
+evidence at all?"* — and a dry-run fixture with matching hashes, complete
+fields and a converged fit answers no. It is checked first, and the refusal
+says what the run **is** rather than what it lacks, because a reviewer looking
+at a flawless fixture would otherwise go hunting for a missing field.
+
+`test_fixture` can never be accepted. `managed_sas` cannot either, because no
+managed service exists and an accepted run claiming that origin would describe
+something that did not happen. An absent or unrecognised origin resolves to
+`test_fixture` — both are guesses, and that is the direction where being wrong
+is recoverable.
+
+**Rejection has none of these preconditions**, including this one. A reviewer
+must always be able to record why a run is unsuitable, whatever it is.
+
 ### Not required
 
 ```
@@ -217,6 +238,15 @@ program_execution_integrity = VERIFIED
 It cannot be achieved on this path, so requiring it would make acceptance
 impossible for every honest run. It must be **visible**, not satisfied — which
 is what the acknowledgement is for.
+
+```
+operator_attestation = PRESENT
+```
+
+Also not required. An operator's declaration is provenance, not verification;
+gating acceptance on it would let a form stand in for evidence quality. The
+report states `present` or `absent` explicitly so the reviewer can weigh it,
+and nothing manufactures one.
 
 ---
 
@@ -314,6 +344,17 @@ of the two possible mistakes only one is recoverable.
 A report built from a fixture opens with:
 
 > **OPERATIONAL DRY RUN — NOT SAS VALIDATION EVIDENCE.**
+
+And a fixture **cannot be accepted as oracle evidence** — not by any reviewer
+role, not with a matching hash, not with the assistant recommending it. The
+rule lives in `AcceptancePreconditions`, so the POST endpoint enforces it; the
+UI hiding the Accept button is a convenience on top.
+
+The assistant *may* analyse a rehearsal — exercising deterministic checks →
+advisory → review UI is exactly what a dry run is for. Its facts carry
+`evidence_origin`, `is_regulatory_evidence` and a `dry_run_qualification`, so
+it never has to infer what it is looking at. What it cannot do is make a
+rehearsal acceptable.
 
 To rehearse the path:
 

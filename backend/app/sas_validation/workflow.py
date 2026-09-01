@@ -145,6 +145,37 @@ def require_deterministic_evidence(run: Mapping[str, Any]) -> None:
         )
 
 
+def read_evidence_origin(run: Mapping[str, Any]) -> EvidenceOrigin:
+    """What this run declared itself to be, read conservatively.
+
+    An absent, empty or unrecognised value resolves to TEST_FIXTURE - the
+    origin from which nothing can be accepted. A row with no origin predates
+    the column, which means it was recorded before any licensed SAS result had
+    been collected; and a value this build does not recognise is one written by
+    something whose intent we cannot read.
+
+    Both are guesses, so both take the direction where being wrong is
+    recoverable. Guessing MANUAL_EXTERNAL_SAS would let an unreadable value
+    open the acceptance gate.
+
+    One place decides this, and `evidence_report._origin` defers to the same
+    rule, so the gate and the report can never disagree about what a run is.
+    """
+    raw = run.get("evidence_origin")
+    if not raw:
+        return EvidenceOrigin.TEST_FIXTURE
+    try:
+        return EvidenceOrigin(str(raw))
+    except ValueError:
+        logger.warning(
+            "unrecognised evidence_origin %r on run %s; treating as a test "
+            "fixture, which cannot be accepted as oracle evidence",
+            raw,
+            run.get("id"),
+        )
+        return EvidenceOrigin.TEST_FIXTURE
+
+
 def build_preconditions(
     *, run: Mapping[str, Any], acknowledged: bool
 ) -> AcceptancePreconditions:
@@ -158,6 +189,7 @@ def build_preconditions(
     integrity = comparison.get("integrity") or {}
 
     return AcceptancePreconditions(
+        evidence_origin=read_evidence_origin(run),
         package_integrity=PackageIntegrity(
             integrity.get("package_integrity", PackageIntegrity.ABSENT.value)
         ),
@@ -200,11 +232,27 @@ def build_ai_evidence(
     Reference values carry their evidence status inline rather than in a
     legend, because a model - like a reader - attaches whatever label sits
     nearest the number. `19.8906` unlabelled would be read as authoritative.
+
+    WHAT THIS RUN IS COMES FIRST, AND IS NEVER LEFT TO INFERENCE.
+
+    A fixture and a real SAS result carry the same fields, so the assistant
+    could not tell them apart from the numbers - and would default to writing
+    about whichever one the prose implied. The origin is therefore stated, with
+    its consequence spelled out beside it rather than left to be deduced from
+    an enum value.
+
+    The assistant IS still allowed to analyse a rehearsal: exercising
+    deterministic checks -> advisory -> review UI is the point of a dry run.
+    What it cannot do is make one acceptable, and that is enforced in
+    `AcceptancePreconditions`, not here.
     """
     comparison = run.get("comparison") or {}
     integrity = comparison.get("integrity") or {}
+    origin = read_evidence_origin(run)
 
-    return {
+    evidence: dict[str, Any] = {
+        "evidence_origin": origin.value,
+        "is_regulatory_evidence": origin.is_regulatory_evidence,
         "validation_case": run.get("case_id"),
         "package_id": package.get("id"),
         "integrity": {
@@ -242,6 +290,26 @@ def build_ai_evidence(
             "dataset, which is why the df is the open question.",
         ],
     }
+
+    if not origin.is_regulatory_evidence:
+        # Stated as its own top-level fact rather than appended to the
+        # limitations list, where it would sit third behind two caveats about
+        # real runs and read as one more nuance.
+        evidence["dry_run_qualification"] = (
+            "OPERATIONAL DRY RUN - NOT SAS VALIDATION EVIDENCE. This run was "
+            "recorded with evidence_origin = test_fixture. It did not come "
+            "from a SAS environment, the numbers below are fixture values, and "
+            "no analysis of them says anything about the regulatory question. "
+            "A human reviewer cannot accept this run as oracle evidence and "
+            "the application will refuse the attempt, whatever you recommend."
+        )
+        evidence["known_limitations"] = [
+            "This is a rehearsal, not a SAS result. Nothing here measures "
+            "anything.",
+            *evidence["known_limitations"],
+        ]
+
+    return evidence
 
 
 def _manual_integrity(
