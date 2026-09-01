@@ -35,14 +35,27 @@ from fastapi import (
 from pydantic import BaseModel, Field
 
 from app.auth import AuthenticatedUser, current_user
+from app.sas_validation.ai_reviewer import ADVISORY_LABEL
+from app.sas_validation.authorization import (
+    GRANT_INSTRUCTIONS,
+    REVIEWER_ROLE_KEYS,
+    ReviewerAuthorizationService,
+    ReviewerIdentity,
+)
 from app.sas_validation.canonical_data import CanonicalDatasetUnavailable
 from app.sas_validation.compare import ComparisonReport
-from app.sas_validation.modes import (
+from app.sas_validation.human_review import (
+    ACCEPTANCE_MEANING,
     ACKNOWLEDGEMENT_TEXT,
+    ACKNOWLEDGEMENT_VERSION,
+    OracleClosureDecision,
+    PreconditionFailed,
+)
+from app.sas_validation.modes import (
     CUSTOMER_CONTROL_NOTICE,
+    ENVIRONMENT_ACKNOWLEDGEMENT_TEXT,
     MANAGED_AVAILABILITY_NOTICE,
     UNAVAILABLE_REASON,
-    OracleClosureDecision,
     SASIntegrationMode,
     mode_is_available,
 )
@@ -81,66 +94,47 @@ def resolve_tenant(user: AuthenticatedUser) -> str:
 
 # --------------------------------------------------- reviewer authorization ---
 
-#: Roles that could govern a validation review, in the vocabulary migration
-#: 0007 already seeds. Listed rather than invented: a duplicate role system
-#: would be a second answer to "who may decide", and nothing would say which
-#: one won.
-REVIEWER_ROLE_KEYS = ("system_administrator", "executive")
-
-#: WHY REVIEW RECORDING IS CLOSED AT THE HTTP BOUNDARY.
+#: `REVIEWER_ROLE_KEYS` is imported, not restated. A second copy here would be
+#: a second answer to "who may decide", and the endpoint could go on reporting
+#: required roles the authorization layer no longer asks about.
 #:
-#: The roles exist. What does not exist is any way for THIS BACKEND to check
-#: them:
+#: PR #64 closed this endpoint because the backend could not identify an
+#: authorised human. Migration 0034 supplies `private.user_has_global_role`,
+#: the explicit-user twin 0016 established the precedent for, so the check is
+#: now a real question with a real answer.
 #:
-#:   private.has_role(role_key, project_id)  reads auth.uid(), which is NULL
-#:                                           when the backend connects as the
-#:                                           service role
-#:   private.user_capabilities(user, project) is project-scoped by signature
-#:                                            and cannot answer "is this user
-#:                                            an executive" globally
-#:
-#: and there is no `user_has_global_role(user_id, role_key)` twin. On top of
-#: that, `settings_module/routes.py` records that nobody currently holds either
-#: org-level role.
-#:
-#: So the honest options were: let every signed-in user record an oracle
-#: closure, invent a parallel permission system, or refuse. Recording a
-#: governed validation decision is not something to leave open by default, and
-#: a second role system would be worse than the gap it filled.
-REVIEWER_AUTHORIZATION_CONFIGURED = False
-
-REVIEWER_AUTHORIZATION_NOT_CONFIGURED = "REVIEWER_AUTHORIZATION_NOT_CONFIGURED"
+#: The refusal below is therefore about the CALLER, not about the deployment:
+#: 403, because a signed-in user genuinely lacks a permission that exists.
+NOT_AN_AUTHORIZED_REVIEWER = "NOT_AN_AUTHORIZED_REVIEWER"
 
 
-def require_reviewer(user: AuthenticatedUser) -> AuthenticatedUser:
-    """Refuse until privileged reviewer authorization exists.
+async def require_reviewer(
+    user: AuthenticatedUser, authorization: ReviewerAuthorizationService
+) -> ReviewerIdentity:
+    """Resolve an authorised HUMAN, or refuse with a next step.
 
-    Returns 501 rather than 403: 403 would tell an operator they lack a
-    permission, when the truth is that the permission cannot yet be checked by
-    anyone. The distinction matters to whoever reads the log.
+    The identity is built from the authenticated context only. There is no
+    parameter through which a caller could name someone else, and
+    `ReviewerIdentity.for_human` refuses any non-human actor type.
     """
-    if not REVIEWER_AUTHORIZATION_CONFIGURED:
+    result = await authorization.can_review_sas_validation(user.id)
+    if not result.authorized:
         raise HTTPException(
-            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            status_code=status.HTTP_403_FORBIDDEN,
             detail={
-                "code": REVIEWER_AUTHORIZATION_NOT_CONFIGURED,
-                "message": (
-                    "Recording a validation review requires a privileged "
-                    "reviewer role, and this deployment cannot yet check one. "
-                    "The roles exist, but the backend connects as the service "
-                    "role, where private.has_role() reads a null auth.uid(), "
-                    "and no global-role check for an explicit user id exists."
-                ),
+                "code": NOT_AN_AUTHORIZED_REVIEWER,
+                "message": result.reason,
                 "required_roles": list(REVIEWER_ROLE_KEYS),
-                "what_would_enable_it": (
-                    "A private.user_has_global_role(p_user_id, p_role_key) "
-                    "function, of the explicit-user shape migration 0016 "
-                    "already established, plus at least one holder of a "
-                    "reviewer role granted through the CLI."
-                ),
+                # A refusal with no path forward is a dead end somebody has to
+                # re-derive. `requirement-labels.tsx` records what happens when
+                # a control is merely greyed out.
+                "how_to_grant": GRANT_INSTRUCTIONS,
             },
         )
-    return user  # pragma: no cover - unreachable until the flag flips
+
+    role = result.primary_role
+    assert role is not None  # authorized implies a matched role
+    return ReviewerIdentity.for_human(user_id=user.id, role_key=role)
 
 
 def _serialise(report: ComparisonReport) -> dict[str, object]:
@@ -195,6 +189,10 @@ class ReviewRequest(BaseModel):
     decision: OracleClosureDecision
     notes: str = Field(min_length=1)
 
+    #: Required for acceptance. A checkbox a person ticks - there is no code
+    #: path that sets it, and an AI has no way to reach this endpoint at all.
+    acknowledged: bool = False
+
 
 @router.get("/options")
 def list_options() -> dict[str, object]:
@@ -240,7 +238,9 @@ def list_options() -> dict[str, object]:
         )
     return {
         "options": options,
-        "acknowledgement_text": ACKNOWLEDGEMENT_TEXT,
+        # The ENVIRONMENT acknowledgement - "we are authorised to use this SAS"
+        # - not the oracle-closure one the review screen shows.
+        "acknowledgement_text": ENVIRONMENT_ACKNOWLEDGEMENT_TEXT,
         "cases": [
             {
                 "case_id": target.case_id,
@@ -281,6 +281,16 @@ def get_workflow(request: Request) -> ManualValidationWorkflow:
                 "package generator, parser and comparison are available; "
                 "storage and persistence are not."
             ),
+        )
+    return workflow
+
+
+def get_authorization(request: Request) -> ReviewerAuthorizationService:
+    workflow = getattr(request.app.state, "sas_reviewer_authorization", None)
+    if workflow is None:  # pragma: no cover - misconfiguration, not a path
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Reviewer authorization is not configured in this deployment.",
         )
     return workflow
 
@@ -446,28 +456,175 @@ async def upload_log(
     }
 
 
+@router.get("/runs/{run_id}/review")
+async def review_context(
+    run_id: str,
+    user: AuthenticatedUser = Depends(current_user),
+    workflow: ManualValidationWorkflow = Depends(get_workflow),
+    authorization: ReviewerAuthorizationService = Depends(get_authorization),
+) -> dict[str, object]:
+    """Everything the review screen renders, in three separated parts.
+
+    WHO MAY SEE WHAT
+
+    Any authenticated user may READ the evidence and the advisory analysis;
+    neither is a governed act, and hiding the evidence from the people who
+    produced it would help nobody. What is gated is DECIDING.
+
+    `authorization.authorized` is decided here rather than guessed in the
+    browser, so the decision form is absent for a caller who could not submit
+    it - and a caller who forged the flag locally would still be refused by
+    `require_reviewer` on POST. The screen is a convenience; the boundary is
+    the endpoint.
+    """
+    try:
+        context = await workflow.review_context(
+            tenant_id=resolve_tenant(user), run_id=run_id
+        )
+    except PackageNotFound as error:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "no such run") from error
+
+    permission = await authorization.can_review_sas_validation(user.id)
+    ai_review = context["ai_review"]
+
+    return {
+        "run_id": context["run_id"],
+        "status": context["status"],
+        # SECTION A. Authoritative.
+        "deterministic": context["deterministic"],
+        # SECTION B. Advisory, and projected rather than passed through: the
+        # stored row carries the full prompt evidence and provider metadata,
+        # none of which belongs on a screen.
+        "ai_review": (
+            None
+            if ai_review is None
+            else {
+                "id": str(ai_review["id"]),
+                "succeeded": ai_review["succeeded"],
+                "recommendation": ai_review.get("recommendation"),
+                "confidence": ai_review.get("confidence"),
+                "response": ai_review.get("response"),
+                "failure_reason": ai_review.get("failure_reason"),
+                "generated_at": ai_review.get("generated_at"),
+                "prompt_version": ai_review.get("prompt_version"),
+            }
+        ),
+        "advisory_label": ADVISORY_LABEL,
+        # SECTION C. Present for everyone as a statement of what would be
+        # required; the form itself is rendered only when authorized is true.
+        "authorization": {
+            "authorized": permission.authorized,
+            "role": permission.primary_role,
+            "reason": permission.reason,
+            "required_roles": list(REVIEWER_ROLE_KEYS),
+            "how_to_grant": GRANT_INSTRUCTIONS,
+        },
+        "preconditions": context["preconditions"],
+        "acknowledgement": {
+            "version": ACKNOWLEDGEMENT_VERSION,
+            "text": ACKNOWLEDGEMENT_TEXT,
+        },
+        "acceptance_meaning": ACCEPTANCE_MEANING,
+        "human_reviews": context["human_reviews"],
+    }
+
+
 @router.post("/runs/{run_id}/review")
 async def review_run(
     run_id: str,
     request: ReviewRequest,
     user: AuthenticatedUser = Depends(current_user),
     workflow: ManualValidationWorkflow = Depends(get_workflow),
+    authorization: ReviewerAuthorizationService = Depends(get_authorization),
 ) -> dict[str, object]:
     """Record a decision. Acting on it is a separate, governed change.
 
-    STILL CLOSED - see `require_reviewer`. PR #64 established that there is no
-    backend-safe global reviewer-role check, and PR #65 did not weaken that.
+    The governed decision. A human, holding an approved role, recording a
+    judgement against a frozen snapshot of the evidence.
 
-    The attempt is audited before it is refused, because "who tried to accept
-    an oracle closure" is a question worth being able to answer.
+    An unauthorised attempt is AUDITED before it is refused, because "who tried
+    to accept an oracle closure" is worth being able to answer.
+
+    Accepting does NOT change any method's validation status and does not set
+    `partial_oracle_ready`. It records that this SAS run is suitable evidence
+    for a separate, governed statistical task.
     """
-    await workflow.record_blocked_review(
-        tenant_id=resolve_tenant(user), actor=user.id, run_id=run_id
-    )
-    require_reviewer(user)
-    raise AssertionError(  # pragma: no cover - require_reviewer always raises
-        "require_reviewer must refuse while authorization is unconfigured"
-    )
+    tenant_id = resolve_tenant(user)
+    try:
+        reviewer = await require_reviewer(user, authorization)
+    except HTTPException:
+        await workflow.record_blocked_review(
+            tenant_id=tenant_id, actor=user.id, run_id=run_id
+        )
+        raise
+
+    try:
+        record = await workflow.record_human_review(
+            tenant_id=tenant_id,
+            reviewer=reviewer,
+            run_id=run_id,
+            decision=request.decision,
+            notes=request.notes,
+            acknowledged=request.acknowledged,
+        )
+    except PreconditionFailed as error:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            {"code": "PRECONDITIONS_NOT_MET", "failures": list(error.failures)},
+        ) from error
+    except ValueError as error:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY, str(error)
+        ) from error
+    except PackageNotFound as error:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "no such run") from error
+
+    return {
+        "review_id": record["review_id"],
+        "decision": record["decision"],
+        "reviewer_role": reviewer.role_key,
+        "actor_type": reviewer.actor_type.value,
+        "evidence_snapshot_hash": record["evidence_snapshot_hash"],
+        "note": ACCEPTANCE_MEANING,
+    }
+
+
+@router.post("/runs/{run_id}/ai-review", status_code=status.HTTP_201_CREATED)
+async def generate_ai_review(
+    run_id: str,
+    user: AuthenticatedUser = Depends(current_user),
+    workflow: ManualValidationWorkflow = Depends(get_workflow),
+) -> dict[str, object]:
+    """Ask the assistant for an advisory analysis.
+
+    Available to any authenticated user, because reading an analysis is not a
+    governed act - and because a reviewer who cannot see the assistant's view
+    before deciding is worse served than one who can.
+
+    A failure here is a state, not an error: the response says the assistant
+    was unavailable and the human review proceeds on deterministic evidence.
+    """
+    try:
+        outcome = await workflow.generate_ai_review(
+            tenant_id=resolve_tenant(user), actor=user.id, run_id=run_id
+        )
+    except PackageNotFound as error:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "no such run") from error
+
+    return {
+        "ai_review_id": outcome["ai_review_id"],
+        "succeeded": outcome["succeeded"],
+        "advisory_label": ADVISORY_LABEL,
+        "recommendation": outcome.get("recommendation"),
+        "response": outcome.get("response"),
+        "failure_reason": outcome.get("failure_reason"),
+        "note": (
+            "Advisory analysis only. It is not an approval, and a human "
+            "reviewer may disagree with it in either direction."
+        ),
+    }
+
+
 
 
 __all__ = ["IMPLICIT_TENANT_ID", "resolve_tenant", "router"]

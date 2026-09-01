@@ -32,8 +32,8 @@ from app.sas_validation.config import (
 )
 from app.sas_validation.ingest import ParsedSASResult, ingest_upload, parse_result_csv
 from app.sas_validation.modes import (
-    ACKNOWLEDGEMENT_TEXT,
     CUSTOMER_CONTROL_NOTICE,
+    ENVIRONMENT_ACKNOWLEDGEMENT_TEXT,
     MANAGED_AVAILABILITY_NOTICE,
     ManagedBillingMode,
     OracleClosureDecision,
@@ -54,8 +54,8 @@ from app.sas_validation.providers import (
 from app.sas_validation.targets import TARGETS, ValidationTarget, get_target
 
 __all__ = [
-    "ACKNOWLEDGEMENT_TEXT",
     "CUSTOMER_CONTROL_NOTICE",
+    "ENVIRONMENT_ACKNOWLEDGEMENT_TEXT",
     "MANAGED_AVAILABILITY_NOTICE",
     "TARGETS",
     "AuthorisationAcknowledgement",

@@ -78,7 +78,7 @@ class SASIntegrationMode(StrEnum):
     @property
     def requires_authorisation_acknowledgement(self) -> bool:
         """Customer-connected environments need the operator to confirm they may
-        connect it. See `ACKNOWLEDGEMENT_TEXT`."""
+        connect it. See `ENVIRONMENT_ACKNOWLEDGEMENT_TEXT`."""
         return self in (self.CUSTOMER_VIYA, self.CUSTOMER_REMOTE)
 
 
@@ -227,7 +227,13 @@ UNAVAILABLE_REASON: dict[SASIntegrationMode, str] = {
 #: Shown before a customer connects an environment they operate. An
 #: ACKNOWLEDGEMENT, not a licence check: this application cannot verify anyone's
 #: SAS entitlement and does not claim to.
-ACKNOWLEDGEMENT_TEXT = (
+#:
+#: NOT the oracle-closure acknowledgement. That one lives in `human_review.py`,
+#: is versioned and hashed, and says something entirely different - that the
+#: reviewer accepts unverifiable execution. Both were called
+#: ACKNOWLEDGEMENT_TEXT until PR #66, and the review endpoint imported the
+#: wrong one.
+ENVIRONMENT_ACKNOWLEDGEMENT_TEXT = (
     "I confirm that my organization is authorized to use this SAS environment "
     "and to connect it to this application for validation."
 )
@@ -245,8 +251,8 @@ MANAGED_AVAILABILITY_NOTICE = (
 
 
 __all__ = [
-    "ACKNOWLEDGEMENT_TEXT",
     "CUSTOMER_CONTROL_NOTICE",
+    "ENVIRONMENT_ACKNOWLEDGEMENT_TEXT",
     "FEATURE_FLAGS",
     "MANAGED_AVAILABILITY_NOTICE",
     "UNAVAILABLE_REASON",
