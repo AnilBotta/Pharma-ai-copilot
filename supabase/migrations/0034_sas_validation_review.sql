@@ -202,9 +202,22 @@ create table public.sas_human_reviews (
 
   -- The acknowledgement, stored as text AND hash AND version, so "what
   -- exactly did this person agree to" survives a later edit to the wording.
-  acknowledgement_version text not null,
-  acknowledgement_text    text not null,
-  acknowledgement_hash    text not null,
+  --
+  -- NULLABLE, BECAUSE THE ACKNOWLEDGEMENT BELONGS TO ACCEPTANCE.
+  --
+  -- Its wording is "I accept this SAS run as suitable oracle evidence". A
+  -- rejection that carried it would be a record of someone accepting what they
+  -- rejected. `sas_human_reviews_acknowledgement_matches_decision` below makes
+  -- that a schema rule rather than a convention: present for an acceptance,
+  -- absent for a rejection, and no third state.
+  --
+  -- The alternative - NOT NULL columns filled with '' or 'n/a' for rejections
+  -- - would be worse than either: a hash column holding a placeholder cannot
+  -- be distinguished later from one holding a real acknowledgement nobody can
+  -- verify.
+  acknowledgement_version text,
+  acknowledgement_text    text,
+  acknowledgement_hash    text,
 
   -- WHAT EXACTLY WAS APPROVED.
   --
@@ -224,9 +237,43 @@ create table public.sas_human_reviews (
 
   constraint sas_human_reviews_actor_is_human check (actor_type = 'human'),
   constraint sas_human_reviews_notes_not_empty check (length(btrim(notes)) > 0),
-  constraint sas_human_reviews_hashes_are_hashes check (
-    acknowledgement_hash ~ '^[0-9a-f]{64}$'
-    and evidence_snapshot_hash ~ '^[0-9a-f]{64}$'
+
+  -- The evidence snapshot hash is required for BOTH decisions. A rejection
+  -- also needs to say what it was a rejection of.
+  constraint sas_human_reviews_evidence_hash_is_a_hash check (
+    evidence_snapshot_hash ~ '^[0-9a-f]{64}$'
+  ),
+
+  -- THE DATABASE RULE IS THE GOVERNANCE RULE.
+  --
+  --   accepted  -> the acknowledgement is present, and its hash is a hash
+  --   rejected  -> all three are null
+  --
+  -- Written as an exhaustive disjunction over the two recordable decisions, so
+  -- NOT_ASSESSED - which means "no review has happened" - cannot be stored
+  -- here as though it were a verdict, whichever way the acknowledgement
+  -- columns were filled.
+  --
+  -- Note this is the constraint that the previous NOT NULL columns made
+  -- unreachable: every rejection failed at insert, because the domain layer
+  -- correctly passes null and the schema correctly refused it. The schema was
+  -- the half that was wrong.
+  constraint sas_human_reviews_acknowledgement_matches_decision check (
+    (
+      decision = 'oracle_closure_accepted'
+      and acknowledgement_version is not null
+      and length(btrim(acknowledgement_version)) > 0
+      and acknowledgement_text is not null
+      and length(btrim(acknowledgement_text)) > 0
+      and acknowledgement_hash ~ '^[0-9a-f]{64}$'
+    )
+    or
+    (
+      decision = 'oracle_closure_rejected'
+      and acknowledgement_version is null
+      and acknowledgement_text is null
+      and acknowledgement_hash is null
+    )
   )
 );
 

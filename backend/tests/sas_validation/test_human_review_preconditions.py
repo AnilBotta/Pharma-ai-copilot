@@ -172,6 +172,54 @@ def test_rejection_is_possible_whatever_the_evidence_shows(override):
     assert record.decision is OracleClosureDecision.ORACLE_CLOSURE_REJECTED
 
 
+def test_the_schema_permits_the_rejection_shape_the_domain_produces():
+    """The bug this pair of layers had, caught without a database.
+
+    `prepare_review` correctly returns null acknowledgement fields for a
+    rejection. Migration 0034 originally declared those three columns NOT NULL,
+    so every rejection failed at insert - and neither layer's own tests could
+    see it, because each was right about its own half.
+
+    `tests/db/test_human_review_persistence.py` proves the fixed behaviour
+    against the real server. This is the cheap guard that runs by default, so a
+    future edit reintroducing NOT NULL fails here rather than in production.
+    """
+    from pathlib import Path
+
+    migration = (
+        Path(__file__).resolve().parents[3]
+        / "supabase/migrations/0034_sas_validation_review.sql"
+    ).read_text(encoding="utf-8")
+
+    table = migration[
+        migration.index("create table public.sas_human_reviews") : migration.index(
+            "create index sas_human_reviews_run_idx"
+        )
+    ]
+
+    for column in (
+        "acknowledgement_version",
+        "acknowledgement_text",
+        "acknowledgement_hash",
+    ):
+        declaration = next(
+            line for line in table.splitlines() if line.strip().startswith(column)
+        )
+        assert "not null" not in declaration, declaration
+
+    # Nullable is only half of it. Without the decision-dependent constraint,
+    # an ACCEPTANCE with no acknowledgement would also become storable, which
+    # is the opposite failure.
+    assert "sas_human_reviews_acknowledgement_matches_decision" in table
+    assert "decision = 'oracle_closure_accepted'" in table
+    assert "decision = 'oracle_closure_rejected'" in table
+    # The hash is still required to be a hash where it is present.
+    assert "acknowledgement_hash ~ '^[0-9a-f]{64}$'" in table
+    # And the evidence snapshot hash is required for BOTH decisions: a
+    # rejection also has to say what it was a rejection of.
+    assert "sas_human_reviews_evidence_hash_is_a_hash" in table
+
+
 def test_a_rejection_carries_no_acceptance_acknowledgement():
     """The acknowledgement is a statement about accepting unverifiable
     execution. Attaching it to a rejection would be nonsense in the record."""

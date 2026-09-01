@@ -38,6 +38,21 @@ assertion.
 | 11 | A **mandatory** requirement cannot be waived as not-applicable |
 | 12 | The gate stays not-ready while any mandatory blocker remains |
 
+## What `test_human_review_persistence.py` proves
+
+The acknowledgement rule is decision-dependent, and the schema enforces it
+rather than trusting the API. This one applies migrations 0032 and 0034 inside
+the rolled-back transaction, so it also proves both files are valid SQL.
+
+| # | Case |
+|---|---|
+| A | An accepted review with a valid acknowledgement persists, storing the real text and hash |
+| B | An acceptance with no acknowledgement is refused by the domain layer **and** by the constraint |
+| C | A rejection with null acknowledgement fields persists — **the bug this file was written for** |
+| D | A rejection carrying an acknowledgement is refused by the decision-dependent constraint |
+| E | A rejection still requires non-empty notes, in both layers |
+| F | A rejection needs none of the acceptance preconditions, so a broken run can always be closed out |
+
 ## Applying migrations
 
 `scripts/apply_sql.py` executes a SQL file over a direct connection. Use it when
