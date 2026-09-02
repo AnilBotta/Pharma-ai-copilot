@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import json
 import logging
+from datetime import datetime
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -82,6 +83,31 @@ AUDIT_ACTIONS = (
     ACTION_AI_REVIEW_FAILED,
     ACTION_ATTESTATION_RECORDED,
 )
+
+
+def _as_timestamp(value: Any) -> datetime | None:
+    """Coerce whatever we hold into what a `timestamptz` bind requires.
+
+    THE BUG THIS EXISTS TO PREVENT, WHICH DEPLOYMENT FOUND
+
+    `ValidationPackage.generated_at` is an ISO STRING, deliberately: it goes
+    into the manifest and is therefore part of the package hash, so it has to
+    be the same characters here as in the manifest a customer receives.
+
+    asyncpg infers each parameter's type from its cast and binds in BINARY, so
+    `$n::timestamptz` demanded a `datetime` and rejected the string outright -
+    every real package generation failed at the insert. Nothing caught it,
+    because the workflow tests use an in-memory repository that accepts any
+    Python object; only a real Postgres has an opinion about the type.
+
+    The same column is fed a `datetime` on the log-upload path, where the value
+    was read back out of the database. So this accepts both rather than forcing
+    one, and returns None unchanged - an absent execution timestamp is a
+    legitimate state, not a zero.
+    """
+    if value is None or isinstance(value, datetime):
+        return value
+    return datetime.fromisoformat(str(value))
 
 
 class PackageNotFound(Exception):
@@ -176,7 +202,7 @@ class SASValidationRepository:
                 ),
                 package.be_stats_version,
                 package.git_sha,
-                package.generated_at,
+                _as_timestamp(package.generated_at),
                 actor,
                 archive_storage_path,
                 archive_sha256,
@@ -298,7 +324,7 @@ class SASValidationRepository:
                 run["sas_mode"],
                 run.get("sas_environment_name"),
                 run.get("sas_version"),
-                run.get("execution_timestamp"),
+                _as_timestamp(run.get("execution_timestamp")),
                 actor,
                 run.get("declared_dataset_sha256"),
                 run.get("declared_program_sha256"),

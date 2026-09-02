@@ -37,11 +37,22 @@ REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 #: for. Reported individually because a partial application is the dangerous
 #: state: 0032 without 0034 gives you a system that accepts uploads and cannot
 #: record a review of them.
+#: NOTE ON `sas_validation_audit`, WHICH DOES NOT EXIST.
+#:
+#: An earlier version of this map expected a table by that name. 0032 never
+#: creates one - the SAS module writes through `private.record_audit_event`
+#: into the shared `public.audit_events` that predates it. The effect was that
+#: this audit reported 0032 as PARTIAL forever, including immediately after a
+#: clean and fully verified application of it.
+#:
+#: A readiness audit that cries wolf is worse than none: the next person to see
+#: PARTIAL either re-applies a migration that was already applied, or learns to
+#: ignore the one tool whose whole job is to be believed.
 MIGRATIONS = {
     "0032_sas_validation.sql": (
-        "packages, runs, artifacts, audit",
-        ("sas_validation_packages", "sas_validation_runs",
-         "sas_validation_artifacts", "sas_validation_audit"),
+        "integrations, packages, runs, artifacts",
+        ("sas_integrations", "sas_validation_packages",
+         "sas_validation_runs", "sas_validation_artifacts"),
     ),
     "0033_sas_validation_storage.sql": (
         "private bucket + archive columns",
@@ -51,7 +62,31 @@ MIGRATIONS = {
         "AI reviews, human reviews, role lookup",
         ("sas_ai_reviews", "sas_human_reviews"),
     ),
+    "0035_sas_operator_attestation.sql": (
+        "operator attestation + evidence origin",
+        ("sas_operator_attestations",),
+    ),
+    # 0036 adds no object, so it is checked by the privilege audit below rather
+    # than by a table name.
+    "0036_sas_attestation_revoke.sql": (
+        "revoke default anon/authenticated grants",
+        (),
+    ),
 }
+
+#: Every SAS table that must be reachable only through the backend's
+#: service_role connection. Checked as a group, because the failure this
+#: catches is one table being forgotten while its siblings are correct - which
+#: is exactly what happened to `sas_operator_attestations` in 0035.
+SERVICE_ROLE_ONLY_TABLES = (
+    "sas_integrations",
+    "sas_validation_packages",
+    "sas_validation_runs",
+    "sas_validation_artifacts",
+    "sas_ai_reviews",
+    "sas_human_reviews",
+    "sas_operator_attestations",
+)
 
 BUCKET = "sas-validation"
 
@@ -125,7 +160,56 @@ async def audit_migrations(conn) -> dict[str, bool]:
         "PRESENT" if has_function else "ABSENT",
         "without it, no reviewer can be identified",
     )
+
+    # 0036 adds no object, so it is judged by the state it produces.
+    applied["0036_sas_attestation_revoke.sql"] = await audit_privileges(conn)
     return applied
+
+
+async def audit_privileges(conn) -> bool:
+    """Is every SAS table reachable ONLY through the backend?
+
+    Checked table by table rather than as a single yes/no, because the failure
+    this exists to catch is one table being forgotten while its siblings are
+    correct. RLS is not sufficient on its own: it filters rows, and TRUNCATE
+    does not operate on rows, so a role holding TRUNCATE can empty a
+    fully RLS-protected table.
+    """
+    print("\nBROWSER-FACING PRIVILEGES (anon / authenticated must hold none)")
+    clean = True
+    for table in SERVICE_ROLE_ONLY_TABLES:
+        if not await conn.fetchval(
+            "select to_regclass($1) is not null", "public." + table
+        ):
+            line(table, "n/a", "table not deployed")
+            continue
+        holders = await conn.fetch(
+            """
+            select grantee, string_agg(privilege_type, ',' order by privilege_type) p
+              from information_schema.role_table_grants
+             where table_schema = 'public' and table_name = $1
+               and grantee in ('anon', 'authenticated')
+             group by grantee order by grantee
+            """,
+            table,
+        )
+        if not holders:
+            line(table, "LOCKED", "service_role only")
+            continue
+        clean = False
+        for holder in holders:
+            line(
+                table,
+                "EXPOSED",
+                f"{holder['grantee']} holds {holder['p']}",
+            )
+            if "TRUNCATE" in holder["p"]:
+                line(
+                    "",
+                    "",
+                    "TRUNCATE is NOT filtered by RLS - this table can be emptied",
+                )
+    return clean
 
 
 async def audit_storage(conn) -> None:
@@ -166,11 +250,14 @@ async def audit_audit_trail(conn) -> None:
         "PRESENT" if has_function else "ABSENT",
         "every package, upload and review writes through it",
     )
-    if await conn.fetchval(
-        "select to_regclass('public.sas_validation_audit') is not null"
-    ):
-        events = await conn.fetchval("select count(*) from public.sas_validation_audit")
-        line("  sas_validation_audit rows", str(events), "")
+    # The SAS module has no audit table of its own. It writes into the shared
+    # `public.audit_events` that predates it, which is the point: "who did what"
+    # is one trail for the whole product, not one per feature.
+    if await conn.fetchval("select to_regclass('public.audit_events') is not null"):
+        events = await conn.fetchval(
+            "select count(*) from public.audit_events where action like 'SAS_%'"
+        )
+        line("  audit_events rows with a SAS_ action", str(events), "")
 
 
 async def audit_reviewers(conn) -> int:
@@ -259,6 +346,12 @@ async def main() -> int:
             "\n  This script will not apply them. Migrations change a shared\n"
             "  environment and that is a decision for a person who chose it."
         )
+        if "0036_sas_attestation_revoke.sql" in missing:
+            print(
+                "\n  NOTE: 0036 adds no table, so it shows as missing whenever any\n"
+                "  SAS table still grants anon or authenticated. See the\n"
+                "  BROWSER-FACING PRIVILEGES section above for which one."
+            )
     elif reviewers == 0:
         print(
             "\n  Schema is ready; NO AUTHORIZED REVIEWER EXISTS. Uploaded evidence\n"
