@@ -2,7 +2,7 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "functions": {
     "api/index.py": {
-      "includeFiles": "backend/app/**",
+      "includeFiles": "{backend/app,be-stats/src/be_stats}/**",
       "maxDuration": 300
     }
   },

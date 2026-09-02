@@ -78,6 +78,95 @@ def test_deployment_ships_no_test_tooling():
     assert not strays, f"Development-only packages in the deployment bundle: {strays}"
 
 
+# --------------------------------------------------- first-party packages ---
+#
+# WHAT THE MIRROR CHECK ABOVE CANNOT SEE
+#
+# It compares two requirements files. `be-stats` is in neither, because it is a
+# LOCAL package installed editable into the dev venv - so every local run and
+# every test resolved it, and the deployment had no copy at all.
+#
+# `app.sas_validation.program` imports `be_stats.replicate_abe` at module
+# scope and `app.main` imports the sas_validation package, so the miss did not
+# degrade one feature: `from app.main import app` raised, the function never
+# started, and EVERY /api route returned 500. Production served 27 requests and
+# 27 fives before anyone traced it.
+#
+# Two things must therefore hold, and neither is about pip:
+#   1. the source ships    -> includeFiles in vercel.json
+#   2. the path is set     -> sys.path in api/index.py
+# plus the third-party packages the local package itself imports.
+
+#: Local packages the deployed app imports. Name -> (source root relative to
+#: the repository, importable module directory).
+FIRST_PARTY = {"be_stats": ("be-stats/src", "be-stats/src/be_stats")}
+
+
+def test_local_packages_are_on_the_entrypoint_path():
+    entry = ENTRYPOINT.read_text(encoding="utf-8")
+    for package, (source_root, _) in FIRST_PARTY.items():
+        segment = source_root.split("/")[0]
+        assert segment in entry, (
+            f"{package} is imported by the deployed app but api/index.py never "
+            f"puts {source_root} on sys.path, so the function cannot import it."
+        )
+
+
+def test_local_package_sources_are_bundled():
+    import json
+
+    config = json.loads(VERCEL_JSON.read_text(encoding="utf-8"))
+    include = config["functions"]["api/index.py"].get("includeFiles", "")
+
+    for package, (_, module_dir) in FIRST_PARTY.items():
+        assert module_dir in include, (
+            f"{package} is imported by the deployed app but {module_dir} is not "
+            f"in includeFiles, so its source never reaches the bundle. Present: "
+            f"{include!r}"
+        )
+
+
+def test_local_package_dependencies_reach_the_deployment():
+    """be-stats declares scipy and numpy. pip installs neither unless asked.
+
+    Shipping the source without its dependencies swaps one ImportError for
+    another, which is a worse outcome than the first: it looks fixed.
+    """
+    declared = (REPO / "be-stats" / "pyproject.toml").read_text(encoding="utf-8")
+    block = declared[declared.index("dependencies = ["):]
+    block = block[: block.index("]")]
+
+    required = set(re.findall(r'"([A-Za-z0-9._-]+)\s*[><=]', block))
+    assert required, "be-stats declares no dependencies - has this gone stale?"
+
+    vercel = _packages(VERCEL_REQS)
+    missing = sorted(
+        name for name in required if name.lower().replace("_", "-") not in vercel
+    )
+    assert not missing, (
+        f"be-stats needs {missing}, absent from api/requirements.txt. The "
+        "bundle would import be_stats and die on its first transitive import."
+    )
+
+
+def test_the_deployed_entrypoint_actually_imports():
+    """The end the other tests only approach.
+
+    Every check above verifies a precondition; this one runs the import the
+    serverless function runs. It executes in this repository, so it cannot
+    prove the BUNDLE is complete - but it does prove the entrypoint's own path
+    setup is coherent, and it fails loudly if someone adds a module-scope
+    import of something the deployment has no route to.
+    """
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("_vercel_entry", ENTRYPOINT)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    assert hasattr(module, "app"), "api/index.py did not expose `app`"
+
+
 def test_vercel_config_routes_the_api_to_the_python_function():
     import json
 
