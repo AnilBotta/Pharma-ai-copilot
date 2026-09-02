@@ -8,6 +8,14 @@
 # Kept at api/ rather than the repo root on purpose: a requirements.txt at the
 # root makes Vercel's framework detection consider the project a Python app,
 # which would break the Next.js build.
+#
+# numpy and scipy are here for be-stats, which is a LOCAL package: its source
+# ships via includeFiles in vercel.json and its path is set in api/index.py,
+# but pip still has to supply what it imports. They appear in neither
+# requirements file today because be-stats is installed editable in the dev
+# venv, which is why the mirror check between the two files could not see the
+# gap - and why production ran without them until every /api route 500'd on
+# `ModuleNotFoundError: No module named 'be_stats'`.
 
 annotated-doc==0.0.5
 annotated-types==0.8.0
@@ -38,6 +46,7 @@ langgraph-prebuilt==1.1.0
 langgraph-sdk==0.4.2
 langsmith==0.10.15
 librt==0.13.0
+numpy==2.5.2
 openai==2.53.0
 orjson==3.11.9
 ormsgpack==1.12.2
@@ -56,6 +65,7 @@ python-multipart==0.0.32
 PyYAML==6.0.3
 requests==2.34.2
 requests-toolbelt==1.0.0
+scipy==1.18.1
 sniffio==1.3.1
 starlette==1.3.1
 structlog==26.1.0
