@@ -20,7 +20,7 @@
  * candidate) cannot look equally authoritative on a screen.
  */
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -48,6 +48,12 @@ type GeneratedPackage = {
   dataset_sha256: string;
   n_observations: number;
   be_stats_version: string;
+  /**
+   * True when this came from the packages listing rather than from a
+   * generation in this session, so the details panel can show what it
+   * actually knows instead of printing empty strings and a confident 0.
+   */
+  restored?: boolean;
 };
 
 type Reference = {
@@ -171,6 +177,44 @@ export function ManualValidation() {
   const resultInput = useRef<HTMLInputElement>(null);
   const logInput = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
+
+  /**
+   * Recover the most recent package on mount.
+   *
+   * Without this the controls below could only ever act on a package generated
+   * in this very tab: a reload lost the reference, and a package generated
+   * anywhere else was unreachable, leaving Download and both Uploads
+   * permanently disabled with no way to re-enable them except generating
+   * again — which produces a different package id and archive hash, so the
+   * customer could run one package while we hold the record of another.
+   */
+  useEffect(() => {
+    let active = true;
+    void (async () => {
+      try {
+        const { packages } = await call("/sas-validation/packages");
+        if (!active || !packages?.length) return;
+        const latest = packages[0];
+        setPackage({
+          package_id: latest.package_id,
+          case_id: latest.case_id,
+          filename: "",
+          archive_sha256: latest.archive_sha256,
+          archive_bytes: latest.archive_bytes,
+          dataset_sha256: "",
+          n_observations: 0,
+          be_stats_version: latest.be_stats_version,
+          restored: true,
+        });
+      } catch {
+        // A listing that fails must not break the page. Generating a new
+        // package still works, and that is the primary path.
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const generate = useCallback(async () => {
     setBusy("generate");
@@ -413,14 +457,28 @@ export function ManualValidation() {
             </p>
           )}
 
+          {pkg?.restored && (
+            <p className="text-xs text-muted-foreground">
+              Showing the most recent package generated for this organization.
+              Download it, or generate a new one — generating produces a
+              different package id and archive hash.
+            </p>
+          )}
+
           {pkg && (
             <dl className="grid gap-x-4 gap-y-1 text-xs text-muted-foreground sm:grid-cols-[10rem_1fr]">
               <dt>Package</dt>
               <dd className="font-mono">{pkg.package_id.slice(0, 32)}…</dd>
               <dt>Archive SHA-256</dt>
               <dd className="font-mono break-all">{pkg.archive_sha256}</dd>
-              <dt>Observations</dt>
-              <dd>{pkg.n_observations}</dd>
+              {/* The listing carries no observation count, and printing 0
+                  would be a wrong number rather than an absent one. */}
+              {!pkg.restored && (
+                <>
+                  <dt>Observations</dt>
+                  <dd>{pkg.n_observations}</dd>
+                </>
+              )}
               <dt>Engine version</dt>
               <dd>be-stats {pkg.be_stats_version}</dd>
             </dl>

@@ -598,6 +598,18 @@ class ManualValidationWorkflow:
             filename=filename,
         )
 
+    async def list_packages(
+        self, *, tenant_id: str, limit: int = 50
+    ) -> list[Mapping[str, Any]]:
+        """Metadata for this tenant's packages, newest first.
+
+        Deliberately NOT audited. Listing what exists is not access to
+        evidence; the audited act is issuing a download link, which
+        `download_url` records. Auditing a list view would bury the events that
+        matter under noise from every page load.
+        """
+        return await self._repository.list_packages(tenant_id=tenant_id, limit=limit)
+
     async def download_url(
         self, *, tenant_id: str, actor: str, package_id: str
     ) -> tuple[str, dict]:
