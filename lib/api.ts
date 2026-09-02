@@ -51,6 +51,55 @@ async function authHeaders(): Promise<Record<string, string>> {
   };
 }
 
+/**
+ * Multipart variant: the SAME base URL and the SAME bearer token, minus the
+ * JSON content type.
+ *
+ * `Content-Type` must be absent for a `FormData` body so the browser can set
+ * `multipart/form-data` with its own boundary. Setting it by hand produces a
+ * body the server cannot parse, which is why this exists rather than a flag on
+ * `authHeaders`.
+ */
+async function authHeadersForForm(): Promise<Record<string, string>> {
+  const headers = await authHeaders();
+  delete headers["Content-Type"];
+  return headers;
+}
+
+/**
+ * A multipart POST, through the same base URL, token and error handling.
+ *
+ * Kept beside `request` rather than folded into it: the only differences are
+ * the absent content type and the un-serialised body, and a boolean parameter
+ * that changed both would be harder to read than two functions.
+ */
+async function requestForm<T>(path: string, body: FormData): Promise<T> {
+  let response: Response;
+  try {
+    response = await fetch(`${BASE_URL}/api${path}`, {
+      method: "POST",
+      headers: await authHeadersForForm(),
+      body,
+    });
+  } catch (cause) {
+    throw new ApiError(
+      `Cannot reach the API at ${BASE_URL}. Is the backend running?`,
+      0,
+      cause
+    );
+  }
+
+  const parsed = await response.json().catch(() => null);
+  if (!response.ok) {
+    throw new ApiError(
+      extractDetail(parsed) ?? `Request failed (${response.status}).`,
+      response.status,
+      parsed
+    );
+  }
+  return parsed as T;
+}
+
 async function request<T>(
   path: string,
   init: RequestInit = {}
@@ -168,6 +217,46 @@ function extractDetail(body: unknown): string | null {
   }
   return null;
 }
+
+/* ---------------------------------------------------- SAS validation types -- */
+
+export interface SasPackageSummary {
+  package_id: string;
+  case_id: string;
+  archive_sha256: string;
+  archive_bytes: number;
+  be_stats_version: string;
+  git_sha: string;
+  generated_at: string;
+}
+
+export interface SasGeneratedPackage {
+  package_id: string;
+  case_id: string;
+  filename: string;
+  archive_sha256: string;
+  archive_bytes: number;
+  dataset_sha256: string;
+  program_sha256: string;
+  n_observations: number;
+  generated_at: string;
+  be_stats_version: string;
+  note: string;
+}
+
+export interface SasUploadResponse {
+  run_id: string;
+  status: string;
+  detail: string;
+  duplicate: boolean;
+  comparison: unknown;
+  evidence_origin?: string;
+  is_regulatory_evidence?: boolean;
+  note: string;
+}
+
+export type SasOptions = Record<string, unknown>;
+export type SasReviewContext = Record<string, unknown>;
 
 /* ------------------------------------------------------------------ types -- */
 
@@ -911,6 +1000,89 @@ export const api = {
   getReport: (runId: string) => request<ReportSection[]>(`/runs/${runId}/report`),
   getQueries: (runId: string) => request<SearchQuery[]>(`/runs/${runId}/queries`),
   getErrors: (runId: string) => request<RunError[]>(`/runs/${runId}/errors`),
+};
+
+/**
+ * SAS validation.
+ *
+ * WHY THIS IS HERE RATHER THAN IN THE COMPONENTS
+ *
+ * `manual-validation.tsx` (PR #65) and `statistical-review.tsx` (PR #66) each
+ * carried a private `call()` helper that did:
+ *
+ *     fetch(`/api${path}`)
+ *
+ * A RELATIVE url, so it resolved against the FRONTEND origin rather than
+ * `NEXT_PUBLIC_API_BASE_URL`, and with no `Authorization` header. Every SAS
+ * request therefore went to the Next.js dev server, which has no `/api` route
+ * handler and no rewrite, and came back as a 404 HTML page. Not one of those
+ * controls had ever reached the backend.
+ *
+ * The failure was invisible because it looked like a disabled button: the
+ * package listing failed, the component swallowed it, and `Download package`
+ * simply stayed grey.
+ *
+ * Going through `request()` is what fixes it - one place that knows the base
+ * URL and the bearer token, and one place to change when either moves.
+ */
+export const sasValidation = {
+  options: () => request<SasOptions>("/sas-validation/options"),
+
+  listPackages: () =>
+    request<{ packages: SasPackageSummary[] }>("/sas-validation/packages"),
+
+  generatePackage: (validationCaseId: string) =>
+    request<SasGeneratedPackage>("/sas-validation/packages", {
+      method: "POST",
+      body: JSON.stringify({ validation_case_id: validationCaseId }),
+    }),
+
+  downloadUrl: (packageId: string) =>
+    request<{
+      download_url: string;
+      archive_sha256: string;
+      archive_bytes: number;
+      expires_in_seconds: number;
+    }>(`/sas-validation/packages/${packageId}/download`),
+
+  // Generic, defaulting to the shapes above. The review screen and the upload
+  // panel each hold a fuller type than this module needs to know about, and
+  // duplicating them here would create two definitions to keep in step.
+  uploadResult: async <T = SasUploadResponse>(
+    packageId: string,
+    file: File,
+    evidenceOrigin: string,
+    runId?: string
+  ) => {
+    const form = new FormData();
+    form.append("file", file);
+    form.append("evidence_origin", evidenceOrigin);
+    if (runId) form.append("run_id", runId);
+    return requestForm<T>(`/sas-validation/packages/${packageId}/result`, form);
+  },
+
+  uploadLog: async <T = SasUploadResponse>(runId: string, file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return requestForm<T>(`/sas-validation/runs/${runId}/log`, form);
+  },
+
+  reviewContext: <T = SasReviewContext>(runId: string) =>
+    request<T>(`/sas-validation/runs/${runId}/review`),
+
+  generateAiReview: (runId: string) =>
+    request<Record<string, unknown>>(`/sas-validation/runs/${runId}/ai-review`, {
+      method: "POST",
+    }),
+
+  recordReview: (
+    runId: string,
+    body: { decision: string; notes: string; acknowledged: boolean }
+  ) =>
+    request<{ review_id: string; decision: string }>(
+      `/sas-validation/runs/${runId}/review`,
+      { method: "POST", body: JSON.stringify(body) }
+    ),
 };
 
 /**

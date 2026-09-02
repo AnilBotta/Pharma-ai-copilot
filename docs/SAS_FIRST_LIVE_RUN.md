@@ -116,8 +116,28 @@ For the person who will run the package in a licensed SAS environment.
    - the `PROC MIXED` statements
    - any transformation
 
-   The SAS statements are reproduced verbatim from the regulatory source.
-   Editing them silently is the one thing that makes the result uninterpretable.
+   The package contains the approved generated validation program. Regulatory
+   source/model provenance is preserved, and the executable SAS contains only
+   documented, allow-listed adaptations required for execution.
+
+   **These adaptations are already applied in `validate.sas`. Do not make them
+   yourself.** Each is recorded in the file beside the statement it replaced:
+
+   | Regulatory source | Executable in `validate.sas` |
+   |---|---|
+   | `PROC MIXED;` | `PROC MIXED DATA=be_input METHOD=REML;` |
+   | `CLASSES SEQ SUBJ PER TRT;` | `CLASS SEQ SUBJ PER TRT;` |
+
+   `CLASS` is **not** an alias for `CLASSES`. `CLASS` is the statement
+   `PROC MIXED` documents; the FDA guidance prints `CLASSES` in its Appendix C
+   listing. Substituting the keyword changes SAS syntax only — the same four
+   variables are declared classification variables, so the fixed-effects
+   design, the covariance structure and every estimate are unchanged.
+
+   `MODEL`, `RANDOM`, `REPEATED` and `ESTIMATE` carry no adaptation at all.
+
+   Editing any statement silently is the one thing that makes the result
+   uninterpretable.
 
 6. **The only permitted change** is the documented path configuration at the top
    of `validate.sas` — the `packagedir` macro variable that tells SAS where you

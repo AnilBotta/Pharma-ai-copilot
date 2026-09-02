@@ -28,12 +28,14 @@ import {
   FileUp,
   Loader2,
   Package,
+  RefreshCw,
   ShieldAlert,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { sasValidation } from "@/lib/api";
 
 import { StatisticalReview } from "./statistical-review";
 
@@ -148,18 +150,15 @@ function stageIndex(pkg: GeneratedPackage | null, upload: UploadResponse | null)
   return 5;
 }
 
-async function call(path: string, init?: RequestInit) {
-  const response = await fetch(`/api${path}`, init);
-  if (!response.ok) {
-    const body = await response.json().catch(() => ({}));
-    throw new Error(
-      typeof body.detail === "string"
-        ? body.detail
-        : (body.detail?.message ?? `Request failed (${response.status})`),
-    );
-  }
-  return response.json();
-}
+/**
+ * How the package listing went, as four distinct states.
+ *
+ * "No package exists" and "the lookup failed" are completely different facts
+ * and previously rendered identically — as a greyed-out Download button with
+ * no explanation. A failed lookup was swallowed by a bare `catch {}`, so the
+ * one symptom the user could see was a disabled control.
+ */
+type RecoveryStatus = "loading" | "restored" | "none" | "error";
 
 function evidenceLabel(reference: Reference) {
   if (reference.regulator_confirmed) return "Regulator published";
@@ -174,6 +173,8 @@ export function ManualValidation() {
   const [upload, setUpload] = useState<UploadResponse | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [origin, setOrigin] = useState<string>("test_fixture");
+  const [recovery, setRecovery] = useState<RecoveryStatus>("loading");
+  const [recoveryError, setRecoveryError] = useState<string | null>(null);
   const resultInput = useRef<HTMLInputElement>(null);
   const logInput = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
@@ -181,52 +182,59 @@ export function ManualValidation() {
   /**
    * Recover the most recent package on mount.
    *
-   * Without this the controls below could only ever act on a package generated
-   * in this very tab: a reload lost the reference, and a package generated
-   * anywhere else was unreachable, leaving Download and both Uploads
-   * permanently disabled with no way to re-enable them except generating
-   * again — which produces a different package id and archive hash, so the
-   * customer could run one package while we hold the record of another.
+   * Without this the controls below could only act on a package generated in
+   * this very tab: a reload lost the reference, and a package generated
+   * anywhere else was unreachable, leaving Download and both Uploads disabled
+   * with no way back except generating again — which produces a different
+   * package id and archive hash, so the customer could run one package while
+   * we hold the record of another.
+   *
+   * A failure here is REPORTED, never swallowed. It does not generate a
+   * replacement: "we could not look" is not "there is nothing", and quietly
+   * making a second package would be the one action that invalidates the
+   * evidence.
    */
-  useEffect(() => {
-    let active = true;
-    void (async () => {
-      try {
-        const { packages } = await call("/sas-validation/packages");
-        if (!active || !packages?.length) return;
-        const latest = packages[0];
-        setPackage({
-          package_id: latest.package_id,
-          case_id: latest.case_id,
-          filename: "",
-          archive_sha256: latest.archive_sha256,
-          archive_bytes: latest.archive_bytes,
-          dataset_sha256: "",
-          n_observations: 0,
-          be_stats_version: latest.be_stats_version,
-          restored: true,
-        });
-      } catch {
-        // A listing that fails must not break the page. Generating a new
-        // package still works, and that is the primary path.
+  const restore = useCallback(async () => {
+    setRecovery("loading");
+    setRecoveryError(null);
+    try {
+      const { packages } = await sasValidation.listPackages();
+      if (!packages.length) {
+        setRecovery("none");
+        return;
       }
-    })();
-    return () => {
-      active = false;
-    };
+      const latest = packages[0];
+      setPackage({
+        package_id: latest.package_id,
+        case_id: latest.case_id,
+        filename: "",
+        archive_sha256: latest.archive_sha256,
+        archive_bytes: latest.archive_bytes,
+        dataset_sha256: "",
+        n_observations: 0,
+        be_stats_version: latest.be_stats_version,
+        restored: true,
+      });
+      setRecovery("restored");
+    } catch (caught) {
+      setRecovery("error");
+      setRecoveryError(
+        caught instanceof Error ? caught.message : String(caught),
+      );
+    }
   }, []);
+
+  useEffect(() => {
+    void restore();
+  }, [restore]);
 
   const generate = useCallback(async () => {
     setBusy("generate");
     setError(null);
     try {
-      setPackage(
-        await call("/sas-validation/packages", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ validation_case_id: CASE_ID }),
-        }),
-      );
+      const generated = await sasValidation.generatePackage(CASE_ID);
+      setPackage({ ...generated, restored: false });
+      setRecovery("restored");
       setUpload(null);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : String(caught));
@@ -240,9 +248,7 @@ export function ManualValidation() {
     setBusy("download");
     setError(null);
     try {
-      const { download_url } = await call(
-        `/sas-validation/packages/${pkg.package_id}/download`,
-      );
+      const { download_url } = await sasValidation.downloadUrl(pkg.package_id);
       // A short-lived signed link to private storage. Opened rather than
       // fetched, so the browser handles the attachment.
       window.location.href = download_url;
@@ -259,17 +265,15 @@ export function ManualValidation() {
       setBusy("result");
       setError(null);
       try {
-        const form = new FormData();
-        form.append("file", file);
-        // Sent explicitly on every upload. The server also defaults to the
-        // fixture, so a client that forgot cannot silently create a run that
-        // claims to be real evidence.
-        form.append("evidence_origin", origin);
+        // The origin is sent explicitly on every upload. The server also
+        // defaults to the fixture, so a client that forgot cannot silently
+        // create a run that claims to be real evidence.
         setUpload(
-          await call(`/sas-validation/packages/${pkg.package_id}/result`, {
-            method: "POST",
-            body: form,
-          }),
+          await sasValidation.uploadResult<UploadResponse>(
+            pkg.package_id,
+            file,
+            origin,
+          ),
         );
       } catch (caught) {
         setError(caught instanceof Error ? caught.message : String(caught));
@@ -286,11 +290,9 @@ export function ManualValidation() {
       setBusy("log");
       setError(null);
       try {
-        const form = new FormData();
-        form.append("file", file);
-        const response = await call(
-          `/sas-validation/runs/${upload.run_id}/log`,
-          { method: "POST", body: form },
+        const response = await sasValidation.uploadLog<UploadResponse>(
+          upload.run_id,
+          file,
         );
         setUpload({ ...upload, status: response.status, detail: response.detail });
       } catch (caught) {
@@ -339,6 +341,68 @@ export function ManualValidation() {
               </li>
             ))}
           </ol>
+
+          {/* THE ACTIVE PACKAGE, ABOVE THE CONTROLS THAT ACT ON IT.
+              Which package the buttons operate on must be readable before
+              they are pressed, not inferred afterwards from a download. */}
+          {recovery === "loading" && (
+            <p className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Loader2 className="size-4 animate-spin" />
+              Looking for existing validation packages…
+            </p>
+          )}
+
+          {recovery === "error" && (
+            <div className="space-y-2 rounded-lg border border-destructive/40 p-3">
+              <p className="flex items-start gap-2 text-xs text-destructive">
+                <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+                <span>
+                  Could not load existing validation packages.
+                  {recoveryError ? ` ${recoveryError}` : ""}
+                  <span className="mt-1 block text-muted-foreground">
+                    This is not the same as having no package. Nothing was
+                    generated automatically — retry, or generate a new package
+                    deliberately.
+                  </span>
+                </span>
+              </p>
+              <Button
+                onClick={() => void restore()}
+                variant="secondary"
+                size="sm"
+                disabled={busy !== null}
+              >
+                <RefreshCw className="size-4" />
+                Retry
+              </Button>
+            </div>
+          )}
+
+          {recovery === "none" && (
+            <p className="text-xs text-muted-foreground">
+              No validation package exists yet for this organization. Generate
+              one to begin.
+            </p>
+          )}
+
+          {recovery === "restored" && pkg && (
+            <div className="space-y-1 rounded-lg bg-muted p-3 text-xs">
+              <p className="font-medium">
+                Active package{pkg.restored ? " (most recent)" : ""}
+              </p>
+              <p className="font-mono break-all">{pkg.package_id}</p>
+              <p className="text-muted-foreground">
+                SHA-256{" "}
+                <span className="font-mono break-all">
+                  {pkg.archive_sha256}
+                </span>
+              </p>
+              <p className="text-muted-foreground">
+                The buttons below act on this package. Generating creates a
+                different one, with a different id and hash.
+              </p>
+            </div>
+          )}
 
           <div className="flex flex-wrap gap-2">
             <Button onClick={generate} disabled={busy !== null} size="sm">

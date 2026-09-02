@@ -851,6 +851,36 @@ def test_the_runbook_names_the_only_line_an_operator_may_change():
     assert "ONLY line you should change" in program.text
 
 
+def test_the_runbook_does_not_claim_the_sas_is_verbatim():
+    """It is not, and saying so to an operator is a false provenance claim.
+
+    `PROC MIXED;` and `CLASSES SEQ SUBJ PER TRT;` are both adapted in the
+    generated program. The documented, allow-listed adaptations are what the
+    runbook must describe.
+    """
+    runbook = (
+        BACKEND.parent / "docs" / "SAS_FIRST_LIVE_RUN.md"
+    ).read_text(encoding="utf-8")
+
+    assert "reproduced verbatim from the regulatory source" not in runbook
+    assert "approved generated validation program" in runbook
+    assert "documented, allow-listed adaptations" in runbook
+
+    # Both adaptations named, source beside executable.
+    assert "PROC MIXED DATA=be_input METHOD=REML;" in runbook
+    assert "CLASS SEQ SUBJ PER TRT;" in runbook
+    assert "CLASSES SEQ SUBJ PER TRT;" in runbook
+
+    # CLASS must never be DESCRIBED as an alias - PR #64 established that.
+    # Asserted as the explicit denial rather than by banning the word, because
+    # the sentence that gets this right is the one that contains it.
+    assert "`CLASS` is **not** an alias for `CLASSES`" in runbook
+    assert "is an alias" not in runbook.lower()
+
+    # The operator is told they are already applied, not asked to apply them.
+    assert "already applied in `validate.sas`" in runbook
+
+
 def test_the_runbook_does_not_tell_the_operator_what_answer_to_expect():
     """The whole point of the first live run is that the answer is open.
 
