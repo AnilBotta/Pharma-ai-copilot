@@ -214,6 +214,78 @@ def test_the_review_request_body_cannot_name_the_reviewer():
         assert forbidden not in fields
 
 
+def test_an_existing_package_is_reachable_without_regenerating_it():
+    """The bug: the UI could only act on a package generated in that same tab.
+
+    A reload lost the reference and a package generated anywhere else was
+    unreachable, so Download and both Uploads stayed disabled with no way back
+    except generating again - which produces a DIFFERENT package id and archive
+    hash, so a customer could run one package while we hold the record of
+    another.
+
+    `list_packages` existed in the repository and nothing exposed it.
+    """
+    paths = {route.path for route in routes.router.routes}
+    assert "/sas-validation/packages" in paths
+
+    listing = next(
+        route
+        for route in routes.router.routes
+        if route.path == "/sas-validation/packages" and "GET" in route.methods
+    )
+    assert listing is not None
+
+
+@pytest.mark.asyncio
+async def test_the_listing_returns_metadata_and_never_bytes_or_a_url():
+    """Listing what exists is not access to it.
+
+    A signed URL is minted only by the download route, which audits each issue.
+    If the listing handed one out, every page load would silently become an
+    audited grant of access to evidence.
+
+    Asserted on the RETURNED VALUE rather than on the source text: an earlier
+    version of this test searched the function's source for "signed" and failed
+    on its own docstring, which is the same blunt-search mistake PR #64 made
+    with "validation_status".
+    """
+
+    class FakeWorkflow:
+        def __init__(self) -> None:
+            self.storage_touched = False
+
+        async def list_packages(self, *, tenant_id, limit=50):
+            return [
+                {
+                    "id": "a" * 64,
+                    "case_id": "FDA_APPENDIX_C_PARTIAL_EMA_DATASET_II",
+                    "archive_sha256": "b" * 64,
+                    "archive_bytes": 7267,
+                    "be_stats_version": "0.7.0",
+                    "git_sha": "abc123",
+                    "generated_at": "2026-09-02T01:34:47+00:00",
+                    # Present in the row, and must NOT reach the client: it is
+                    # the private-bucket key.
+                    "archive_storage_path": "tenant/packages/aaa/file.zip",
+                }
+            ]
+
+    result = await routes.list_packages(
+        user=AuthenticatedUser(id="u", email="e@example.com", role="authenticated"),
+        workflow=FakeWorkflow(),
+    )
+    entry = result["packages"][0]
+
+    assert entry["package_id"] == "a" * 64
+    assert entry["archive_sha256"] == "b" * 64
+
+    serialised = str(result)
+    assert "archive_storage_path" not in entry
+    assert "packages/aaa/file.zip" not in serialised
+    assert "token=" not in serialised
+    assert "http" not in serialised
+
+
 def test_no_route_accepts_a_client_supplied_tenant():
     """Choosing your own tenant is choosing whose data to read.
 

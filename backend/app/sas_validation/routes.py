@@ -356,6 +356,46 @@ async def generate_package(
     }
 
 
+@router.get("/packages")
+async def list_packages(
+    user: AuthenticatedUser = Depends(current_user),
+    workflow: ManualValidationWorkflow = Depends(get_workflow),
+) -> dict[str, object]:
+    """The packages this organisation has generated, newest first.
+
+    WHY THIS EXISTS
+
+    Without it the interface could only ever reach a package it had generated
+    in the current browser tab. A reload lost the reference, and a package
+    generated anywhere else - another session, another operator, a script - was
+    unreachable entirely: the Download and Upload controls stayed disabled with
+    no way to re-enable them short of generating a second package.
+
+    That is worse than an inconvenience. Generating again to get a download
+    button back produces a DIFFERENT package id and archive hash, so a customer
+    could end up running one package while we hold the record of another.
+
+    Returns metadata only. No signed URL is minted here - that is
+    `/packages/{id}/download`, which audits each issue - and no archive bytes
+    cross this endpoint.
+    """
+    rows = await workflow.list_packages(tenant_id=resolve_tenant(user))
+    return {
+        "packages": [
+            {
+                "package_id": row["id"],
+                "case_id": row["case_id"],
+                "archive_sha256": row["archive_sha256"],
+                "archive_bytes": row["archive_bytes"],
+                "be_stats_version": row["be_stats_version"],
+                "git_sha": row["git_sha"],
+                "generated_at": row["generated_at"],
+            }
+            for row in rows
+        ]
+    }
+
+
 @router.get("/packages/{package_id}/download")
 async def download_package(
     package_id: str,
