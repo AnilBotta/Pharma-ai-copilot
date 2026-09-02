@@ -182,13 +182,23 @@ async def main() -> int:
     await tx.start()
     try:
         # ------------------------------------------------------- migrations ---
-        for name in (
-            "0032_sas_validation.sql",
-            "0034_sas_validation_review.sql",
-            "0035_sas_operator_attestation.sql",
+        # Apply only what is not already there.
+        #
+        # Before deployment this file created the whole schema inside the
+        # transaction, which also proved the migration files were valid SQL.
+        # Now that 0032-0036 are deployed for real, re-applying them raises
+        # DuplicateObject - so the schema is used where it exists and built
+        # where it does not, and the file works either way.
+        for name, sentinel in (
+            ("0032_sas_validation.sql", "public.sas_validation_packages"),
+            ("0034_sas_validation_review.sql", "public.sas_human_reviews"),
+            ("0035_sas_operator_attestation.sql", "public.sas_operator_attestations"),
         ):
+            if await conn.fetchval("select to_regclass($1) is not null", sentinel):
+                print(f"    {name:<38} already deployed; using it")
+                continue
             await conn.execute((MIGRATIONS / name).read_text(encoding="utf-8"))
-        print("    migrations 0032, 0034 and 0035 applied inside the transaction")
+            print(f"    {name:<38} applied inside the transaction")
 
         # ------------------------------------------------------------ setup ---
         await conn.execute(
@@ -447,6 +457,49 @@ async def main() -> int:
             ok and detail == "sas_operator_attestations_operator_named",
             detail,
         )
+
+        # --- H. the package insert accepts what the package model holds -----
+        #
+        # THE BUG THIS CATCHES, WHICH ONLY A REAL POSTGRES CAN SEE.
+        #
+        # `ValidationPackage.generated_at` is an ISO string, because it is part
+        # of the manifest and therefore of the package hash. asyncpg binds a
+        # `$n::timestamptz` parameter in binary and demanded a datetime, so
+        # EVERY real package generation failed at the insert - while the
+        # workflow tests passed, because their in-memory repository accepts any
+        # Python object. Deployment was the first thing with an opinion.
+        print("\n  H. a real package row round-trips through the real schema")
+        from app.sas_validation.package import build_package
+        from app.sas_validation.targets import get_target
+
+        package = build_package(
+            target=get_target("FDA_APPENDIX_C_PARTIAL_EMA_DATASET_II"),
+            observations=[
+                {"subject": 1, "sequence": "TRR", "period": 1,
+                 "treatment": "T", "value": 100.0},
+            ],
+            be_stats_version="0.0.0-test",
+            git_sha="deadbeef",
+        )
+        check(
+            "generated_at is a string, as the manifest requires",
+            isinstance(package.generated_at, str),
+            type(package.generated_at).__name__,
+        )
+        await repository.insert_package(
+            tenant_id=TENANT,
+            actor=REVIEWER_ID,
+            package=package,
+            archive_storage_path=f"{TENANT}/{package.package_id}.zip",
+            archive_sha256="1" * 64,
+            archive_bytes=1234,
+        )
+        stored_at = await conn.fetchval(
+            "select generated_at from public.sas_validation_packages where id = $1",
+            package.package_id,
+        )
+        check("the row exists and its timestamp parsed", stored_at is not None,
+              str(stored_at))
 
         # ------------------------------------------------ nothing promoted ---
         print("\n  and the run's own status was not promoted by any of it")
