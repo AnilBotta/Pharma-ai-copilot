@@ -38,6 +38,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ApiError, sasValidation } from "@/lib/api";
 
 type AIResponse = {
   summary: string;
@@ -131,21 +132,26 @@ type ReviewContext = {
   human_reviews: HumanReview[];
 };
 
-async function call(path: string, init?: RequestInit) {
-  const response = await fetch(`/api${path}`, init);
-  const body = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    const detail = body.detail;
-    if (detail && Array.isArray(detail.failures)) {
-      throw new Error(detail.failures.join("\n"));
+/**
+ * Precondition failures arrive as `detail.failures`, a list, and each entry is
+ * something a reviewer has to act on. `ApiError` carries the parsed body, so
+ * they can be recovered and shown in full rather than flattened to a status.
+ *
+ * This component previously had its own `fetch("/api…")` helper with a
+ * relative URL and no bearer token, so every request went to the frontend
+ * origin and came back as a 404 HTML page. It now goes through `lib/api.ts`
+ * like everything else.
+ */
+function describe(caught: unknown): string {
+  if (caught instanceof ApiError) {
+    const detail = (caught.detail as { detail?: unknown })?.detail;
+    if (detail && typeof detail === "object" && "failures" in detail) {
+      const failures = (detail as { failures?: unknown }).failures;
+      if (Array.isArray(failures)) return failures.join("\n");
     }
-    throw new Error(
-      typeof detail === "string"
-        ? detail
-        : (detail?.message ?? `Request failed (${response.status})`),
-    );
+    return caught.message;
   }
-  return body;
+  return caught instanceof Error ? caught.message : String(caught);
 }
 
 const humanReadable = (value: string) => value.replace(/_/g, " ");
@@ -161,9 +167,9 @@ export function StatisticalReview({ runId }: { runId: string }) {
   const load = useCallback(async () => {
     setError(null);
     try {
-      setContext(await call(`/sas-validation/runs/${runId}/review`));
+      setContext(await sasValidation.reviewContext<ReviewContext>(runId));
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : String(caught));
+      setError(describe(caught));
     }
   }, [runId]);
 
@@ -175,10 +181,10 @@ export function StatisticalReview({ runId }: { runId: string }) {
     setBusy("ai");
     setError(null);
     try {
-      await call(`/sas-validation/runs/${runId}/ai-review`, { method: "POST" });
+      await sasValidation.generateAiReview(runId);
       await load();
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : String(caught));
+      setError(describe(caught));
     } finally {
       setBusy(null);
     }
@@ -189,17 +195,17 @@ export function StatisticalReview({ runId }: { runId: string }) {
       setBusy(decision);
       setError(null);
       try {
-        const result = await call(`/sas-validation/runs/${runId}/review`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ decision, notes, acknowledged }),
+        const result = await sasValidation.recordReview(runId, {
+          decision,
+          notes,
+          acknowledged,
         });
         setDecided(result.decision);
         setNotes("");
         setAcknowledged(false);
         await load();
       } catch (caught) {
-        setError(caught instanceof Error ? caught.message : String(caught));
+        setError(describe(caught));
       } finally {
         setBusy(null);
       }
