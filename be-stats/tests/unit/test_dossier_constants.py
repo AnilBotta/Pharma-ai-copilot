@@ -17,7 +17,9 @@ from be_stats.dossier.constants import (
     ConstantKind,
     constant,
     constants_of_kind,
+    derivation_inputs,
     provenance_coverage,
+    unpinned_normative_constants,
 )
 from be_stats.provenance import VerificationStatus
 from be_stats.spec import (
@@ -70,6 +72,74 @@ def test_normative_constants_are_pinned_to_a_document_version():
         )
 
 
+def test_normative_constants_are_pinned_to_a_section_or_declare_why_not():
+    """The check the previous release was missing.
+
+    Only `document_version` was asserted, so two normative records with an
+    EMPTY section passed - and a report built on the coverage numbers then
+    claimed all of them carried document, section and version. Nothing counted
+    sections, so nothing could contradict it.
+
+    A section is required because a guidance runs to dozens of pages, "FDA
+    says so" is not a citation anybody can check, and a rule can sit beside
+    its near-twin in a different section of the same document - which is
+    exactly what `FDA_IVPT_SWR_THRESHOLD` records.
+    """
+    for record in constants_of_kind(ConstantKind.NORMATIVE):
+        if record.section:
+            assert not record.citation_exception, (
+                f"{record.constant_id} has a section AND an exception. One of "
+                "the two is wrong, and a stale exception is the more "
+                "dangerous: it excludes a pinned record from the count."
+            )
+            continue
+
+        assert record.citation_exception, (
+            f"{record.constant_id} is normative, cites "
+            f"{record.document!r} with no section, and gives no reason. An "
+            "empty section makes 'we have not pinned this yet' and 'this "
+            "document has no sections' look identical, and only one of them "
+            "is outstanding work."
+        )
+
+
+def test_a_citation_exception_is_specific_enough_to_act_on():
+    """Not an escape hatch. It has to say what would close it."""
+    for record in unpinned_normative_constants():
+        exception = record.citation_exception
+        assert len(exception) > 60, (
+            f"{record.constant_id}: a one-line exception is an excuse. Say "
+            "what is missing and what would close it."
+        )
+        assert "DOSSIER-004" in exception, (
+            f"{record.constant_id}: an unpinned normative constant must point "
+            "at the finding tracking it, so the gap is registered rather than "
+            "absorbed."
+        )
+
+
+def test_the_unpinned_normative_constants_are_the_two_known_ones():
+    """A pinned expectation, so a THIRD one cannot appear quietly.
+
+    Asserting the exact set rather than a count: a new unpinned constant
+    replacing one of these would keep the count at two and be invisible.
+    """
+    assert {r.constant_id for r in unpinned_normative_constants()} == {
+        "CONVENTIONAL_LOWER_PERCENT",
+        "CONVENTIONAL_UPPER_PERCENT",
+    }
+
+
+def test_the_unpinned_constants_are_registered_as_a_finding():
+    from be_stats.dossier.findings import FINDINGS
+
+    assert "DOSSIER-004" in FINDINGS
+    assert FINDINGS["DOSSIER-004"].is_open, (
+        "The gap is open work. Closing it means citing a document, not "
+        "editing the register."
+    )
+
+
 def test_normative_constants_declare_no_derivation():
     """Claiming a derivation for a stated value is the error itself.
 
@@ -90,6 +160,114 @@ def test_derived_constants_state_their_derivation():
             "it indistinguishable from a remembered number."
         )
         assert record.verification is VerificationStatus.DERIVED
+
+
+def test_derived_constants_name_the_inputs_they_derive_from():
+    """"What normative inputs produced this?" must have an answer.
+
+    A derivation string alone is prose. Ids resolve, so the question can be
+    answered by following them rather than by reading a formula and hoping the
+    names in it correspond to records.
+    """
+    for record in constants_of_kind(ConstantKind.DERIVED):
+        assert record.derived_from, (
+            f"{record.constant_id} states a derivation and names no inputs, "
+            "so the dossier cannot say what normative values produced it."
+        )
+        for input_id in record.derived_from:
+            assert input_id in CONSTANT_INDEX, (
+                f"{record.constant_id} derives from {input_id!r}, which is "
+                "not an indexed constant."
+            )
+
+
+def test_a_derived_constant_never_derives_from_another_derived_one():
+    """The chain has to bottom out in something a regulator wrote.
+
+    A derived value computed from another derived value can drift two steps
+    away from any stated rule while every individual record still looks
+    correct.
+    """
+    for record in constants_of_kind(ConstantKind.DERIVED):
+        for source in derivation_inputs(record.constant_id):
+            assert source.kind is not ConstantKind.DERIVED, (
+                f"{record.constant_id} derives from {source.constant_id}, "
+                "which is itself derived."
+            )
+
+
+def test_the_derivation_expression_names_ids_rather_than_copying_values():
+    """Ids, not numbers - in the DERIVATION, which is the load-bearing field.
+
+    Scoped to `derivation` deliberately. An earlier version of this test also
+    scanned `role` and `note`, and failed on
+    DERIVED_FDA_NTI_THETA_SAS_EXAMPLE, whose prose says "the printed 1.11111"
+    while EXPLAINING that the printed value is not the rule. Prose about a
+    value is not a copy of it, and a test that cannot tell the difference
+    punishes the records that explain themselves best.
+
+    This repository has made that mistake with "validation_status", "signed",
+    a relative fetch and the word "alias". The fix each time was to assert on
+    the field that carries the meaning, not on every character nearby.
+    """
+    for record in constants_of_kind(ConstantKind.DERIVED):
+        for source in derivation_inputs(record.constant_id):
+            rendered = f"{source.value:g}"
+            # A bare "30" is legitimate in an expression like "at CV = 0.30";
+            # the failure guarded is a full-precision copy standing in for the
+            # reference.
+            if len(rendered) < 4:
+                continue
+            assert rendered not in record.derivation, (
+                f"{record.constant_id}'s derivation contains {rendered}, the "
+                f"value of {source.constant_id}. Reference the id; a copied "
+                "constant is one that can go stale."
+            )
+
+
+def test_every_derived_input_id_is_actually_used_by_the_derivation():
+    """`derived_from` must describe the formula, not accompany it.
+
+    A list of ids nobody checks against the expression is decoration. The one
+    documented exception is DERIVED_FDA_HVD_THETA, whose 1.25 is a literal in
+    `spec.fda_hvd_theta` rather than a read of the indexed constant - and its
+    note says exactly that rather than letting the mismatch pass unremarked.
+    """
+    for record in constants_of_kind(ConstantKind.DERIVED):
+        unused = [
+            input_id
+            for input_id in record.derived_from
+            if input_id not in record.derivation
+        ]
+        if not unused:
+            continue
+        for input_id in unused:
+            # Not a keyword search for "literal" or "documentary" - that is
+            # the blunt-match habit this file warns about two tests up. The
+            # requirement is that the record NAMES the input it listed but
+            # does not compute with, which cannot be satisfied by generic
+            # hedging prose.
+            assert input_id in record.note, (
+                f"{record.constant_id} lists {input_id} as an input, its "
+                "derivation does not use it, and its note does not mention "
+                "it. Either the formula should consume it or the note should "
+                "say why it is listed."
+            )
+
+
+def test_the_abel_cap_derivation_names_the_cap_cv_not_the_acceptance_ratio():
+    """A correction, pinned so it cannot revert.
+
+    The derivation read `sqrt(ln(1.25))`, which is the right NUMBER from the
+    wrong input: the 1.25 there is 1 + (50/100)^2 from the cap CV, not the
+    1.25 acceptance ratio. They coincide because the cap sits at CVwR = 50%,
+    and writing the coincidence made the cap look as though it descended from
+    the acceptance limits. It does not.
+    """
+    record = constant("DERIVED_EMA_ABEL_CAP_LOWER_PERCENT")
+    assert record.derived_from == ("EMA_ABEL_K", "EMA_ABEL_CAP_CV_PERCENT")
+    assert "EMA_ABEL_CAP_CV_PERCENT" in record.derivation
+    assert "CONVENTIONAL_UPPER_PERCENT" not in record.derived_from
 
 
 def test_the_fda_switch_and_its_derived_lookalike_stay_distinct():
@@ -168,20 +346,58 @@ def test_no_two_constants_share_an_identifier_and_disagree():
         values[record.constant_id] = record.value
 
 
-def test_provenance_coverage_is_complete():
-    """Every indexed constant is either verified or explicitly derived.
+def test_provenance_coverage_counts_what_its_names_say():
+    """Each denominator is the set its requirement actually applies to.
 
-    "Unverified" is a legitimate state that the package supports and must
-    remain visible; the assertion is that none is currently in it, so a new
-    unverified constant is a decision somebody makes on purpose.
+    The previous shape returned `verified`, `derived` and `unverified` over
+    every constant at once, and counted no sections at all. A report built on
+    it claimed all 29 carried document, section and version - which nothing in
+    the data supported and nothing in the metrics could contradict.
     """
     coverage = provenance_coverage()
+
     assert coverage["total"] == len(CONSTANT_INDEX)
-    assert coverage["verified"] + coverage["derived"] == coverage["total"], (
-        f"{coverage['unverified']} constant(s) are neither verified against "
-        "the primary document nor marked derived."
+    assert (
+        coverage["normative"] + coverage["derived"] + coverage["illustrative"]
+        == coverage["total"]
+    ), "The three kinds must partition the index."
+
+    # The floor every record clears: authority, a source label, a role.
+    assert coverage["classified"] == coverage["total"]
+
+    # Normative: pinned plus declared exceptions accounts for all of them, and
+    # the exception count is not allowed to be a silent remainder.
+    assert (
+        coverage["normative_pinned"] + coverage["normative_exceptions"]
+        == coverage["normative"]
     )
-    assert coverage["unverified"] == 0
+    assert coverage["normative_exceptions"] == len(unpinned_normative_constants())
+    assert coverage["normative_verified"] == coverage["normative"]
+
+    # Derived: all state a derivation, all name inputs, all carry DERIVED.
+    assert coverage["derived_with_derivation"] == coverage["derived"]
+    assert coverage["derived_with_inputs"] == coverage["derived"]
+    assert coverage["derived_status"] == coverage["derived"]
+
+    # Illustrative: present in a document, read by nothing.
+    assert coverage["illustrative_unconsumed"] == coverage["illustrative"]
+
+
+def test_coverage_does_not_report_a_pinned_count_it_cannot_support():
+    """The specific false claim, made impossible to restate from the metrics.
+
+    `normative_pinned` is strictly less than `normative` right now. Any
+    summary that says "all constants carry document, section and version" is
+    contradicted by the numbers rather than merely unsupported by them.
+    """
+    coverage = provenance_coverage()
+    assert coverage["normative_pinned"] < coverage["normative"], (
+        "If every normative constant is now pinned, delete this test and say "
+        "so plainly - but only after DOSSIER-004 has been closed by citing a "
+        "document."
+    )
+    assert coverage["normative_pinned"] == 19
+    assert coverage["normative"] == 21
 
 
 def test_explain_answers_why_this_number_is_here():

@@ -97,14 +97,48 @@ class ConstantRecord:
     #: normative values, where there is no derivation and claiming one would
     #: be the exact error this module exists to prevent.
     derivation: str = ""
+    #: For a DERIVED value, the ids of the constants it is computed FROM.
+    #:
+    #: Ids rather than copied numbers, deliberately. A derived record that
+    #: restated its inputs' values would be a second copy of a regulatory
+    #: constant, which is the duplication this whole package is built to
+    #: avoid - and it would go stale the first time an input was corrected.
+    derived_from: tuple[str, ...] = ()
     #: Capability ids that consume it. Empty means nothing in the decision
     #: path reads it - true of every ILLUSTRATIVE entry, and asserted.
     consumed_by: tuple[str, ...] = ()
+    #: WHY a normative constant is not pinned to a document section.
+    #:
+    #: Required whenever a normative record has no section, and empty
+    #: otherwise. The alternative - letting an empty section pass silently -
+    #: makes "we have not pinned this yet" and "this document has no sections"
+    #: look identical, and only one of them is outstanding work.
+    #:
+    #: It is NOT an excuse mechanism. A record carrying one is excluded from
+    #: the pinned-citation count and appears in the findings register.
+    citation_exception: str = ""
     note: str = ""
 
     @property
     def is_normative(self) -> bool:
         return self.kind is ConstantKind.NORMATIVE
+
+    @property
+    def has_pinned_citation(self) -> bool:
+        """All four fields a regulatory citation needs, none of them empty.
+
+        Authority, document, SECTION and version. The section is included
+        because a guidance runs to dozens of pages and "FDA says so" is not a
+        citation anybody can check - and because a rule and its near-twin can
+        sit in different sections of the same document, which is exactly the
+        situation `FDA_IVPT_SWR_THRESHOLD` records.
+        """
+        return bool(
+            self.citation.authority
+            and self.citation.document
+            and self.citation.section
+            and self.citation.document_version
+        )
 
     @property
     def document(self) -> str:
@@ -281,6 +315,23 @@ _NORMATIVE: tuple[ConstantRecord, ...] = (
     # The acceptance limits `resolve_be_spec` constructs inline. Indexed here
     # because a constant that never reaches a table is exactly the one a
     # provenance audit misses.
+    # THE TWO RECORDS THAT ARE NOT PINNED, AND SAY SO.
+    #
+    # `spec._ICH_M13A_LIKE` is a placeholder and has always announced itself as
+    # one - "LIKE" is in its name. Its document field is a DESCRIPTION of a
+    # rule rather than the title of a document; its authority names three
+    # bodies at once; its version reads "current", which `provenance` opens by
+    # warning is not a version but a promise that somebody will remember to
+    # check.
+    #
+    # The obvious repair is to cite ICH M13A or FDA's guidance at the section
+    # that states the interval. That would mean writing a section number this
+    # package has not read, which is the over-specification error recorded at
+    # the top of `provenance.py` - a citation that looks checked and is not.
+    #
+    # So the gap is DECLARED instead: excluded from the pinned-citation count,
+    # tracked as finding DOSSIER-004, and closed by reading the document rather
+    # than by editing this file.
     ConstantRecord(
         constant_id="CONVENTIONAL_LOWER_PERCENT",
         value=80.00,
@@ -292,6 +343,16 @@ _NORMATIVE: tuple[ConstantRecord, ...] = (
             "both regulators for the standard case."
         ),
         consumed_by=("AVERAGE_BE_2X2",),
+        citation_exception=(
+            "NOT PINNED. The 80.00-125.00% interval is stated by ICH, FDA and "
+            "EMA alike, and this package has not established WHICH document, "
+            "section and version to cite it from. Its VERIFIED status "
+            "therefore rests on universal agreement about the number rather "
+            "than on a reading of a pinned document, which is precisely why "
+            "it is excluded from the pinned-citation count. Closed by reading "
+            "a primary source and citing it, never by writing a section "
+            "number from memory. Tracked as DOSSIER-004."
+        ),
     ),
     ConstantRecord(
         constant_id="CONVENTIONAL_UPPER_PERCENT",
@@ -301,6 +362,10 @@ _NORMATIVE: tuple[ConstantRecord, ...] = (
         verification=VerificationStatus.VERIFIED,
         role="The conventional acceptance interval's upper limit.",
         consumed_by=("AVERAGE_BE_2X2",),
+        citation_exception=(
+            "NOT PINNED, as for CONVENTIONAL_LOWER_PERCENT. Tracked as "
+            "DOSSIER-004."
+        ),
     ),
     ConstantRecord(
         constant_id="EMA_NTI_NARROWED_LOWER_PERCENT",
@@ -349,12 +414,25 @@ _DERIVED: tuple[ConstantRecord, ...] = (
             "threshold, which FDA states as 0.294. The two differ in the "
             "fourth decimal and studies fall between them."
         ),
-        derivation="sqrt(ln(1 + 0.30^2))",
+        derivation="sqrt(ln(1 + FDA_HVD_CLASSIFICATION_CV^2))",
+        derived_from=(
+            # The same 30% CV, stated by both regulators for different
+            # purposes and on different scales. Both are listed because the
+            # derived value's whole significance is that it sits between them:
+            # it IS EMA's threshold expressed on the sWR scale, and it is NOT
+            # FDA's, which FDA states as 0.294. Naming only one input would
+            # make the record read as belonging to that regulator.
+            "FDA_HVD_CLASSIFICATION_CV",
+            "EMA_ABEL_CV_THRESHOLD_PERCENT",
+        ),
         consumed_by=(),
         note=(
-            "This is the substitution PR #54 reversed. It is also EMA's "
-            "threshold expressed on the sWR scale, which is why EMA's "
-            "comparison is made on the CV scale instead. See "
+            "This is the substitution PR #54 reversed. The formula consumes "
+            "FDA_HVD_CLASSIFICATION_CV; EMA_ABEL_CV_THRESHOLD_PERCENT is "
+            "listed as an input because it is the SAME 30% on the percent "
+            "scale, stated by EMA for a different purpose. The derived value "
+            "IS EMA's threshold expressed on the sWR scale, which is why "
+            "EMA's comparison is made on the CV scale instead. See "
             "validation/findings/VAL-FDA-HVD-002.md."
         ),
     ),
@@ -375,7 +453,15 @@ _DERIVED: tuple[ConstantRecord, ...] = (
             "preserve and its inputs are normative."
         ),
         derivation="(ln(1.25) / FDA_HVD_SIGMA_W0)^2",
+        derived_from=("FDA_HVD_SIGMA_W0", "CONVENTIONAL_UPPER_PERCENT"),
         consumed_by=("FDA_HVD_RSABE",),
+        note=(
+            "The 1.25 is a LITERAL in `spec.fda_hvd_theta`, not a read of "
+            "CONVENTIONAL_UPPER_PERCENT. The two are the same number on "
+            "different scales and the code does not link them, so the input "
+            "is named here for the reader while the note records that the "
+            "link is documentary rather than mechanical."
+        ),
     ),
     ConstantRecord(
         constant_id="DERIVED_FDA_NTI_THETA",
@@ -393,6 +479,7 @@ _DERIVED: tuple[ConstantRecord, ...] = (
             "Delta = 1/0.9. The one the engine decides with."
         ),
         derivation="(ln(FDA_NTI_DELTA) / FDA_NTI_SIGMA_W0)^2",
+        derived_from=("FDA_NTI_DELTA", "FDA_NTI_SIGMA_W0"),
         consumed_by=("FDA_NTI_REFERENCE_SCALED_CRITERION",),
     ),
     ConstantRecord(
@@ -413,6 +500,7 @@ _DERIVED: tuple[ConstantRecord, ...] = (
             "re-derived by hand, and read by no decision path."
         ),
         derivation="(ln(FDA_NTI_SAS_EXAMPLE_DELTA) / FDA_NTI_SIGMA_W0)^2",
+        derived_from=("FDA_NTI_SAS_EXAMPLE_DELTA", "FDA_NTI_SIGMA_W0"),
         consumed_by=(),
     ),
     ConstantRecord(
@@ -429,7 +517,17 @@ _DERIVED: tuple[ConstantRecord, ...] = (
             "be-stats applies the stated value; this exists to be compared "
             "against it, never used."
         ),
-        derivation="100 * exp(-EMA_ABEL_K * sqrt(ln(1.25)))",
+        # CORRECTED. This read `sqrt(ln(1.25))`, which is the right NUMBER and
+        # names the wrong input: the 1.25 there is not the acceptance ratio, it
+        # is 1 + (50/100)^2 from the cap CV. The two coincide because the cap
+        # sits at CVwR = 50%, and writing the coincidence rather than the input
+        # made the record look as though the cap were derived from the
+        # acceptance limits. It is not.
+        derivation=(
+            "100 * exp(-EMA_ABEL_K * sqrt(ln(1 + "
+            "(EMA_ABEL_CAP_CV_PERCENT/100)^2)))"
+        ),
+        derived_from=("EMA_ABEL_K", "EMA_ABEL_CAP_CV_PERCENT"),
         consumed_by=(),
         note="See validation/findings/VAL-EMA-ABEL-002.md.",
     ),
@@ -447,7 +545,11 @@ _DERIVED: tuple[ConstantRecord, ...] = (
             "stated pair is not exactly reciprocal because each limit was "
             "rounded independently."
         ),
-        derivation="100 * exp(+EMA_ABEL_K * sqrt(ln(1.25)))",
+        derivation=(
+            "100 * exp(+EMA_ABEL_K * sqrt(ln(1 + "
+            "(EMA_ABEL_CAP_CV_PERCENT/100)^2)))"
+        ),
+        derived_from=("EMA_ABEL_K", "EMA_ABEL_CAP_CV_PERCENT"),
         consumed_by=(),
     ),
 )
@@ -504,28 +606,87 @@ def constants_of_kind(kind: ConstantKind) -> list[ConstantRecord]:
 
 
 def provenance_coverage() -> dict[str, int]:
-    """How much of the index is verified, for the dossier's coverage line.
+    """Coverage, split so that each number means one thing.
 
-    Counts rather than a bare percentage, because "94%" with no denominator is
-    a number nobody can check.
+    A CORRECTION THIS FUNCTION EXISTS TO PREVENT REPEATING
+
+    An earlier version returned `total`, `verified`, `derived` and
+    `unverified`, and the report built on it said "29/29 carry document,
+    section and version". That was false, and the shape of the data made it
+    easy to say: nothing here counted SECTIONS, so a reader summarising the
+    output could reach for the strongest available reading and find nothing
+    contradicting it.
+
+    Three of the six derived records intentionally carry no regulatory
+    section - `be-stats` computed them and no regulator states them - and two
+    NORMATIVE records were not pinned to a section at all, which is a real gap
+    the old shape hid.
+
+    So the metrics are now split by kind, and each denominator is the set the
+    requirement actually applies to. Counts and not percentages, because "94%"
+    with no denominator is a number nobody can check.
     """
-    total = len(CONSTANT_INDEX)
-    verified = sum(
-        1
-        for r in CONSTANT_INDEX.values()
-        if r.verification is VerificationStatus.VERIFIED
-    )
-    derived = sum(
-        1
-        for r in CONSTANT_INDEX.values()
-        if r.verification is VerificationStatus.DERIVED
-    )
-    unverified = total - verified - derived
+    normative = constants_of_kind(ConstantKind.NORMATIVE)
+    derived = constants_of_kind(ConstantKind.DERIVED)
+    illustrative = constants_of_kind(ConstantKind.ILLUSTRATIVE)
+
     return {
-        "total": total,
-        "verified": verified,
-        "derived": derived,
-        "unverified": unverified,
-        "normative": len(constants_of_kind(ConstantKind.NORMATIVE)),
-        "illustrative": len(constants_of_kind(ConstantKind.ILLUSTRATIVE)),
+        # ---- every constant, whatever its kind ----
+        "total": len(CONSTANT_INDEX),
+        #: authority, a source label, a role and a verification classification.
+        #: The floor every record clears.
+        "classified": sum(
+            1
+            for r in CONSTANT_INDEX.values()
+            if r.citation.authority and r.citation.document and r.role
+        ),
+        # ---- normative: the regulator wrote the number ----
+        "normative": len(normative),
+        #: authority AND document AND section AND version, none empty.
+        "normative_pinned": sum(1 for r in normative if r.has_pinned_citation),
+        #: Not pinned, and saying why. Outstanding work, not an exemption.
+        "normative_exceptions": sum(
+            1 for r in normative if not r.has_pinned_citation
+        ),
+        "normative_verified": sum(
+            1
+            for r in normative
+            if r.verification is VerificationStatus.VERIFIED
+        ),
+        # ---- derived: this package computed it ----
+        "derived": len(derived),
+        "derived_with_derivation": sum(1 for r in derived if r.derivation),
+        "derived_with_inputs": sum(1 for r in derived if r.derived_from),
+        "derived_status": sum(
+            1
+            for r in derived
+            if r.verification is VerificationStatus.DERIVED
+        ),
+        # ---- illustrative: in the document, and not the rule ----
+        "illustrative": len(illustrative),
+        "illustrative_unconsumed": sum(
+            1 for r in illustrative if not r.consumed_by
+        ),
     }
+
+
+def unpinned_normative_constants() -> list[ConstantRecord]:
+    """Normative constants without a full citation, each with its stated why.
+
+    Surfaced as its own function so the gap can be printed rather than
+    inferred from a shortfall between two counts.
+    """
+    return [
+        r
+        for r in constants_of_kind(ConstantKind.NORMATIVE)
+        if not r.has_pinned_citation
+    ]
+
+
+def derivation_inputs(constant_id: str) -> list[ConstantRecord]:
+    """The normative records a derived value is computed from.
+
+    Answers "what normative inputs produced this?" by resolving ids, so no
+    numerical constant is ever copied into a derived record.
+    """
+    return [CONSTANT_INDEX[i] for i in constant(constant_id).derived_from]

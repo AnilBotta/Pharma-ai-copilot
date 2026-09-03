@@ -50,6 +50,42 @@ gone stale in two ways at once: it listed five of the nine findings that
 existed, and ended with "No finding is currently `OPEN`" while
 `VAL-FDA-APPENDIX-C-002` was open. Nobody was careless. Nothing could fail.
 
+### A correction made during review, and the shape that allowed it
+
+The first version of this work reported provenance as four counts over every
+constant at once - total, verified, derived, unverified - and counted no
+document sections at all. The summary built on it said all 29 constants carried
+document, section and version.
+
+That was false in two ways, and only one of them was cosmetic:
+
+- **Three derived records carry no regulatory section, correctly.** `be-stats`
+  computes them; no regulator states them. Adding a section to complete a
+  percentage would be inventing regulatory provenance, which is the exact
+  failure the index exists to prevent.
+- **Two NORMATIVE records were not pinned to a section either**, and that is a
+  real gap. `CONVENTIONAL_LOWER_PERCENT` and `CONVENTIONAL_UPPER_PERCENT` cite
+  `spec._ICH_M13A_LIKE` - a placeholder that has always announced itself as one
+  - whose document field describes a rule rather than naming a document, whose
+  authority lists three bodies, and whose version reads "current".
+
+The metric shape is what let the sentence be written: nothing counted sections,
+so nothing could contradict it. Coverage is now split by kind, each denominator
+being the set its requirement applies to, and `normative_pinned` is the only
+field counting sections. It reads 19/21, and a test asserts it stays strictly
+below the total until the gap is closed by reading a document.
+
+The gap itself is tracked as `DOSSIER-004` and closed by citing a primary
+source, never by writing a section number from memory - an over-specified
+citation looks checked, which is worse than a coarse one.
+
+Two smaller corrections came out of the same pass. Derived records now name
+their normative inputs by id, so "what produced this number" resolves rather
+than being read out of a formula. And `DERIVED_EMA_ABEL_CAP_*` had its
+derivation written as `sqrt(ln(1.25))` - the right number from the wrong input,
+since that 1.25 is `1 + (50/100)^2` from the cap CV and not the acceptance
+ratio. They coincide only because the cap sits at CVwR = 50%.
+
 ### Statuses unchanged
 
 `FDA_REPLICATE_STANDARD_ABE_FULL` IMPLEMENTED_UNVALIDATED.

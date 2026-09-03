@@ -1158,13 +1158,25 @@ export interface DossierSummary {
   be_stats_version: string;
   capability_counts: Record<string, number>;
   catalogue: MethodCatalogueEntry[];
+  /**
+   * Coverage split by kind. `normative_pinned` is the only field counting
+   * document sections, and its denominator is `normative`, not `total` — a
+   * derived value has no regulatory section because no regulator states it,
+   * and one combined fraction would hide a real gap behind an explained one.
+   */
   provenance: {
     total: number;
-    verified: number;
-    derived: number;
-    unverified: number;
+    classified: number;
     normative: number;
+    normative_pinned: number;
+    normative_exceptions: number;
+    normative_verified: number;
+    derived: number;
+    derived_with_derivation: number;
+    derived_with_inputs: number;
+    derived_status: number;
     illustrative: number;
+    illustrative_unconsumed: number;
   };
   open_findings: StatisticalFinding[];
   blockers: StatisticalBlocker[];

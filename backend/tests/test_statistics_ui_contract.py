@@ -138,6 +138,27 @@ def test_the_page_is_reachable_from_the_navigation():
     assert '"/statistics"' in source
 
 
+def test_the_page_states_provenance_per_kind_rather_than_as_one_figure():
+    """The overstatement had to be fixed at every layer, this one included.
+
+    The page previously said every regulatory constant carried the document,
+    section and version it came from. It was reading a combined total, and the
+    combined total was the shape that made the sentence writable.
+    """
+    source = code_only(PAGE.read_text(encoding="utf-8"))
+    assert "provenance.normative_pinned" in source, (
+        "The page must show the pinned count against the normative "
+        "denominator, not a total over every constant."
+    )
+    assert "provenance.normative_exceptions" in source, (
+        "The unpinned constants must be visible rather than netted off."
+    )
+    assert "provenance.verified" not in source, (
+        "`verified` no longer exists on the wire; a stale read would render "
+        "undefined and silently drop the qualification."
+    )
+
+
 def test_the_sas_page_no_longer_claims_the_program_is_verbatim():
     """The correction the runbook received and this page did not.
 

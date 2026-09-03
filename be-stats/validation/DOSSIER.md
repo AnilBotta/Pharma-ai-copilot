@@ -574,78 +574,142 @@ side effect of an upload, and no test fixture may set them at all.
 
 Every regulatory number, and why it is here.
 
-- **indexed** - 29
-- **verified against the primary document** - 23
-- **derived by this package** - 6
-- **unverified** - 0
-- **normative** - 21
-- **illustrative** - 2
+### Coverage
 
-**Normative and derived are not interchangeable.** FDA states the
-highly-variable switch as `sWR = 0.294`. `sqrt(ln(1 + 0.30^2))` is
-`0.29356...`, and substituting it replaces the regulator's criterion
-with this package's arithmetic. Both are indexed, separately, and a
-test asserts they never collapse into one entry.
+Counted separately by kind, because the requirements differ and a
+single combined figure invites a stronger reading than the data
+supports. A derived value has no regulatory section because no
+regulator states it, and a normative value without one is
+outstanding work - collapsing the two into one denominator hides
+the second behind the first.
 
-| constant | value | kind | verification | document | section | version |
-|---|---|---|---|---|---|---|
-| `FDA_HVD_CLASSIFICATION_CV` | 0.3 | normative | verified | Statistical Approaches to Establishing Bioequivalence | III.C | final, May 2026 |
-| `FDA_HVD_SWR_SWITCH` | 0.294 | normative | verified | Statistical Approaches to Establishing Bioequivalence | Appendix G (highly variable drugs) | final, May 2026 |
-| `FDA_HVD_SIGMA_W0` | 0.25 | normative | verified | Statistical Approaches to Establishing Bioequivalence | Appendix G (highly variable drugs) | final, May 2026 |
-| `FDA_HVD_POINT_ESTIMATE_LOWER` | 0.8 | normative | verified | Statistical Approaches to Establishing Bioequivalence | Appendix G (highly variable drugs) | final, May 2026 |
-| `FDA_HVD_POINT_ESTIMATE_UPPER` | 1.25 | normative | verified | Statistical Approaches to Establishing Bioequivalence | Appendix G (highly variable drugs) | final, May 2026 |
-| `EMA_ABEL_CV_THRESHOLD_PERCENT` | 30 | normative | verified | Guideline on the Investigation of Bioequivalence | 4.1.10 Highly variable drugs or drug products | CPMP/EWP/QWP/1401/98 Rev. 1, effective 1 August 2010 |
-| `EMA_ABEL_K` | 0.76 | normative | verified | Guideline on the Investigation of Bioequivalence | 4.1.10 Highly variable drugs or drug products | CPMP/EWP/QWP/1401/98 Rev. 1, effective 1 August 2010 |
-| `EMA_ABEL_CAP_CV_PERCENT` | 50 | normative | verified | Guideline on the Investigation of Bioequivalence | 4.1.10 Highly variable drugs or drug products | CPMP/EWP/QWP/1401/98 Rev. 1, effective 1 August 2010 |
-| `EMA_ABEL_CAP_LOWER_PERCENT` | 69.84 | normative | verified | Guideline on the Investigation of Bioequivalence | 4.1.10 Highly variable drugs or drug products | CPMP/EWP/QWP/1401/98 Rev. 1, effective 1 August 2010 |
-| `EMA_ABEL_CAP_UPPER_PERCENT` | 143.19 | normative | verified | Guideline on the Investigation of Bioequivalence | 4.1.10 Highly variable drugs or drug products | CPMP/EWP/QWP/1401/98 Rev. 1, effective 1 August 2010 |
-| `EMA_ABEL_PE_LOWER_PERCENT` | 80 | normative | verified | Guideline on the Investigation of Bioequivalence | 4.1.10 Highly variable drugs or drug products | CPMP/EWP/QWP/1401/98 Rev. 1, effective 1 August 2010 |
-| `EMA_ABEL_PE_UPPER_PERCENT` | 125 | normative | verified | Guideline on the Investigation of Bioequivalence | 4.1.10 Highly variable drugs or drug products | CPMP/EWP/QWP/1401/98 Rev. 1, effective 1 August 2010 |
-| `FDA_NTI_SIGMA_W0` | 0.1 | normative | verified | Statistical Approaches to Establishing Bioequivalence | Appendix F (narrow therapeutic index drugs) | final, May 2026 |
-| `FDA_NTI_DELTA` | 1.11111 | normative | verified | Statistical Approaches to Establishing Bioequivalence | Appendix F (narrow therapeutic index drugs) | final, May 2026 |
-| `FDA_NTI_VARIANCE_RATIO_LIMIT` | 2.5 | normative | verified | Statistical Approaches to Establishing Bioequivalence | Appendix F (narrow therapeutic index drugs) | final, May 2026 |
-| `FDA_NTI_UNSCALED_LOWER_PERCENT` | 80 | normative | verified | Statistical Approaches to Establishing Bioequivalence | Appendix F (narrow therapeutic index drugs) | final, May 2026 |
-| `FDA_NTI_UNSCALED_UPPER_PERCENT` | 125 | normative | verified | Statistical Approaches to Establishing Bioequivalence | Appendix F (narrow therapeutic index drugs) | final, May 2026 |
-| `CONVENTIONAL_LOWER_PERCENT` | 80 | normative | verified | Conventional bioequivalence acceptance interval | - | current |
-| `CONVENTIONAL_UPPER_PERCENT` | 125 | normative | verified | Conventional bioequivalence acceptance interval | - | current |
-| `EMA_NTI_NARROWED_LOWER_PERCENT` | 90 | normative | verified | Guideline on the Investigation of Bioequivalence | Narrow therapeutic index drugs | CPMP/EWP/QWP/1401/98 Rev. 1, effective 1 August 2010 |
-| `EMA_NTI_NARROWED_UPPER_PERCENT` | 111.11 | normative | verified | Guideline on the Investigation of Bioequivalence | Narrow therapeutic index drugs | CPMP/EWP/QWP/1401/98 Rev. 1, effective 1 August 2010 |
-| `DERIVED_SWR_AT_CV_30` | 0.29356 | derived | derived | derived from the 30% CV classification threshold | - | - |
-| `DERIVED_FDA_HVD_THETA` | 0.796689 | derived | derived | Statistical Approaches to Establishing Bioequivalence | Appendix G (formula, not a stated number) | final, May 2026 |
-| `DERIVED_FDA_NTI_THETA` | 1.11008 | derived | derived | Statistical Approaches to Establishing Bioequivalence | Appendix F (formula, not a stated number) | final, May 2026 |
-| `DERIVED_FDA_NTI_THETA_SAS_EXAMPLE` | 1.11006 | derived | derived | Statistical Approaches to Establishing Bioequivalence | Appendix F, SAS example code | final, May 2026 |
-| `DERIVED_EMA_ABEL_CAP_LOWER_PERCENT` | 69.8368 | derived | derived | the ABEL formula evaluated at the cap | - | - |
-| `DERIVED_EMA_ABEL_CAP_UPPER_PERCENT` | 143.191 | derived | derived | the ABEL formula evaluated at the cap | - | - |
-| `FDA_NTI_SAS_EXAMPLE_DELTA` | 1.11111 | illustrative | verified | Statistical Approaches to Establishing Bioequivalence | Appendix F (narrow therapeutic index drugs) | final, May 2026 |
-| `FDA_IVPT_SWR_THRESHOLD` | 0.294 | illustrative | verified | Statistical Approaches to Establishing Bioequivalence | III.A (in vitro BE and population BE) | final, May 2026 |
+The history is recorded in the CHANGELOG and in finding
+`DOSSIER-004`, and is deliberately not restated here: a document
+that reproduces a wrong claim in order to correct it hands the
+sentence to the next reader who quotes one line out of context.
+
+**All 29 indexed constants** carry an authority, a
+source label, a stated role and a verification classification -
+29/29.
+
+**Normative (21)** - the regulator wrote the
+number.
+
+- pinned to authority, document, **section** and version - **19/21**
+- carrying a declared citation exception - 2/21
+- VERIFIED - 21/21
+
+**Derived (6)** - this package computed it.
+
+- stating an explicit derivation - 6/6
+- naming the normative inputs they derive from - 6/6
+- carrying DERIVED status - 6/6
+
+A derived value is **not** given a regulatory section. No regulator
+states it, and inventing one to complete a percentage would be the
+exact failure this index exists to prevent.
+
+**Illustrative (2)** - present in a
+regulatory document, and not the rule.
+
+- consumed by no decision path - 2/2
+
+### Normative constants not yet pinned
+
+Declared rather than absorbed. Each is excluded from the pinned
+count above and is tracked in the findings register; each is
+closed by reading a primary source, never by writing a section
+number from memory.
+
+**`CONVENTIONAL_LOWER_PERCENT`** = 80
+
+NOT PINNED. The 80.00-125.00% interval is stated by ICH, FDA and EMA alike, and this package has not established WHICH document, section and version to cite it from. Its VERIFIED status therefore rests on universal agreement about the number rather than on a reading of a pinned document, which is precisely why it is excluded from the pinned-citation count. Closed by reading a primary source and citing it, never by writing a section number from memory. Tracked as DOSSIER-004.
+
+**`CONVENTIONAL_UPPER_PERCENT`** = 125
+
+NOT PINNED, as for CONVENTIONAL_LOWER_PERCENT. Tracked as DOSSIER-004.
+
+### Normative and derived are not interchangeable
+
+FDA states the highly-variable switch as `sWR = 0.294`.
+`sqrt(ln(1 + 0.30^2))` is `0.29356...`, and substituting it replaces
+the regulator's criterion with this package's arithmetic. Both are
+indexed, separately, and a test asserts they never collapse into one
+entry.
+
+| constant | value | kind | verification | document | section | version | derived from |
+|---|---|---|---|---|---|---|---|
+| `FDA_HVD_CLASSIFICATION_CV` | 0.3 | normative | verified | Statistical Approaches to Establishing Bioequivalence | III.C | final, May 2026 | - |
+| `FDA_HVD_SWR_SWITCH` | 0.294 | normative | verified | Statistical Approaches to Establishing Bioequivalence | Appendix G (highly variable drugs) | final, May 2026 | - |
+| `FDA_HVD_SIGMA_W0` | 0.25 | normative | verified | Statistical Approaches to Establishing Bioequivalence | Appendix G (highly variable drugs) | final, May 2026 | - |
+| `FDA_HVD_POINT_ESTIMATE_LOWER` | 0.8 | normative | verified | Statistical Approaches to Establishing Bioequivalence | Appendix G (highly variable drugs) | final, May 2026 | - |
+| `FDA_HVD_POINT_ESTIMATE_UPPER` | 1.25 | normative | verified | Statistical Approaches to Establishing Bioequivalence | Appendix G (highly variable drugs) | final, May 2026 | - |
+| `EMA_ABEL_CV_THRESHOLD_PERCENT` | 30 | normative | verified | Guideline on the Investigation of Bioequivalence | 4.1.10 Highly variable drugs or drug products | CPMP/EWP/QWP/1401/98 Rev. 1, effective 1 August 2010 | - |
+| `EMA_ABEL_K` | 0.76 | normative | verified | Guideline on the Investigation of Bioequivalence | 4.1.10 Highly variable drugs or drug products | CPMP/EWP/QWP/1401/98 Rev. 1, effective 1 August 2010 | - |
+| `EMA_ABEL_CAP_CV_PERCENT` | 50 | normative | verified | Guideline on the Investigation of Bioequivalence | 4.1.10 Highly variable drugs or drug products | CPMP/EWP/QWP/1401/98 Rev. 1, effective 1 August 2010 | - |
+| `EMA_ABEL_CAP_LOWER_PERCENT` | 69.84 | normative | verified | Guideline on the Investigation of Bioequivalence | 4.1.10 Highly variable drugs or drug products | CPMP/EWP/QWP/1401/98 Rev. 1, effective 1 August 2010 | - |
+| `EMA_ABEL_CAP_UPPER_PERCENT` | 143.19 | normative | verified | Guideline on the Investigation of Bioequivalence | 4.1.10 Highly variable drugs or drug products | CPMP/EWP/QWP/1401/98 Rev. 1, effective 1 August 2010 | - |
+| `EMA_ABEL_PE_LOWER_PERCENT` | 80 | normative | verified | Guideline on the Investigation of Bioequivalence | 4.1.10 Highly variable drugs or drug products | CPMP/EWP/QWP/1401/98 Rev. 1, effective 1 August 2010 | - |
+| `EMA_ABEL_PE_UPPER_PERCENT` | 125 | normative | verified | Guideline on the Investigation of Bioequivalence | 4.1.10 Highly variable drugs or drug products | CPMP/EWP/QWP/1401/98 Rev. 1, effective 1 August 2010 | - |
+| `FDA_NTI_SIGMA_W0` | 0.1 | normative | verified | Statistical Approaches to Establishing Bioequivalence | Appendix F (narrow therapeutic index drugs) | final, May 2026 | - |
+| `FDA_NTI_DELTA` | 1.11111 | normative | verified | Statistical Approaches to Establishing Bioequivalence | Appendix F (narrow therapeutic index drugs) | final, May 2026 | - |
+| `FDA_NTI_VARIANCE_RATIO_LIMIT` | 2.5 | normative | verified | Statistical Approaches to Establishing Bioequivalence | Appendix F (narrow therapeutic index drugs) | final, May 2026 | - |
+| `FDA_NTI_UNSCALED_LOWER_PERCENT` | 80 | normative | verified | Statistical Approaches to Establishing Bioequivalence | Appendix F (narrow therapeutic index drugs) | final, May 2026 | - |
+| `FDA_NTI_UNSCALED_UPPER_PERCENT` | 125 | normative | verified | Statistical Approaches to Establishing Bioequivalence | Appendix F (narrow therapeutic index drugs) | final, May 2026 | - |
+| `CONVENTIONAL_LOWER_PERCENT` | 80 | normative | verified | Conventional bioequivalence acceptance interval | declared exception | current | - |
+| `CONVENTIONAL_UPPER_PERCENT` | 125 | normative | verified | Conventional bioequivalence acceptance interval | declared exception | current | - |
+| `EMA_NTI_NARROWED_LOWER_PERCENT` | 90 | normative | verified | Guideline on the Investigation of Bioequivalence | Narrow therapeutic index drugs | CPMP/EWP/QWP/1401/98 Rev. 1, effective 1 August 2010 | - |
+| `EMA_NTI_NARROWED_UPPER_PERCENT` | 111.11 | normative | verified | Guideline on the Investigation of Bioequivalence | Narrow therapeutic index drugs | CPMP/EWP/QWP/1401/98 Rev. 1, effective 1 August 2010 | - |
+| `DERIVED_SWR_AT_CV_30` | 0.29356 | derived | derived | derived from the 30% CV classification threshold | - | - | `FDA_HVD_CLASSIFICATION_CV`, `EMA_ABEL_CV_THRESHOLD_PERCENT` |
+| `DERIVED_FDA_HVD_THETA` | 0.796689 | derived | derived | Statistical Approaches to Establishing Bioequivalence | Appendix G (formula, not a stated number) | final, May 2026 | `FDA_HVD_SIGMA_W0`, `CONVENTIONAL_UPPER_PERCENT` |
+| `DERIVED_FDA_NTI_THETA` | 1.11008 | derived | derived | Statistical Approaches to Establishing Bioequivalence | Appendix F (formula, not a stated number) | final, May 2026 | `FDA_NTI_DELTA`, `FDA_NTI_SIGMA_W0` |
+| `DERIVED_FDA_NTI_THETA_SAS_EXAMPLE` | 1.11006 | derived | derived | Statistical Approaches to Establishing Bioequivalence | Appendix F, SAS example code | final, May 2026 | `FDA_NTI_SAS_EXAMPLE_DELTA`, `FDA_NTI_SIGMA_W0` |
+| `DERIVED_EMA_ABEL_CAP_LOWER_PERCENT` | 69.8368 | derived | derived | the ABEL formula evaluated at the cap | - | - | `EMA_ABEL_K`, `EMA_ABEL_CAP_CV_PERCENT` |
+| `DERIVED_EMA_ABEL_CAP_UPPER_PERCENT` | 143.191 | derived | derived | the ABEL formula evaluated at the cap | - | - | `EMA_ABEL_K`, `EMA_ABEL_CAP_CV_PERCENT` |
+| `FDA_NTI_SAS_EXAMPLE_DELTA` | 1.11111 | illustrative | verified | Statistical Approaches to Establishing Bioequivalence | Appendix F (narrow therapeutic index drugs) | final, May 2026 | - |
+| `FDA_IVPT_SWR_THRESHOLD` | 0.294 | illustrative | verified | Statistical Approaches to Establishing Bioequivalence | III.A (in vitro BE and population BE) | final, May 2026 | - |
 
 ### Derived quantities and what they are not
 
-**`DERIVED_SWR_AT_CV_30`** = `sqrt(ln(1 + 0.30^2))`
+**`DERIVED_SWR_AT_CV_30`** = `sqrt(ln(1 + FDA_HVD_CLASSIFICATION_CV^2))`
+
+Derived from: `FDA_HVD_CLASSIFICATION_CV`, `EMA_ABEL_CV_THRESHOLD_PERCENT`
 
 The sWR corresponding exactly to a 30% CV. NOT FDA's switching threshold, which FDA states as 0.294. The two differ in the fourth decimal and studies fall between them.
 
-This is the substitution PR #54 reversed. It is also EMA's threshold expressed on the sWR scale, which is why EMA's comparison is made on the CV scale instead. See validation/findings/VAL-FDA-HVD-002.md.
+This is the substitution PR #54 reversed. The formula consumes FDA_HVD_CLASSIFICATION_CV; EMA_ABEL_CV_THRESHOLD_PERCENT is listed as an input because it is the SAME 30% on the percent scale, stated by EMA for a different purpose. The derived value IS EMA's threshold expressed on the sWR scale, which is why EMA's comparison is made on the CV scale instead. See validation/findings/VAL-FDA-HVD-002.md.
 
 **`DERIVED_FDA_HVD_THETA`** = `(ln(1.25) / FDA_HVD_SIGMA_W0)^2`
 
+Derived from: `FDA_HVD_SIGMA_W0`, `CONVENTIONAL_UPPER_PERCENT`
+
 FDA's scaled HVD limit. DERIVED legitimately: the guidance gives a formula rather than a number, so the formula is the thing to preserve and its inputs are normative.
 
+The 1.25 is a LITERAL in `spec.fda_hvd_theta`, not a read of CONVENTIONAL_UPPER_PERCENT. The two are the same number on different scales and the code does not link them, so the input is named here for the reader while the note records that the link is documentary rather than mechanical.
+
 **`DERIVED_FDA_NTI_THETA`** = `(ln(FDA_NTI_DELTA) / FDA_NTI_SIGMA_W0)^2`
+
+Derived from: `FDA_NTI_DELTA`, `FDA_NTI_SIGMA_W0`
 
 FDA's scaled NTI limit, computed from the PROSE constant Delta = 1/0.9. The one the engine decides with.
 
 **`DERIVED_FDA_NTI_THETA_SAS_EXAMPLE`** = `(ln(FDA_NTI_SAS_EXAMPLE_DELTA) / FDA_NTI_SIGMA_W0)^2`
 
+Derived from: `FDA_NTI_SAS_EXAMPLE_DELTA`, `FDA_NTI_SIGMA_W0`
+
 Theta as Appendix F's SAS EXAMPLE would compute it, from the printed 1.11111 rather than the prose ratio. NOT the rule. Provided so the difference can be measured rather than re-derived by hand, and read by no decision path.
 
-**`DERIVED_EMA_ABEL_CAP_LOWER_PERCENT`** = `100 * exp(-EMA_ABEL_K * sqrt(ln(1.25)))`
+**`DERIVED_EMA_ABEL_CAP_LOWER_PERCENT`** = `100 * exp(-EMA_ABEL_K * sqrt(ln(1 + (EMA_ABEL_CAP_CV_PERCENT/100)^2)))`
+
+Derived from: `EMA_ABEL_K`, `EMA_ABEL_CAP_CV_PERCENT`
 
 The lower cap as the formula gives it. EMA STATES 69.84 and be-stats applies the stated value; this exists to be compared against it, never used.
 
 See validation/findings/VAL-EMA-ABEL-002.md.
 
-**`DERIVED_EMA_ABEL_CAP_UPPER_PERCENT`** = `100 * exp(+EMA_ABEL_K * sqrt(ln(1.25)))`
+**`DERIVED_EMA_ABEL_CAP_UPPER_PERCENT`** = `100 * exp(+EMA_ABEL_K * sqrt(ln(1 + (EMA_ABEL_CAP_CV_PERCENT/100)^2)))`
+
+Derived from: `EMA_ABEL_K`, `EMA_ABEL_CAP_CV_PERCENT`
 
 The upper cap as the formula gives it. EMA STATES 143.19. The stated pair is not exactly reciprocal because each limit was rounded independently.
 
@@ -739,6 +803,7 @@ the finding was.
 | `VAL-FDA-HVD-001` | informational | resolved | `FDA_HVD_RSABE` |
 | `DOSSIER-001` | informational | open | `FDA_REPLICATE_STANDARD_ABE_PARTIAL` |
 | `DOSSIER-002` | scope_limitation | open | - |
+| `DOSSIER-004` | scope_limitation | open | `AVERAGE_BE_2X2` |
 | `DOSSIER-003` | scope_limitation | open | `FDA_HVD_RSABE`, `FDA_NTI_RSABE`, `AVERAGE_BE_2X2` |
 
 ### `VAL-FDA-APPENDIX-C-PARTIAL-001`
@@ -829,6 +894,13 @@ In the manual SAS workflow the package hashes and the parsed result are verifiab
 - **evidence** - The workflow itself: package manifest SHA-256 verification establishes what was supposed to run, and an append-only operator attestation records who says it ran.
 - **resolution condition** - A managed or directly connected SAS execution path, where the platform submits and receives without a human-carried step.
 - **blocker** - `MANUAL-SAS-EXECUTION-INTEGRITY`
+
+### `DOSSIER-004`
+
+The conventional 80.00-125.00% acceptance interval is not pinned to a primary document. Its citation names a rule rather than a document, gives three authorities at once, and carries the version string 'current' - which `provenance` opens by warning is not a version but a promise that somebody will remember to check.
+
+- **evidence** - CONVENTIONAL_LOWER_PERCENT and CONVENTIONAL_UPPER_PERCENT are the two normative constants that fail `has_pinned_citation`. They were reported inside a '29/29 carry document, section and version' claim that the data never supported, and the metric that produced it counted no sections at all.
+- **resolution condition** - Read ICH M13A or a regulator's guidance at the section stating the interval, and cite it with a pinned version. Closed by reading a document, never by writing a section number from memory - an over-specified citation looks checked, which is worse than a coarse one.
 
 ### `DOSSIER-003`
 

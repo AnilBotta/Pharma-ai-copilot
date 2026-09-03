@@ -31,7 +31,12 @@ from be_stats.dossier.blockers import (
 )
 from be_stats.dossier.capabilities import CAPABILITY_MATRIX
 from be_stats.dossier.catalogue import method_catalogue
-from be_stats.dossier.constants import CONSTANT_INDEX, ConstantKind, provenance_coverage
+from be_stats.dossier.constants import (
+    CONSTANT_INDEX,
+    ConstantKind,
+    provenance_coverage,
+    unpinned_normative_constants,
+)
 from be_stats.dossier.evidence import EVIDENCE_MANIFEST, SAS_EVIDENCE_INTAKE
 from be_stats.dossier.findings import FINDINGS_REGISTER
 from be_stats.dossier.refusals import REFUSALS
@@ -214,27 +219,91 @@ def _evidence_section() -> list[str]:
 
 def _provenance_section() -> list[str]:
     coverage = provenance_coverage()
+    unpinned = unpinned_normative_constants()
+
     lines = [
         "## Source provenance",
         "",
         "Every regulatory number, and why it is here.",
         "",
-        f"- **indexed** - {coverage['total']}",
-        f"- **verified against the primary document** - {coverage['verified']}",
-        f"- **derived by this package** - {coverage['derived']}",
-        f"- **unverified** - {coverage['unverified']}",
-        f"- **normative** - {coverage['normative']}",
-        f"- **illustrative** - {coverage['illustrative']}",
+        "### Coverage",
         "",
-        "**Normative and derived are not interchangeable.** FDA states the",
-        "highly-variable switch as `sWR = 0.294`. `sqrt(ln(1 + 0.30^2))` is",
-        "`0.29356...`, and substituting it replaces the regulator's criterion",
-        "with this package's arithmetic. Both are indexed, separately, and a",
-        "test asserts they never collapse into one entry.",
+        "Counted separately by kind, because the requirements differ and a",
+        "single combined figure invites a stronger reading than the data",
+        "supports. A derived value has no regulatory section because no",
+        "regulator states it, and a normative value without one is",
+        "outstanding work - collapsing the two into one denominator hides",
+        "the second behind the first.",
+        "",
+        "The history is recorded in the CHANGELOG and in finding",
+        "`DOSSIER-004`, and is deliberately not restated here: a document",
+        "that reproduces a wrong claim in order to correct it hands the",
+        "sentence to the next reader who quotes one line out of context.",
+        "",
+        f"**All {coverage['total']} indexed constants** carry an authority, a",
+        "source label, a stated role and a verification classification -",
+        f"{coverage['classified']}/{coverage['total']}.",
+        "",
+        f"**Normative ({coverage['normative']})** - the regulator wrote the",
+        "number.",
+        "",
+        f"- pinned to authority, document, **section** and version - "
+        f"**{coverage['normative_pinned']}/{coverage['normative']}**",
+        f"- carrying a declared citation exception - "
+        f"{coverage['normative_exceptions']}/{coverage['normative']}",
+        f"- VERIFIED - {coverage['normative_verified']}/{coverage['normative']}",
+        "",
+        f"**Derived ({coverage['derived']})** - this package computed it.",
+        "",
+        f"- stating an explicit derivation - "
+        f"{coverage['derived_with_derivation']}/{coverage['derived']}",
+        f"- naming the normative inputs they derive from - "
+        f"{coverage['derived_with_inputs']}/{coverage['derived']}",
+        f"- carrying DERIVED status - "
+        f"{coverage['derived_status']}/{coverage['derived']}",
+        "",
+        "A derived value is **not** given a regulatory section. No regulator",
+        "states it, and inventing one to complete a percentage would be the",
+        "exact failure this index exists to prevent.",
+        "",
+        f"**Illustrative ({coverage['illustrative']})** - present in a",
+        "regulatory document, and not the rule.",
+        "",
+        f"- consumed by no decision path - "
+        f"{coverage['illustrative_unconsumed']}/{coverage['illustrative']}",
         "",
     ]
+
+    if unpinned:
+        lines += [
+            "### Normative constants not yet pinned",
+            "",
+            "Declared rather than absorbed. Each is excluded from the pinned",
+            "count above and is tracked in the findings register; each is",
+            "closed by reading a primary source, never by writing a section",
+            "number from memory.",
+            "",
+        ]
+        for record in unpinned:
+            lines.append(f"**`{record.constant_id}`** = {record.value:g}")
+            lines.append("")
+            lines.append(record.citation_exception)
+            lines.append("")
+
+    lines += [
+        "### Normative and derived are not interchangeable",
+        "",
+        "FDA states the highly-variable switch as `sWR = 0.294`.",
+        "`sqrt(ln(1 + 0.30^2))` is `0.29356...`, and substituting it replaces",
+        "the regulator's criterion with this package's arithmetic. Both are",
+        "indexed, separately, and a test asserts they never collapse into one",
+        "entry.",
+        "",
+    ]
+
     rows = []
     for record in CONSTANT_INDEX.values():
+        section = record.section or ("declared exception" if record.citation_exception else "-")
         rows.append(
             [
                 f"`{record.constant_id}`",
@@ -242,8 +311,9 @@ def _provenance_section() -> list[str]:
                 str(record.kind),
                 str(record.verification),
                 record.document,
-                record.section or "-",
+                section,
                 record.document_version or "-",
+                ", ".join(f"`{i}`" for i in record.derived_from) or "-",
             ]
         )
     lines += _table(
@@ -255,6 +325,7 @@ def _provenance_section() -> list[str]:
             "document",
             "section",
             "version",
+            "derived from",
         ],
         rows,
     )
@@ -266,6 +337,10 @@ def _provenance_section() -> list[str]:
             continue
         lines.append(f"**`{record.constant_id}`** = `{record.derivation or 'n/a'}`")
         lines.append("")
+        if record.derived_from:
+            inputs = ", ".join(f"`{i}`" for i in record.derived_from)
+            lines.append(f"Derived from: {inputs}")
+            lines.append("")
         lines.append(f"{record.role}")
         if record.note:
             lines.append("")

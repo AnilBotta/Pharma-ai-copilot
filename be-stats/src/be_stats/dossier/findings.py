@@ -351,6 +351,34 @@ FINDINGS_REGISTER: tuple[Finding, ...] = (
         blocker_id="MANUAL-SAS-EXECUTION-INTEGRITY",
     ),
     Finding(
+        finding_id="DOSSIER-004",
+        severity=FindingSeverity.SCOPE_LIMITATION,
+        status=FindingStatus.OPEN,
+        affected_capabilities=("AVERAGE_BE_2X2",),
+        description=(
+            "The conventional 80.00-125.00% acceptance interval is not pinned "
+            "to a primary document. Its citation names a rule rather than a "
+            "document, gives three authorities at once, and carries the "
+            "version string 'current' - which `provenance` opens by warning "
+            "is not a version but a promise that somebody will remember to "
+            "check."
+        ),
+        evidence=(
+            "CONVENTIONAL_LOWER_PERCENT and CONVENTIONAL_UPPER_PERCENT are "
+            "the two normative constants that fail `has_pinned_citation`. "
+            "They were reported inside a '29/29 carry document, section and "
+            "version' claim that the data never supported, and the metric "
+            "that produced it counted no sections at all."
+        ),
+        resolution_condition=(
+            "Read ICH M13A or a regulator's guidance at the section stating "
+            "the interval, and cite it with a pinned version. Closed by "
+            "reading a document, never by writing a section number from "
+            "memory - an over-specified citation looks checked, which is "
+            "worse than a coarse one."
+        ),
+    ),
+    Finding(
         finding_id="DOSSIER-003",
         severity=FindingSeverity.SCOPE_LIMITATION,
         status=FindingStatus.OPEN,

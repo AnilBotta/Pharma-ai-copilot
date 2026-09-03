@@ -98,12 +98,40 @@ class BlockerRow(BaseModel):
 
 
 class ProvenanceCoverage(BaseModel):
+    """Coverage split by kind, because the requirements differ.
+
+    An earlier shape reported `verified`, `derived` and `unverified` over
+    every constant at once and counted no sections. A summary built on it
+    claimed all of them carried document, section and version - which nothing
+    in the data supported and nothing in the metrics could contradict.
+
+    So each denominator here is the set its requirement applies to. In
+    particular `normative_pinned` is the ONLY field counting sections, and its
+    denominator is `normative` rather than `total`: a derived value has no
+    regulatory section because no regulator states it, and putting it in the
+    same fraction as a normative one hides a real gap behind an explained one.
+    """
+
     total: int
-    verified: int
-    derived: int
-    unverified: int
+    #: Authority, source label, role and verification classification. The
+    #: floor every constant clears, whatever its kind.
+    classified: int
+
     normative: int
+    #: Authority AND document AND section AND version, none empty.
+    normative_pinned: int
+    #: Not pinned, and each saying why. Outstanding work, not an exemption.
+    normative_exceptions: int
+    normative_verified: int
+
+    derived: int
+    derived_with_derivation: int
+    #: Naming the normative constants they are computed FROM, by id.
+    derived_with_inputs: int
+    derived_status: int
+
     illustrative: int
+    illustrative_unconsumed: int
 
 
 class DossierSummary(BaseModel):

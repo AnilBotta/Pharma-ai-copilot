@@ -249,13 +249,22 @@ export default function StatisticsPage() {
                 against it, and a named reviewer has recorded the decision. One
                 numerical match is not enough on its own.
               </p>
+              {/* Stated per kind, not as one figure. An earlier version of
+                  this paragraph said every constant carried a document,
+                  section and version — which was not true of the two
+                  conventional-interval limits, nor of values this package
+                  computes rather than cites. One combined number invited
+                  exactly that overstatement. */}
               <p>
-                Engine version {dossier.be_stats_version}. Every regulatory
-                constant it uses ({dossier.provenance.total} of them) carries
-                the document, section and version it came from;{" "}
-                {dossier.provenance.verified} were read from the primary
-                document and {dossier.provenance.derived} are computed from
-                those, and marked as computed.
+                Engine version {dossier.be_stats_version}. It uses{" "}
+                {dossier.provenance.normative} regulatory constants written by
+                a regulator, {dossier.provenance.normative_pinned} of which are
+                pinned to a named document, section and version; the remaining{" "}
+                {dossier.provenance.normative_exceptions} carry a recorded
+                reason and are tracked as open work. A further{" "}
+                {dossier.provenance.derived} values are computed from those,
+                and every one states its formula and its inputs rather than
+                being cited to a regulator that never stated it.
               </p>
             </CardContent>
           </Card>

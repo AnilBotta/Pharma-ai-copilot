@@ -167,6 +167,37 @@ def test_the_dossier_reports_unestablished_claims_rather_than_hiding_them(
     )
 
 
+def test_provenance_is_served_split_by_kind(client: TestClient):
+    """One combined coverage figure is how the overstatement happened.
+
+    The API used to send `verified`, `derived` and `unverified` over every
+    constant at once, counting no sections - and a summary built on it claimed
+    all of them carried document, section and version. The split shape makes
+    that reading unavailable rather than merely discouraged.
+    """
+    body = client.get("/api/statistics/dossier").json()
+    provenance = body["provenance"]
+
+    # Exactly one field counts sections, over the normative set only.
+    pinned_fields = [k for k in provenance if "pinned" in k]
+    assert pinned_fields == ["normative_pinned"]
+
+    assert (
+        provenance["normative"]
+        + provenance["derived"]
+        + provenance["illustrative"]
+        == provenance["total"]
+    )
+    assert (
+        provenance["normative_pinned"] + provenance["normative_exceptions"]
+        == provenance["normative"]
+    )
+    assert provenance["normative_pinned"] < provenance["total"], (
+        "A pinned count reaching the total would let a client restate the "
+        "claim over the wrong denominator."
+    )
+
+
 def test_the_unsupported_route_is_served_rather_than_omitted(client: TestClient):
     routes = client.get("/api/statistics/routing").json()
     ids = {r["route_id"] for r in routes}

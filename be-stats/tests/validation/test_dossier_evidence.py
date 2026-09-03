@@ -26,6 +26,10 @@ from be_stats.dossier.blockers import (
     BlockerStatus,
 )
 from be_stats.dossier.capabilities import CAPABILITY_MATRIX
+from be_stats.dossier.constants import (
+    CONSTANT_INDEX,
+    unpinned_normative_constants,
+)
 from be_stats.dossier.evidence import (
     EVIDENCE,
     EVIDENCE_MANIFEST,
@@ -537,3 +541,81 @@ def test_the_generated_document_states_the_partial_oracle_flag():
     text = GENERATED_DOSSIER.read_text(encoding="utf-8")
     assert "`partial_oracle_ready` = **false**" in text
     assert "`real_sas_oracle_status` = **PENDING**" in text
+
+
+def test_the_generated_document_reports_provenance_by_kind():
+    """The corrected shape, asserted on the NUMBERS the generator emitted.
+
+    Not a search for the old sentence: rewording it would pass such a test
+    whether or not the underlying claim had become true. This checks that the
+    document prints the pinned count as a fraction of the normative set, and
+    that the fraction is the one the data supports.
+    """
+    from be_stats.dossier.constants import provenance_coverage
+
+    text = GENERATED_DOSSIER.read_text(encoding="utf-8")
+    coverage = provenance_coverage()
+
+    pinned = f"**{coverage['normative_pinned']}/{coverage['normative']}**"
+    assert pinned in text, (
+        f"The dossier does not print the pinned-citation fraction {pinned}."
+    )
+    assert coverage["normative_pinned"] < coverage["normative"]
+
+    # And it names the gap rather than leaving it to subtraction.
+    for record in unpinned_normative_constants():
+        assert record.constant_id in text, record.constant_id
+
+
+def test_the_provenance_section_makes_no_universal_pinning_claim():
+    """The false claim, banned where it would be an ASSERTION.
+
+    Scoped to the Source provenance section, not the whole document. The
+    phrase appears legitimately in finding DOSSIER-004, which exists to record
+    that it was wrong - and a whole-document ban would either fail on the
+    finding or be weakened until it matched nothing.
+
+    That is the same blunt-match mistake this repository has now made five
+    times: "validation_status" matching a docstring, "signed" matching a
+    comment describing the bug, a relative fetch matching the prose explaining
+    it, "alias" matching the sentence denying one, and this. The fix is always
+    to assert where the claim would carry force.
+    """
+    text = GENERATED_DOSSIER.read_text(encoding="utf-8")
+    start = text.index("## Source provenance")
+    section = text[start : text.index("\n---\n", start)]
+
+    total = len(CONSTANT_INDEX)
+    for claim in (
+        f"{total}/{total} carry document, section and version",
+        f"All {total} carry a document, section and version",
+        f"{total}/{total} = 100%",
+    ):
+        assert claim not in section, (
+            f"The provenance section claims {claim!r}. Two normative "
+            "constants are not pinned to a section and three derived ones "
+            "carry no regulatory section at all."
+        )
+
+
+def test_the_coverage_metrics_cannot_produce_a_universal_pinning_figure():
+    """The structural half, which is the one that actually holds.
+
+    No key in the coverage dict counts sections across every constant, so
+    there is no number a summariser could pick up and turn back into the
+    claim above. Prose can be reworded; a missing metric cannot be quoted.
+    """
+    from be_stats.dossier.constants import provenance_coverage
+
+    coverage = provenance_coverage()
+    total = coverage["total"]
+
+    section_keys = [k for k in coverage if "pinned" in k]
+    assert section_keys == ["normative_pinned"], (
+        f"Section coverage is reported under {section_keys}. Exactly one key "
+        "may carry it, and its denominator must be the normative set."
+    )
+    assert coverage["normative_pinned"] != total, (
+        "A pinned count equal to the total would let a reader restate the "
+        "claim truthfully-looking over the wrong denominator."
+    )
