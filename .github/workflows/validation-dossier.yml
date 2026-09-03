@@ -1,0 +1,156 @@
+# The statistical validation dossier, built and checked on every change.
+#
+# TWO JOBS, ASKING TWO DIFFERENT QUESTIONS
+#
+# `dossier` asks "did anything regress" - the ordinary pull-request question.
+# It runs without R, Julia or SAS, and it PASSES with them absent, because a
+# developer machine and a pull-request runner do not have them and pretending
+# otherwise would make the suite unrunnable to check something that is not part
+# of the package.
+#
+# `certification` asks "is every claim currently established" - the release
+# question. There a comparison that did not run is indistinguishable from one
+# that would have failed, so a missing external oracle environment is a
+# FAILURE. It does not run on pull requests.
+#
+# The distinction is the whole point of having two jobs. A single job that
+# tolerated a missing environment would report green with half the validation
+# not run; one that required it would block every pull request on infrastructure
+# nobody needs to review a docstring.
+#
+# WHAT NEITHER JOB CAN DO
+#
+# Promote anything. A validation status changes only through the release gate,
+# with a named reviewer recording the transition - see
+# `be_stats.dossier.release_gate.REVIEWED_TRANSITIONS`, which is data in a
+# source file and therefore a visible line in a diff.
+
+name: validation-dossier
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      - "be-stats/src/**"
+      - "be-stats/tests/**"
+      - "be-stats/validation/**"
+      - "be-stats/scripts/**"
+      - "backend/app/statistics/**"
+      - "backend/tests/test_statistics_*.py"
+      - ".github/workflows/validation-dossier.yml"
+  workflow_dispatch:
+
+jobs:
+  dossier:
+    name: Dossier consistency
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install be-stats
+        run: pip install -e "be-stats[dev]"
+
+      - name: Run the dossier tests
+        # The generated document is regenerated and compared here, so an
+        # edited DOSSIER.md or a stale findings table fails the build. That is
+        # what makes those documents worth reading.
+        run: |
+          python -m pytest be-stats/tests/unit/test_dossier_*.py \
+                           be-stats/tests/integration/test_dossier_routing.py \
+                           be-stats/tests/validation/test_dossier_evidence.py \
+                           -q --junitxml=dossier-tests.xml
+
+      - name: Build the validation bundle
+        # WITHOUT --certify. Ordinary CI reports unestablished claims and does
+        # not fail on them; the external oracle environments are absent here by
+        # design.
+        run: |
+          python be-stats/scripts/validation_bundle.py \
+            --out build/validation-bundle \
+            --junit-xml dossier-tests.xml
+
+      - name: Assert the external oracles are reported as skipped, not passed
+        # The guard that makes the tolerance above safe. If a comparison that
+        # cannot run ever reports PASSED, this job must fail even though every
+        # test was green - a validation that quietly did not run is worse than
+        # one that failed, because it reports green.
+        run: |
+          python - <<'PY'
+          import json, sys, pathlib
+          bundle = json.loads(
+              pathlib.Path("build/validation-bundle/bundle.json").read_text()
+          )
+          external = [
+              r for r in bundle["evidence_manifest"] if r["tier"] == "tier_3"
+          ]
+          if not external:
+              print("no tier-3 records - this guard would pass vacuously")
+              sys.exit(1)
+          bad = [r for r in external if r["status"] == "passed"]
+          for record in bad:
+              print(f"{record['evidence_id']} claims PASSED with no oracle environment")
+          sys.exit(1 if bad else 0)
+          PY
+
+      - name: Upload the bundle
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: validation-bundle
+          path: build/validation-bundle
+          if-no-files-found: warn
+
+  certification:
+    name: Certification (release only)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    # Never on a pull request. Requires the pinned oracle container, and its
+    # failure means "this build is not certifiable", which is not a review
+    # comment on a diff.
+    if: github.event_name == 'workflow_dispatch'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install be-stats
+        run: pip install -e "be-stats[dev]"
+
+      - name: Build the pinned validation image
+        run: docker build -t be-stats-validation be-stats/validation/external
+
+      - name: Run the external cross-check
+        run: docker run --rm -v "$PWD:/work" be-stats-validation
+
+      - name: Run the full suite
+        run: |
+          python -m pytest be-stats/tests -q --junitxml=certification-tests.xml
+
+      - name: Certify
+        # --certify makes an unestablished claim a build failure. The list it
+        # prints is the work remaining before this build could support a
+        # filing, and an empty list is a strong statement rather than a
+        # default.
+        run: |
+          python be-stats/scripts/validation_bundle.py \
+            --out build/certification \
+            --junit-xml certification-tests.xml \
+            --certify
+
+      - name: Upload the certification bundle
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: certification-bundle
+          path: build/certification
+          if-no-files-found: warn

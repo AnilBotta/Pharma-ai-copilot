@@ -6,6 +6,61 @@ first question asked of a result years later.
 
 ---
 
+## 0.7.0 (unchanged) - the statistical validation dossier
+
+**No version bump, and that is the claim being made.** The rule at the top of
+this file is that `__version__` moves on any change that can alter a computed
+result. Nothing here can. `be_stats.dossier` is a new subpackage that READS the
+existing status tables, constants and citations; the only edit to a statistical
+source file is one added line in `spec.py` giving an existing private citation
+object a public name, which is an alias and not a second citation.
+
+A version bump would say a number might have moved. None did, and saying so
+falsely is exactly the kind of small inaccuracy this package spends its
+docstrings guarding against.
+
+### What the subpackage is for
+
+One canonical, machine-readable account of what this engine can do, what has
+been checked about it, against whose authority, and what remains unresolved -
+and the generators that turn it into documents nobody has to keep in sync.
+
+| module | answers |
+|---|---|
+| `statuses` | is `implemented` the same as `validated`? No, and the mapping is one-directional |
+| `capabilities` | the canonical matrix, 23 rows, statuses READ from `spec` and never restated |
+| `routing` | which regulatory test applies, checked against `resolve_be_spec` row by row |
+| `refusals` | why no decision was produced, as a code that names what would lift it |
+| `constants` | every regulatory number, with normative and derived kept apart |
+| `evidence` | what has been checked, against what, within what tolerance, by which test |
+| `findings` | the register, cross-checked against the committed finding files |
+| `blockers` | what is unresolved, with `partial_oracle_ready = false` |
+| `semantics` | `passes = false` never means "not implemented" |
+| `explain` | the nine questions a reviewer asks, answered as an object |
+| `release_gate` | whether a claimed status is supportable by the evidence recorded |
+| `catalogue` | the user-facing view: three states, one qualification each |
+| `render` | `validation/DOSSIER.md`, regenerated and compared by the suite |
+| `bundle` | one artefact for internal QA, with an allow-list for the environment |
+
+### Two documents that can no longer go stale
+
+`validation/DOSSIER.md` is generated, and the suite regenerates it and
+compares. So is the records table in `validation/findings/README.md`, which had
+gone stale in two ways at once: it listed five of the nine findings that
+existed, and ended with "No finding is currently `OPEN`" while
+`VAL-FDA-APPENDIX-C-002` was open. Nobody was careless. Nothing could fail.
+
+### Statuses unchanged
+
+`FDA_REPLICATE_STANDARD_ABE_FULL` IMPLEMENTED_UNVALIDATED.
+`FDA_REPLICATE_STANDARD_ABE_PARTIAL` NOT_IMPLEMENTED.
+`FDA_NTI_RSABE` IMPLEMENTED_UNVALIDATED. `partial_oracle_ready` false.
+`real_sas_oracle_status` PENDING. The release gate refuses to promote anything
+on one numerical match, and requires a named reviewer to have recorded the
+transition.
+
+---
+
 ## 0.7.0 — FDA Appendix C, fully replicate designs
 
 The mixed model FDA specifies, fitted by REML, for the one design PR #61 found

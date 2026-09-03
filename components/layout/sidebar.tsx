@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Bot,
+  FlaskConical,
   FolderGit2,
   GitBranch,
   LayoutDashboard,
@@ -57,6 +58,11 @@ const navGroups: { title: string; items: NavItem[] }[] = [
     title: "Development",
     items: [
       { href: "/programmes", label: "Development Programmes", icon: GitBranch },
+      // Not under Settings. "Which methods can I rely on" is a question asked
+      // while planning a study, not while configuring the application, and
+      // burying it two clicks deep is how a customer ends up assuming
+      // everything on offer is equally qualified.
+      { href: "/statistics", label: "Statistical Methods", icon: FlaskConical },
     ],
   },
   // No Configuration group. Integrations and Notifications are both reached

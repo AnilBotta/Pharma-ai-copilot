@@ -68,15 +68,38 @@ at a threshold that differs from FDA's stated one, and `be-stats` follows FDA.
 
 ## The records
 
-| id | subject | status | classification |
-|---|---|---|---|
-| [`VAL-FDA-HVD-001`](VAL-FDA-HVD-001.md) | `RSABE-002-BOUNDARY-NEAR/p_be_sabec`, 4.61 sigma | `RESOLVED` | `RESOLVED_POWERTOST_CONFIGURATION_ERROR` |
-| [`VAL-FDA-HVD-002`](VAL-FDA-HVD-002.md) | PowerTOST switches at sWR 0.293560, FDA states 0.294 | `RESOLVED` | `ACCEPTED_ORACLE_DIVERGENCE` |
-| [`VAL-EMA-ABEL-001`](VAL-EMA-ABEL-001.md) | `p(BE-ABEL)` is the mixed decision; `power.scABEL` is empirically tuned | `PREEMPTED` | — |
-| [`VAL-EMA-ABEL-002`](VAL-EMA-ABEL-002.md) | EMA states the cap as a pair; PowerTOST recomputes it | `RESOLVED` | `ACCEPTED_ORACLE_DIVERGENCE` |
-| [`VAL-FDA-APPENDIX-C-001`](VAL-FDA-APPENDIX-C-001.md) | Is there a trustworthy oracle for FDA Appendix C? | `RESOLVED` | `DF_METHOD_DIFFERENCE` |
+This table used to be maintained by hand. It listed five of the nine findings
+that existed, and ended with "No finding is currently `OPEN`" while
+`VAL-FDA-APPENDIX-C-002` was open. Nobody was careless; nothing could fail.
 
-No finding is currently `OPEN`.
+It is now generated from `be_stats.dossier.findings`, and
+`tests/validation/test_dossier_evidence.py` regenerates it and compares. The
+register also carries findings with no numerical comparison behind them - the
+`DOSSIER-*` records - which is why some rows have no linked file.
+
+<!-- BEGIN GENERATED findings table -->
+
+*Generated from `be_stats.dossier.findings`. Do not edit by hand;
+regenerate with `python -m be_stats.dossier.render <this file>`.*
+
+| id | subject | severity | status |
+|---|---|---|---|
+| [`VAL-FDA-APPENDIX-C-PARTIAL-001`](VAL-FDA-APPENDIX-C-PARTIAL-001.md) | The correct Satterthwaite denominator degrees of freedom for FDA's Appendix C model on a partial replicate design is not determined. A candidate of about 19.89 is the best supported value; ReplicateBE.jl's 22.540 is incompatible with EMA's published interval under the corroborated standard error. | blocking | resolved |
+| [`VAL-FDA-APPENDIX-C-002`](VAL-FDA-APPENDIX-C-002.md) | ReplicateBE.jl reproduces EMA's published SAS Method C output exactly on the fully replicate design and does not on the partial replicate one. An oracle established on one design does not transfer to the other. | blocking | open |
+| [`VAL-FDA-APPENDIX-C-003`](VAL-FDA-APPENDIX-C-003.md) | ReplicateBE.jl cannot represent a NEGATIVE subject-by-formulation correlation, which FDA's FA0(2) structure permits through the sign of l21. Where the fit has one, the oracle is structurally incapable of fitting the same model and cannot adjudicate a disagreement. | scope_limitation | resolved |
+| [`VAL-FDA-APPENDIX-C-004`](VAL-FDA-APPENDIX-C-004.md) | The denominator df difference against ReplicateBE.jl is a BOUNDARY effect and appears only at the boundary of the covariance parameter space. Away from it the two agree. | qualifying | resolved |
+| [`VAL-FDA-APPENDIX-C-001`](VAL-FDA-APPENDIX-C-001.md) | The feasibility question itself: is there a trustworthy numerical oracle for FDA's Appendix C model? Answered - one exists for the fully replicate design, within a stated covariance domain, and none exists for the partial replicate one. | informational | resolved |
+| [`VAL-FDA-HVD-002`](VAL-FDA-HVD-002.md) | PowerTOST switches at sWR = 0.293560, derived from a 30% CV. FDA states 0.294. be-stats follows the regulator, so the tier-3 row is PASSED_WITH_FINDING rather than PASSED. | qualifying | resolved |
+| [`VAL-EMA-ABEL-002`](VAL-EMA-ABEL-002.md) | EMA states the ABEL cap as the pair 69.84-143.19%; the formula at CVwR = 50% gives a fractionally wider one, which PowerTOST keeps. be-stats applies the stated pair. | qualifying | resolved |
+| [`VAL-EMA-ABEL-001`](VAL-EMA-ABEL-001.md) | PowerTOST's p(BE-ABEL) is the MIXED decision rather than the scaled criterion alone, and power.scABEL documents four purely empirical adaptations - making it a tuned approximation rather than an oracle. | informational | preempted |
+| [`VAL-FDA-HVD-001`](VAL-FDA-HVD-001.md) | PowerTOST's p(BE-sABEc) is the mixed decision, not the scaled criterion alone. The harness had been comparing two quantities that are not the same quantity. | informational | resolved |
+| `DOSSIER-001` | The diagnostic emitted when a partial replicate study is refused is named APPENDIX_C_PARTIAL_REPLICATE_NOT_VALIDATED, while the canonical status of the capability is NOT_IMPLEMENTED. Two words for one situation, and the diagnostic's is the weaker claim. | informational | open |
+| `DOSSIER-002` | In the manual SAS workflow the package hashes and the parsed result are verifiable, and that the output came from running that program in a licensed SAS session is ATTESTED by a named operator rather than proven by the platform. | scope_limitation | open |
+| `DOSSIER-003` | No FDA capability holds tier-1B evidence, because FDA has published no worked numerical example of any of these procedures. Every FDA method that produces a number therefore stands at IMPLEMENTED_UNVALIDATED regardless of how much tier-1A and tier-3 evidence supports it. | scope_limitation | open |
+
+Open: `VAL-FDA-APPENDIX-C-002`, `DOSSIER-001`, `DOSSIER-002`, `DOSSIER-003`.
+
+<!-- END GENERATED findings table -->
 
 ## Two families of finding
 
