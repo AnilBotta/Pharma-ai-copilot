@@ -32,6 +32,7 @@ from app.sas_validation.storage import SASValidationStorage
 from app.sas_validation.workflow import ManualValidationWorkflow
 from app.settings_module.repository import RecipientRepository
 from app.settings_module.routes import router as settings_router
+from app.statistics.routes import router as statistics_router
 
 logger = logging.getLogger(__name__)
 
@@ -142,6 +143,10 @@ def create_app() -> FastAPI:
     app.include_router(documents_router, prefix="/api")
     app.include_router(settings_router, prefix="/api")
     app.include_router(sas_validation_router, prefix="/api")
+    # Reads no database: the capability surface is code, so it stays available
+    # in exactly the degraded deployment where somebody most needs to ask what
+    # still works.
+    app.include_router(statistics_router, prefix="/api")
 
     @app.exception_handler(Exception)
     async def unhandled_exception(request: Request, exc: Exception):

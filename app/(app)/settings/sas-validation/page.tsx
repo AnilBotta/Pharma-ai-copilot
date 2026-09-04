@@ -92,7 +92,13 @@ const MANUAL_STEPS = [
   {
     icon: ServerCog,
     title: "Run it in your own SAS",
-    body: "Set the package folder in validate.sas and run it. The PROC MIXED statements are reproduced verbatim from the regulatory source, so please do not edit them.",
+    // The previous wording said the PROC MIXED statements were "reproduced
+    // verbatim from the regulatory source". That was not accurate, and the
+    // operator handoff document was corrected for it. This string was missed:
+    // the executable program contains documented, allow-listed adaptations
+    // required for it to run, and telling an operator otherwise invites them
+    // to report a discrepancy that is not one.
+    body: "Set the package folder in validate.sas and run it as supplied. It is the approved generated validation program: model provenance is preserved, and it contains only documented, allow-listed adaptations required for execution. Please do not edit it.",
   },
   {
     icon: Upload,

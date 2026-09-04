@@ -1086,6 +1086,118 @@ export const sasValidation = {
 };
 
 /**
+ * What the statistical engine can do, and how far it has been checked.
+ *
+ * TWO STATUSES, DELIBERATELY NOT ONE
+ *
+ * `implementation_status` says whether the code runs. `validation_status` says
+ * whether anybody may rely on it for a submission. They are different
+ * questions with different consequences, and this client keeps them apart for
+ * the same reason the backend does: a single "available" field would answer
+ * the safety question with the engineering one, and the person reading it
+ * would never know that had happened.
+ *
+ * `display_status` is a third field derived from the second, for a surface
+ * that needs one word. It is a rendering of the validation status and never a
+ * replacement for it.
+ */
+export type StatisticalDisplayStatus =
+  | "VALIDATED"
+  | "IMPLEMENTED - VALIDATION PENDING"
+  | "NOT IMPLEMENTED";
+
+export interface MethodCatalogueEntry {
+  capability_id: string;
+  jurisdiction: string;
+  method: string;
+  design: string;
+  supported_endpoints: string;
+  status: StatisticalDisplayStatus;
+  qualification: string;
+  key_limitation: string;
+  regulatory_source: string;
+}
+
+export interface StatisticalCapability {
+  capability_id: string;
+  title: string;
+  jurisdiction: string | null;
+  method: string | null;
+  implementation_status: string;
+  validation_status: string;
+  display_status: StatisticalDisplayStatus;
+  evidence_tier: string;
+  design_requirement: string[];
+  endpoints: string[];
+  decision_supported: boolean;
+  known_limitations: string[];
+  refusal_conditions: string[];
+  regulatory_source: string;
+  source_version: string;
+}
+
+export interface StatisticalFinding {
+  finding_id: string;
+  severity: string;
+  status: string;
+  affected_capabilities: string[];
+  description: string;
+  resolution_condition: string;
+}
+
+export interface StatisticalBlocker {
+  blocker_id: string;
+  status: string;
+  affected_capabilities: string[];
+  summary: string;
+  required_evidence: string;
+  current_behaviour: string;
+}
+
+export interface DossierSummary {
+  be_stats_version: string;
+  capability_counts: Record<string, number>;
+  catalogue: MethodCatalogueEntry[];
+  /**
+   * Coverage split by kind. `normative_pinned` is the only field counting
+   * document sections, and its denominator is `normative`, not `total` — a
+   * derived value has no regulatory section because no regulator states it,
+   * and one combined fraction would hide a real gap behind an explained one.
+   */
+  provenance: {
+    total: number;
+    classified: number;
+    normative: number;
+    normative_pinned: number;
+    normative_exceptions: number;
+    normative_verified: number;
+    derived: number;
+    derived_with_derivation: number;
+    derived_with_inputs: number;
+    derived_status: number;
+    illustrative: number;
+    illustrative_unconsumed: number;
+  };
+  open_findings: StatisticalFinding[];
+  blockers: StatisticalBlocker[];
+  partial_oracle_ready: boolean;
+  real_sas_oracle_status: string;
+  release_gate_passed: boolean;
+  /**
+   * Claims that are NOT currently established — most often an external oracle
+   * environment that was unavailable. An empty array is a strong statement,
+   * not a default, so it is rendered rather than hidden when short.
+   */
+  certification_blockers: string[];
+}
+
+export const statistics = {
+  methods: () => request<MethodCatalogueEntry[]>("/statistics/methods"),
+  capabilities: () => request<StatisticalCapability[]>("/statistics/capabilities"),
+  dossier: () => request<DossierSummary>("/statistics/dossier"),
+};
+
+/**
  * Stage-gate endpoints.
  *
  * Note what is missing: nothing here marks a requirement complete or writes a

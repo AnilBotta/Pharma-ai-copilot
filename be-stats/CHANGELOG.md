@@ -6,6 +6,140 @@ first question asked of a result years later.
 
 ---
 
+## 0.7.0 (unchanged) - the statistical validation dossier
+
+**No version bump, and that is the claim being made.** The rule at the top of
+this file is that `__version__` moves on any change that can alter a computed
+result. Nothing here can. `be_stats.dossier` is a new subpackage that READS the
+existing status tables, constants and citations; the only edit to a statistical
+source file is one added line in `spec.py` giving an existing private citation
+object a public name, which is an alias and not a second citation.
+
+A version bump would say a number might have moved. None did, and saying so
+falsely is exactly the kind of small inaccuracy this package spends its
+docstrings guarding against.
+
+### What the subpackage is for
+
+One canonical, machine-readable account of what this engine can do, what has
+been checked about it, against whose authority, and what remains unresolved -
+and the generators that turn it into documents nobody has to keep in sync.
+
+| module | answers |
+|---|---|
+| `statuses` | is `implemented` the same as `validated`? No, and the mapping is one-directional |
+| `capabilities` | the canonical matrix, 23 rows, statuses READ from `spec` and never restated |
+| `routing` | which regulatory test applies, checked against `resolve_be_spec` row by row |
+| `refusals` | why no decision was produced, as a code that names what would lift it |
+| `constants` | every regulatory number, with normative and derived kept apart |
+| `evidence` | what has been checked, against what, within what tolerance, by which test |
+| `findings` | the register, cross-checked against the committed finding files |
+| `blockers` | what is unresolved, with `partial_oracle_ready = false` |
+| `semantics` | `passes = false` never means "not implemented" |
+| `explain` | the nine questions a reviewer asks, answered as an object |
+| `release_gate` | whether a claimed status is supportable by the evidence recorded |
+| `catalogue` | the user-facing view: three states, one qualification each |
+| `render` | `validation/DOSSIER.md`, regenerated and compared by the suite |
+| `bundle` | one artefact for internal QA, with an allow-list for the environment |
+
+### Two documents that can no longer go stale
+
+`validation/DOSSIER.md` is generated, and the suite regenerates it and
+compares. So is the records table in `validation/findings/README.md`, which had
+gone stale in two ways at once: it listed five of the nine findings that
+existed, and ended with "No finding is currently `OPEN`" while
+`VAL-FDA-APPENDIX-C-002` was open. Nobody was careless. Nothing could fail.
+
+### A correction made during review, and the shape that allowed it
+
+The first version of this work reported provenance as four counts over every
+constant at once - total, verified, derived, unverified - and counted no
+document sections at all. The summary built on it said all 29 constants carried
+document, section and version.
+
+That was false in two ways, and only one of them was cosmetic:
+
+- **Three derived records carry no regulatory section, correctly.** `be-stats`
+  computes them; no regulator states them. Adding a section to complete a
+  percentage would be inventing regulatory provenance, which is the exact
+  failure the index exists to prevent.
+- **Two NORMATIVE records were not pinned to a section either**, and that is a
+  real gap. `CONVENTIONAL_LOWER_PERCENT` and `CONVENTIONAL_UPPER_PERCENT` cite
+  `spec._ICH_M13A_LIKE` - a placeholder that has always announced itself as one
+  - whose document field describes a rule rather than naming a document, whose
+  authority lists three bodies, and whose version reads "current".
+
+The metric shape is what let the sentence be written: nothing counted sections,
+so nothing could contradict it. Coverage is now split by kind, each denominator
+being the set its requirement applies to, and `normative_pinned` is the only
+field counting sections. It reads 19/21, and a test asserts it stays strictly
+below the total until the gap is closed by reading a document.
+
+The gap itself is tracked as `DOSSIER-004` and closed by citing a primary
+source, never by writing a section number from memory - an over-specified
+citation looks checked, which is worse than a coarse one.
+
+Two smaller corrections came out of the same pass. Derived records now name
+their normative inputs by id, so "what produced this number" resolves rather
+than being read out of a formula. And `DERIVED_EMA_ABEL_CAP_*` had its
+derivation written as `sqrt(ln(1.25))` - the right number from the wrong input,
+since that 1.25 is `1 + (50/100)^2` from the cap CV and not the acceptance
+ratio. They coincide only because the cap sits at CVwR = 50%.
+
+### The release gate held a weaker copy of the pinning rule
+
+Found in review, and the more serious of the two provenance defects.
+
+`ConstantRecord.has_pinned_citation` required authority, document, section and
+version. The release gate, three modules away, tested source pinning as:
+
+    if not record.regulatory_source.document_version:
+        violation
+
+So `document_version = "current"` PASSED the gate - the string is non-empty -
+while the provenance layer correctly excluded the same citation from its pinned
+count. One concept, two encodings, and the weaker of the two sat on the control
+that decides whether something may be called VALIDATED.
+
+Nothing claims VALIDATED on that citation today, so no false claim existed.
+This dossier exists to stop a future one, which is only true if the gate refuses
+when everything else is satisfied.
+
+`dossier.citations` now owns the definition and every layer calls it. The rule
+is POSITIVE rather than a blacklist: a pinned version must identify WHICH issue
+of the document is meant, which means a year or a revision marker. Every real
+citation in the package satisfies it; `current`, `latest`, `TBD`, `unknown` and
+anything else nobody has thought of do not. A citation must also name ONE
+authority - "ICH / FDA / EMA" is not a place a reader can look.
+
+Exceptions are registered against the CITATION OBJECT, not against a capability
+or a finding id. `AVERAGE_BE_2X2` and the two conventional-interval constants
+share one `Citation`, so all three inherit one explanation, and `release_gate`
+reports which finding blocks a promotion without hard-coding one.
+
+The rule is modelled narrowly, as it should be. An open citation exception
+blocks a VALIDATED claim and nothing else: `AVERAGE_BE_2X2` carries one today,
+is IMPLEMENTED_UNVALIDATED, and passes the gate. Open SCOPE_LIMITATION findings
+do not block promotion generally - many are permanent qualifications, and a rule
+that blocked on them would reward recording fewer of them.
+
+Three regression tests carry it: forcing `AVERAGE_BE_2X2` to VALIDATED with
+every other condition satisfied fails on exactly one violation naming
+DOSSIER-004; substituting a genuinely pinned citation makes that violation
+disappear, so the gate is testing semantics rather than a capability id; and
+changing only the version to "current" fails on the version alone.
+
+### Statuses unchanged
+
+`FDA_REPLICATE_STANDARD_ABE_FULL` IMPLEMENTED_UNVALIDATED.
+`FDA_REPLICATE_STANDARD_ABE_PARTIAL` NOT_IMPLEMENTED.
+`FDA_NTI_RSABE` IMPLEMENTED_UNVALIDATED. `partial_oracle_ready` false.
+`real_sas_oracle_status` PENDING. The release gate refuses to promote anything
+on one numerical match, and requires a named reviewer to have recorded the
+transition.
+
+---
+
 ## 0.7.0 — FDA Appendix C, fully replicate designs
 
 The mixed model FDA specifies, fitted by REML, for the one design PR #61 found

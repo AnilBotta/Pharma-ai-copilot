@@ -492,6 +492,12 @@ _ICH_M13A_LIKE = Citation(
     document_version="current",
 )
 
+#: The same citation under a public name, so the capability matrix in
+#: `be_stats.dossier` can cite the conventional interval without reaching for a
+#: private module attribute. An alias, not a second citation: one object, so a
+#: correction to the version string reaches both readers.
+CONVENTIONAL_ACCEPTANCE_CITATION = _ICH_M13A_LIKE
+
 
 # ------------------------------------------- FDA highly variable drugs ---
 #
