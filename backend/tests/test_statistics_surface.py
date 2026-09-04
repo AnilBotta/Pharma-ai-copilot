@@ -16,6 +16,8 @@ only way that claim stays true.
 
 from __future__ import annotations
 
+import json
+import re
 from contextlib import asynccontextmanager
 
 import pytest
@@ -249,6 +251,167 @@ def test_every_capability_can_be_explained(client: TestClient):
         assert body["rendered"], capability_id
         if not body["decided"]:
             assert body["passes"] is None, capability_id
+
+
+def test_the_validation_report_requires_authentication(anonymous_client: TestClient):
+    for suffix in ("", "?format=json", "?format=markdown", "?format=html"):
+        response = anonymous_client.get(f"/api/statistics/validation-report{suffix}")
+        assert response.status_code == 401, suffix
+
+
+def test_the_validation_report_serves_three_formats(client: TestClient):
+    json_response = client.get("/api/statistics/validation-report?format=json")
+    assert json_response.status_code == 200
+    assert json_response.headers["content-type"].startswith("application/json")
+
+    markdown = client.get("/api/statistics/validation-report?format=markdown")
+    assert markdown.status_code == 200
+    assert markdown.headers["content-type"].startswith("text/markdown")
+
+    page = client.get("/api/statistics/validation-report?format=html")
+    assert page.status_code == 200
+    assert page.headers["content-type"].startswith("text/html")
+
+
+def test_the_report_defaults_to_json(client: TestClient):
+    default = client.get("/api/statistics/validation-report")
+    explicit = client.get("/api/statistics/validation-report?format=json")
+    assert default.status_code == 200
+    assert default.json()["schema"] == explicit.json()["schema"]
+
+
+def test_an_unknown_format_is_refused(client: TestClient):
+    response = client.get("/api/statistics/validation-report?format=pdf")
+    assert response.status_code == 400
+
+
+def test_the_report_schema_is_stable_and_complete(client: TestClient):
+    body = client.get("/api/statistics/validation-report").json()
+    assert body["schema"] == "be-stats.validation-report/1"
+    for section in (
+        "identity",
+        "reading_notes",
+        "capabilities",
+        "evidence_by_tier",
+        "provenance",
+        "limitations",
+        "governance",
+    ):
+        assert section in body, section
+    assert body["capabilities"], "the report served no capabilities"
+
+
+def test_the_served_report_is_the_reviewer_audience(client: TestClient):
+    """The audience is fixed server-side and cannot be chosen by a caller.
+
+    The internal audience carries candidate values for the unresolved
+    partial-replicate question. A query parameter selecting the audience would
+    let a client ask for them, which is why there is not one.
+    """
+    body = client.get("/api/statistics/validation-report").json()
+    assert body["identity"]["audience"] == "reviewer"
+
+    for blocker in body["limitations"]["open_blockers"]:
+        assert "candidate_evidence" not in blocker
+
+
+#: An ISO-8601 timestamp, which ends in `seconds.microseconds`.
+#:
+#: Removed before scanning for stray numbers. A real clock produces
+#: `...:21.194755` for four seconds in every minute, and that is a decimal
+#: inside the candidate range - so the first version of this test failed on
+#: the generation timestamp and reported it as a leaked degrees-of-freedom
+#: value. The report is built server-side, so the clock cannot be injected
+#: here; stripping it is the honest alternative.
+_TIMESTAMP = re.compile(
+    r"\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:[+-]\d{2}:\d{2}|Z)?"
+)
+
+
+@pytest.mark.parametrize("fmt", ["json", "markdown", "html"])
+def test_no_candidate_df_is_served_in_any_format(client: TestClient, fmt):
+    response = client.get(f"/api/statistics/validation-report?format={fmt}")
+    body = _TIMESTAMP.sub("<timestamp>", response.text)
+    leaked = sorted(
+        {n for n in re.findall(r"\d+\.\d+", body) if 19.0 <= float(n) <= 23.0}
+    )
+    assert not leaked, f"{fmt} leaked candidate values {leaked}"
+
+
+def test_the_timestamp_stripper_actually_matches_the_served_timestamp(
+    client: TestClient,
+):
+    """Otherwise the scan above could be neutered by a format change.
+
+    A stripper that stopped matching would leave the timestamp in place and
+    reintroduce the flake; one that matched too much would hide a real leak.
+    """
+    body = client.get("/api/statistics/validation-report").json()
+    generated = body["identity"]["generated_at"]
+    assert _TIMESTAMP.fullmatch(generated), generated
+
+
+def test_the_report_cannot_be_steered_by_the_client(client: TestClient):
+    """No client-supplied status, evidence or capability reaches the report.
+
+    Every parameter a caller can set is tried; the served statuses must be
+    identical to the unparameterised call. A report a caller can shape is a
+    report a caller can quote back at us.
+    """
+    baseline = client.get("/api/statistics/validation-report").json()
+    baseline_statuses = {
+        c["capability_id"]: c["validation_status"] for c in baseline["capabilities"]
+    }
+
+    for query in (
+        "?validation_status=validated",
+        "?audience=internal",
+        "?capability_ids=AVERAGE_BE_2X2",
+        "?partial_oracle_ready=true",
+        "?format=json&audience=internal",
+    ):
+        body = client.get(f"/api/statistics/validation-report{query}").json()
+        assert body["identity"]["audience"] == "reviewer", query
+        assert {
+            c["capability_id"]: c["validation_status"] for c in body["capabilities"]
+        } == baseline_statuses, query
+
+
+def test_the_served_report_leaks_no_secrets(client: TestClient):
+    payload = client.get("/api/statistics/validation-report").text.lower()
+    for marker in (
+        "sk-",
+        "bearer ",
+        "postgres://",
+        "postgresql://",
+        "service_role",
+        "supabase_service",
+        "api_key",
+        "password",
+        "secret",
+        "signed_url",
+    ):
+        assert marker not in payload, marker
+
+
+def test_the_served_report_contains_no_tenant_or_study_data(client: TestClient):
+    """The report describes the engine, not anybody's studies.
+
+    That is a structural property - it is built from code - and it is worth
+    asserting once, because the day somebody joins study data onto it is the
+    day this endpoint becomes a tenancy problem.
+    """
+    body = client.get("/api/statistics/validation-report").json()
+    assert "single-organisation" in body["governance"]["tenancy"]
+    payload = json.dumps(body).lower()
+    for marker in ("subject_id", "tenant_id", "project_id", "run_id", "user_id"):
+        assert marker not in payload, marker
+
+
+def test_the_report_reports_the_governance_state_unchanged(client: TestClient):
+    governance = client.get("/api/statistics/validation-report").json()["governance"]
+    assert governance["partial_oracle_ready"] is False
+    assert governance["real_sas_oracle_status"] == "PENDING"
 
 
 def test_the_surface_is_read_only():

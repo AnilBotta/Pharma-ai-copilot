@@ -1,0 +1,274 @@
+{
+  "capabilities": [
+    {
+      "blockers": [
+        "str"
+      ],
+      "capability_id": "str",
+      "citation_exception": "str",
+      "decision_supported": "bool",
+      "design": "str",
+      "display_status": "str",
+      "does_not_establish": "str",
+      "endpoints": "str",
+      "established_evidence_tier": "str",
+      "evidence": [
+        {
+          "established_by": "str",
+          "evidence_id": "str",
+          "scenario": "str",
+          "source_authority": "str",
+          "source_type": "str",
+          "status": "str",
+          "tier": "str",
+          "tier_meaning": "str",
+          "tolerance": "str"
+        }
+      ],
+      "explainability": {
+        "criterion": "str",
+        "design": "str",
+        "evidence_tier_established": "str",
+        "implementation_status": "str",
+        "limitations": [
+          "str"
+        ],
+        "method_selected": "str",
+        "outcome": "str",
+        "refusal": "null",
+        "regulator": "str",
+        "regulatory_source": "str",
+        "validation_status": "str",
+        "why_selected": "str"
+      },
+      "implementation_status": "str",
+      "jurisdiction": "str",
+      "method": "str",
+      "open_findings": [
+        "str"
+      ],
+      "qualification": "str",
+      "refusal_conditions": [
+        {
+          "code": "str",
+          "lifted_by": "str",
+          "meaning": "str"
+        }
+      ],
+      "regulatory_source": "str",
+      "source_pinned": "bool",
+      "source_pinning_gap": "str",
+      "source_version": "str",
+      "submission_ready": "bool",
+      "validation_status": "str"
+    }
+  ],
+  "evidence_by_tier": {
+    "tier_1a": [
+      {
+        "capabilities": [
+          "str"
+        ],
+        "established_by": "str",
+        "evidence_id": "str",
+        "expected": "str",
+        "observed": "str",
+        "scenario": "str",
+        "source_authority": "str",
+        "status": "str",
+        "tier_meaning": "str",
+        "tolerance": "str"
+      }
+    ],
+    "tier_1b": [
+      {
+        "capabilities": [
+          "str"
+        ],
+        "established_by": "str",
+        "evidence_id": "str",
+        "expected": "str",
+        "observed": "str",
+        "scenario": "str",
+        "source_authority": "str",
+        "status": "str",
+        "tier_meaning": "str",
+        "tolerance": "str"
+      }
+    ],
+    "tier_2": [
+      {
+        "capabilities": [],
+        "established_by": "str",
+        "evidence_id": "str",
+        "expected": "str",
+        "observed": "str",
+        "scenario": "str",
+        "source_authority": "str",
+        "status": "str",
+        "tier_meaning": "str",
+        "tolerance": "str"
+      }
+    ],
+    "tier_3": [
+      {
+        "capabilities": [
+          "str"
+        ],
+        "established_by": "str",
+        "evidence_id": "str",
+        "expected": "str",
+        "observed": "str",
+        "scenario": "str",
+        "source_authority": "str",
+        "status": "str",
+        "tier_meaning": "str",
+        "tolerance": "str"
+      }
+    ],
+    "tier_4": [
+      {
+        "capabilities": [
+          "str"
+        ],
+        "established_by": "str",
+        "evidence_id": "str",
+        "expected": "str",
+        "observed": "str",
+        "scenario": "str",
+        "source_authority": "str",
+        "status": "str",
+        "tier_meaning": "str",
+        "tolerance": "str"
+      }
+    ]
+  },
+  "governance": {
+    "partial_oracle_ready": "bool",
+    "promotion_policy": "str",
+    "real_sas_oracle_status": "str",
+    "release_gate_meaning": "str",
+    "release_gate_passed": "bool",
+    "tenancy": "str"
+  },
+  "identity": {
+    "audience": "str",
+    "be_stats_version": "str",
+    "generated_at": "str",
+    "git_sha": "str",
+    "note": "str",
+    "runtime": {
+      "platform": "str",
+      "python": "str"
+    },
+    "schema": "str"
+  },
+  "limitations": {
+    "certification_blockers": [
+      "str"
+    ],
+    "evidence_not_established": [
+      {
+        "evidence_id": "str",
+        "status": "str",
+        "tier": "str",
+        "why": "str"
+      }
+    ],
+    "note": "str",
+    "open_blockers": [
+      {
+        "affected_capabilities": [
+          "str"
+        ],
+        "blocker_id": "str",
+        "current_behaviour": "str",
+        "required_evidence": "str",
+        "status": "str",
+        "summary": "str"
+      }
+    ],
+    "open_findings": [
+      {
+        "affected_capabilities": [
+          "str"
+        ],
+        "description": "str",
+        "finding_id": "str",
+        "resolution_condition": "str",
+        "severity": "str",
+        "status": "str"
+      }
+    ],
+    "unresolved_citation_gaps": [
+      "str"
+    ]
+  },
+  "provenance": {
+    "coverage": {
+      "classified": "int",
+      "derived": "int",
+      "derived_status": "int",
+      "derived_with_derivation": "int",
+      "derived_with_inputs": "int",
+      "illustrative": "int",
+      "illustrative_unconsumed": "int",
+      "normative": "int",
+      "normative_exceptions": "int",
+      "normative_pinned": "int",
+      "normative_verified": "int",
+      "total": "int"
+    },
+    "derived": [
+      {
+        "constant_id": "str",
+        "consumed_by": [
+          "str"
+        ],
+        "derivation": "str",
+        "derived_from": [
+          "str"
+        ],
+        "role": "str",
+        "value": "float",
+        "verification": "str"
+      }
+    ],
+    "illustrative": [
+      {
+        "constant_id": "str",
+        "consumed_by": [],
+        "role": "str",
+        "value": "float"
+      }
+    ],
+    "normative": [
+      {
+        "authority": "str",
+        "citation_exception": "str",
+        "constant_id": "str",
+        "document": "str",
+        "document_version": "str",
+        "pinned": "bool",
+        "role": "str",
+        "section": "str",
+        "value": "float",
+        "verification": "str"
+      }
+    ],
+    "note": "str",
+    "unresolved_citation_gaps": [
+      {
+        "constant_id": "str",
+        "why": "str"
+      }
+    ]
+  },
+  "reading_notes": {
+    "evidence_tiers": "str",
+    "independent_implementations": "str",
+    "status_meanings": "str",
+    "unavailable_environments": "str"
+  },
+  "schema": "str"
+}

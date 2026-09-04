@@ -159,6 +159,87 @@ def test_the_page_states_provenance_per_kind_rather_than_as_one_figure():
     )
 
 
+EVIDENCE_PANEL = (
+    REPO / "app" / "(app)" / "statistics" / "validation-evidence.tsx"
+)
+
+
+def test_the_validation_evidence_panel_exists():
+    assert EVIDENCE_PANEL.exists(), f"{EVIDENCE_PANEL} is missing"
+
+
+def test_the_panel_renders_the_server_built_report():
+    """One report object, not a view stitched from the other endpoints.
+
+    Assembling the panel from `/methods` plus `/capabilities` plus `/dossier`
+    would create a second place where validation truth is composed, and the
+    page and the exported document could then disagree.
+    """
+    source = code_only(EVIDENCE_PANEL.read_text(encoding="utf-8"))
+    assert "statistics.validationReport()" in source
+    assert not re.search(r"""fetch\(\s*[`'"]/api""", source)
+
+
+def test_the_panel_shows_what_each_capability_does_not_establish():
+    """The sentence that stops a status being read as an endorsement."""
+    source = code_only(EVIDENCE_PANEL.read_text(encoding="utf-8"))
+    assert "does_not_establish" in source
+    assert "What this does not establish" in source
+
+
+def test_the_panel_keeps_the_three_states_distinct():
+    source = code_only(EVIDENCE_PANEL.read_text(encoding="utf-8"))
+    block = source[source.index("STATUS_VARIANT") : source.index("TIER_LABEL")]
+    variants = set(re.findall(r'"(\w+)"', block))
+    # Three statuses, three distinct badge variants.
+    assert len({v for v in variants if v in {"success", "warning", "muted"}}) == 3
+
+
+def test_the_panel_labels_tier_3_as_not_regulatory_authority():
+    """A tier label with no gloss lets a reader supply their own."""
+    source = code_only(EVIDENCE_PANEL.read_text(encoding="utf-8"))
+    assert "not regulatory authority" in source
+
+
+def test_the_panel_offers_all_three_exports():
+    source = code_only(EVIDENCE_PANEL.read_text(encoding="utf-8"))
+    for fmt in ("html", "markdown", "json"):
+        assert f'download("{fmt}")' in source, fmt
+
+
+def test_the_export_goes_through_an_authenticated_fetch():
+    """A bare <a href> would 401 and save an error page named like a report."""
+    api = code_only(API.read_text(encoding="utf-8"))
+    block = api[
+        api.index("downloadValidationReport") : api.index("export const pdp")
+    ]
+    assert "authHeaders()" in block
+    assert "BASE_URL" in block
+    assert "response.ok" in block
+
+
+def test_an_export_failure_is_reported_rather_than_swallowed():
+    source = code_only(EVIDENCE_PANEL.read_text(encoding="utf-8"))
+    assert "setExportError" in source
+    assert not re.search(r"catch\s*\{\s*\}", source)
+
+
+def test_the_panel_shows_outstanding_work_rather_than_only_what_works():
+    source = code_only(EVIDENCE_PANEL.read_text(encoding="utf-8"))
+    assert "open_blockers" in source
+    assert "evidence_not_established" in source
+    assert "unresolved_citation_gaps" in source
+
+
+def test_the_panel_is_reachable_from_the_statistics_page():
+    page = code_only(
+        (REPO / "app" / "(app)" / "statistics" / "page.tsx").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert "ValidationEvidence" in page
+
+
 def test_the_sas_page_no_longer_claims_the_program_is_verbatim():
     """The correction the runbook received and this page did not.
 

@@ -22,6 +22,8 @@ import {
   type StatisticalDisplayStatus,
 } from "@/lib/api";
 
+import { ValidationEvidence } from "./validation-evidence";
+
 /**
  * Statistical methods.
  *
@@ -234,6 +236,11 @@ export default function StatisticsPage() {
               ))}
             </section>
           )}
+
+          {/* The reviewer's half. Kept below the catalogue because a customer
+              deciding whether to run a study needs the seven methods first;
+              an auditor scrolls. */}
+          <ValidationEvidence />
 
           <Card>
             <CardHeader className="pb-2">
