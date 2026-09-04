@@ -331,7 +331,7 @@ re-established. A record whose environment was unavailable reads
 - **observed** - The same selection for all six values, including 0.294.
 - **tolerance** - Exact. A selection is a discrete choice and there is no tolerance to state; a near-miss here is a wrong analysis.
 - **established by** - `tests/validation/test_algorithm_conformance.py`
-- **artefact** - `validation/phase1/algorithm/FDA_HVD_SWITCH_001.json`
+- **artefact (committed)** - `validation/phase1/algorithm/FDA_HVD_SWITCH_001.json`
 
 ### `FDA-HVD-SWR-FORMULA-001`
 
@@ -342,7 +342,7 @@ re-established. A record whose environment was unavailable reads
 - **observed** - Conforms.
 - **tolerance** - Exact on structure; 1e-12 on the arithmetic identities.
 - **established by** - `tests/validation/test_algorithm_conformance.py`
-- **artefact** - `validation/phase1/algorithm/FDA_HVD_SWR_FORMULA_001.json`
+- **artefact (committed)** - `validation/phase1/algorithm/FDA_HVD_SWR_FORMULA_001.json`
 
 ### `FDA-HVD-RSABE-CRITERION-001`
 
@@ -353,7 +353,7 @@ re-established. A record whose environment was unavailable reads
 - **observed** - Both criteria enforced; neither alone decides.
 - **tolerance** - Exact on the conjunction.
 - **established by** - `tests/validation/test_algorithm_conformance.py`
-- **artefact** - `validation/phase1/algorithm/FDA_HVD_RSABE_CRITERION_001.json`
+- **artefact (committed)** - `validation/phase1/algorithm/FDA_HVD_RSABE_CRITERION_001.json`
 
 ### `FDA-NTI-CRITERIA-001`
 
@@ -364,7 +364,7 @@ re-established. A record whose environment was unavailable reads
 - **observed** - Conforms across the enumerated combinations.
 - **tolerance** - Exact on the conjunction and on the decided/not-decided split.
 - **established by** - `tests/validation/test_nti_criterion_combinations.py`
-- **artefact** - `validation/nti/cases/criterion_combinations.json`
+- **artefact (committed)** - `validation/nti/cases/criterion_combinations.json`
 
 ### `FDA-HVD-TREATMENT-CONTRAST`
 
@@ -419,7 +419,7 @@ re-established. A record whose environment was unavailable reads
 - **observed** - Reproduced to the two decimals EMA printed, on the unbalanced set with all 77 subjects retained.
 - **tolerance** - abs 0.005 on each figure - a ROUNDING bound derived from EMA printing two decimals, not a fitted one.
 - **established by** - `tests/validation/test_ema_tier1b.py`
-- **artefact** - `validation/ema/cases/ema_pkwp_qa_datasets.json`
+- **artefact (committed)** - `validation/ema/cases/ema_pkwp_qa_datasets.json`
 
 ### `EMA-PKWP-METHOD-A-DATASET-II`
 
@@ -430,7 +430,7 @@ re-established. A record whose environment was unavailable reads
 - **observed** - Reproduced to the two decimals printed.
 - **tolerance** - abs 0.005, as above.
 - **established by** - `tests/validation/test_ema_tier1b.py`
-- **artefact** - `validation/ema/cases/ema_pkwp_qa_datasets.json`
+- **artefact (committed)** - `validation/ema/cases/ema_pkwp_qa_datasets.json`
 
 ### `EMA-PKWP-CVWR`
 
@@ -441,7 +441,7 @@ re-established. A record whose environment was unavailable reads
 - **observed** - 46.96% and 11.17%.
 - **tolerance** - abs 0.05 percentage points - EMA printed one decimal, so this is the rounding bound.
 - **established by** - `tests/validation/test_ema_tier1b.py`
-- **artefact** - `validation/ema/cases/ema_pkwp_qa_datasets.json`
+- **artefact (committed)** - `validation/ema/cases/ema_pkwp_qa_datasets.json`
 
 ### `EMA-ABEL-LIMITS-TABLE`
 
@@ -487,7 +487,8 @@ re-established. A record whose environment was unavailable reads
 - **observed** - Agreement within the declared tolerance on every case. Two methods carry a permanent qualification.
 - **tolerance** - A Monte Carlo bound evaluated at the worst case p = 0.5, with a four-standard-error gap raising a FINDING rather than tightening the tolerance after the fact.
 - **established by** - `tests/validation/test_external_harness.py`
-- **artefact** - `validation/external/report.json`
+- **artefact (committed)** - `validation/external/environment.lock.json`
+- **run output (generated, not committed)** - `validation/external/report.json`
 - **findings** - `VAL-FDA-HVD-001`, `VAL-FDA-HVD-002`, `VAL-EMA-ABEL-001`, `VAL-EMA-ABEL-002`
 - **note** - Declared SKIPPED here because the manifest describes what is available in an ORDINARY environment, where R is absent. The validation-r workflow runs it in the pinned container and fails if anything is skipped there. The status a certification run reads comes from that job, not from this line.
 
@@ -500,7 +501,8 @@ re-established. A record whose environment was unavailable reads
 - **observed** - Seven of nine agree to 1e-6. The other two are negative subject-by-formulation correlation fits, which the oracle cannot represent at all, and were adjudicated by an independent algebraic identity instead.
 - **tolerance** - 1e-6 on the covariance parameters and the standard error; the df tolerance is stated in df rather than percent, because the difference is a boundary effect and a relative tolerance would hide it at small df.
 - **established by** - `tests/validation/test_appendix_c_case_oracle.py`
-- **artefact** - `validation/appendix_c/oracle/replicatebe_cases_frozen.json`
+- **artefact (committed)** - `validation/appendix_c/oracle/replicatebe_cases_frozen.json`
+- **run output (generated, not committed)** - `validation/appendix_c/oracle/replicatebe_cases_run.json`
 - **findings** - `VAL-FDA-APPENDIX-C-003`, `VAL-FDA-APPENDIX-C-004`
 - **note** - Gated by its own CI job, which fails if any comparison is SKIPPED. Locally Julia is absent, and the honest status is this one rather than PASSED.
 

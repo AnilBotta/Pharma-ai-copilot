@@ -111,8 +111,22 @@ class EvidenceRecord:
     status: EvidenceStatus
     #: The test that re-establishes this. Module path relative to be-stats.
     established_by: str
-    #: A committed artefact and its identity, where one exists.
+    #: A COMMITTED artefact, tracked in this repository.
+    #:
+    #: "Committed" is the load-bearing word and it was got wrong once. This
+    #: field held `validation/external/report.json` - a file `.gitignore`
+    #: excludes because the harness generates it. It existed on the machine
+    #: where the manifest was written, so an `.exists()` check passed there
+    #: and failed on a clean checkout. An artefact nobody else can fetch is
+    #: not evidence, so the test now asks git rather than the filesystem.
     artifact: str = ""
+    #: Where a RUN deposits its output. Generated, gitignored, and absent
+    #: until somebody runs it.
+    #:
+    #: Separate from `artifact` on purpose. Both are useful to record and only
+    #: one of them is a thing a reviewer can open from the repository; naming
+    #: them with one field is what let a generated path be cited as evidence.
+    run_output: str = ""
     #: Findings that qualify this record.
     findings: tuple[str, ...] = ()
     note: str = ""
@@ -508,7 +522,12 @@ EVIDENCE_MANIFEST: tuple[EvidenceRecord, ...] = (
         ),
         status=EvidenceStatus.SKIPPED_ENVIRONMENT_UNAVAILABLE,
         established_by="tests/validation/test_external_harness.py",
-        artifact="validation/external/report.json",
+        # The pinned versions, which are what make the comparison
+        # reproducible and are committed. NOT `report.json`: that is the
+        # harness's OUTPUT, `.gitignore` excludes it, and citing it as the
+        # artefact claimed evidence a reviewer cannot fetch.
+        artifact="validation/external/environment.lock.json",
+        run_output="validation/external/report.json",
         findings=("VAL-FDA-HVD-001", "VAL-FDA-HVD-002", "VAL-EMA-ABEL-001", "VAL-EMA-ABEL-002"),
         note=(
             "Declared SKIPPED here because the manifest describes what is "
@@ -547,6 +566,7 @@ EVIDENCE_MANIFEST: tuple[EvidenceRecord, ...] = (
         status=EvidenceStatus.SKIPPED_ENVIRONMENT_UNAVAILABLE,
         established_by="tests/validation/test_appendix_c_case_oracle.py",
         artifact="validation/appendix_c/oracle/replicatebe_cases_frozen.json",
+        run_output="validation/appendix_c/oracle/replicatebe_cases_run.json",
         findings=("VAL-FDA-APPENDIX-C-003", "VAL-FDA-APPENDIX-C-004"),
         note=(
             "Gated by its own CI job, which fails if any comparison is "

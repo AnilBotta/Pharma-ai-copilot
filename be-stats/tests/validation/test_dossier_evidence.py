@@ -16,6 +16,7 @@ from __future__ import annotations
 import json
 import pathlib
 import re
+import subprocess
 
 import pytest
 
@@ -61,22 +62,87 @@ GENERATED_DOSSIER = PACKAGE_ROOT / "validation" / "DOSSIER.md"
 
 
 def test_every_evidence_record_names_a_real_test():
-    """A manifest pointing at a test that does not exist proves nothing."""
+    """A manifest pointing at a test that does not exist proves nothing.
+
+    Tracking rather than existence, for the same reason as the artefact check
+    below: a test file present only on the author's machine establishes
+    nothing for anybody else.
+    """
+    tracked = _tracked_paths()
     for record in EVIDENCE_MANIFEST:
-        path = PACKAGE_ROOT / record.established_by
-        assert path.exists(), (
+        assert _is_tracked(record.established_by, tracked), (
             f"{record.evidence_id} says it is established by "
-            f"{record.established_by!r}, which does not exist."
+            f"{record.established_by!r}, which is not committed."
         )
 
 
-def test_every_evidence_artifact_exists():
+def _tracked_paths() -> set[str]:
+    """Every path git knows about, relative to the be-stats package root."""
+    result = subprocess.run(
+        ["git", "ls-files"],
+        cwd=PACKAGE_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, (
+        "`git ls-files` failed, so this test cannot tell a committed artefact "
+        f"from a local one: {result.stderr.strip()}"
+    )
+    return set(result.stdout.splitlines())
+
+
+def _is_tracked(path: str, tracked: set[str]) -> bool:
+    """A file, or a directory containing tracked files."""
+    return path in tracked or any(
+        p.startswith(path.rstrip("/") + "/") for p in tracked
+    )
+
+
+def test_every_evidence_artifact_is_committed():
+    """ASK GIT, NOT THE FILESYSTEM. This is the distinction that broke CI.
+
+    The previous version checked `.exists()`. `POWERTOST-CROSS-CHECK` cited
+    `validation/external/report.json`, which `.gitignore` excludes because the
+    harness generates it - so the file was present on the machine where the
+    manifest was written, the test passed there, and it failed on a clean
+    checkout in Actions.
+
+    An artefact a reviewer cannot fetch from the repository is not evidence,
+    and `.exists()` cannot tell the difference between "committed" and
+    "somebody ran this here once". `git ls-files` can.
+    """
+    tracked = _tracked_paths()
+    assert tracked, "git reported no tracked files; the check would be vacuous."
+
     for record in EVIDENCE_MANIFEST:
         if not record.artifact:
             continue
-        assert (PACKAGE_ROOT / record.artifact).exists(), (
-            f"{record.evidence_id} cites artefact {record.artifact!r}, absent."
+        assert _is_tracked(record.artifact, tracked), (
+            f"{record.evidence_id} cites artefact {record.artifact!r}, which "
+            "is not tracked by git. Either commit it, or - if it is generated "
+            "output - move it to `run_output`, which does not claim to be "
+            "fetchable."
         )
+
+
+def test_no_run_output_is_mistaken_for_a_committed_artefact():
+    """The complementary half, which keeps the two fields from merging again.
+
+    A generated path that got committed would still be generated, and citing
+    it as an artefact would put one machine's run into the manifest as though
+    it were reviewed evidence.
+    """
+    tracked = _tracked_paths()
+    for record in EVIDENCE_MANIFEST:
+        if not record.run_output:
+            continue
+        assert not _is_tracked(record.run_output, tracked), (
+            f"{record.evidence_id} names {record.run_output!r} as run output "
+            "and it is tracked by git. Generated output committed into the "
+            "repository is one machine's run wearing the clothes of evidence."
+        )
+        assert record.run_output != record.artifact
 
 
 def test_every_evidence_record_names_real_capabilities():

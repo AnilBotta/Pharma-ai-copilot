@@ -194,7 +194,12 @@ def _evidence_section() -> list[str]:
         lines.append(f"- **tolerance** - {record.tolerance}")
         lines.append(f"- **established by** - `{record.established_by}`")
         if record.artifact:
-            lines.append(f"- **artefact** - `{record.artifact}`")
+            lines.append(f"- **artefact (committed)** - `{record.artifact}`")
+        if record.run_output:
+            lines.append(
+                f"- **run output (generated, not committed)** - "
+                f"`{record.run_output}`"
+            )
         if record.findings:
             lines.append(
                 "- **findings** - " + ", ".join(f"`{f}`" for f in record.findings)
