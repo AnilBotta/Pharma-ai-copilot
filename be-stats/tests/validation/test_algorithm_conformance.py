@@ -27,7 +27,6 @@ independent implementation checks it next.
 from __future__ import annotations
 
 import json
-import math
 from pathlib import Path
 
 import pytest
@@ -106,11 +105,43 @@ def _states_expectations(node: object) -> bool:
         return any(_states_expectations(v) for v in node)
     return False
 
+
+def _assert_source_is_complete(case: dict) -> None:
+    """Every field a tier-1A citation needs, checked on one case.
+
+    A HELPER RATHER THAN INLINE ASSERTIONS, FOR ONE REASON
+
+    `test_the_source_check_fails_when_the_metadata_is_corrupted` calls it with
+    deliberately broken metadata and requires it to raise. A check nobody has
+    ever seen fail is a check nobody has evidence works - which is precisely
+    the state these assertions were in, unreachable, for three releases.
+
+    THESE ASSERTIONS WERE DEAD FROM 0.4.0 UNTIL NOW
+
+    They were the tail of `test_case_states_its_rule_and_its_source`. In
+    `8ffe4f2` the helper `_states_expectations` was inserted between that
+    test's expectations block and this tail, which left them stranded inside
+    the new function AFTER its `return False`. Python is happy to parse
+    unreachable code, pytest reported the test as passing, and no tool in the
+    suite looked. Nothing failed, because nothing ran.
+    """
     source = case["source"]
     for field in ("tier", "subtier", "authority", "document", "section"):
         assert source.get(field), f"{case['case_id']} source is missing {field}"
-    assert source["tier"] == 1
-    assert source["subtier"] == "1A"
+    assert source["tier"] == 1, (
+        f"{case['case_id']} is in the tier-1A module with tier "
+        f"{source['tier']!r}"
+    )
+    assert source["subtier"] == "1A", (
+        f"{case['case_id']} claims subtier {source['subtier']!r}. 1A is "
+        "algorithm and decision-rule conformance; 1B is reproduction of "
+        "regulator-published numerical output. Tier 1B is REQUIRED numerical "
+        "evidence for a VALIDATED promotion, and neither tier alone "
+        "establishes VALIDATED status or submission suitability - the release "
+        "gate additionally requires a pinned regulatory source, no "
+        "disqualifying blocker or finding, and an explicitly reviewed "
+        "transition."
+    )
 
     # How it was checked is part of the record, not only whether. Every case
     # here was attested at review rather than transcribed from the PDF by this
@@ -119,6 +150,19 @@ def _states_expectations(node: object) -> bool:
     assert source.get("limitation"), (
         f"{case['case_id']} must state what its evidence does NOT cover"
     )
+
+
+@pytest.mark.parametrize("case", CASES, ids=IDS)
+def test_case_source_is_complete_and_correctly_tiered(case: dict):
+    """The restored check, now in a test of its own.
+
+    Kept separate from `test_case_states_its_rule_and_its_source` rather than
+    folded back into it. They answer different questions - does the case state
+    a rule, and can a reviewer find the words that rule came from - and a
+    parameterised test stops at its first failing assertion, so combining them
+    means a missing `section` hides behind a missing `expected`.
+    """
+    _assert_source_is_complete(case)
 
 
 @pytest.mark.parametrize("case", CASES, ids=IDS)
@@ -486,6 +530,103 @@ def test_the_two_appendices_were_compared_line_by_line_before_sharing():
     # separately, not a conformance failure.
     record = case["constants"]["delta_precision_discrepancy"]
     assert record["implementation_choice"] == "use normative 1/0.9"
+
+
+def test_the_source_check_fails_when_the_metadata_is_corrupted():
+    """A check nobody has seen fail is a check nobody has evidence works.
+
+    Every field is broken in turn, on a copy of a real case, and each must
+    raise. Restoring an assertion that cannot fail would restore the appearance
+    of coverage and none of the coverage - which is the state this PR exists to
+    end, so proving the restored check bites is the point rather than a
+    flourish.
+    """
+    import copy
+
+    original = _case("FDA-HVD-SWITCH-001")
+    _assert_source_is_complete(original)  # the unmodified case passes
+
+    corruptions: list[tuple[str, object]] = [
+        ("tier", 2),
+        ("subtier", "1B"),
+        ("authority", ""),
+        ("document", ""),
+        ("section", ""),
+        ("verified_by", ""),
+        ("limitation", ""),
+    ]
+
+    for field, broken in corruptions:
+        case = copy.deepcopy(original)
+        case["source"][field] = broken
+        with pytest.raises(AssertionError):
+            _assert_source_is_complete(case)
+
+    for field in ("tier", "subtier", "authority", "document", "section",
+                  "verified_by", "limitation"):
+        case = copy.deepcopy(original)
+        del case["source"][field]
+        with pytest.raises((AssertionError, KeyError)):
+            _assert_source_is_complete(case)
+
+
+def test_no_module_in_this_package_has_unreachable_statements():
+    """The defect class, caught structurally rather than by review.
+
+    A statement after an unconditional `return` or `raise` parses, imports and
+    reports green. These assertions sat behind one for three releases while the
+    module they belong to was cited as tier-1A evidence.
+
+    An AST walk over source AND tests: a dead assertion in a test is silent
+    lost coverage, and a dead statement in `src` is a branch somebody believes
+    exists. `ruff` catches neither by default in this repository - the F401 and
+    F821 it reported here were symptoms, and nothing failed the build on them.
+    """
+    import ast
+
+    package_root = Path(__file__).resolve().parents[2]
+    terminal = (ast.Return, ast.Raise, ast.Continue, ast.Break)
+    offenders: list[str] = []
+
+    scanned = 0
+    for path in sorted(package_root.glob("**/*.py")):
+        if ".venv" in path.parts or "__pycache__" in path.parts:
+            continue
+        scanned += 1
+        try:
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+        except SyntaxError as error:
+            # A module that will not parse is a real problem and must fail
+            # here - but as a named finding rather than as a bare SyntaxError
+            # from inside a test about something else. On Windows the usual
+            # cause is a UTF-8 BOM written by PowerShell's default encoding.
+            offenders.append(
+                f"{path.relative_to(package_root)}: does not parse "
+                f"({error.msg} at line {error.lineno})"
+            )
+            continue
+        for node in ast.walk(tree):
+            body = getattr(node, "body", None)
+            if not isinstance(body, list):
+                continue
+            for index, statement in enumerate(body[:-1]):
+                if isinstance(statement, terminal):
+                    dead = body[index + 1]
+                    offenders.append(
+                        f"{path.relative_to(package_root)}:{dead.lineno} "
+                        f"(unreachable after {type(statement).__name__} on "
+                        f"line {statement.lineno})"
+                    )
+                    break
+
+    assert scanned > 20, (
+        f"only {scanned} modules scanned; the glob has stopped matching and "
+        "this guard would pass vacuously"
+    )
+    assert not offenders, (
+        "Unreachable statements found. Code after a terminal statement never "
+        f"runs, and an assertion there provides no coverage: {offenders}"
+    )
 
 
 def test_tier_1a_does_not_promote_a_method_to_validated():
