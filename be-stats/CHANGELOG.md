@@ -86,6 +86,49 @@ derivation written as `sqrt(ln(1.25))` - the right number from the wrong input,
 since that 1.25 is `1 + (50/100)^2` from the cap CV and not the acceptance
 ratio. They coincide only because the cap sits at CVwR = 50%.
 
+### The release gate held a weaker copy of the pinning rule
+
+Found in review, and the more serious of the two provenance defects.
+
+`ConstantRecord.has_pinned_citation` required authority, document, section and
+version. The release gate, three modules away, tested source pinning as:
+
+    if not record.regulatory_source.document_version:
+        violation
+
+So `document_version = "current"` PASSED the gate - the string is non-empty -
+while the provenance layer correctly excluded the same citation from its pinned
+count. One concept, two encodings, and the weaker of the two sat on the control
+that decides whether something may be called VALIDATED.
+
+Nothing claims VALIDATED on that citation today, so no false claim existed.
+This dossier exists to stop a future one, which is only true if the gate refuses
+when everything else is satisfied.
+
+`dossier.citations` now owns the definition and every layer calls it. The rule
+is POSITIVE rather than a blacklist: a pinned version must identify WHICH issue
+of the document is meant, which means a year or a revision marker. Every real
+citation in the package satisfies it; `current`, `latest`, `TBD`, `unknown` and
+anything else nobody has thought of do not. A citation must also name ONE
+authority - "ICH / FDA / EMA" is not a place a reader can look.
+
+Exceptions are registered against the CITATION OBJECT, not against a capability
+or a finding id. `AVERAGE_BE_2X2` and the two conventional-interval constants
+share one `Citation`, so all three inherit one explanation, and `release_gate`
+reports which finding blocks a promotion without hard-coding one.
+
+The rule is modelled narrowly, as it should be. An open citation exception
+blocks a VALIDATED claim and nothing else: `AVERAGE_BE_2X2` carries one today,
+is IMPLEMENTED_UNVALIDATED, and passes the gate. Open SCOPE_LIMITATION findings
+do not block promotion generally - many are permanent qualifications, and a rule
+that blocked on them would reward recording fewer of them.
+
+Three regression tests carry it: forcing `AVERAGE_BE_2X2` to VALIDATED with
+every other condition satisfied fails on exactly one violation naming
+DOSSIER-004; substituting a genuinely pinned citation makes that violation
+disappear, so the gate is testing semantics rather than a capability id; and
+changing only the version to "current" fails on the version alone.
+
 ### Statuses unchanged
 
 `FDA_REPLICATE_STANDARD_ABE_FULL` IMPLEMENTED_UNVALIDATED.

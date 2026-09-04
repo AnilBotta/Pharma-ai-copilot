@@ -42,6 +42,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from be_stats.dossier.citations import (
+    CitationException,
+    exception_for,
+    is_pinned,
+)
 from be_stats.dossier.refusals import RefusalCode
 from be_stats.dossier.statuses import (
     EvidenceTier,
@@ -138,6 +143,27 @@ class CapabilityRecord:
     def source_version(self) -> str:
         """The document version, pulled out for reports that tabulate it."""
         return self.regulatory_source.document_version
+
+    @property
+    def has_pinned_source(self) -> bool:
+        """Can a reader be handed this citation and find the same words?
+
+        Delegates to `dossier.citations`, which is the only place the
+        definition lives. `ConstantRecord.has_pinned_citation` calls the same
+        function, and so does the release gate - the three used to disagree,
+        and the release gate held the weakest version of the three.
+        """
+        return is_pinned(self.regulatory_source)
+
+    @property
+    def source_citation_exception(self) -> CitationException | None:
+        """The declared reason this source is not pinned, if there is one.
+
+        Returned as the object rather than as text so a caller - the release
+        gate especially - can report WHICH open finding blocks it without
+        hard-coding a finding id anywhere.
+        """
+        return exception_for(self.regulatory_source)
 
 
 def _record(**kwargs) -> CapabilityRecord:

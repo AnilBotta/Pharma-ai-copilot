@@ -45,6 +45,7 @@ import math
 from dataclasses import dataclass
 from enum import StrEnum
 
+from be_stats.dossier.citations import exception_for, is_pinned
 from be_stats.provenance import (
     EMA_BIOEQUIVALENCE,
     Citation,
@@ -107,16 +108,6 @@ class ConstantRecord:
     #: Capability ids that consume it. Empty means nothing in the decision
     #: path reads it - true of every ILLUSTRATIVE entry, and asserted.
     consumed_by: tuple[str, ...] = ()
-    #: WHY a normative constant is not pinned to a document section.
-    #:
-    #: Required whenever a normative record has no section, and empty
-    #: otherwise. The alternative - letting an empty section pass silently -
-    #: makes "we have not pinned this yet" and "this document has no sections"
-    #: look identical, and only one of them is outstanding work.
-    #:
-    #: It is NOT an excuse mechanism. A record carrying one is excluded from
-    #: the pinned-citation count and appears in the findings register.
-    citation_exception: str = ""
     note: str = ""
 
     @property
@@ -125,20 +116,30 @@ class ConstantRecord:
 
     @property
     def has_pinned_citation(self) -> bool:
-        """All four fields a regulatory citation needs, none of them empty.
+        """Delegated to `dossier.citations`, which owns the definition.
 
-        Authority, document, SECTION and version. The section is included
-        because a guidance runs to dozens of pages and "FDA says so" is not a
-        citation anybody can check - and because a rule and its near-twin can
-        sit in different sections of the same document, which is exactly the
-        situation `FDA_IVPT_SWR_THRESHOLD` records.
+        This property used to implement the four-field check itself, and the
+        release gate implemented a WEAKER one three modules away - a non-empty
+        `document_version`, which `"current"` satisfies. One concept, two
+        encodings, and the weaker of them sat on the control deciding whether
+        something may be called VALIDATED.
         """
-        return bool(
-            self.citation.authority
-            and self.citation.document
-            and self.citation.section
-            and self.citation.document_version
-        )
+        return is_pinned(self.citation)
+
+    @property
+    def citation_exception(self) -> str:
+        """WHY this citation is not pinned, when it is not.
+
+        Derived from the registry keyed by the CITATION rather than stored per
+        record. The two conventional-interval limits and the `AVERAGE_BE_2X2`
+        capability all reference one `Citation` object, so all three inherit
+        one explanation and none of them has to name a finding id.
+
+        It is NOT an excuse mechanism. A record carrying one is excluded from
+        the pinned-citation count and appears in the findings register.
+        """
+        exception = exception_for(self.citation)
+        return exception.explain() if exception else ""
 
     @property
     def document(self) -> str:
@@ -315,23 +316,19 @@ _NORMATIVE: tuple[ConstantRecord, ...] = (
     # The acceptance limits `resolve_be_spec` constructs inline. Indexed here
     # because a constant that never reaches a table is exactly the one a
     # provenance audit misses.
-    # THE TWO RECORDS THAT ARE NOT PINNED, AND SAY SO.
+    # THE TWO RECORDS THAT ARE NOT PINNED.
     #
-    # `spec._ICH_M13A_LIKE` is a placeholder and has always announced itself as
-    # one - "LIKE" is in its name. Its document field is a DESCRIPTION of a
-    # rule rather than the title of a document; its authority names three
-    # bodies at once; its version reads "current", which `provenance` opens by
-    # warning is not a version but a promise that somebody will remember to
-    # check.
+    # Neither carries its own explanation any more. Both reference
+    # `CONVENTIONAL_ACCEPTANCE_CITATION`, and the exception is registered in
+    # `dossier.citations` against that CITATION - so these two constants and
+    # the `AVERAGE_BE_2X2` capability that shares it all inherit one
+    # explanation, and none of them can drift from the others.
     #
-    # The obvious repair is to cite ICH M13A or FDA's guidance at the section
-    # that states the interval. That would mean writing a section number this
-    # package has not read, which is the over-specification error recorded at
-    # the top of `provenance.py` - a citation that looks checked and is not.
-    #
-    # So the gap is DECLARED instead: excluded from the pinned-citation count,
-    # tracked as finding DOSSIER-004, and closed by reading the document rather
-    # than by editing this file.
+    # Their VERIFIED status rests on universal agreement about the number
+    # rather than on a reading of a pinned document. That is precisely why the
+    # pinned-citation count excludes them: "everybody knows this" and "we read
+    # it here, at this section, in this issue" are different claims, and only
+    # the second is a citation.
     ConstantRecord(
         constant_id="CONVENTIONAL_LOWER_PERCENT",
         value=80.00,
@@ -343,16 +340,6 @@ _NORMATIVE: tuple[ConstantRecord, ...] = (
             "both regulators for the standard case."
         ),
         consumed_by=("AVERAGE_BE_2X2",),
-        citation_exception=(
-            "NOT PINNED. The 80.00-125.00% interval is stated by ICH, FDA and "
-            "EMA alike, and this package has not established WHICH document, "
-            "section and version to cite it from. Its VERIFIED status "
-            "therefore rests on universal agreement about the number rather "
-            "than on a reading of a pinned document, which is precisely why "
-            "it is excluded from the pinned-citation count. Closed by reading "
-            "a primary source and citing it, never by writing a section "
-            "number from memory. Tracked as DOSSIER-004."
-        ),
     ),
     ConstantRecord(
         constant_id="CONVENTIONAL_UPPER_PERCENT",
@@ -362,10 +349,6 @@ _NORMATIVE: tuple[ConstantRecord, ...] = (
         verification=VerificationStatus.VERIFIED,
         role="The conventional acceptance interval's upper limit.",
         consumed_by=("AVERAGE_BE_2X2",),
-        citation_exception=(
-            "NOT PINNED, as for CONVENTIONAL_LOWER_PERCENT. Tracked as "
-            "DOSSIER-004."
-        ),
     ),
     ConstantRecord(
         constant_id="EMA_NTI_NARROWED_LOWER_PERCENT",

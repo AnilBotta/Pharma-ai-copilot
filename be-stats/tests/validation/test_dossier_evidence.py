@@ -452,6 +452,225 @@ def test_promoting_an_unevidenced_capability_fails_the_gate(monkeypatch):
     )
 
 
+def _tier_1b_evidence_for(capability_id: str):
+    """A passing tier-1B record, so a gate test can isolate one condition.
+
+    Every other requirement is satisfied deliberately. A test that fails for
+    three reasons at once proves nothing about any of them.
+    """
+    from be_stats.dossier.evidence import EvidenceRecord, SourceType
+
+    return EvidenceRecord(
+        evidence_id="TEST-FIXTURE-TIER-1B",
+        capabilities=(capability_id,),
+        tier=EvidenceTier.TIER_1B,
+        source_type=SourceType.REGULATOR_PUBLISHED_NUMBERS,
+        source_authority="test fixture",
+        scenario="Synthetic, for a release-gate test only.",
+        dataset="-",
+        software_environment="-",
+        expected="-",
+        observed="-",
+        tolerance="-",
+        status=EvidenceStatus.PASSED,
+        established_by="tests/validation/test_dossier_evidence.py",
+    )
+
+
+def test_forcing_average_be_2x2_to_validated_fails_on_the_unpinned_source(
+    monkeypatch,
+):
+    """THE REGRESSION THAT MATTERS.
+
+    Before this fix the gate tested source pinning as "document_version is
+    non-empty". `AVERAGE_BE_2X2` cites the conventional interval with
+    `document_version = "current"`, so a promotion would have passed that
+    condition - on a citation naming three authorities, no section and no
+    identifiable issue of any document.
+
+    Nothing claims VALIDATED on it today, so no false claim exists. This
+    dossier exists to stop a future one, and that is only true if the gate
+    refuses when everything ELSE is satisfied.
+    """
+    from be_stats.dossier.evidence import EVIDENCE_MANIFEST
+    from be_stats.spec import Method
+
+    patched_validation = dict(
+        __import__("be_stats.spec", fromlist=["VALIDATION"]).VALIDATION
+    )
+    patched_validation[Method.STANDARD_ABE] = ValidationStatus.VALIDATED
+    monkeypatch.setattr(
+        "be_stats.dossier.capabilities.VALIDATION", patched_validation
+    )
+    monkeypatch.setattr(
+        "be_stats.dossier.evidence.EVIDENCE_MANIFEST",
+        (*EVIDENCE_MANIFEST, _tier_1b_evidence_for("AVERAGE_BE_2X2")),
+    )
+
+    result = check_capability(
+        "AVERAGE_BE_2X2",
+        reviewed_transitions=frozenset({"AVERAGE_BE_2X2"}),
+    )
+
+    assert not result.passed, (
+        "The gate accepted VALIDATED for a capability whose regulatory source "
+        "is a placeholder citing three authorities, no section, and version "
+        "'current'."
+    )
+
+    # Every other condition was satisfied, so the failure must be this one.
+    assert len(result.violations) == 1, result.violations
+    violation = result.violations[0]
+    assert "citation exception" in violation
+    assert "DOSSIER-004" in violation
+
+    # And the conditions we supplied really were read, rather than skipped.
+    assert any("tier-1B" in s for s in result.satisfied)
+    assert any("reviewed" in s for s in result.satisfied)
+
+
+def test_the_same_capability_passes_once_its_citation_is_pinned(monkeypatch):
+    """The complementary half: the gate tests semantics, not a string.
+
+    Substituting a genuinely pinned citation - and nothing else - makes the
+    provenance violation disappear. Without this, the test above would still
+    pass if the gate had simply been hard-coded to reject `AVERAGE_BE_2X2`.
+    """
+    import dataclasses
+
+    from be_stats.dossier.capabilities import CAPABILITY_MATRIX as MATRIX
+    from be_stats.dossier.evidence import EVIDENCE_MANIFEST
+    from be_stats.provenance import Citation
+    from be_stats.spec import Method
+
+    pinned = Citation(
+        authority="ICH",
+        document="M13A Bioequivalence for Immediate-Release Solid Oral Dosage Forms",
+        section="2.2.4.1 (hypothetical, for this test only)",
+        document_version="Step 4, 2024",
+    )
+    patched_matrix = dict(MATRIX)
+    patched_matrix["AVERAGE_BE_2X2"] = dataclasses.replace(
+        MATRIX["AVERAGE_BE_2X2"], regulatory_source=pinned
+    )
+
+    patched_validation = dict(
+        __import__("be_stats.spec", fromlist=["VALIDATION"]).VALIDATION
+    )
+    patched_validation[Method.STANDARD_ABE] = ValidationStatus.VALIDATED
+
+    monkeypatch.setattr(
+        "be_stats.dossier.capabilities.VALIDATION", patched_validation
+    )
+    monkeypatch.setattr(
+        "be_stats.dossier.release_gate.CAPABILITY_MATRIX", patched_matrix
+    )
+    monkeypatch.setattr(
+        "be_stats.dossier.evidence.EVIDENCE_MANIFEST",
+        (*EVIDENCE_MANIFEST, _tier_1b_evidence_for("AVERAGE_BE_2X2")),
+    )
+
+    result = check_capability(
+        "AVERAGE_BE_2X2",
+        reviewed_transitions=frozenset({"AVERAGE_BE_2X2"}),
+    )
+
+    assert not any("citation exception" in v for v in result.violations), (
+        f"A pinned citation still trips the provenance condition: "
+        f"{result.violations}"
+    )
+    assert not any("unpinned" in v for v in result.violations), result.violations
+    assert result.passed, result.violations
+
+
+def test_a_vague_version_alone_is_enough_to_fail_the_gate(monkeypatch):
+    """Isolates the exact defect: only the version string differs.
+
+    Section and authority are fine here; the version reads "current". If the
+    gate ever goes back to a truthiness test this is the test that fails.
+    """
+    import dataclasses
+
+    from be_stats.dossier.capabilities import CAPABILITY_MATRIX as MATRIX
+    from be_stats.dossier.evidence import EVIDENCE_MANIFEST
+    from be_stats.provenance import Citation
+    from be_stats.spec import Method
+
+    vague = Citation(
+        authority="ICH",
+        document="M13A Bioequivalence for Immediate-Release Solid Oral Dosage Forms",
+        section="2.2.4.1 (hypothetical, for this test only)",
+        document_version="current",
+    )
+    patched_matrix = dict(MATRIX)
+    patched_matrix["AVERAGE_BE_2X2"] = dataclasses.replace(
+        MATRIX["AVERAGE_BE_2X2"], regulatory_source=vague
+    )
+    patched_validation = dict(
+        __import__("be_stats.spec", fromlist=["VALIDATION"]).VALIDATION
+    )
+    patched_validation[Method.STANDARD_ABE] = ValidationStatus.VALIDATED
+
+    monkeypatch.setattr(
+        "be_stats.dossier.capabilities.VALIDATION", patched_validation
+    )
+    monkeypatch.setattr(
+        "be_stats.dossier.release_gate.CAPABILITY_MATRIX", patched_matrix
+    )
+    monkeypatch.setattr(
+        "be_stats.dossier.evidence.EVIDENCE_MANIFEST",
+        (*EVIDENCE_MANIFEST, _tier_1b_evidence_for("AVERAGE_BE_2X2")),
+    )
+
+    result = check_capability(
+        "AVERAGE_BE_2X2",
+        reviewed_transitions=frozenset({"AVERAGE_BE_2X2"}),
+    )
+    assert not result.passed
+    assert any("identifies no issue" in v for v in result.violations), (
+        f"'current' passed the gate's pinning condition: {result.violations}"
+    )
+
+
+def test_an_open_citation_exception_does_not_block_below_validated():
+    """The narrow modelling the brief asked for, asserted from the other side.
+
+    `AVERAGE_BE_2X2` carries an open citation exception TODAY and is
+    IMPLEMENTED_UNVALIDATED. It must still pass the gate: the exception blocks
+    a VALIDATED claim, not the capability's existence. A rule that blocked
+    everything would turn a provenance gap into an outage.
+    """
+    result = check_capability("AVERAGE_BE_2X2")
+    assert result.passed, result.violations
+    assert CAPABILITY_MATRIX["AVERAGE_BE_2X2"].source_citation_exception is not None
+
+
+def test_open_scope_limitations_do_not_block_validation_generally():
+    """Only provenance does. Scope limitations are often permanent.
+
+    VAL-FDA-APPENDIX-C-003 is an open-ended SCOPE_LIMITATION against
+    FDA_REPLICATE_STANDARD_ABE_FULL describing a permanent property of an
+    oracle. If every open scope limitation blocked promotion, nothing with an
+    honest limitation could ever be validated - which would reward recording
+    fewer of them.
+    """
+    from be_stats.dossier.findings import FindingSeverity, findings_for
+
+    scope_limited = [
+        f
+        for f in findings_for("EMA_REPLICATE_METHOD_A")
+        if f.severity is FindingSeverity.SCOPE_LIMITATION
+    ]
+    # EMA_REPLICATE_METHOD_A is VALIDATED today and passes the gate.
+    assert check_capability(
+        "EMA_REPLICATE_METHOD_A", reviewed_transitions=REVIEWED_TRANSITIONS
+    ).passed
+    # The assertion that matters is the rule, not this capability's finding set.
+    assert all(
+        f.severity is not FindingSeverity.BLOCKING for f in scope_limited
+    )
+
+
 def test_certification_reports_a_missing_environment_as_a_blocker():
     """CI may pass with R absent. Certification may not."""
     problems = certification_blockers()

@@ -17,7 +17,10 @@ So the conditions are enumerated, machine-checked, and all of them must hold:
        reproduced. Not tier 1A, not tier 3, however much of either exists
     3  that evidence PASSED, and did not skip because an environment was
        missing
-    4  its regulatory source is PINNED to a document version
+    4  its regulatory source is PINNED - one authority, a named document, the
+       section within it, and which issue is meant - with no declared citation
+       exception outstanding. The definition lives in `dossier.citations` and
+       nowhere else; this module used to carry a weaker copy of it
     5  no BLOCKING finding is open against it
     6  no blocker lists it as affected
     7  the transition has been explicitly reviewed - `reviewed_transitions`
@@ -43,6 +46,7 @@ from dataclasses import dataclass, field
 
 from be_stats.dossier.blockers import blockers_for
 from be_stats.dossier.capabilities import CAPABILITY_MATRIX
+from be_stats.dossier.citations import why_not_pinned
 from be_stats.dossier.evidence import (
     EVIDENCE_MANIFEST,
     EvidenceStatus,
@@ -171,15 +175,40 @@ def check_capability(
     elif established:
         satisfied.append("tier-1B evidence passed")
 
-    if not record.regulatory_source.document_version:
-        violations.append(
-            "VALIDATED against an unpinned regulatory source. A document "
-            "version is part of the claim - FDA's 2001 and 2026 guidances "
-            "share a title and disagree."
-        )
+    # SOURCE PINNING, VIA THE ONE DEFINITION.
+    #
+    # This condition used to read `if not record.regulatory_source.
+    # document_version`, so `document_version = "current"` passed it - a
+    # non-empty string - while the provenance layer correctly excluded the
+    # same citation from its pinned count. One concept, two encodings, and the
+    # weaker of the two sat on the control that decides whether something may
+    # be called VALIDATED.
+    #
+    # It now calls `record.has_pinned_source`, which is
+    # `dossier.citations.is_pinned`, which is also what
+    # `ConstantRecord.has_pinned_citation` calls. There is one definition.
+    if not record.has_pinned_source:
+        exception = record.source_citation_exception
+        if exception is not None:
+            # A DECLARED gap is still a gap. Naming the finding here comes
+            # from the citation registry, so this module hard-codes no
+            # finding id and a new exception is reported without editing it.
+            violations.append(
+                "VALIDATED with an unresolved regulatory-source citation "
+                f"exception: {exception.tracked_as}. {exception.reason} "
+                f"{exception.resolution}"
+            )
+        else:
+            reasons = "; ".join(why_not_pinned(record.regulatory_source))
+            violations.append(
+                f"VALIDATED against an unpinned regulatory source ({reasons}). "
+                "A citation has to be somewhere a reader can look: FDA's 2001 "
+                "and 2026 guidances share a title and disagree."
+            )
     else:
         satisfied.append(
-            f"source pinned to {record.regulatory_source.document_version!r}"
+            f"source pinned to {record.regulatory_source.section!r}, "
+            f"{record.regulatory_source.document_version!r}"
         )
 
     blocking = [

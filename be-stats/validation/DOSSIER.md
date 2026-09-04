@@ -623,11 +623,11 @@ number from memory.
 
 **`CONVENTIONAL_LOWER_PERCENT`** = 80
 
-NOT PINNED. The 80.00-125.00% interval is stated by ICH, FDA and EMA alike, and this package has not established WHICH document, section and version to cite it from. Its VERIFIED status therefore rests on universal agreement about the number rather than on a reading of a pinned document, which is precisely why it is excluded from the pinned-citation count. Closed by reading a primary source and citing it, never by writing a section number from memory. Tracked as DOSSIER-004.
+NOT PINNED. The 80.00-125.00% interval is stated by ICH, FDA and EMA alike, and this package has not established WHICH document, section and version to cite it from. The citation names a rule rather than a document, lists three authorities, and carries the version 'current' - which `provenance` opens by warning is not a version but a promise that somebody will remember to check. Tracked as DOSSIER-004. Closed by reading a primary source and citing it, never by writing a section number from memory: an over-specified citation looks checked, which is worse than a coarse one.
 
 **`CONVENTIONAL_UPPER_PERCENT`** = 125
 
-NOT PINNED, as for CONVENTIONAL_LOWER_PERCENT. Tracked as DOSSIER-004.
+NOT PINNED. The 80.00-125.00% interval is stated by ICH, FDA and EMA alike, and this package has not established WHICH document, section and version to cite it from. The citation names a rule rather than a document, lists three authorities, and carries the version 'current' - which `provenance` opens by warning is not a version but a promise that somebody will remember to check. Tracked as DOSSIER-004. Closed by reading a primary source and citing it, never by writing a section number from memory: an over-specified citation looks checked, which is worse than a coarse one.
 
 ### Normative and derived are not interchangeable
 
