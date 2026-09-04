@@ -98,8 +98,12 @@ class Method(StrEnum):
 #:                                            not been obtainable
 #:     tier 3   independent numeric check     PASSED - two PowerTOST cases
 #:
-#: VALIDATED requires 1B. An attested algorithm is not a reproduced result, and
-#: only the second licenses a filing. See validation/README.md.
+#: VALIDATED requires 1B, and is not established by 1B. An attested algorithm
+#: is not a reproduced result; a reproduced result is the numerical evidence a
+#: promotion REQUIRES and is not sufficient for one. The release gate also
+#: requires a pinned regulatory source, no disqualifying finding or blocker,
+#: and an explicitly reviewed transition, so neither tier alone establishes
+#: VALIDATED status or submission suitability. See validation/README.md.
 VALIDATION: dict[Method, ValidationStatus] = {
     Method.STANDARD_ABE: ValidationStatus.IMPLEMENTED_UNVALIDATED,
     Method.EMA_NTI_NARROW_ABE: ValidationStatus.IMPLEMENTED_UNVALIDATED,

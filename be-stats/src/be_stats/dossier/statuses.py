@@ -64,8 +64,13 @@ class EvidenceTier(StrEnum):
 
     Tiers are about the source's standing, not about how much work went into
     producing it or how many cases it covers. Ten thousand simulation cases are
-    tier 4; one regulator-published table is tier 1B; the second is the one
-    that licenses a filing.
+    tier 4; one regulator-published table is tier 1B, and only tier 1B is
+    evidence a VALIDATED promotion can rest on.
+
+    Required is not sufficient. Neither tier alone establishes VALIDATED status
+    or submission suitability - `release_gate.check_capability` weighs several
+    further conditions, and exists so that one numerical match cannot promote
+    anything.
     """
 
     #: Conformance to a REGULATOR'S STATED ALGORITHM or decision rule. The

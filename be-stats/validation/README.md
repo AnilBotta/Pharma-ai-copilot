@@ -28,7 +28,13 @@ never substitutes for a higher one.
 attested algorithm says the engine branches where the regulator branches. A
 reproduced worked dataset says the arithmetic lands where the regulator's
 lands. Claiming "tier 1" without the letter would let the first pass for the
-second, and only the second licenses a filing.
+second.
+
+Tier 1B is the numerical evidence a `VALIDATED` promotion **requires**, and it
+is not sufficient for one. Neither tier alone establishes `VALIDATED` status or
+submission suitability: the release gate also requires a pinned regulatory
+source, no disqualifying finding or blocker, and an explicitly reviewed
+transition — it exists so that one numerical match cannot promote a method.
 
 Current state:
 

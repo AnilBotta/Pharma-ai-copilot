@@ -6,9 +6,14 @@ Every other check in the package is either a unit test (does the code do what
 the docstring says) or tier 3 (does an independent implementation agree). This
 one is different: EMA published two replicate-design data sets WITH their
 results, and a table of widened limits. Reproducing those is evidence that the
-number this package computes is the number the regulator computed — which is
-the only kind of evidence that licenses a filing, and the kind FDA HVD still
-lacks.
+number this package computes is the number the regulator computed — the tier-1B
+evidence a VALIDATED promotion requires, and the kind FDA HVD still lacks.
+
+Required is not sufficient. Neither tier alone establishes VALIDATED status or
+submission suitability: the release gate also requires a pinned regulatory
+source, no disqualifying finding or blocker, and an explicitly reviewed
+transition. Reproducing EMA's numbers is what makes a promotion possible, not
+what performs one.
 
 Sources, both read at the cited version:
 
