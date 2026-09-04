@@ -133,9 +133,14 @@ def _assert_source_is_complete(case: dict) -> None:
         f"{source['tier']!r}"
     )
     assert source["subtier"] == "1A", (
-        f"{case['case_id']} claims subtier {source['subtier']!r}. 1A is an "
-        "attested ALGORITHM; 1B is a reproduced regulator-published NUMBER, "
-        "and only the second licenses a filing."
+        f"{case['case_id']} claims subtier {source['subtier']!r}. 1A is "
+        "algorithm and decision-rule conformance; 1B is reproduction of "
+        "regulator-published numerical output. Tier 1B is REQUIRED numerical "
+        "evidence for a VALIDATED promotion, and neither tier alone "
+        "establishes VALIDATED status or submission suitability - the release "
+        "gate additionally requires a pinned regulatory source, no "
+        "disqualifying blocker or finding, and an explicitly reviewed "
+        "transition."
     )
 
     # How it was checked is part of the record, not only whether. Every case
