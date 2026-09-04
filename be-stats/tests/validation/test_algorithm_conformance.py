@@ -12,7 +12,10 @@ without the other and the difference matters:
 
 1A is attestable from the guidance text alone. 1B needs the dataset. Claiming
 "tier 1" without saying which would let an attested rule pass for a reproduced
-result, and only the second licenses a filing.
+result. 1B is the numerical evidence a VALIDATED promotion requires, and
+neither tier alone establishes VALIDATED status or submission suitability -
+the release gate also requires a pinned regulatory source, no disqualifying
+finding or blocker, and an explicitly reviewed transition.
 
 This module covers 1A. `test_golden_cases.py` covers tiers 2-4 and records that
 1B is still empty.

@@ -22,9 +22,14 @@ it points at a test that does not exist.
 TIER IS ABOUT AUTHORITY, NOT EFFORT
 
 Forty-two synthetic Appendix C cases are tier 4. One EMA table is tier 1B. The
-second is what licenses a filing, and the first is what stops a refactor
-breaking something. Both are worth having and they are not interchangeable, so
-`EvidenceTier` is a required field and the release gate reads it.
+second is the evidence a VALIDATED promotion requires, and the first is what
+stops a refactor breaking something. Both are worth having and they are not
+interchangeable, so `EvidenceTier` is a required field and the release gate
+reads it.
+
+Required is not sufficient. Neither tier alone establishes VALIDATED status or
+submission suitability; the gate reads this field alongside a pinned regulatory
+source, the open findings and blockers, and an explicitly reviewed transition.
 
 A MISSING ENVIRONMENT IS NEVER A PASS
 

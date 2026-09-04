@@ -61,10 +61,17 @@ jobs:
         # The generated document is regenerated and compared here, so an
         # edited DOSSIER.md or a stale findings table fails the build. That is
         # what makes those documents worth reading.
+        #
+        # `test_governance_wording.py` is listed explicitly. It polices the
+        # claim that tier 1B alone licenses a filing, which is prose - and
+        # prose is exactly what no other job here reads. A guard that only
+        # runs when somebody happens to run the full suite locally is a guard
+        # that rots, which is how six of those sentences reached main.
         run: |
           python -m pytest be-stats/tests/unit/test_dossier_*.py \
                            be-stats/tests/integration/test_dossier_routing.py \
                            be-stats/tests/validation/test_dossier_evidence.py \
+                           be-stats/tests/validation/test_governance_wording.py \
                            -q --junitxml=dossier-tests.xml
 
       - name: Build the validation bundle
