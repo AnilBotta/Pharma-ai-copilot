@@ -150,12 +150,19 @@ def test_fda_parallel_under_m13a_costs_more_subjects_than_under_general():
 
 
 def test_the_rule_travels_with_the_result():
-    """A floor without its citation is just another magic number."""
+    """A floor without its citation is just another magic number.
+
+    The authority is asserted as a FIELD rather than as a substring of the
+    rendered citation. `"ICH" in str(citation)` used to stand here and would
+    now pass for the wrong reason: EMA's adopted Q&A is titled "ICH M13A
+    Guideline on bioequivalence...", so the letters survive a change of
+    authority that is exactly what this test should notice.
+    """
     result = sample_size_abe(
         cv_percent=8.0, spec=EMA, design="2x2", framework=M13A
     )
     assert result.regulatory_rule is not None
-    assert "ICH" in str(result.regulatory_rule.citation)
+    assert result.regulatory_rule.citation.authority == "EMA"
     assert result.regulatory_rule.verification is VerificationStatus.VERIFIED
 
 
@@ -212,13 +219,21 @@ def test_the_fda_constants_say_they_were_read_from_the_document():
             assert value.verified_by == VIA_PRIMARY_DOCUMENT, name
 
 
-def test_the_m13a_figures_still_say_they_were_relayed():
-    """The honest half of the same distinction.
+def test_the_m13a_figures_are_now_read_rather_than_relayed():
+    """The honest half of the same distinction, updated when it stopped being true.
 
-    Obtaining the FDA guidance says nothing about the ICH/FDA M13A Q&A, which
-    is a different document and has NOT been obtained. Those minimums must not
-    inherit the stronger claim just because they sit in the same registry.
+    This test was `test_the_m13a_figures_still_say_they_were_relayed`, and its
+    docstring said the M13A Q&A "has NOT been obtained". That claim lived only
+    in the docstring - the body asserted VERIFIED and a document name, neither
+    of which distinguishes a relayed figure from a read one, so the sentence
+    could go stale without anything failing.
+
+    All three adoptions have since been obtained and read at Q&A 2.1. What is
+    asserted now is the property that would have caught the staleness: the
+    citation a minimum travels with must be PINNED, which a relayed figure
+    with no issue identified cannot be.
     """
+    from be_stats.dossier.citations import is_pinned, why_not_pinned
     from be_stats.minimums import DesignFamily, Framework, lookup
     from be_stats.provenance import VerificationStatus
 
@@ -226,9 +241,12 @@ def test_the_m13a_figures_still_say_they_were_relayed():
     assert m13a is not None
     assert "M13A" in m13a.citation.document
     assert m13a.verification is VerificationStatus.VERIFIED
+    assert is_pinned(m13a.citation), why_not_pinned(m13a.citation)
+    assert "2.1" in m13a.citation.section
 
     general = lookup("FDA", DesignFamily.CROSSOVER, framework=Framework.GENERAL)
     assert "Statistical Approaches" in general.citation.document
+    assert is_pinned(general.citation), why_not_pinned(general.citation)
 
 
 def test_the_switching_threshold_reaches_the_spec_as_the_regulators_value():

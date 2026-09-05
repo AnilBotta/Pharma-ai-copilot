@@ -32,8 +32,11 @@ from be_stats.dossier.citations import (
 from be_stats.dossier.constants import CONSTANT_INDEX
 from be_stats.provenance import (
     EMA_M13A_BE_CRITERIA,
+    EMA_M13A_QA,
     FDA_M13A_BE_CRITERIA,
+    FDA_M13A_QA,
     ICH_M13A_BE_CRITERIA,
+    ICH_M13A_QA,
     Citation,
 )
 
@@ -442,6 +445,199 @@ def test_an_unknown_jurisdiction_is_refused_rather_than_given_ichs():
 
     with pytest.raises(KeyError, match="adoption"):
         _conventional_citation("MHRA")
+
+
+# --------------------------- the M13A Q&A, and the third state nobody saw ---
+#
+# `ICH_M13A_QA` carried `document_version="current"` and `FDA_M13A_QA` carried
+# `"FDA guidance for industry"`. Both failed `is_pinned`; neither was declared
+# in `CITATION_EXCEPTIONS`. They survived DOSSIER-004 - which was about exactly
+# this defect - because nothing enumerated them: they back regulatory minimums
+# in `minimums.py`, which are not in `CONSTANT_INDEX` and not in the capability
+# matrix, so no provenance metric and no release-gate condition ever read them.
+#
+# Pinned or declared. Never neither, and never invisible.
+
+
+QA_CITATIONS = {
+    "ICH": ICH_M13A_QA,
+    "FDA": FDA_M13A_QA,
+    "EMA": EMA_M13A_QA,
+}
+
+
+@pytest.mark.parametrize("name", sorted(QA_CITATIONS))
+def test_each_m13a_qa_citation_is_pinned(name):
+    citation = QA_CITATIONS[name]
+    assert is_pinned(citation), why_not_pinned(citation)
+    assert citation.authority == name
+    assert "2.1" in citation.section
+
+
+@pytest.mark.parametrize(
+    "version",
+    ["current", "FDA guidance for industry", "ICH harmonised guideline", ""],
+)
+def test_a_document_type_is_not_a_document_version(version):
+    """`"FDA guidance for industry"` is the one that looked checked.
+
+    "current" announces itself. A document TYPE reads like provenance and is
+    not: FDA has issued draft and final M13A Q&A material, and the phrase
+    picks out neither. The positive rule catches both without either being
+    named in a blacklist.
+    """
+    assert not version_is_pinned(version)
+
+
+@pytest.mark.parametrize("name", sorted(QA_CITATIONS))
+@pytest.mark.parametrize(
+    "damage",
+    [
+        {"section": ""},
+        {"document": ""},
+        {"document_version": "current"},
+        {"document_version": "FDA guidance for industry"},
+        {"authority": "ICH / FDA"},
+    ],
+)
+def test_a_damaged_qa_citation_stops_being_pinned(name, damage):
+    broken = dataclasses.replace(QA_CITATIONS[name], **damage)
+    assert not is_pinned(broken), (
+        f"{name} Q&A citation survives {damage!r}."
+    )
+
+
+def test_no_active_regulatory_citation_is_unpinned_and_undeclared():
+    """THE INVARIANT THIS PR EXISTS TO ADD.
+
+    Scoped to citations that live regulatory logic can actually attach to a
+    returned answer, via `minimums.active_citations()`. Deliberately NOT every
+    `Citation` object in `provenance`: that module also holds citations kept
+    for context - `EMA_M13A_IMPLEMENTATION` settles a precedence question and
+    is not attached to any number - and a rule requiring those to be pinned
+    would be met by deleting them, which is the wrong direction.
+
+    Derived from the registry rather than listed here, so a row added to
+    `minimums._REGISTRY` with a vague citation fails without anyone
+    remembering to extend this test. That absence is precisely how the two
+    Q&A citations stayed unpinned and undeclared through the release that
+    fixed the same defect elsewhere.
+    """
+    from be_stats.minimums import active_citations
+
+    active = active_citations()
+    assert active, "No active citations found; this guard would pass vacuously."
+
+    silent = [
+        c
+        for c in active
+        if not is_pinned(c) and exception_for(c) is None
+    ]
+    assert not silent, (
+        "These citations are attached to a regulatory minimum and are neither "
+        "pinned nor declared: "
+        + "; ".join(f"{c.authority}/{c.document} {why_not_pinned(c)}" for c in silent)
+    )
+
+
+def test_the_invariant_would_catch_a_silent_citation():
+    """The mutation, run rather than described.
+
+    `test_no_active_regulatory_citation_is_unpinned_and_undeclared` passes on
+    a clean tree, which is also what it would do if `is_pinned` had been
+    loosened or `active_citations` returned nothing. A deliberately vague
+    citation is pushed through the same predicate to show the rule bites.
+    """
+    silent = Citation(
+        authority="ICH / FDA",
+        document="M13A Q&A",
+        section="",
+        document_version="FDA guidance for industry",
+    )
+    assert not is_pinned(silent)
+    assert exception_for(silent) is None
+
+    # Declaring it - and nothing else - is the other way to satisfy the rule.
+    from be_stats.dossier.citations import CitationException
+
+    declared = {silent: CitationException("r", "DOSSIER-000", "res")}
+    assert declared.get(silent) is not None
+
+
+def test_a_minimum_cites_its_own_regulator_and_never_falls_back_to_ich():
+    """Jurisdictional source resolution, asserted on every row.
+
+    The two EMA rows cited ICH's copy of the Q&A - the harmonised text
+    standing in for the regulator's own adoption, which is the fallback PR #76
+    removed for the conventional interval. Every row is checked rather than
+    those two, so a new row cannot reintroduce it.
+
+    ICH is not accepted as a substitute for either regulator here. If a future
+    row genuinely has no regional adoption, that is a decision to make
+    explicitly, and this test is where it gets argued.
+    """
+    from be_stats.minimums import _HVD_MINIMUM, _REGISTRY
+
+    for key, row in (*_REGISTRY.items(), (None, _HVD_MINIMUM)):
+        assert row.citation.authority == row.jurisdiction, (
+            f"{key or 'HVD'}: a {row.jurisdiction} minimum cites "
+            f"{row.citation.authority}. A jurisdiction-keyed claim must hand "
+            "the reader the document its own regulator adopted."
+        )
+
+
+def test_the_crossover_and_parallel_rules_cite_the_same_question():
+    """One Q&A answers both, so both must point at it - and at nothing else.
+
+    The crossover total and the per-group parallel figure come from a single
+    sentence. If they ever cite different sections, one of them has been
+    re-sourced without the other.
+    """
+    from be_stats.minimums import DesignFamily, Framework, lookup
+
+    for jurisdiction in ("FDA", "EMA"):
+        crossover = lookup(
+            jurisdiction, DesignFamily.CROSSOVER, framework=Framework.ICH_M13A
+        )
+        parallel = lookup(
+            jurisdiction, DesignFamily.PARALLEL, framework=Framework.ICH_M13A
+        )
+        assert crossover is not None and parallel is not None
+        assert crossover.citation is parallel.citation, jurisdiction
+        assert is_pinned(crossover.citation)
+
+        # And they still say different things about the number.
+        assert crossover.evaluable_total == 12
+        assert parallel.evaluable_per_group == 12
+        assert crossover.required_total() == 12
+        assert parallel.required_total() == 24
+
+
+def test_pinning_the_citations_changed_no_regulatory_minimum():
+    """The numbers, asserted against the primary sources rather than a snapshot.
+
+    Read at Q&A 2.1 in all three adoptions: "a minimum of 12 evaluable
+    subjects in pivotal BE studies for a crossover design, or a minimum of 12
+    per treatment group for a parallel design".
+    """
+    from be_stats.minimums import DesignFamily, Framework, lookup
+
+    expected = {
+        ("EMA", Framework.ICH_M13A, DesignFamily.CROSSOVER): 12,
+        ("EMA", Framework.ICH_M13A, DesignFamily.PARALLEL): 24,
+        ("FDA", Framework.ICH_M13A, DesignFamily.CROSSOVER): 12,
+        ("FDA", Framework.ICH_M13A, DesignFamily.PARALLEL): 24,
+        ("FDA", Framework.GENERAL, DesignFamily.CROSSOVER): 12,
+        ("FDA", Framework.GENERAL, DesignFamily.PARALLEL): 12,
+    }
+    for (jurisdiction, framework, design), total in expected.items():
+        row = lookup(jurisdiction, design, framework=framework)
+        assert row is not None, (jurisdiction, framework, design)
+        assert row.required_total() == total, (jurisdiction, framework, design)
+        assert row.counts == "evaluable subjects"
+
+    # EMA + GENERAL stays absent. Nothing here invented one.
+    assert lookup("EMA", DesignFamily.CROSSOVER, framework=Framework.GENERAL) is None
 
 
 def test_every_unpinned_citation_in_use_is_declared():
