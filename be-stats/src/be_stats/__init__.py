@@ -115,7 +115,14 @@ from be_stats.conversions import (
     log_sd_to_cv,
 )
 from be_stats.diagnostics import Diagnostic, DiagnosticCode, Severity
-from be_stats.minimums import DesignFamily, Framework, RegulatoryMinimum
+from be_stats.minimums import (
+    DesignFamily,
+    Framework,
+    MinimumApplicability,
+    MinimumOutcome,
+    RegulatoryMinimum,
+    StudyRole,
+)
 from be_stats.reference_variance import (
     FullyReplicateReferenceVarianceEstimator,
     NotEstimable,
@@ -247,7 +254,10 @@ __all__ = [
     "ProductOverride",
     "ReferenceVariability",
     "ReferenceVarianceResult",
+    "MinimumApplicability",
+    "MinimumOutcome",
     "RegulatoryMinimum",
+    "StudyRole",
     "RegulatoryValue",
     "ReplicateAbeFit",
     "ReplicateAbeModelSpecification",

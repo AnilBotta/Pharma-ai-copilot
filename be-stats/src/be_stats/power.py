@@ -36,11 +36,13 @@ from scipy import stats
 from be_stats.conversions import cv_percent_to_log_variance
 from be_stats.minimums import (
     Framework,
+    MinimumApplicability,
     RegulatoryMinimum,
+    StudyRole,
     design_family_for,
     lookup,
 )
-from be_stats.spec import BeSpec, DrugClass
+from be_stats.spec import BeSpec, DrugClass, SpecificationRequired
 
 METHOD = "non-central t approximation"
 
@@ -70,12 +72,20 @@ class SampleSizeResult:
 
     #: The smallest even total reaching the target power.
     mathematical_n: int
-    #: The regulator's floor, independent of power. `None` where this package
-    #: has not confirmed one for this jurisdiction AND design.
+    #: The regulator's floor, independent of power. `None` where no floor is
+    #: in force - which `minimum_applicability` distinguishes from zero and
+    #: says the reason for.
     regulatory_n: int | None
-    #: The rule that produced it, or None. Carried whole rather than as a
-    #: string so a report can show the citation.
+    #: The rule, present whenever one is REGISTERED for this study's
+    #: jurisdiction, framework and design - including when it was not applied.
+    #: Carried whole rather than as a string so a report can show the citation
+    #: it is declining to apply.
     regulatory_rule: RegulatoryMinimum | None
+    #: Why the floor is or is not in force. The field that keeps "no minimum
+    #: applies to a pilot" from being reported as "no minimum exists".
+    minimum_applicability: MinimumApplicability
+    #: What the caller said the study is for. Never inferred.
+    study_role: StudyRole
     #: What to actually run.
     recommended_n: int
 
@@ -101,11 +111,7 @@ class SampleSizeResult:
             f"binding): power {self.power_at_recommended:.3f} at the assumed "
             f"ratio, target {self.target_power:.0%}. Arithmetic alone asks for "
             f"{self.mathematical_n}"
-            + (
-                f"; {self.regulatory_basis}."
-                if self.regulatory_n is not None
-                else "; no regulatory floor applied."
-            )
+            + f"; {self.regulatory_basis}"
         )
 
 
@@ -171,6 +177,7 @@ def sample_size_abe(
     target_power: float = 0.80,
     expected_ratio: float = 0.95,
     framework: Framework | None = None,
+    study_role: StudyRole = StudyRole.NOT_STATED,
 ) -> SampleSizeResult:
     """The sample size to run: the larger of the arithmetic and the regulation.
 
@@ -178,6 +185,25 @@ def sample_size_abe(
     only the region's general guidance is consulted - ICH M13A's rules are
     scoped to immediate-release solid oral dosage forms, which this package
     cannot infer, so a caller running one must say so to be held to them.
+
+    `study_role` names what the study is FOR. M13A sets its floor for PIVOTAL
+    studies (guideline 2.1.3, Q&A 2.1) and neither document defines the term,
+    so this package will not decide it.
+
+    WHY AN UNSTATED ROLE RAISES HERE AND ONLY REPORTS IN `minimums.lookup`
+
+    `lookup` answers a question, and "you did not say" is a fair answer to a
+    question. This function returns a number somebody will enrol against, and
+    the failure mode is not symmetric: quietly dropping M13A's floor because
+    nobody mentioned the role would return a SMALLER study than the previous
+    release did, through a silent path, to a caller who never learned the
+    question existed. So it refuses, in the manner of `SpecificationRequired`
+    elsewhere in this package - both answers are defensible for some studies,
+    which is exactly why choosing one silently would be choosing wrong for the
+    others.
+
+    A caller who wants no M13A floor says `StudyRole.PILOT`, or does not claim
+    the framework. Neither is a default anybody can fall into.
     """
     acceptance = spec.require_interval()
     if not 0.0 < target_power < 1.0:
@@ -224,13 +250,23 @@ def sample_size_abe(
     # would apply the wrong one to half of all studies, and a
     # jurisdiction-and-design lookup would apply M13A to products it never
     # covered.
-    rule = lookup(
+    outcome = lookup(
         str(spec.jurisdiction),
         design_family_for(design),
         framework=framework,
         is_highly_variable=spec.drug_class is DrugClass.HIGHLY_VARIABLE,
+        study_role=study_role,
     )
-    regulatory_n = rule.required_total() if rule is not None else None
+
+    if outcome.applicability is MinimumApplicability.ROLE_NOT_STATED:
+        raise SpecificationRequired(
+            f"{outcome.reason} Recommending a sample size here would mean "
+            "choosing that answer silently, and the two answers differ: state "
+            "StudyRole.PIVOTAL to be held to the floor, or StudyRole.PILOT to "
+            "record that this study is outside it."
+        )
+
+    regulatory_n = outcome.required_total()
     if regulatory_n is not None and regulatory_n > mathematical_n:
         recommended = regulatory_n if regulatory_n % 2 == 0 else regulatory_n + 1
         binding = "the regulatory minimum"
@@ -249,14 +285,17 @@ def sample_size_abe(
     return SampleSizeResult(
         mathematical_n=mathematical_n,
         regulatory_n=regulatory_n,
-        regulatory_rule=rule,
+        regulatory_rule=outcome.rule,
+        minimum_applicability=outcome.applicability,
+        study_role=study_role,
         recommended_n=recommended,
         achieved_power=achieved,
         power_at_recommended=power_at_recommended,
         target_power=target_power,
         design=design,
         binding_constraint=binding,
-        regulatory_basis=rule.explain() if rule is not None else
-        "no confirmed regulatory minimum for this jurisdiction, framework and "
-        "design",
+        # The outcome's own sentence, whichever of the four it is. Previously
+        # this branched on `rule is not None` and printed one of two strings,
+        # which is why "no floor applies to a pilot" had nowhere to be said.
+        regulatory_basis=outcome.reason,
     )

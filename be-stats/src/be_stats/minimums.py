@@ -34,10 +34,23 @@ Under-applying a floor the caller never claimed is recoverable; silently
 applying a document's rule outside its scope is the failure this module exists
 to prevent.
 
-ABSENT IS A REAL ANSWER
+AND IT BELONGS TO A STUDY ROLE, WHICH IS THE THIRD KEY
 
-`None` means "this package has not confirmed a figure", and callers must render
-that differently from a number. It is not zero, and it is not twelve.
+M13A states its floor for PIVOTAL BE studies, in the guideline at 2.1.3 and
+again in Q&A 2.1. The same Q&A answer names a pilot relative bioavailability
+study as an INPUT to sizing the pivotal one, so the document plainly does not
+hold a pilot to twelve. `lookup` therefore takes a `StudyRole`, and the
+constraint lives PER ROW: FDA's Statistical Approaches II.A sets its own
+twelve without qualifying the study's role, and gating that one behind
+"pivotal" would remove a floor FDA states unconditionally. Two documents, two
+scopes, one number - and only one of them is restricted.
+
+ABSENT IS A REAL ANSWER, AND SO IS NOT-APPLICABLE
+
+`lookup` returns a `MinimumOutcome`, not a nullable figure. "No floor applies
+to a pilot", "you did not say what kind of study this is" and "this package
+has confirmed no figure for this region" are three different answers, and a
+`None` would merge them. None of them is zero, and none of them is twelve.
 """
 
 from __future__ import annotations
@@ -61,6 +74,58 @@ class DesignFamily(StrEnum):
     PARALLEL = "parallel"
     REPLICATE = "replicate"
     PARTIAL_REPLICATE = "partial_replicate"
+
+
+class StudyRole(StrEnum):
+    """What the study is FOR, which is a third thing a floor can depend on.
+
+    M13A states its floor for PIVOTAL BE studies - guideline 2.1.3 and Q&A 2.1
+    both say the word - and the same Q&A answer names a pilot relative
+    bioavailability study as an INPUT to sizing the pivotal one. A pilot is
+    therefore not held to twelve by that document.
+
+    NEITHER M13A NOR ITS Q&A DEFINES "PIVOTAL"
+
+    Its glossary defines Applicant, Batch, Comparator Product, Spare Subject
+    and twenty-odd others, and neither "pivotal" nor "pilot" is among them. So
+    this package cannot decide which a study is, and does not try. It is not
+    inferred from sample size, study name, phase, endpoint, or whether a BE
+    calculation was requested - every one of those correlates with the answer
+    and none of them IS the answer.
+
+    The caller states it, or `NOT_STATED` stands and the M13A floor is not
+    applied. That is the same shape as `Framework`: this package is never told
+    the dosage form either.
+    """
+
+    #: A study intended to support the BE conclusion. M13A's floor applies.
+    PIVOTAL = "pivotal"
+    #: A pilot or exploratory study, run to inform the pivotal one. M13A's
+    #: floor does not reach it - which does not mean the study needs no
+    #: subjects, only that this document sets no minimum for it.
+    PILOT = "pilot"
+    #: Nobody said. Distinct from PILOT, and deliberately so: "this is a
+    #: pilot" and "we have not been told" are different claims, and only the
+    #: first is an answer.
+    NOT_STATED = "not_stated"
+
+
+class MinimumApplicability(StrEnum):
+    """Why a floor is, or is not, in force for this study.
+
+    Four outcomes and not a nullable number, because "no minimum applies to a
+    pilot" and "this package has confirmed no figure for this region" are
+    different facts that a `None` would merge. `regulatory_n = 0` would be
+    worse still: zero is a floor, and a false one.
+    """
+
+    APPLIES = "applies"
+    #: A rule exists and its source scopes itself to a role this study is not.
+    NOT_APPLICABLE_FOR_ROLE = "not_applicable_for_role"
+    #: A rule exists, is role-scoped, and the role was never stated.
+    ROLE_NOT_STATED = "role_not_stated"
+    #: No rule is registered for this jurisdiction, framework and design.
+    NONE_CONFIRMED = "none_confirmed"
 
 
 class Framework(StrEnum):
@@ -102,6 +167,22 @@ class RegulatoryMinimum:
     #: can see at once whether it should have applied to their study.
     scope: str = ""
 
+    #: The study roles this row's SOURCE scopes itself to, or None for a
+    #: source that sets its floor without qualifying the study's role.
+    #:
+    #: This is per-row and not global, because the two 12-subject rules in
+    #: this registry come from different documents and only one of them is
+    #: qualified. M13A guideline 2.1.3 and Q&A 2.1 both say "pivotal"; FDA's
+    #: Statistical Approaches II.A says "The number of evaluable subjects in a
+    #: PK BE study should not be less than 12" - a PK BE study, without
+    #: qualification. Applying M13A's restriction to FDA's rule would remove a
+    #: floor FDA states unconditionally.
+    applies_to_roles: frozenset[StudyRole] | None = None
+
+    def applies_to(self, study_role: StudyRole) -> bool:
+        """Does this row's source reach a study in this role?"""
+        return self.applies_to_roles is None or study_role in self.applies_to_roles
+
     def required_total(self) -> int:
         if self.evaluable_total is not None:
             return self.evaluable_total
@@ -136,12 +217,31 @@ _M13A_SCOPE = "immediate-release solid oral dosage forms"
 # claim in the package resting on the harmonised text. All three documents were
 # read at Q&A 2.1 and carry the answer word for word; the numbers below are
 # unchanged, and only the document a reader is sent to has.
+#: M13A's floor is stated for PIVOTAL studies, in both places it appears:
+#:
+#:   guideline 2.1.3  "The number of subjects with evaluable data for primary
+#:                    statistical analysis in a pivotal BE study should not be
+#:                    less than 12 for a crossover design or less than 12 per
+#:                    treatment group for a parallel design."
+#:
+#:   Q&A 2.1          "The requirement for a minimum of 12 evaluable subjects
+#:                    in pivotal BE studies for a crossover design, or a
+#:                    minimum of 12 per treatment group for a parallel
+#:                    design, is an established practice by regulatory
+#:                    agencies."
+#:
+#: Only PIVOTAL. NOT_STATED is excluded deliberately and is not an oversight:
+#: an unstated role must not collect a floor its document never placed, and
+#: `_resolve` reports that as ROLE_NOT_STATED rather than as no rule at all.
+_M13A_ROLES = frozenset({StudyRole.PIVOTAL})
+
 _M13A_CROSSOVER = dict(
     design_family=DesignFamily.CROSSOVER,
     framework=Framework.ICH_M13A,
     evaluable_total=12,
     verification=VerificationStatus.VERIFIED,
     scope=_M13A_SCOPE,
+    applies_to_roles=_M13A_ROLES,
 )
 _M13A_PARALLEL = dict(
     design_family=DesignFamily.PARALLEL,
@@ -149,6 +249,7 @@ _M13A_PARALLEL = dict(
     evaluable_per_group=12,
     verification=VerificationStatus.VERIFIED,
     scope=_M13A_SCOPE,
+    applies_to_roles=_M13A_ROLES,
 )
 
 _REGISTRY: dict[tuple[str, Framework, DesignFamily], RegulatoryMinimum] = {
@@ -221,24 +322,117 @@ _HVD_MINIMUM = RegulatoryMinimum(
 )
 
 
+@dataclass(frozen=True, slots=True)
+class MinimumOutcome:
+    """Whether a floor is in force, and why - not a nullable integer.
+
+    `lookup` used to return `RegulatoryMinimum | None`, which had room for one
+    fact where there are three: a rule applies; a rule exists but its source
+    does not reach this study; no rule is confirmed at all. Collapsing the
+    middle case into `None` is what let M13A's pivotal-study floor be applied
+    to studies it was never placed on - the caller could not have told the
+    difference even if it had asked.
+    """
+
+    applicability: MinimumApplicability
+    #: The rule, present whenever one is REGISTERED for the key - including
+    #: when it does not apply, so a report can name the document it is
+    #: declining to apply and the reader can check that for themselves.
+    rule: RegulatoryMinimum | None
+    study_role: StudyRole
+    #: One sentence a report can print. Never empty.
+    reason: str
+
+    @property
+    def applies(self) -> bool:
+        return self.applicability is MinimumApplicability.APPLIES
+
+    def required_total(self) -> int | None:
+        """The floor in subjects, or None when none is in force.
+
+        None here means "no floor", which is NOT zero: zero would be a floor,
+        and a false one. `applicability` says which of the three reasons.
+        """
+        if not self.applies or self.rule is None:
+            return None
+        return self.rule.required_total()
+
+
 def lookup(
     jurisdiction: str,
     design_family: DesignFamily,
     *,
     framework: Framework | None = None,
     is_highly_variable: bool = False,
-) -> RegulatoryMinimum | None:
-    """The floor for this combination, or None when none is confirmed.
+    study_role: StudyRole = StudyRole.NOT_STATED,
+) -> MinimumOutcome:
+    """Whether a regulatory floor is in force for this study, and which.
 
     `framework=None` means the caller has not stated which body of guidance
     governs, and resolves against `Framework.GENERAL` only. M13A's rules are
     never reached by default, because reaching them requires knowing the dosage
     form and this package is never told it.
+
+    `study_role` defaults to NOT_STATED for the same reason, and with the same
+    consequence: a role-scoped rule is not applied to a study whose role
+    nobody has stated. It is reported as ROLE_NOT_STATED rather than as an
+    absent rule, so a caller can tell "you did not say" from "there is none" -
+    and `power.sample_size_abe` refuses outright rather than quietly
+    recommending a smaller study.
     """
     if is_highly_variable and jurisdiction == "FDA":
-        return _HVD_MINIMUM
-    return _REGISTRY.get(
+        return _outcome(_HVD_MINIMUM, study_role)
+    rule = _REGISTRY.get(
         (jurisdiction, framework or Framework.GENERAL, design_family)
+    )
+    if rule is None:
+        return MinimumOutcome(
+            applicability=MinimumApplicability.NONE_CONFIRMED,
+            rule=None,
+            study_role=study_role,
+            reason=(
+                f"No confirmed regulatory minimum for {jurisdiction}, "
+                f"{framework or Framework.GENERAL} and a {design_family} "
+                "design. Absent is a real answer: it is not zero, and it is "
+                "not twelve."
+            ),
+        )
+    return _outcome(rule, study_role)
+
+
+def _outcome(rule: RegulatoryMinimum, study_role: StudyRole) -> MinimumOutcome:
+    """Apply the row's own role constraint, if it declares one."""
+    if rule.applies_to(study_role):
+        return MinimumOutcome(
+            applicability=MinimumApplicability.APPLIES,
+            rule=rule,
+            study_role=study_role,
+            reason=rule.explain(),
+        )
+
+    roles = ", ".join(sorted(str(r) for r in rule.applies_to_roles or ()))
+    if study_role is StudyRole.NOT_STATED:
+        return MinimumOutcome(
+            applicability=MinimumApplicability.ROLE_NOT_STATED,
+            rule=rule,
+            study_role=study_role,
+            reason=(
+                f"{rule.citation} sets its floor for {roles} studies, and the "
+                "study's role was not stated. The floor is not applied to a "
+                "study nobody has placed in its scope, and the document does "
+                "not define the term for this package to decide it."
+            ),
+        )
+    return MinimumOutcome(
+        applicability=MinimumApplicability.NOT_APPLICABLE_FOR_ROLE,
+        rule=rule,
+        study_role=study_role,
+        reason=(
+            f"{rule.citation} sets its floor for {roles} studies. This study "
+            f"is {study_role}, so that minimum does not apply to it. This "
+            "says nothing about how many subjects the study needs - only that "
+            "this document sets no floor for it."
+        ),
     )
 
 
