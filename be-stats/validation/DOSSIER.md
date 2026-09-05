@@ -791,6 +791,7 @@ the finding was.
 | `DOSSIER-001` | informational | open | `FDA_REPLICATE_STANDARD_ABE_PARTIAL` |
 | `DOSSIER-002` | scope_limitation | open | - |
 | `DOSSIER-004` | scope_limitation | resolved | `AVERAGE_BE_2X2` |
+| `DOSSIER-005` | scope_limitation | open | - |
 | `DOSSIER-003` | scope_limitation | open | `FDA_HVD_RSABE`, `FDA_NTI_RSABE`, `AVERAGE_BE_2X2` |
 
 ### `VAL-FDA-APPENDIX-C-PARTIAL-001`
@@ -888,6 +889,13 @@ The conventional 80.00-125.00% acceptance interval was not pinned to a primary d
 
 - **evidence** - CONVENTIONAL_LOWER_PERCENT and CONVENTIONAL_UPPER_PERCENT were the two normative constants that failed `has_pinned_citation`. They were reported inside a '29/29 carry document, section and version' claim that the data never supported, and the metric that produced it counted no sections at all. CLOSED by reading three primary documents, each of which states the interval in the same words at its own section: ICH M13A 2.2.4 (final version, adopted 23 July 2024); FDA's adoption at II.B.4 (final, October 2024); and EMA's at 2.2.4 (EMA/CHMP/ICH/953493/2022, effective 25 January 2025). The sentence read in all three: 'The 90% confidence interval for the geometric mean ratio of these PK parameters used to establish BE should lie within a range of 80.00 - 125.00%.'
 - **resolution condition** - Satisfied. The condition was to read the section stating the interval in a primary source and cite it with a pinned version, never to write a section number from memory. Three were read rather than one because the sentence lives in three documents: M13A 2.2.4 sits inside 2.2, 'Data Analysis for Non-Replicate Study Design', and M13A's scope defers highly variable and narrow therapeutic index drugs to the future M13C - so the citation reaches ordinary average BE and reaches nothing else.
+
+### `DOSSIER-005`
+
+M13A Q&A 2.1 states the twelve-evaluable-subject floor for PIVOTAL bioequivalence studies. `minimums.py` carries the figures and the word 'evaluable' but not the word 'pivotal', so a caller running a pilot relative bioavailability study is returned a floor the document does not place on it.
+
+- **evidence** - Read at Q&A 2.1 in all three adoptions, which are word for word identical: 'The requirement for a minimum of 12 evaluable subjects in pivotal BE studies for a crossover design, or a minimum of 12 per treatment group for a parallel design, is an established practice by regulatory agencies.' The same answer then names a pilot relative bioavailability study as an INPUT to sizing the pivotal one, so the document plainly does not hold a pilot to the floor. `RegulatoryMinimum.scope` currently reads 'immediate-release solid oral dosage forms', which is M13A's dosage-form scope and not its study-role scope.
+- **resolution condition** - Decide whether `lookup` should take the study's role, or whether the qualifier belongs in `scope` alone. It is recorded rather than fixed because it changes what a study-design rule returns, which is not a provenance edit. The direction of the error is conservative - a floor applied where none is required - but conservative is not correct, and this module's own docstring names applying a document's rule outside its scope as the failure it exists to prevent.
 
 ### `DOSSIER-003`
 

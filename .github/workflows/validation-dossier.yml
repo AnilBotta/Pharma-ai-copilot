@@ -67,9 +67,18 @@ jobs:
         # prose is exactly what no other job here reads. A guard that only
         # runs when somebody happens to run the full suite locally is a guard
         # that rots, which is how six of those sentences reached main.
+        #
+        # `test_minimums_and_provenance.py` is listed for the same reason and
+        # was found the same way. It holds the regulatory minimum-subject
+        # rules and the citations behind them, and NO workflow ran it on a
+        # pull request: the full suite runs only in `certification`, which is
+        # workflow_dispatch. Two of those citations sat unpinned AND
+        # undeclared through the release that fixed exactly that defect
+        # elsewhere, and no job would have said so.
         run: |
           python -m pytest be-stats/tests/unit/test_dossier_*.py \
                            be-stats/tests/integration/test_dossier_routing.py \
+                           be-stats/tests/integration/test_minimums_and_provenance.py \
                            be-stats/tests/validation/test_dossier_evidence.py \
                            be-stats/tests/validation/test_governance_wording.py \
                            be-stats/tests/validation/test_validation_report.py \
@@ -106,6 +115,9 @@ jobs:
           } | {
               p.as_posix()
               for p in pathlib.Path("be-stats/tests").rglob("test_governance_*.py")
+          } | {
+              p.as_posix()
+              for p in pathlib.Path("be-stats/tests").rglob("test_minimums*.py")
           }
 
           missing = sorted(expected - listed)

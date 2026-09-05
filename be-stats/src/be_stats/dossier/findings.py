@@ -394,6 +394,41 @@ FINDINGS_REGISTER: tuple[Finding, ...] = (
         ),
     ),
     Finding(
+        finding_id="DOSSIER-005",
+        severity=FindingSeverity.SCOPE_LIMITATION,
+        status=FindingStatus.OPEN,
+        affected_capabilities=(),
+        description=(
+            "M13A Q&A 2.1 states the twelve-evaluable-subject floor for "
+            "PIVOTAL bioequivalence studies. `minimums.py` carries the "
+            "figures and the word 'evaluable' but not the word 'pivotal', so "
+            "a caller running a pilot relative bioavailability study is "
+            "returned a floor the document does not place on it."
+        ),
+        evidence=(
+            "Read at Q&A 2.1 in all three adoptions, which are word for word "
+            "identical: 'The requirement for a minimum of 12 evaluable "
+            "subjects in pivotal BE studies for a crossover design, or a "
+            "minimum of 12 per treatment group for a parallel design, is an "
+            "established practice by regulatory agencies.' The same answer "
+            "then names a pilot relative bioavailability study as an INPUT to "
+            "sizing the pivotal one, so the document plainly does not hold a "
+            "pilot to the floor. `RegulatoryMinimum.scope` currently reads "
+            "'immediate-release solid oral dosage forms', which is M13A's "
+            "dosage-form scope and not its study-role scope."
+        ),
+        resolution_condition=(
+            "Decide whether `lookup` should take the study's role, or whether "
+            "the qualifier belongs in `scope` alone. It is recorded rather "
+            "than fixed because it changes what a study-design rule returns, "
+            "which is not a provenance edit. The direction of the error is "
+            "conservative - a floor applied where none is required - but "
+            "conservative is not correct, and this module's own docstring "
+            "names applying a document's rule outside its scope as the "
+            "failure it exists to prevent."
+        ),
+    ),
+    Finding(
         finding_id="DOSSIER-003",
         severity=FindingSeverity.SCOPE_LIMITATION,
         status=FindingStatus.OPEN,

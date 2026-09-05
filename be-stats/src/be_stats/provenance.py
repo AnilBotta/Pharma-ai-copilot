@@ -180,11 +180,23 @@ FDA_STATISTICAL_APPROACHES_APPENDIX_F = Citation(
     url="https://www.fda.gov/media/163638/download",
 )
 
+#: FDA's adoption of the M13A Q&A, now pinned.
+#:
+#: This carried `document_version="FDA guidance for industry"`, which names a
+#: DOCUMENT TYPE and not an issue of one - the same class of non-version as the
+#: `"current"` that DOSSIER-004 was about, dressed up well enough to look
+#: checked. FDA has published draft and final M13A Q&A material, and "guidance
+#: for industry" does not say which is meant.
+#:
+#: Read at the section: the cover page gives October 2024, and the document
+#: carries the FINAL-guidance boilerplate ("This guidance represents the
+#: current thinking..."), not the draft form. FDA keeps ICH's question number
+#: and puts it in a table of its own, so the identifier is "Table 2, Q&A 2.1".
 FDA_M13A_QA = Citation(
     authority="FDA",
     document="M13A Bioequivalence for Immediate-Release Solid Oral Dosage Forms: Questions and Answers",
-    section="Q&A 2.1",
-    document_version="FDA guidance for industry",
+    section="Table 2, Q&A 2.1 (section II, general principles)",
+    document_version="final, October 2024",
     url="https://www.fda.gov/media/183189/download",
 )
 
@@ -304,14 +316,59 @@ EMA_PKWP_QA = Citation(
     document_version="EMA/618604/2008 Rev. 13",
 )
 
+# ---------------------------------------- the twelve-evaluable-subject rule ---
+#
+# Q&A 2.1 of the M13A Questions and Answers, in three adoptions, exactly as the
+# guideline itself is in three (see `ICH_M13A_BE_CRITERIA` above). The answer is
+# word-for-word identical in all three, and each regulator publishes its own
+# document with its own reference number and date:
+#
+#     "The requirement for a minimum of 12 evaluable subjects in pivotal BE
+#     studies for a crossover design, or a minimum of 12 per treatment group
+#     for a parallel design, is an established practice by regulatory
+#     agencies."
+#
+# TWO WORDS IN THAT SENTENCE DO WORK
+#
+# "evaluable" - not enrolled, not dosed. `minimums.RegulatoryMinimum.counts`
+# carries it for exactly this reason.
+#
+# "pivotal" - the floor is stated for PIVOTAL BE studies. A pilot relative
+# bioavailability study is named two sentences later as an input to sizing the
+# pivotal one, so the document plainly does not hold a pilot to twelve. That
+# qualifier is NOT currently carried by `minimums.py`; it is recorded as
+# DOSSIER-005 rather than fixed here.
+
 ICH_M13A_QA = Citation(
     authority="ICH",
     document=(
         "M13A — Bioequivalence for Immediate-Release Solid Oral Dosage Forms: "
         "Questions and Answers"
     ),
-    section="Q&A 2.1",
-    document_version="current",
+    section="Q&A 2.1 (section 2, general principles)",
+    document_version="M13A Q&As, adopted 23 July 2024",
+    url="https://database.ich.org/sites/default/files/ICH_M13A_Step4_QAs_2024_0723.pdf",
+)
+
+#: EMA's adoption of the same Q&A.
+#:
+#: Added because the two EMA rows in `minimums.py` were citing ICH's document
+#: for a claim keyed to EMA. That is the fallback PR #76 removed for the
+#: conventional interval, still in place one module away: an EMA reviewer
+#: opens EMA/CHMP/ICH/325575/2024, and a jurisdiction-keyed row should hand
+#: them the document their own regulator adopted.
+EMA_M13A_QA = Citation(
+    authority="EMA",
+    document=(
+        "ICH M13A Guideline on bioequivalence for immediate-release solid "
+        "oral dosage forms: Questions and answers"
+    ),
+    section="Q&A 2.1 (section 2, general principles)",
+    document_version=(
+        "EMA/CHMP/ICH/325575/2024, final adoption by CHMP 25 July 2024, "
+        "effective 25 January 2025"
+    ),
+    url="https://www.ema.europa.eu/en/documents/other/ich-m13a-guideline-bioequivalence-immediate-release-solid-oral-dosage-forms-questions-answers_en.pdf",
 )
 
 # ------------------------------------------- the conventional BE interval ---

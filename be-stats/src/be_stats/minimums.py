@@ -47,9 +47,9 @@ from enum import StrEnum
 
 from be_stats.provenance import (
     Citation,
+    EMA_M13A_QA,
     FDA_M13A_QA,
     FDA_STATISTICAL_APPROACHES_II_A,
-    ICH_M13A_QA,
     VerificationStatus,
 )
 
@@ -128,8 +128,14 @@ _M13A_SCOPE = "immediate-release solid oral dosage forms"
 
 # ICH M13A is adopted by both regions, so the crossover and parallel floors
 # share a rule. They are registered per jurisdiction anyway, because a future
-# divergence should be a new row rather than a rewrite - and because FDA
-# publishes its own Q&A of the same document, which is what is cited for FDA.
+# divergence should be a new row rather than a rewrite - and because each
+# regulator publishes its OWN Q&A of the same document, which is what each row
+# cites.
+#
+# The EMA rows used to cite ICH's copy, which was the last regulator-specific
+# claim in the package resting on the harmonised text. All three documents were
+# read at Q&A 2.1 and carry the answer word for word; the numbers below are
+# unchanged, and only the document a reader is sent to has.
 _M13A_CROSSOVER = dict(
     design_family=DesignFamily.CROSSOVER,
     framework=Framework.ICH_M13A,
@@ -148,10 +154,10 @@ _M13A_PARALLEL = dict(
 _REGISTRY: dict[tuple[str, Framework, DesignFamily], RegulatoryMinimum] = {
     # ---------------------------------------------------------- ICH M13A ---
     ("EMA", Framework.ICH_M13A, DesignFamily.CROSSOVER): RegulatoryMinimum(
-        jurisdiction="EMA", citation=ICH_M13A_QA, **_M13A_CROSSOVER
+        jurisdiction="EMA", citation=EMA_M13A_QA, **_M13A_CROSSOVER
     ),
     ("EMA", Framework.ICH_M13A, DesignFamily.PARALLEL): RegulatoryMinimum(
-        jurisdiction="EMA", citation=ICH_M13A_QA, **_M13A_PARALLEL
+        jurisdiction="EMA", citation=EMA_M13A_QA, **_M13A_PARALLEL
     ),
     # FDA has adopted M13A, so the same two rows exist for FDA - cited to FDA's
     # own publication of the Q&A, and reachable ONLY when the caller states
@@ -175,8 +181,9 @@ _REGISTRY: dict[tuple[str, Framework, DesignFamily], RegulatoryMinimum] = {
     # caller who says so gets it.
     #
     # These two rows were VERIFIED by relay until the guidance was obtained;
-    # the wording above is now read from section II.A. The M13A rows are not -
-    # that is a different document, and it has not been obtained.
+    # the wording above is now read from section II.A. The M13A rows were the
+    # last ones still resting on relay - the three Q&A documents have since
+    # been obtained and read at Q&A 2.1, and their citations pinned.
     ("FDA", Framework.GENERAL, DesignFamily.CROSSOVER): RegulatoryMinimum(
         jurisdiction="FDA",
         design_family=DesignFamily.CROSSOVER,
@@ -232,6 +239,27 @@ def lookup(
         return _HVD_MINIMUM
     return _REGISTRY.get(
         (jurisdiction, framework or Framework.GENERAL, design_family)
+    )
+
+
+def active_citations() -> frozenset[Citation]:
+    """Every citation this module can attach to a returned minimum.
+
+    WHY THIS EXISTS RATHER THAN A SCAN OF `provenance`
+
+    The pinning invariant has to be scoped to citations that live regulatory
+    logic actually reaches. Scanning every `Citation` in `provenance` would be
+    the wrong set in both directions: it would sweep in objects kept for
+    context or history, and it would miss any citation built somewhere other
+    than that module.
+
+    So the set is derived from the registry itself. A row added to `_REGISTRY`
+    is covered without anybody remembering to add it, which is the property
+    that matters - the two Q&A citations sat unpinned AND undeclared for
+    releases precisely because nothing enumerated them.
+    """
+    return frozenset(
+        row.citation for row in (*_REGISTRY.values(), _HVD_MINIMUM)
     )
 
 
