@@ -353,29 +353,44 @@ FINDINGS_REGISTER: tuple[Finding, ...] = (
     Finding(
         finding_id="DOSSIER-004",
         severity=FindingSeverity.SCOPE_LIMITATION,
-        status=FindingStatus.OPEN,
+        status=FindingStatus.RESOLVED,
         affected_capabilities=("AVERAGE_BE_2X2",),
+        # The description is the finding AS RAISED and is left in the past
+        # tense rather than rewritten. A register that edits its own history
+        # once a gap closes cannot be audited: the reader needs to see what
+        # was wrong, not only that something now is not.
         description=(
-            "The conventional 80.00-125.00% acceptance interval is not pinned "
-            "to a primary document. Its citation names a rule rather than a "
-            "document, gives three authorities at once, and carries the "
+            "The conventional 80.00-125.00% acceptance interval was not "
+            "pinned to a primary document. Its citation named a rule rather "
+            "than a document, gave three authorities at once, and carried the "
             "version string 'current' - which `provenance` opens by warning "
             "is not a version but a promise that somebody will remember to "
             "check."
         ),
         evidence=(
-            "CONVENTIONAL_LOWER_PERCENT and CONVENTIONAL_UPPER_PERCENT are "
-            "the two normative constants that fail `has_pinned_citation`. "
+            "CONVENTIONAL_LOWER_PERCENT and CONVENTIONAL_UPPER_PERCENT were "
+            "the two normative constants that failed `has_pinned_citation`. "
             "They were reported inside a '29/29 carry document, section and "
             "version' claim that the data never supported, and the metric "
-            "that produced it counted no sections at all."
+            "that produced it counted no sections at all. "
+            "CLOSED by reading three primary documents, each of which states "
+            "the interval in the same words at its own section: ICH M13A "
+            "2.2.4 (final version, adopted 23 July 2024); FDA's adoption at "
+            "II.B.4 (final, October 2024); and EMA's at 2.2.4 "
+            "(EMA/CHMP/ICH/953493/2022, effective 25 January 2025). The "
+            "sentence read in all three: 'The 90% confidence interval for the "
+            "geometric mean ratio of these PK parameters used to establish BE "
+            "should lie within a range of 80.00 - 125.00%.'"
         ),
         resolution_condition=(
-            "Read ICH M13A or a regulator's guidance at the section stating "
-            "the interval, and cite it with a pinned version. Closed by "
-            "reading a document, never by writing a section number from "
-            "memory - an over-specified citation looks checked, which is "
-            "worse than a coarse one."
+            "Satisfied. The condition was to read the section stating the "
+            "interval in a primary source and cite it with a pinned version, "
+            "never to write a section number from memory. Three were read "
+            "rather than one because the sentence lives in three documents: "
+            "M13A 2.2.4 sits inside 2.2, 'Data Analysis for Non-Replicate "
+            "Study Design', and M13A's scope defers highly variable and "
+            "narrow therapeutic index drugs to the future M13C - so the "
+            "citation reaches ordinary average BE and reaches nothing else."
         ),
     ),
     Finding(

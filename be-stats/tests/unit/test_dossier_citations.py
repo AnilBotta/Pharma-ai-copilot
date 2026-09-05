@@ -30,7 +30,12 @@ from be_stats.dossier.citations import (
     why_not_pinned,
 )
 from be_stats.dossier.constants import CONSTANT_INDEX
-from be_stats.provenance import Citation
+from be_stats.provenance import (
+    EMA_M13A_BE_CRITERIA,
+    FDA_M13A_BE_CRITERIA,
+    ICH_M13A_BE_CRITERIA,
+    Citation,
+)
 
 PINNED = Citation(
     authority="FDA",
@@ -204,12 +209,13 @@ def test_no_module_reimplements_the_pinning_check():
 # ------------------------------------------------------------ exceptions ---
 
 
-def test_the_declared_exception_is_keyed_by_the_citation():
-    """Which is what keeps three consumers consistent for free.
+def test_the_three_consumers_still_share_one_citation_object():
+    """The property that kept them consistent, kept after DOSSIER-004 closed.
 
     The two conventional-interval constants and the AVERAGE_BE_2X2 capability
-    all reference one `Citation` object. Keying by capability id or constant
-    id would need three entries that could drift.
+    all reference one `Citation` object. That was what made a single declared
+    exception reach all three; it is now what makes a single PINNED citation
+    reach all three. Three copies of the same fields would drift.
     """
     capability = CAPABILITY_MATRIX["AVERAGE_BE_2X2"]
     lower = CONSTANT_INDEX["CONVENTIONAL_LOWER_PERCENT"]
@@ -217,17 +223,37 @@ def test_the_declared_exception_is_keyed_by_the_citation():
 
     assert capability.regulatory_source is lower.citation is upper.citation
 
-    exception = exception_for(capability.regulatory_source)
-    assert exception is not None
-    assert capability.source_citation_exception is exception
-    assert exception.tracked_as in lower.citation_exception
-    assert lower.citation_exception == upper.citation_exception
+
+def test_the_conventional_interval_is_now_pinned_with_no_exception():
+    """DOSSIER-004's closure, asserted on the citation rather than the finding.
+
+    Checks the four conditions hold and that no exception survives alongside
+    them - a stale exception excludes a good citation from the pinned count,
+    which is the failure in the opposite direction from the original one.
+    """
+    capability = CAPABILITY_MATRIX["AVERAGE_BE_2X2"]
+    citation = capability.regulatory_source
+
+    assert is_pinned(citation), why_not_pinned(citation)
+    assert exception_for(citation) is None
+    assert capability.source_citation_exception is None
+
+    for constant_id in (
+        "CONVENTIONAL_LOWER_PERCENT",
+        "CONVENTIONAL_UPPER_PERCENT",
+    ):
+        record = CONSTANT_INDEX[constant_id]
+        assert record.has_pinned_citation
+        assert not record.citation_exception
 
 
 def test_every_declared_exception_names_a_real_finding():
+    """Vacuous today - the registry is empty - and kept for the next entry.
+
+    The companion test below is the one that proves the rule still bites.
+    """
     from be_stats.dossier.findings import FINDINGS
 
-    assert CITATION_EXCEPTIONS, "An empty registry would pass vacuously."
     for citation, exception in CITATION_EXCEPTIONS.items():
         assert not is_pinned(citation), (
             f"{exception.tracked_as} declares an exception for a citation "
@@ -241,6 +267,181 @@ def test_every_declared_exception_names_a_real_finding():
         )
         assert exception.reason.strip()
         assert exception.resolution.strip()
+
+
+def test_the_exception_machinery_still_holds_with_an_empty_registry():
+    """The registry emptied when DOSSIER-004 closed. The mechanism did not.
+
+    `test_every_declared_exception_names_a_real_finding` now iterates nothing
+    and would pass against a deleted implementation. This drives a fabricated
+    exception through the same three paths - lookup, the "declared counts as
+    looked at" reading, and the release gate's stricter one - so the next
+    unpinned citation has somewhere to be declared and something that reads it.
+    """
+    from be_stats.dossier.citations import (
+        CitationException,
+        is_pinned_or_declared,
+    )
+
+    unpinned = Citation(
+        authority="ICH / FDA / EMA",
+        document="Conventional bioequivalence acceptance interval",
+        document_version="current",
+    )
+    assert not is_pinned(unpinned)
+    assert exception_for(unpinned) is None
+    assert not is_pinned_or_declared(unpinned), (
+        "An undeclared unpinned citation must not read as looked at."
+    )
+
+    declared = CitationException(
+        reason="Fabricated, for this test only.",
+        tracked_as="DOSSIER-000",
+        resolution="Nothing - it does not exist.",
+    )
+    registry = {unpinned: declared}
+    assert registry.get(unpinned) is declared, (
+        "A Citation must stay hashable by value for the registry to work; "
+        "keying by the object is what lets three consumers share one entry."
+    )
+    assert declared.explain().startswith("Fabricated")
+
+
+# ------------------------------- the conventional interval, per regulator ---
+
+
+CONVENTIONAL_CITATIONS = {
+    "ICH": ICH_M13A_BE_CRITERIA,
+    "FDA": FDA_M13A_BE_CRITERIA,
+    "EMA": EMA_M13A_BE_CRITERIA,
+}
+
+
+@pytest.mark.parametrize("name", sorted(CONVENTIONAL_CITATIONS))
+def test_each_conventional_citation_satisfies_the_canonical_rule(name):
+    citation = CONVENTIONAL_CITATIONS[name]
+    assert is_pinned(citation), why_not_pinned(citation)
+    assert citation.authority == name
+
+
+@pytest.mark.parametrize("name", sorted(CONVENTIONAL_CITATIONS))
+@pytest.mark.parametrize(
+    "damage",
+    [
+        {"section": ""},
+        {"document": ""},
+        {"document_version": "current"},
+        {"document_version": ""},
+        {"authority": "ICH / FDA / EMA"},
+    ],
+)
+def test_a_damaged_conventional_citation_stops_being_pinned(name, damage):
+    """The mutation check, run rather than described.
+
+    Each of the five ways the ORIGINAL placeholder was wrong is reapplied to
+    the real citation, and each must break it. Without this, the tests above
+    would still pass if `is_pinned` had been relaxed to let the new citation
+    through - which is the one thing this PR must not do.
+    """
+    broken = dataclasses.replace(CONVENTIONAL_CITATIONS[name], **damage)
+    assert not is_pinned(broken), (
+        f"{name} citation survives {damage!r}. The gate must reject it for "
+        "the same reason it rejected the placeholder."
+    )
+
+
+def test_the_conventional_citation_does_not_reach_the_scaled_pathways():
+    """SCOPE. M13A 2.2.4 states the interval for NON-REPLICATE designs only.
+
+    M13A's own scope defers highly variable drugs and narrow therapeutic index
+    drugs to the future M13C, so a capability implementing a scaled or
+    narrowed criterion must not cite it. Asserted on the capability matrix
+    rather than on prose, because prose about scope is not scope.
+    """
+    conventional = set(CONVENTIONAL_CITATIONS.values())
+
+    for capability_id in (
+        "FDA_HVD_RSABE",
+        "FDA_NTI_RSABE",
+        "EMA_NTI_NARROW_ABE",
+        "EMA_ABEL_LIMIT_CALCULATION",
+    ):
+        record = CAPABILITY_MATRIX.get(capability_id)
+        if record is None:
+            continue
+        assert record.regulatory_source not in conventional, (
+            f"{capability_id} cites ICH M13A's conventional-interval section. "
+            "M13A 2.2.4 is inside 'Data Analysis for Non-Replicate Study "
+            "Design' and M13A defers highly variable and narrow therapeutic "
+            "index drugs to M13C, so it states nothing about this pathway."
+        )
+
+
+def test_a_jurisdiction_gets_its_own_regulators_adopted_document():
+    """Not ICH's, and not the other regulator's.
+
+    The interval is one number and three documents. A resolved spec always
+    has a jurisdiction, and the reader of that spec is preparing a submission
+    to that regulator.
+    """
+    from be_stats.spec import (
+        BeSpec,
+        DrugClass,
+        Endpoint,
+        Jurisdiction,
+        resolve_be_spec,
+    )
+
+    for jurisdiction, expected in (
+        (Jurisdiction.FDA, FDA_M13A_BE_CRITERIA),
+        (Jurisdiction.EMA, EMA_M13A_BE_CRITERIA),
+    ):
+        spec: BeSpec = resolve_be_spec(
+            jurisdiction=jurisdiction,
+            drug_class=DrugClass.STANDARD,
+            endpoint=Endpoint.AUC,
+        )
+        assert spec.acceptance is not None
+        for value in (spec.acceptance.lower, spec.acceptance.upper):
+            assert value.citation is expected, (
+                f"{jurisdiction} standard interval cites "
+                f"{value.citation.authority}, not its own regulator's "
+                "adoption of ICH M13A."
+            )
+        assert spec.acceptance.lower_value == 80.00
+        assert spec.acceptance.upper_value == 125.00
+
+
+def test_every_jurisdiction_in_the_real_mapping_is_pinned():
+    """Derived from the mapping, not from a list written out here.
+
+    `CONVENTIONAL_CITATIONS` above names three and would not notice a fourth.
+    The release gate would not either: it reads capability records, and the
+    jurisdictional citations reach a reader through `resolve_be_spec` instead,
+    which no capability row points at. So the mapping itself is iterated, and
+    a jurisdiction added with a vague citation fails here.
+    """
+    from be_stats.spec import _CONVENTIONAL_ACCEPTANCE_CITATIONS, Jurisdiction
+
+    assert set(_CONVENTIONAL_ACCEPTANCE_CITATIONS) == set(Jurisdiction), (
+        "A jurisdiction the engine can resolve has no conventional-interval "
+        "citation, or one exists for a jurisdiction that is not resolvable."
+    )
+    for jurisdiction, citation in _CONVENTIONAL_ACCEPTANCE_CITATIONS.items():
+        assert is_pinned(citation), (jurisdiction, why_not_pinned(citation))
+        assert citation.authority == str(jurisdiction), (
+            f"{jurisdiction} is cited to {citation.authority!r}. The point of "
+            "splitting the citation was that each regulator gets its own "
+            "adopted document."
+        )
+
+
+def test_an_unknown_jurisdiction_is_refused_rather_than_given_ichs():
+    """Adoption is the claim, so it may not be inherited by default."""
+    from be_stats.spec import _conventional_citation
+
+    with pytest.raises(KeyError, match="adoption"):
+        _conventional_citation("MHRA")
 
 
 def test_every_unpinned_citation_in_use_is_declared():

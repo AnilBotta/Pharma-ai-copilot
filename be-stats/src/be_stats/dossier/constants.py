@@ -316,19 +316,23 @@ _NORMATIVE: tuple[ConstantRecord, ...] = (
     # The acceptance limits `resolve_be_spec` constructs inline. Indexed here
     # because a constant that never reaches a table is exactly the one a
     # provenance audit misses.
-    # THE TWO RECORDS THAT ARE NOT PINNED.
+    # THE TWO RECORDS THAT WERE NOT PINNED, AND NOW ARE.
     #
-    # Neither carries its own explanation any more. Both reference
-    # `CONVENTIONAL_ACCEPTANCE_CITATION`, and the exception is registered in
-    # `dossier.citations` against that CITATION - so these two constants and
-    # the `AVERAGE_BE_2X2` capability that shares it all inherit one
-    # explanation, and none of them can drift from the others.
+    # They carried a declared exception tracked as DOSSIER-004: their VERIFIED
+    # status rested on universal agreement about the number rather than on a
+    # reading of a pinned document, and "everybody knows this" and "we read it
+    # here, at this section, in this issue" are different claims.
     #
-    # Their VERIFIED status rests on universal agreement about the number
-    # rather than on a reading of a pinned document. That is precisely why the
-    # pinned-citation count excludes them: "everybody knows this" and "we read
-    # it here, at this section, in this issue" are different claims, and only
-    # the second is a citation.
+    # The second claim can now be made. Both reference
+    # `CONVENTIONAL_ACCEPTANCE_CITATION`, which is ICH M13A 2.2.4 - the
+    # harmonised text, cited here rather than a regulator's adoption of it
+    # because these two constants describe a number BOTH regulators apply and
+    # `AVERAGE_BE_2X2` is jurisdiction-neutral for the same reason. Where a
+    # jurisdiction IS known, `spec._conventional_citation` cites that
+    # regulator's own adopted document instead.
+    #
+    # Still one shared object across the two constants and the capability, so
+    # none of the three can drift from the others.
     ConstantRecord(
         constant_id="CONVENTIONAL_LOWER_PERCENT",
         value=80.00,

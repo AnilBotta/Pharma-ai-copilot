@@ -334,32 +334,95 @@ def test_provenance_coverage_matches_the_canonical_index(reviewer):
     assert reviewer.provenance["coverage"] == provenance_coverage()
 
 
-def test_normative_pinned_is_reported_as_nineteen_of_twenty_one(reviewer):
+def test_the_pinned_count_is_read_from_the_index_rather_than_written_here(
+    reviewer,
+):
+    """This asserted 19/21 while DOSSIER-004 was open. It now asserts neither.
+
+    Replacing the 19 with a 21 would have rebuilt the same trap one release
+    later: a literal in a test is a second place the truth is written down,
+    and the two drift. The report's job is to print what the index says, so
+    that is what is checked - plus the one relationship that must hold however
+    the numbers move.
+    """
     coverage = reviewer.provenance["coverage"]
-    assert coverage["normative_pinned"] == 19
-    assert coverage["normative"] == 21
+
+    assert coverage == provenance_coverage()
+    assert (
+        coverage["normative_pinned"] + coverage["normative_exceptions"]
+        == coverage["normative"]
+    ), "Pinned plus declared must account for every normative constant."
 
 
-def test_the_unpinned_citation_gap_is_visible_rather_than_netted_off(reviewer):
+def test_the_citation_gap_list_mirrors_the_index_whatever_is_in_it(reviewer):
+    """Empty today, and empty for a reason the report does not decide.
+
+    The list used to hold the two conventional-interval constants. DOSSIER-004
+    closed and it emptied on its own, because it is built from
+    `unpinned_normative_constants()` rather than maintained. That is the
+    property worth testing: it follows the index in both directions, so a
+    future gap appears here without anybody remembering to add it.
+    """
+    from be_stats.dossier.constants import unpinned_normative_constants
+
     gaps = reviewer.provenance["unresolved_citation_gaps"]
-    ids = {gap["constant_id"] for gap in gaps}
-    assert ids == {"CONVENTIONAL_LOWER_PERCENT", "CONVENTIONAL_UPPER_PERCENT"}
+    expected = {r.constant_id for r in unpinned_normative_constants()}
+
+    assert {gap["constant_id"] for gap in gaps} == expected
+    assert len(gaps) == coverage_exceptions(reviewer)
     for gap in gaps:
-        assert "DOSSIER-004" in gap["why"]
+        assert gap["why"].strip(), "A gap with no reason is a gap absorbed."
 
 
-def test_dossier_004_appears_as_an_open_finding(reviewer):
+def coverage_exceptions(reviewer) -> int:
+    return reviewer.provenance["coverage"]["normative_exceptions"]
+
+
+def test_dossier_004_is_no_longer_an_open_limitation(reviewer):
+    """It was open, and the report said so. It is resolved, and must not.
+
+    The reviewer report exposes OPEN findings only, so a resolved finding
+    leaves the limitations section entirely - which is correct for a section
+    headed by what still limits a claim. Its history stays in the findings
+    register and in the generated dossier, not here, and no special case is
+    added to keep it visible.
+    """
+    from be_stats.dossier.findings import FINDINGS, FindingStatus
+
+    assert FINDINGS["DOSSIER-004"].status is FindingStatus.RESOLVED
+
     open_ids = {f["finding_id"] for f in reviewer.limitations["open_findings"]}
-    assert "DOSSIER-004" in open_ids
+    assert "DOSSIER-004" not in open_ids
+
+    # The findings that ARE open still reach the report, so the absence above
+    # is a status change and not a section that stopped being populated.
+    assert open_ids, "No open findings reported at all - the section is broken."
+    assert {"DOSSIER-001", "DOSSIER-002", "DOSSIER-003"} <= open_ids
 
 
 def test_current_is_still_not_a_pinned_version(reviewer):
-    """The conventional interval carries version "current" and is not pinned."""
-    unpinned = [
-        row for row in reviewer.provenance["normative"] if not row["pinned"]
-    ]
-    assert unpinned
-    assert any(row["document_version"] == "current" for row in unpinned)
+    """The string that started this, kept as a rule rather than as data.
+
+    This used to find a row in the report carrying `document_version =
+    "current"` and assert it was unpinned. There is no such row any more, and
+    a test that needs the defect present to check the rule stops checking the
+    moment the defect is fixed.
+
+    So the rule is asserted directly, and the report is checked for the
+    property that matters: nothing it prints as pinned may carry a version
+    that identifies no issue of a document.
+    """
+    from be_stats.dossier.citations import version_is_pinned
+
+    assert not version_is_pinned("current")
+
+    for row in reviewer.provenance["normative"]:
+        if row["pinned"]:
+            assert version_is_pinned(row["document_version"]), (
+                f"{row['constant_id']} is reported as pinned with version "
+                f"{row['document_version']!r}, which identifies no issue."
+            )
+            assert row["section"], row["constant_id"]
 
 
 def test_derived_constants_show_a_derivation_not_a_regulatory_section(reviewer):

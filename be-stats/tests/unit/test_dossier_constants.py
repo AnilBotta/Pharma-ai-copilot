@@ -118,26 +118,46 @@ def test_a_citation_exception_is_specific_enough_to_act_on():
         )
 
 
-def test_the_unpinned_normative_constants_are_the_two_known_ones():
-    """A pinned expectation, so a THIRD one cannot appear quietly.
+def test_no_normative_constant_is_unpinned():
+    """The set was {CONVENTIONAL_LOWER_PERCENT, CONVENTIONAL_UPPER_PERCENT}.
 
-    Asserting the exact set rather than a count: a new unpinned constant
-    replacing one of these would keep the count at two and be invisible.
+    Both were closed by citing ICH M13A 2.2.4, so the set is now empty and the
+    assertion is the strongest available: a new unpinned normative constant
+    cannot appear at all without failing here. The exact-set form this
+    replaces existed so a THIRD one could not hide behind a count of two; an
+    empty set does that job without needing a list to maintain.
     """
-    assert {r.constant_id for r in unpinned_normative_constants()} == {
-        "CONVENTIONAL_LOWER_PERCENT",
-        "CONVENTIONAL_UPPER_PERCENT",
-    }
-
-
-def test_the_unpinned_constants_are_registered_as_a_finding():
-    from be_stats.dossier.findings import FINDINGS
-
-    assert "DOSSIER-004" in FINDINGS
-    assert FINDINGS["DOSSIER-004"].is_open, (
-        "The gap is open work. Closing it means citing a document, not "
-        "editing the register."
+    unpinned = {r.constant_id for r in unpinned_normative_constants()}
+    assert unpinned == set(), (
+        f"{sorted(unpinned)} are normative and not pinned. Either cite the "
+        "document or declare a CitationException tracked by a finding - "
+        "silently unpinned is the one option that is not available."
     )
+
+
+def test_dossier_004_is_resolved_and_still_on_the_register():
+    """Closed findings are not deleted, and closure is not self-asserted.
+
+    Two halves. The register must still carry DOSSIER-004 - a register that
+    forgets what was wrong cannot be audited - and its RESOLVED status must be
+    backed by the citation actually being pinned, so the status cannot be
+    flipped in the register alone.
+    """
+    from be_stats.dossier.capabilities import CAPABILITY_MATRIX
+    from be_stats.dossier.findings import FINDINGS, FindingStatus
+
+    finding = FINDINGS["DOSSIER-004"]
+    assert finding.status is FindingStatus.RESOLVED
+    assert not finding.is_open
+
+    assert CAPABILITY_MATRIX["AVERAGE_BE_2X2"].has_pinned_source, (
+        "DOSSIER-004 reads RESOLVED while the citation it tracked is still "
+        "unpinned. The register may not close a gap the data still shows."
+    )
+
+    # The history it exists to preserve.
+    assert "was not" in finding.description or "were" in finding.evidence
+    assert "80.00-125.00" in finding.description
 
 
 def test_normative_constants_declare_no_derivation():
@@ -384,20 +404,32 @@ def test_provenance_coverage_counts_what_its_names_say():
 
 
 def test_coverage_does_not_report_a_pinned_count_it_cannot_support():
-    """The specific false claim, made impossible to restate from the metrics.
+    """The specific false claim, still impossible to restate from the metrics.
 
-    `normative_pinned` is strictly less than `normative` right now. Any
-    summary that says "all constants carry document, section and version" is
-    contradicted by the numbers rather than merely unsupported by them.
+    This test used to read `normative_pinned < normative` and pin the pair at
+    19/21, with a note saying to delete it once DOSSIER-004 closed by citing a
+    document. That has now happened, and the shortfall is gone - but the claim
+    the test was built to prevent was never "some constants are unpinned". It
+    was "all 29 carry document, section and version", made over the WRONG
+    DENOMINATOR: three derived constants carry no regulatory section, because
+    no regulator states them, and no honest count will ever include them.
+
+    So the guard survives its own gap. 21/21 is now true of the normative set
+    and remains false of the index, and the numbers still contradict the old
+    sentence rather than merely failing to support it.
     """
     coverage = provenance_coverage()
-    assert coverage["normative_pinned"] < coverage["normative"], (
-        "If every normative constant is now pinned, delete this test and say "
-        "so plainly - but only after DOSSIER-004 has been closed by citing a "
-        "document."
+
+    assert coverage["normative_pinned"] == coverage["normative"], (
+        "A normative constant has become unpinned. That is a regression in "
+        "provenance, not a metric to update."
     )
-    assert coverage["normative_pinned"] == 19
-    assert coverage["normative"] == 21
+    assert coverage["normative_pinned"] < coverage["total"], (
+        "The pinned count has reached the size of the whole index, which is "
+        "the number the discredited claim was made over. Derived constants "
+        "have no regulatory section and must never be counted as pinned."
+    )
+    assert coverage["derived"] > 0
 
 
 def test_explain_answers_why_this_number_is_here():

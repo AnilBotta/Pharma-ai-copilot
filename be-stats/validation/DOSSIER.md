@@ -597,8 +597,8 @@ source label, a stated role and a verification classification -
 **Normative (21)** - the regulator wrote the
 number.
 
-- pinned to authority, document, **section** and version - **19/21**
-- carrying a declared citation exception - 2/21
+- pinned to authority, document, **section** and version - **21/21**
+- carrying a declared citation exception - 0/21
 - VERIFIED - 21/21
 
 **Derived (6)** - this package computed it.
@@ -615,21 +615,6 @@ exact failure this index exists to prevent.
 regulatory document, and not the rule.
 
 - consumed by no decision path - 2/2
-
-### Normative constants not yet pinned
-
-Declared rather than absorbed. Each is excluded from the pinned
-count above and is tracked in the findings register; each is
-closed by reading a primary source, never by writing a section
-number from memory.
-
-**`CONVENTIONAL_LOWER_PERCENT`** = 80
-
-NOT PINNED. The 80.00-125.00% interval is stated by ICH, FDA and EMA alike, and this package has not established WHICH document, section and version to cite it from. The citation names a rule rather than a document, lists three authorities, and carries the version 'current' - which `provenance` opens by warning is not a version but a promise that somebody will remember to check. Tracked as DOSSIER-004. Closed by reading a primary source and citing it, never by writing a section number from memory: an over-specified citation looks checked, which is worse than a coarse one.
-
-**`CONVENTIONAL_UPPER_PERCENT`** = 125
-
-NOT PINNED. The 80.00-125.00% interval is stated by ICH, FDA and EMA alike, and this package has not established WHICH document, section and version to cite it from. The citation names a rule rather than a document, lists three authorities, and carries the version 'current' - which `provenance` opens by warning is not a version but a promise that somebody will remember to check. Tracked as DOSSIER-004. Closed by reading a primary source and citing it, never by writing a section number from memory: an over-specified citation looks checked, which is worse than a coarse one.
 
 ### Normative and derived are not interchangeable
 
@@ -658,8 +643,8 @@ entry.
 | `FDA_NTI_VARIANCE_RATIO_LIMIT` | 2.5 | normative | verified | Statistical Approaches to Establishing Bioequivalence | Appendix F (narrow therapeutic index drugs) | final, May 2026 | - |
 | `FDA_NTI_UNSCALED_LOWER_PERCENT` | 80 | normative | verified | Statistical Approaches to Establishing Bioequivalence | Appendix F (narrow therapeutic index drugs) | final, May 2026 | - |
 | `FDA_NTI_UNSCALED_UPPER_PERCENT` | 125 | normative | verified | Statistical Approaches to Establishing Bioequivalence | Appendix F (narrow therapeutic index drugs) | final, May 2026 | - |
-| `CONVENTIONAL_LOWER_PERCENT` | 80 | normative | verified | Conventional bioequivalence acceptance interval | declared exception | current | - |
-| `CONVENTIONAL_UPPER_PERCENT` | 125 | normative | verified | Conventional bioequivalence acceptance interval | declared exception | current | - |
+| `CONVENTIONAL_LOWER_PERCENT` | 80 | normative | verified | M13A — Bioequivalence for Immediate-Release Solid Oral Dosage Forms | 2.2.4 Bioequivalence Criteria (within 2.2, non-replicate designs) | Final version, adopted 23 July 2024 | - |
+| `CONVENTIONAL_UPPER_PERCENT` | 125 | normative | verified | M13A — Bioequivalence for Immediate-Release Solid Oral Dosage Forms | 2.2.4 Bioequivalence Criteria (within 2.2, non-replicate designs) | Final version, adopted 23 July 2024 | - |
 | `EMA_NTI_NARROWED_LOWER_PERCENT` | 90 | normative | verified | Guideline on the Investigation of Bioequivalence | Narrow therapeutic index drugs | CPMP/EWP/QWP/1401/98 Rev. 1, effective 1 August 2010 | - |
 | `EMA_NTI_NARROWED_UPPER_PERCENT` | 111.11 | normative | verified | Guideline on the Investigation of Bioequivalence | Narrow therapeutic index drugs | CPMP/EWP/QWP/1401/98 Rev. 1, effective 1 August 2010 | - |
 | `DERIVED_SWR_AT_CV_30` | 0.29356 | derived | derived | derived from the 30% CV classification threshold | - | - | `FDA_HVD_CLASSIFICATION_CV`, `EMA_ABEL_CV_THRESHOLD_PERCENT` |
@@ -805,7 +790,7 @@ the finding was.
 | `VAL-FDA-HVD-001` | informational | resolved | `FDA_HVD_RSABE` |
 | `DOSSIER-001` | informational | open | `FDA_REPLICATE_STANDARD_ABE_PARTIAL` |
 | `DOSSIER-002` | scope_limitation | open | - |
-| `DOSSIER-004` | scope_limitation | open | `AVERAGE_BE_2X2` |
+| `DOSSIER-004` | scope_limitation | resolved | `AVERAGE_BE_2X2` |
 | `DOSSIER-003` | scope_limitation | open | `FDA_HVD_RSABE`, `FDA_NTI_RSABE`, `AVERAGE_BE_2X2` |
 
 ### `VAL-FDA-APPENDIX-C-PARTIAL-001`
@@ -899,10 +884,10 @@ In the manual SAS workflow the package hashes and the parsed result are verifiab
 
 ### `DOSSIER-004`
 
-The conventional 80.00-125.00% acceptance interval is not pinned to a primary document. Its citation names a rule rather than a document, gives three authorities at once, and carries the version string 'current' - which `provenance` opens by warning is not a version but a promise that somebody will remember to check.
+The conventional 80.00-125.00% acceptance interval was not pinned to a primary document. Its citation named a rule rather than a document, gave three authorities at once, and carried the version string 'current' - which `provenance` opens by warning is not a version but a promise that somebody will remember to check.
 
-- **evidence** - CONVENTIONAL_LOWER_PERCENT and CONVENTIONAL_UPPER_PERCENT are the two normative constants that fail `has_pinned_citation`. They were reported inside a '29/29 carry document, section and version' claim that the data never supported, and the metric that produced it counted no sections at all.
-- **resolution condition** - Read ICH M13A or a regulator's guidance at the section stating the interval, and cite it with a pinned version. Closed by reading a document, never by writing a section number from memory - an over-specified citation looks checked, which is worse than a coarse one.
+- **evidence** - CONVENTIONAL_LOWER_PERCENT and CONVENTIONAL_UPPER_PERCENT were the two normative constants that failed `has_pinned_citation`. They were reported inside a '29/29 carry document, section and version' claim that the data never supported, and the metric that produced it counted no sections at all. CLOSED by reading three primary documents, each of which states the interval in the same words at its own section: ICH M13A 2.2.4 (final version, adopted 23 July 2024); FDA's adoption at II.B.4 (final, October 2024); and EMA's at 2.2.4 (EMA/CHMP/ICH/953493/2022, effective 25 January 2025). The sentence read in all three: 'The 90% confidence interval for the geometric mean ratio of these PK parameters used to establish BE should lie within a range of 80.00 - 125.00%.'
+- **resolution condition** - Satisfied. The condition was to read the section stating the interval in a primary source and cite it with a pinned version, never to write a section number from memory. Three were read rather than one because the sentence lives in three documents: M13A 2.2.4 sits inside 2.2, 'Data Analysis for Non-Replicate Study Design', and M13A's scope defers highly variable and narrow therapeutic index drugs to the future M13C - so the citation reaches ordinary average BE and reaches nothing else.
 
 ### `DOSSIER-003`
 
