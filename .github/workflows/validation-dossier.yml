@@ -72,7 +72,47 @@ jobs:
                            be-stats/tests/integration/test_dossier_routing.py \
                            be-stats/tests/validation/test_dossier_evidence.py \
                            be-stats/tests/validation/test_governance_wording.py \
+                           be-stats/tests/validation/test_validation_report.py \
                            -q --junitxml=dossier-tests.xml
+
+      - name: Every dossier test file is in the list above
+        # THE LIST IS EXPLICIT, SO IT GOES STALE SILENTLY.
+        #
+        # `test_governance_wording.py` was added and CI did not run it, because
+        # a new file is not picked up by living in the directory. That is the
+        # same failure the guard itself polices: nothing automated read it.
+        #
+        # This step compares the files the step above names against the files
+        # that exist, and fails on any that are missing - so the next person to
+        # add one is told rather than trusted to remember.
+        run: |
+          python - <<'PY'
+          import pathlib, re, sys
+
+          workflow = pathlib.Path(".github/workflows/validation-dossier.yml").read_text()
+          listed = set(re.findall(r"be-stats/tests/\S+\.py", workflow))
+          listed |= {
+              p.as_posix()
+              for pattern in re.findall(r"be-stats/tests/\S*\*\S*\.py", workflow)
+              for p in pathlib.Path().glob(pattern)
+          }
+
+          expected = {
+              p.as_posix()
+              for p in pathlib.Path("be-stats/tests").rglob("test_dossier_*.py")
+          } | {
+              p.as_posix()
+              for p in pathlib.Path("be-stats/tests").rglob("test_*report*.py")
+          } | {
+              p.as_posix()
+              for p in pathlib.Path("be-stats/tests").rglob("test_governance_*.py")
+          }
+
+          missing = sorted(expected - listed)
+          for path in missing:
+              print(f"{path} exists and is not run by this workflow")
+          sys.exit(1 if missing else 0)
+          PY
 
       - name: Build the validation bundle
         # WITHOUT --certify. Ordinary CI reports unestablished claims and does

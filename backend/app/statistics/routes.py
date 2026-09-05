@@ -30,6 +30,8 @@ this module that could take part in one.
 from __future__ import annotations
 
 import logging
+import os
+from datetime import UTC, datetime
 
 from be_stats import __version__ as be_stats_version
 from be_stats.dossier import (
@@ -40,7 +42,9 @@ from be_stats.dossier import (
     REFUSALS,
     ROUTING_MATRIX,
     UNSUPPORTED_COMBINATION,
+    Audience,
     best_tier_for,
+    build_validation_report,
     certification_blockers,
     check_release_gate,
     display_status,
@@ -48,8 +52,11 @@ from be_stats.dossier import (
     method_catalogue,
     open_findings,
     provenance_coverage,
+    render_report_html,
+    render_report_markdown,
 )
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
 
 from app.auth import AuthenticatedUser, current_user
 from app.statistics.schemas import (
@@ -209,6 +216,66 @@ async def dossier_summary(user: AuthenticatedUser = Depends(current_user)):
         release_gate_passed=check_release_gate().passed,
         certification_blockers=certification_blockers(),
     )
+
+
+@router.get("/validation-report")
+async def validation_report(
+    format: str = "json",
+    user: AuthenticatedUser = Depends(current_user),
+):
+    """The exportable validation report, in one of three renderings.
+
+    ONE ENDPOINT, NOT THREE, AND ONE REPORT OBJECT BEHIND ALL OF THEM.
+
+    `?format=json|markdown|html`. A separate route per format would be three
+    places to forget a governance rule; here the report is assembled once by
+    `build_validation_report` and the renderers only read it. The UI consumes
+    the JSON, so the page and the exported document cannot disagree.
+
+    WHY IT DOES NOT EXTEND `/dossier`
+
+    `/dossier` is a summary sized for a status page - counts, the catalogue,
+    open findings. This is a document: every capability with its explainability
+    answers, every constant with its provenance, evidence grouped by tier, and
+    the qualifications that make each status mean something. Folding it into
+    `/dossier` would make the page's payload an order of magnitude larger to
+    serve a different question.
+
+    AUDIENCE IS FIXED SERVER-SIDE.
+
+    Always `REVIEWER`. The internal audience carries candidate values for the
+    unresolved partial-replicate question, and a client must not be able to ask
+    for them - a query parameter selecting the audience would be exactly that.
+    Internal QA reads them through `build_bundle`, which never leaves the
+    repository.
+    """
+    if format not in ("json", "markdown", "html"):
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            f"Unknown format {format!r}. Use json, markdown or html.",
+        )
+
+    report = build_validation_report(
+        audience=Audience.REVIEWER,
+        git_sha=os.environ.get("VERCEL_GIT_COMMIT_SHA") or None,
+    )
+    stamp = datetime.now(UTC).strftime("%Y%m%d")
+    name = f"be-stats-validation-report-{stamp}"
+
+    if format == "json":
+        return JSONResponse(
+            content=report.to_dict(),
+            headers={
+                "Content-Disposition": f'attachment; filename="{name}.json"'
+            },
+        )
+    if format == "markdown":
+        return PlainTextResponse(
+            render_report_markdown(report),
+            media_type="text/markdown; charset=utf-8",
+            headers={"Content-Disposition": f'attachment; filename="{name}.md"'},
+        )
+    return HTMLResponse(render_report_html(report))
 
 
 @router.get("/capabilities/{capability_id}/explain", response_model=ExplanationResponse)

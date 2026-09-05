@@ -1191,10 +1191,155 @@ export interface DossierSummary {
   certification_blockers: string[];
 }
 
+export interface ValidationReportCapability {
+  capability_id: string;
+  method: string;
+  jurisdiction: string;
+  design: string;
+  endpoints: string;
+  implementation_status: string;
+  validation_status: string;
+  display_status: StatisticalDisplayStatus;
+  decision_supported: boolean;
+  qualification: string;
+  regulatory_source: string;
+  source_version: string;
+  source_pinned: boolean;
+  source_pinning_gap: string;
+  citation_exception: string;
+  established_evidence_tier: string;
+  evidence: {
+    evidence_id: string;
+    tier: string;
+    tier_meaning: string;
+    source_type: string;
+    source_authority: string;
+    status: string;
+    scenario: string;
+    tolerance: string;
+    established_by: string;
+  }[];
+  blockers: string[];
+  open_findings: string[];
+  refusal_conditions: { code: string; meaning: string; lifted_by: string }[];
+  explainability: {
+    method_selected: string;
+    why_selected: string;
+    regulator: string;
+    design: string;
+    criterion: string;
+    regulatory_source: string;
+    validation_status: string;
+    implementation_status: string;
+    evidence_tier_established: string;
+    limitations: string[];
+    outcome: string;
+    refusal: { code: string; why: string; lifted_by: string } | null;
+  };
+  submission_ready: boolean;
+  /** Stated for every capability, including validated ones. */
+  does_not_establish: string;
+}
+
+export interface ValidationReport {
+  schema: string;
+  identity: {
+    schema: string;
+    be_stats_version: string;
+    git_sha: string;
+    generated_at: string;
+    audience: string;
+    runtime: Record<string, string>;
+    note: string;
+  };
+  reading_notes: Record<string, string>;
+  capabilities: ValidationReportCapability[];
+  evidence_by_tier: Record<
+    string,
+    {
+      evidence_id: string;
+      tier_meaning: string;
+      source_authority: string;
+      status: string;
+      scenario: string;
+      capabilities: string[];
+    }[]
+  >;
+  provenance: {
+    coverage: Record<string, number>;
+    note: string;
+    unresolved_citation_gaps: { constant_id: string; why: string }[];
+  };
+  limitations: {
+    open_findings: StatisticalFinding[];
+    open_blockers: StatisticalBlocker[];
+    unresolved_citation_gaps: string[];
+    evidence_not_established: {
+      evidence_id: string;
+      tier: string;
+      status: string;
+      why: string;
+    }[];
+    certification_blockers: string[];
+    note: string;
+  };
+  governance: {
+    release_gate_passed: boolean;
+    release_gate_meaning: string;
+    partial_oracle_ready: boolean;
+    real_sas_oracle_status: string;
+    promotion_policy: string;
+    tenancy: string;
+  };
+}
+
 export const statistics = {
   methods: () => request<MethodCatalogueEntry[]>("/statistics/methods"),
   capabilities: () => request<StatisticalCapability[]>("/statistics/capabilities"),
   dossier: () => request<DossierSummary>("/statistics/dossier"),
+
+  /**
+   * The full validation report, as the page renders it.
+   *
+   * The page and the exported document read the same object, so they cannot
+   * disagree — which is the reason the report is assembled server-side rather
+   * than stitched together here from the other endpoints.
+   */
+  validationReport: () =>
+    request<ValidationReport>("/statistics/validation-report?format=json"),
+
+  /**
+   * Fetch an export and hand it to the browser as a download.
+   *
+   * Goes through `request`-style auth rather than a bare link: the endpoint
+   * requires a bearer token, so an `<a href>` would return 401 and download an
+   * error page named like a report — which is worse than failing visibly.
+   */
+  downloadValidationReport: async (format: "json" | "markdown" | "html") => {
+    const headers = await authHeaders();
+    const response = await fetch(
+      `${BASE_URL}/api/statistics/validation-report?format=${format}`,
+      { headers }
+    );
+    if (!response.ok) {
+      throw new ApiError(
+        `Could not export the validation report (${response.status}).`,
+        response.status
+      );
+    }
+    const blob = await response.blob();
+    const extension =
+      format === "markdown" ? "md" : format === "html" ? "html" : "json";
+    const stamp = new Date().toISOString().slice(0, 10);
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `be-stats-validation-report-${stamp}.${extension}`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+  },
 };
 
 /**
