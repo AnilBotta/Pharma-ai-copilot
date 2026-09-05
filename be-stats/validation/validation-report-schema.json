@@ -200,9 +200,7 @@
         "status": "str"
       }
     ],
-    "unresolved_citation_gaps": [
-      "str"
-    ]
+    "unresolved_citation_gaps": []
   },
   "provenance": {
     "coverage": {
@@ -257,12 +255,7 @@
       }
     ],
     "note": "str",
-    "unresolved_citation_gaps": [
-      {
-        "constant_id": "str",
-        "why": "str"
-      }
-    ]
+    "unresolved_citation_gaps": []
   },
   "reading_notes": {
     "evidence_tiers": "str",

@@ -543,20 +543,23 @@ def _tier_1b_evidence_for(capability_id: str):
     )
 
 
-def test_forcing_average_be_2x2_to_validated_fails_on_the_unpinned_source(
+def test_forcing_average_be_2x2_to_validated_clears_the_provenance_condition(
     monkeypatch,
 ):
-    """THE REGRESSION THAT MATTERS.
+    """DOSSIER-004 no longer stands between this capability and VALIDATED.
 
-    Before this fix the gate tested source pinning as "document_version is
-    non-empty". `AVERAGE_BE_2X2` cites the conventional interval with
-    `document_version = "current"`, so a promotion would have passed that
-    condition - on a citation naming three authorities, no section and no
-    identifiable issue of any document.
+    It used to. The conventional interval was cited with three authorities,
+    no section and `document_version = "current"`, and this test asserted the
+    gate REFUSED when everything else was satisfied. The citation is now ICH
+    M13A 2.2.4, read at the section, so the provenance condition is met and
+    the refusal must go with it - a gate that still refuses after the gap has
+    been closed is as wrong as one that let it through.
 
-    Nothing claims VALIDATED on it today, so no false claim exists. This
-    dossier exists to stop a future one, and that is only true if the gate
-    refuses when everything ELSE is satisfied.
+    What this does NOT assert is that the capability may be promoted. It stays
+    IMPLEMENTED_UNVALIDATED for a different and still-open reason, DOSSIER-003:
+    FDA publishes no worked example, so no tier-1B evidence exists. This test
+    supplies a synthetic tier-1B record to isolate the provenance condition,
+    which is exactly what the real capability does not have.
     """
     from be_stats.dossier.evidence import EVIDENCE_MANIFEST
     from be_stats.spec import Method
@@ -578,21 +581,78 @@ def test_forcing_average_be_2x2_to_validated_fails_on_the_unpinned_source(
         reviewed_transitions=frozenset({"AVERAGE_BE_2X2"}),
     )
 
-    assert not result.passed, (
-        "The gate accepted VALIDATED for a capability whose regulatory source "
-        "is a placeholder citing three authorities, no section, and version "
-        "'current'."
-    )
+    assert result.passed, result.violations
 
-    # Every other condition was satisfied, so the failure must be this one.
-    assert len(result.violations) == 1, result.violations
-    violation = result.violations[0]
-    assert "citation exception" in violation
-    assert "DOSSIER-004" in violation
+    # The provenance condition is not merely absent from the violations - it
+    # is present in the satisfied list, naming the section actually read.
+    assert any("source pinned to" in s for s in result.satisfied), result.satisfied
+    assert any("2.2.4" in s for s in result.satisfied), result.satisfied
 
     # And the conditions we supplied really were read, rather than skipped.
     assert any("tier-1B" in s for s in result.satisfied)
     assert any("reviewed" in s for s in result.satisfied)
+
+
+def test_restoring_the_placeholder_citation_fails_the_gate_again(monkeypatch):
+    """THE REGRESSION THAT MATTERS, kept by replaying the original defect.
+
+    The test above now passes because the citation is good. It would also pass
+    if the gate had quietly stopped checking. So the placeholder that
+    DOSSIER-004 recorded - three authorities, no section, version 'current' -
+    is put back on `AVERAGE_BE_2X2` and nothing else is changed. The gate must
+    refuse, for that reason, with every other condition satisfied.
+    """
+    import dataclasses
+
+    from be_stats.dossier.capabilities import CAPABILITY_MATRIX as MATRIX
+    from be_stats.dossier.evidence import EVIDENCE_MANIFEST
+    from be_stats.provenance import Citation
+    from be_stats.spec import Method
+
+    placeholder = Citation(
+        authority="ICH / FDA / EMA",
+        document="Conventional bioequivalence acceptance interval",
+        document_version="current",
+    )
+    patched_matrix = dict(MATRIX)
+    patched_matrix["AVERAGE_BE_2X2"] = dataclasses.replace(
+        MATRIX["AVERAGE_BE_2X2"], regulatory_source=placeholder
+    )
+
+    patched_validation = dict(
+        __import__("be_stats.spec", fromlist=["VALIDATION"]).VALIDATION
+    )
+    patched_validation[Method.STANDARD_ABE] = ValidationStatus.VALIDATED
+
+    monkeypatch.setattr(
+        "be_stats.dossier.capabilities.VALIDATION", patched_validation
+    )
+    monkeypatch.setattr(
+        "be_stats.dossier.release_gate.CAPABILITY_MATRIX", patched_matrix
+    )
+    monkeypatch.setattr(
+        "be_stats.dossier.evidence.EVIDENCE_MANIFEST",
+        (*EVIDENCE_MANIFEST, _tier_1b_evidence_for("AVERAGE_BE_2X2")),
+    )
+
+    result = check_capability(
+        "AVERAGE_BE_2X2",
+        reviewed_transitions=frozenset({"AVERAGE_BE_2X2"}),
+    )
+
+    assert not result.passed, (
+        "The gate accepted VALIDATED on a citation naming three authorities, "
+        "no section and version 'current'. The pinning policy has been "
+        "weakened."
+    )
+    assert len(result.violations) == 1, result.violations
+    violation = result.violations[0]
+    # No declared exception exists for it any more, so the gate reports the
+    # conditions it fails rather than a tracked finding id.
+    assert "unpinned regulatory source" in violation
+    assert "more than one authority" in violation
+    assert "no section" in violation
+    assert "identifies no issue" in violation
 
 
 def test_the_same_capability_passes_once_its_citation_is_pinned(monkeypatch):
@@ -698,17 +758,53 @@ def test_a_vague_version_alone_is_enough_to_fail_the_gate(monkeypatch):
     )
 
 
-def test_an_open_citation_exception_does_not_block_below_validated():
-    """The narrow modelling the brief asked for, asserted from the other side.
+def test_an_open_citation_exception_does_not_block_below_validated(monkeypatch):
+    """The exception blocks a VALIDATED claim, not the capability's existence.
 
-    `AVERAGE_BE_2X2` carries an open citation exception TODAY and is
-    IMPLEMENTED_UNVALIDATED. It must still pass the gate: the exception blocks
-    a VALIDATED claim, not the capability's existence. A rule that blocked
-    everything would turn a provenance gap into an outage.
+    `AVERAGE_BE_2X2` used to carry an open exception and this test read it off
+    the real matrix. DOSSIER-004 closed, so the exception is gone and the rule
+    would now be asserted against a capability that has none - which proves
+    nothing. The exception is therefore injected rather than looked up, and
+    the capability is left at its real IMPLEMENTED_UNVALIDATED status.
+
+    A rule that blocked everything with a provenance gap would turn that gap
+    into an outage, which is the pressure that gets gaps left undeclared.
     """
+    import dataclasses
+
+    from be_stats.dossier.capabilities import CAPABILITY_MATRIX as MATRIX
+    from be_stats.dossier.citations import CitationException
+    from be_stats.provenance import Citation
+
+    unpinned = Citation(
+        authority="ICH / FDA / EMA",
+        document="Conventional bioequivalence acceptance interval",
+        document_version="current",
+    )
+    patched_matrix = dict(MATRIX)
+    patched_matrix["AVERAGE_BE_2X2"] = dataclasses.replace(
+        MATRIX["AVERAGE_BE_2X2"], regulatory_source=unpinned
+    )
+    monkeypatch.setattr(
+        "be_stats.dossier.citations.CITATION_EXCEPTIONS",
+        {
+            unpinned: CitationException(
+                reason="Injected for this test.",
+                tracked_as="DOSSIER-004",
+                resolution="Nothing; the real one is closed.",
+            )
+        },
+    )
+    monkeypatch.setattr(
+        "be_stats.dossier.release_gate.CAPABILITY_MATRIX", patched_matrix
+    )
+
+    record = patched_matrix["AVERAGE_BE_2X2"]
+    assert record.source_citation_exception is not None
+    assert record.validation_status is not ValidationStatus.VALIDATED
+
     result = check_capability("AVERAGE_BE_2X2")
     assert result.passed, result.violations
-    assert CAPABILITY_MATRIX["AVERAGE_BE_2X2"].source_citation_exception is not None
 
 
 def test_open_scope_limitations_do_not_block_validation_generally():
@@ -845,11 +941,27 @@ def test_the_generated_document_reports_provenance_by_kind():
     assert pinned in text, (
         f"The dossier does not print the pinned-citation fraction {pinned}."
     )
-    assert coverage["normative_pinned"] < coverage["normative"]
 
-    # And it names the gap rather than leaving it to subtraction.
+    # The denominator is the normative set and never the whole index. This
+    # used to read `normative_pinned < normative`, which was true while
+    # DOSSIER-004 was open and says nothing about the denominator - the thing
+    # the discredited "29/29" claim actually got wrong.
+    assert coverage["normative_pinned"] <= coverage["normative"]
+    assert f"**{coverage['normative_pinned']}/{coverage['total']}**" not in text, (
+        "The pinned fraction is printed over the whole index. Three derived "
+        "constants carry no regulatory section and never will."
+    )
+
+    # And it names any gap rather than leaving it to subtraction. Vacuous
+    # while there is none, which is why the section itself is asserted absent
+    # below rather than assumed.
     for record in unpinned_normative_constants():
         assert record.constant_id in text, record.constant_id
+
+    if not unpinned_normative_constants():
+        assert "### Normative constants not yet pinned" not in text, (
+            "The dossier prints a not-yet-pinned section with nothing in it."
+        )
 
 
 def test_the_provenance_section_makes_no_universal_pinning_claim():

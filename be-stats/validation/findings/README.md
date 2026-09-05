@@ -95,10 +95,10 @@ regenerate with `python -m be_stats.dossier.render <this file>`.*
 | [`VAL-FDA-HVD-001`](VAL-FDA-HVD-001.md) | PowerTOST's p(BE-sABEc) is the mixed decision, not the scaled criterion alone. The harness had been comparing two quantities that are not the same quantity. | informational | resolved |
 | `DOSSIER-001` | The diagnostic emitted when a partial replicate study is refused is named APPENDIX_C_PARTIAL_REPLICATE_NOT_VALIDATED, while the canonical status of the capability is NOT_IMPLEMENTED. Two words for one situation, and the diagnostic's is the weaker claim. | informational | open |
 | `DOSSIER-002` | In the manual SAS workflow the package hashes and the parsed result are verifiable, and that the output came from running that program in a licensed SAS session is ATTESTED by a named operator rather than proven by the platform. | scope_limitation | open |
-| `DOSSIER-004` | The conventional 80.00-125.00% acceptance interval is not pinned to a primary document. Its citation names a rule rather than a document, gives three authorities at once, and carries the version string 'current' - which `provenance` opens by warning is not a version but a promise that somebody will remember to check. | scope_limitation | open |
+| `DOSSIER-004` | The conventional 80.00-125.00% acceptance interval was not pinned to a primary document. Its citation named a rule rather than a document, gave three authorities at once, and carried the version string 'current' - which `provenance` opens by warning is not a version but a promise that somebody will remember to check. | scope_limitation | resolved |
 | `DOSSIER-003` | No FDA capability holds tier-1B evidence, because FDA has published no worked numerical example of any of these procedures. Every FDA method that produces a number therefore stands at IMPLEMENTED_UNVALIDATED regardless of how much tier-1A and tier-3 evidence supports it. | scope_limitation | open |
 
-Open: `VAL-FDA-APPENDIX-C-002`, `DOSSIER-001`, `DOSSIER-002`, `DOSSIER-004`, `DOSSIER-003`.
+Open: `VAL-FDA-APPENDIX-C-002`, `DOSSIER-001`, `DOSSIER-002`, `DOSSIER-003`.
 
 <!-- END GENERATED findings table -->
 

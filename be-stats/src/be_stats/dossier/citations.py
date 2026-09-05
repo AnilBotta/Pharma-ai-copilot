@@ -61,7 +61,6 @@ import re
 from dataclasses import dataclass
 
 from be_stats.provenance import Citation
-from be_stats.spec import CONVENTIONAL_ACCEPTANCE_CITATION
 
 #: A version string identifies an issue if it carries a year or a revision.
 #:
@@ -167,26 +166,23 @@ class CitationException:
 #: Keyed by the `Citation` OBJECT rather than by constant id or capability id,
 #: which is what keeps the provenance layer and the release gate consistent
 #: for free: `AVERAGE_BE_2X2` and the two conventional-interval constants all
-#: reference the same object, so all three inherit one exception and none of
-#: them names a finding.
-CITATION_EXCEPTIONS: dict[Citation, CitationException] = {
-    CONVENTIONAL_ACCEPTANCE_CITATION: CitationException(
-        reason=(
-            "NOT PINNED. The 80.00-125.00% interval is stated by ICH, FDA and "
-            "EMA alike, and this package has not established WHICH document, "
-            "section and version to cite it from. The citation names a rule "
-            "rather than a document, lists three authorities, and carries the "
-            "version 'current' - which `provenance` opens by warning is not a "
-            "version but a promise that somebody will remember to check."
-        ),
-        tracked_as="DOSSIER-004",
-        resolution=(
-            "Closed by reading a primary source and citing it, never by "
-            "writing a section number from memory: an over-specified citation "
-            "looks checked, which is worse than a coarse one."
-        ),
-    ),
-}
+#: reference the same object, so all three would inherit one exception and
+#: none of them would name a finding.
+#:
+#: CURRENTLY EMPTY, AND THE MACHINERY IS STILL LOAD-BEARING
+#:
+#: The single entry was the conventional 80.00-125.00% interval, tracked as
+#: DOSSIER-004. It was closed by reading ICH M13A 2.2.4 and the FDA and EMA
+#: adoptions of it, so the exception went with it - a stale exception excludes
+#: a good citation from the pinned count, which is the failure mode in the
+#: opposite direction.
+#:
+#: The registry is NOT deleted along with its last entry. An empty dict makes
+#: the invariant tests vacuous, so `test_the_exception_machinery_still_holds_
+#: with_an_empty_registry` drives a fabricated exception through the same
+#: paths. Deleting the mechanism would mean the next unpinned citation has
+#: nowhere to be declared, and undeclared is how one gets absorbed.
+CITATION_EXCEPTIONS: dict[Citation, CitationException] = {}
 
 
 def exception_for(citation: Citation) -> CitationException | None:

@@ -38,11 +38,14 @@ from enum import StrEnum
 from be_stats.provenance import (
     EMA_BIOEQUIVALENCE,
     EMA_BIOEQUIVALENCE_HVD,
+    EMA_M13A_BE_CRITERIA,
+    FDA_M13A_BE_CRITERIA,
     FDA_STATISTICAL_APPROACHES,
     FDA_STATISTICAL_APPROACHES_APPENDIX_F,
     FDA_STATISTICAL_APPROACHES_APPENDIX_G,
     FDA_STATISTICAL_APPROACHES_III_A,
     FDA_STATISTICAL_APPROACHES_III_C,
+    ICH_M13A_BE_CRITERIA,
     VIA_PRIMARY_DOCUMENT,
     Citation,
     RegulatoryValue,
@@ -488,19 +491,47 @@ def _interval(
     )
 
 
-#: The conventional interval. Shared by both regulators for the standard case,
-#: and long enough established that it is treated as verified.
-_ICH_M13A_LIKE = Citation(
-    authority="ICH / FDA / EMA",
-    document="Conventional bioequivalence acceptance interval",
-    document_version="current",
-)
+#: The conventional interval, per jurisdiction.
+#:
+#: This was one placeholder object reading "ICH / FDA / EMA", "Conventional
+#: bioequivalence acceptance interval", "current" - and it was the whole of
+#: DOSSIER-004. It is now three real documents; see the block comment above
+#: `provenance.ICH_M13A_BE_CRITERIA` for what each says and what it does NOT
+#: cover.
+#:
+#: Keyed by jurisdiction rather than shared, because a resolved spec always
+#: HAS a jurisdiction and the reader of that spec is preparing a submission to
+#: that regulator. `_conventional_citation` is the only place that choice is
+#: made.
+_CONVENTIONAL_ACCEPTANCE_CITATIONS: dict[Jurisdiction, Citation] = {
+    Jurisdiction.FDA: FDA_M13A_BE_CRITERIA,
+    Jurisdiction.EMA: EMA_M13A_BE_CRITERIA,
+}
 
-#: The same citation under a public name, so the capability matrix in
-#: `be_stats.dossier` can cite the conventional interval without reaching for a
-#: private module attribute. An alias, not a second citation: one object, so a
-#: correction to the version string reaches both readers.
-CONVENTIONAL_ACCEPTANCE_CITATION = _ICH_M13A_LIKE
+
+def _conventional_citation(jurisdiction: Jurisdiction) -> Citation:
+    """The regulator's own adoption of ICH M13A 2.2.4.
+
+    A KeyError rather than a fallback to the harmonised text: a jurisdiction
+    this package has not checked the adoption of must not silently inherit
+    ICH's, because adoption is the thing being claimed.
+    """
+    try:
+        return _CONVENTIONAL_ACCEPTANCE_CITATIONS[jurisdiction]
+    except KeyError:
+        raise KeyError(
+            f"No conventional-interval citation for {jurisdiction}. The "
+            "interval is cited from the regulator's own adoption of ICH M13A, "
+            "so a new jurisdiction needs its adopting document read and added "
+            "rather than defaulted to ICH's."
+        ) from None
+
+
+#: The harmonised text, under a public name, for readers that have no
+#: jurisdiction to key on: the capability matrix entry `AVERAGE_BE_2X2` is
+#: `jurisdiction=None`, and the two indexed constants describe a number both
+#: regulators apply. One object, so the three of them cannot drift.
+CONVENTIONAL_ACCEPTANCE_CITATION = ICH_M13A_BE_CRITERIA
 
 
 # ------------------------------------------- FDA highly variable drugs ---
@@ -1078,7 +1109,7 @@ def resolve_be_spec(
             or _interval(
                 80.00,
                 125.00,
-                _ICH_M13A_LIKE,
+                _conventional_citation(jur),
                 f"{jur} standard interval",
                 VerificationStatus.VERIFIED,
             ),

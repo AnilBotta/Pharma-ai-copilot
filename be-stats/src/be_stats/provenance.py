@@ -314,6 +314,89 @@ ICH_M13A_QA = Citation(
     document_version="current",
 )
 
+# ------------------------------------------- the conventional BE interval ---
+#
+# WHY THREE CITATIONS FOR ONE NUMBER
+#
+# The 80.00-125.00% interval used to be cited as a single placeholder reading
+# `authority="ICH / FDA / EMA"`, `document="Conventional bioequivalence
+# acceptance interval"`, `document_version="current"` - a rule rather than a
+# document, three bodies rather than one place to look, and a version that
+# identified no issue. That was tracked as DOSSIER-004 and is what these three
+# citations replace.
+#
+# Three, not one, because the sentence appears in three DOCUMENTS. ICH M13A is
+# the harmonised text; FDA and EMA each adopted it as their own instrument,
+# with their own reference number, their own effective date and - in FDA's
+# case - their own section numbering. A reader holding an FDA submission opens
+# the FDA guidance, and telling them to open an ICH file would be handing them
+# a document their reviewer does not administer.
+#
+# The wording is identical in all three, which is why one shared object was
+# tempting. Identical wording is not the same as one document.
+#
+# WHAT THE SECTION ACTUALLY COVERS, WHICH IS NARROWER THAN "BIOEQUIVALENCE"
+#
+# 2.2.4 sits inside 2.2, "Data Analysis for NON-REPLICATE Study Design", and
+# M13A's own scope (1.3) defers highly variable drugs and narrow therapeutic
+# index drugs to the future M13C:
+#
+#     "The third guideline in the series, M13C, will include data analysis and
+#     BE assessment for 1) highly variable drugs, 2) drugs with narrow
+#     therapeutic index, and 3) complex BE study design ..."
+#
+# So this citation supports ordinary average BE on a non-replicate design -
+# 2x2 crossover and parallel, both covered by 2.2.3 - and supports NOTHING
+# about FDA RSABE, FDA NTI, EMA NTI or EMA ABEL. Those keep the citations they
+# already had, which name the documents that do state them.
+#
+# The sentence, verbatim and identical in all three documents:
+#
+#     "The 90% confidence interval for the geometric mean ratio of these PK
+#     parameters used to establish BE should lie within a range of
+#     80.00 - 125.00%."
+
+#: The harmonised text. Cited where no jurisdiction has been chosen yet -
+#: `dossier.capabilities.AVERAGE_BE_2X2` carries `jurisdiction=None` because
+#: the procedure is the same one in both regions.
+ICH_M13A_BE_CRITERIA = Citation(
+    authority="ICH",
+    document="M13A — Bioequivalence for Immediate-Release Solid Oral Dosage Forms",
+    section="2.2.4 Bioequivalence Criteria (within 2.2, non-replicate designs)",
+    document_version="Final version, adopted 23 July 2024",
+    url="https://database.ich.org/sites/default/files/ICH_M13A_Step4_Final_Guideline_2024_0723.pdf",
+)
+
+#: FDA's adoption. FDA renumbers the ICH headings and prints the ICH number in
+#: parentheses, so the section identifier is II.B.4 and not 2.2.4 - which is
+#: exactly the kind of difference a shared citation would have flattened.
+FDA_M13A_BE_CRITERIA = Citation(
+    authority="FDA",
+    document=(
+        "M13A Bioequivalence for Immediate-Release Solid Oral Dosage Forms — "
+        "Guidance for Industry"
+    ),
+    section="II.B.4 Bioequivalence Criteria (2.2.4)",
+    document_version="final, October 2024",
+    url="https://www.fda.gov/media/165049/download",
+)
+
+#: EMA's adoption, which keeps ICH's numbering and adds its own reference
+#: number and coming-into-effect date. Read from the Step 5 cover page.
+EMA_M13A_BE_CRITERIA = Citation(
+    authority="EMA",
+    document=(
+        "ICH M13A Guideline on bioequivalence for immediate-release solid "
+        "oral dosage forms"
+    ),
+    section="2.2.4 Bioequivalence criteria (within 2.2, non-replicate designs)",
+    document_version=(
+        "EMA/CHMP/ICH/953493/2022, Step 5, final adoption by CHMP "
+        "25 July 2024, effective 25 January 2025"
+    ),
+    url="https://www.ema.europa.eu/en/documents/scientific-guideline/ich-m13a-guideline-bioequivalence-immediaterelease-solid-oral-dosage-forms-step-5_en.pdf",
+)
+
 #: A stand-in for values this package computes rather than cites.
 DERIVED_INTERNALLY = Citation(
     authority="be-stats",
