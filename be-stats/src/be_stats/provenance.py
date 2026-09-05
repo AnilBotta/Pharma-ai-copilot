@@ -335,9 +335,10 @@ EMA_PKWP_QA = Citation(
 #
 # "pivotal" - the floor is stated for PIVOTAL BE studies. A pilot relative
 # bioavailability study is named two sentences later as an input to sizing the
-# pivotal one, so the document plainly does not hold a pilot to twelve. That
-# qualifier is NOT currently carried by `minimums.py`; it is recorded as
-# DOSSIER-005 rather than fixed here.
+# pivotal one, so the document plainly does not hold a pilot to twelve. The
+# M13A guideline says the same at 2.1.3, and neither document defines the
+# term. `minimums.StudyRole` now carries the distinction and requires the
+# caller to state it; DOSSIER-005 tracked the gap and is RESOLVED.
 
 ICH_M13A_QA = Citation(
     authority="ICH",

@@ -396,13 +396,15 @@ FINDINGS_REGISTER: tuple[Finding, ...] = (
     Finding(
         finding_id="DOSSIER-005",
         severity=FindingSeverity.SCOPE_LIMITATION,
-        status=FindingStatus.OPEN,
+        status=FindingStatus.RESOLVED,
         affected_capabilities=(),
+        # As raised, in the past tense. The register does not rewrite its own
+        # history when a gap closes - a reader needs to see what was wrong.
         description=(
             "M13A Q&A 2.1 states the twelve-evaluable-subject floor for "
-            "PIVOTAL bioequivalence studies. `minimums.py` carries the "
+            "PIVOTAL bioequivalence studies. `minimums.py` carried the "
             "figures and the word 'evaluable' but not the word 'pivotal', so "
-            "a caller running a pilot relative bioavailability study is "
+            "a caller running a pilot relative bioavailability study was "
             "returned a floor the document does not place on it."
         ),
         evidence=(
@@ -413,19 +415,24 @@ FINDINGS_REGISTER: tuple[Finding, ...] = (
             "established practice by regulatory agencies.' The same answer "
             "then names a pilot relative bioavailability study as an INPUT to "
             "sizing the pivotal one, so the document plainly does not hold a "
-            "pilot to the floor. `RegulatoryMinimum.scope` currently reads "
-            "'immediate-release solid oral dosage forms', which is M13A's "
-            "dosage-form scope and not its study-role scope."
+            "pilot to the floor. The M13A GUIDELINE states the same rule at "
+            "2.1.3 and also says 'pivotal', which corroborates the Q&A "
+            "independently. Neither document defines the term - M13A's "
+            "glossary has no entry for 'pivotal' or 'pilot' - so it cannot be "
+            "derived and must be stated by the caller."
         ),
         resolution_condition=(
-            "Decide whether `lookup` should take the study's role, or whether "
-            "the qualifier belongs in `scope` alone. It is recorded rather "
-            "than fixed because it changes what a study-design rule returns, "
-            "which is not a provenance edit. The direction of the error is "
-            "conservative - a floor applied where none is required - but "
-            "conservative is not correct, and this module's own docstring "
-            "names applying a document's rule outside its scope as the "
-            "failure it exists to prevent."
+            "Satisfied. `minimums.StudyRole` models the distinction "
+            "explicitly and is never inferred; the constraint lives per "
+            "registry row as `applies_to_roles`, so it reaches M13A's rows "
+            "and NOT FDA's Statistical Approaches II.A, which states its own "
+            "twelve for 'a PK BE study' without qualifying the role. "
+            "`lookup` returns a `MinimumOutcome` distinguishing APPLIES from "
+            "NOT_APPLICABLE_FOR_ROLE, ROLE_NOT_STATED and NONE_CONFIRMED, so "
+            "a floor that does not apply is reported rather than encoded as "
+            "zero or as an absent rule. An unstated role never collects the "
+            "floor, and `power.sample_size_abe` raises rather than quietly "
+            "recommending a smaller study."
         ),
     ),
     Finding(

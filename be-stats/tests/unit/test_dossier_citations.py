@@ -593,22 +593,28 @@ def test_the_crossover_and_parallel_rules_cite_the_same_question():
     sentence. If they ever cite different sections, one of them has been
     re-sourced without the other.
     """
-    from be_stats.minimums import DesignFamily, Framework, lookup
+    from be_stats.minimums import DesignFamily, Framework, StudyRole, lookup
 
     for jurisdiction in ("FDA", "EMA"):
         crossover = lookup(
-            jurisdiction, DesignFamily.CROSSOVER, framework=Framework.ICH_M13A
+            jurisdiction,
+            DesignFamily.CROSSOVER,
+            framework=Framework.ICH_M13A,
+            study_role=StudyRole.PIVOTAL,
         )
         parallel = lookup(
-            jurisdiction, DesignFamily.PARALLEL, framework=Framework.ICH_M13A
+            jurisdiction,
+            DesignFamily.PARALLEL,
+            framework=Framework.ICH_M13A,
+            study_role=StudyRole.PIVOTAL,
         )
-        assert crossover is not None and parallel is not None
-        assert crossover.citation is parallel.citation, jurisdiction
-        assert is_pinned(crossover.citation)
+        assert crossover.applies and parallel.applies
+        assert crossover.rule.citation is parallel.rule.citation, jurisdiction
+        assert is_pinned(crossover.rule.citation)
 
         # And they still say different things about the number.
-        assert crossover.evaluable_total == 12
-        assert parallel.evaluable_per_group == 12
+        assert crossover.rule.evaluable_total == 12
+        assert parallel.rule.evaluable_per_group == 12
         assert crossover.required_total() == 12
         assert parallel.required_total() == 24
 
@@ -620,7 +626,13 @@ def test_pinning_the_citations_changed_no_regulatory_minimum():
     subjects in pivotal BE studies for a crossover design, or a minimum of 12
     per treatment group for a parallel design".
     """
-    from be_stats.minimums import DesignFamily, Framework, lookup
+    from be_stats.minimums import (
+        DesignFamily,
+        Framework,
+        MinimumApplicability,
+        StudyRole,
+        lookup,
+    )
 
     expected = {
         ("EMA", Framework.ICH_M13A, DesignFamily.CROSSOVER): 12,
@@ -631,13 +643,26 @@ def test_pinning_the_citations_changed_no_regulatory_minimum():
         ("FDA", Framework.GENERAL, DesignFamily.PARALLEL): 12,
     }
     for (jurisdiction, framework, design), total in expected.items():
-        row = lookup(jurisdiction, design, framework=framework)
-        assert row is not None, (jurisdiction, framework, design)
-        assert row.required_total() == total, (jurisdiction, framework, design)
-        assert row.counts == "evaluable subjects"
+        # PIVOTAL throughout: this test asks whether the FIGURES survived the
+        # citation work, so it holds the role fixed at the one every row
+        # applies to. Whether the role gates a row is tested separately.
+        outcome = lookup(
+            jurisdiction,
+            design,
+            framework=framework,
+            study_role=StudyRole.PIVOTAL,
+        )
+        assert outcome.applies, (jurisdiction, framework, design)
+        assert outcome.required_total() == total, (jurisdiction, framework, design)
+        assert outcome.rule.counts == "evaluable subjects"
 
     # EMA + GENERAL stays absent. Nothing here invented one.
-    assert lookup("EMA", DesignFamily.CROSSOVER, framework=Framework.GENERAL) is None
+    assert (
+        lookup(
+            "EMA", DesignFamily.CROSSOVER, framework=Framework.GENERAL
+        ).applicability
+        is MinimumApplicability.NONE_CONFIRMED
+    )
 
 
 def test_every_unpinned_citation_in_use_is_declared():
