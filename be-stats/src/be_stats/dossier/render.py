@@ -38,6 +38,11 @@ from be_stats.dossier.constants import (
     unpinned_normative_constants,
 )
 from be_stats.dossier.evidence import EVIDENCE_MANIFEST, SAS_EVIDENCE_INTAKE
+from be_stats.dossier.evidence_search import (
+    ORDINARY_ABE_TIER_1B_SEARCH,
+    adopted_sources,
+    rejected_candidates,
+)
 from be_stats.dossier.findings import FINDINGS_REGISTER
 from be_stats.dossier.refusals import REFUSALS
 from be_stats.dossier.release_gate import check_release_gate
@@ -219,6 +224,81 @@ def _evidence_section() -> list[str]:
         "```",
         "",
     ]
+    return lines
+
+
+def _evidence_search_section() -> list[str]:
+    """What was looked for, where, and what each document turned out to hold.
+
+    Printed next to the evidence table on purpose. The table says what the
+    package has; without this, a reader has no way to tell an absence that was
+    searched for from one that was never investigated.
+    """
+    lines = [
+        "## Evidence searches",
+        "",
+        "A negative finding that cannot be audited is an assertion. These are",
+        "the documents opened while looking for evidence this package does",
+        "not have, with the verdict on each and the sections actually read.",
+        "",
+        "`no_numerical_output` is not a criticism of a guidance. A document",
+        "that states a procedure and publishes no dataset to run it on is",
+        "tier-1A material, which is a description of its contents and not a",
+        "complaint about them.",
+        "",
+        "### Ordinary (non-replicate) average bioequivalence, tier 1B",
+        "",
+        "Tracked by `DOSSIER-003`. The question: has any regulator published",
+        "a worked ordinary 2x2 or parallel average-BE analysis WITH its point",
+        "estimate and confidence interval?",
+        "",
+        *_table(
+            ["authority", "document", "version", "verdict"],
+            [
+                [
+                    source.authority,
+                    _escape(source.document),
+                    _escape(source.document_version),
+                    f"`{source.verdict}`",
+                ]
+                for source in ORDINARY_ABE_TIER_1B_SEARCH
+            ],
+        ),
+        "",
+    ]
+
+    adopted = adopted_sources()
+    lines.append(
+        f"**Adopted: {len(adopted)}.**"
+        + (
+            ""
+            if adopted
+            else " Nothing in this search became evidence, which is the"
+            " answer rather than the absence of one."
+        )
+    )
+    lines.append("")
+
+    rejected = rejected_candidates()
+    if rejected:
+        lines += [
+            "#### Candidates that published the right kind of number",
+            "",
+            "The near miss is the dangerous case, because the next reader",
+            "finds it again. Each carries the condition it fails.",
+            "",
+        ]
+        for source in rejected:
+            lines.append(
+                f"**{source.authority} — {_escape(source.document)}** "
+                f"({_escape(source.document_version)})"
+            )
+            lines.append("")
+            lines.append(f"- read at: {_escape(source.sections_read)}")
+            lines.append(f"- found: {_escape(source.found)}")
+            lines.append(f"- not used because: {_escape(source.rejected_because)}")
+            lines.append("")
+
     return lines
 
 
@@ -512,6 +592,8 @@ def render_dossier() -> str:
     lines += _refusal_section()
     lines += ["---", ""]
     lines += _evidence_section()
+    lines += ["---", ""]
+    lines += _evidence_search_section()
     lines += ["---", ""]
     lines += _provenance_section()
     lines += ["---", ""]

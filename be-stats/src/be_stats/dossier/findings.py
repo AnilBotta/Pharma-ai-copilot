@@ -445,19 +445,48 @@ FINDINGS_REGISTER: tuple[Finding, ...] = (
             "AVERAGE_BE_2X2",
         ),
         description=(
-            "No FDA capability holds tier-1B evidence, because FDA has "
-            "published no worked numerical example of any of these "
-            "procedures. Every FDA method that produces a number therefore "
-            "stands at IMPLEMENTED_UNVALIDATED regardless of how much tier-1A "
-            "and tier-3 evidence supports it."
+            "No FDA capability holds tier-1B evidence. Every FDA method that "
+            "produces a number therefore stands at IMPLEMENTED_UNVALIDATED "
+            "regardless of how much tier-1A and tier-3 evidence supports it. "
+            "This finding previously said FDA 'has published no worked "
+            "numerical example of any of these procedures'; that was stated "
+            "without a recorded search behind it and is too strong - see the "
+            "evidence below. The finding stands; its premise is narrower."
         ),
         evidence=(
-            "The validation ladder in validation/README.md, and the absence "
-            "of any FDA-published dataset with published results."
+            "The validation ladder in validation/README.md, and now a "
+            "recorded search: `dossier.evidence_search`. Eight documents were "
+            "opened and read at their sections. FDA's Statistical Approaches "
+            "(final, May 2026), FDA and ICH M13A and its Q&As, and the EMA "
+            "guideline all state procedure and publish no output. EMA's PKWP "
+            "Q&A publishes data WITH results, and they are replicate designs "
+            "already serving EMA_REPLICATE_METHOD_A. EMA's Appendix IV is a "
+            "blank template. "
+            "One near miss: FDA's Center for Veterinary Medicine published a "
+            "worked twelve-subject 2x2 crossover with its confidence "
+            "interval, as CVM GFI #224 supplementing VICH GL52 - a FINAL "
+            "guidance, September 2014. be-stats reproduces its limits and "
+            "denominator df through the production path, and in doing so "
+            "shows its printed difference of 0.1958 carries a misplaced "
+            "decimal - the published limits and standard error are mutually "
+            "consistent with 0.01958. It is not adopted, on two grounds: it "
+            "is veterinary and its subjects are animals, and a table that "
+            "contradicts itself cannot be reproduced without deciding which "
+            "of its numbers is authoritative. It is NOT rejected for being a "
+            "draft; an earlier version of this finding said so and was wrong."
         ),
         resolution_condition=(
-            "An FDA-published worked example, or a licensed SAS run of FDA's "
-            "own example code on published inputs."
+            "A HUMAN bioequivalence worked example published by FDA in a "
+            "final document, internally consistent, for a procedure this "
+            "package implements - or a licensed SAS run of FDA's own "
+            "Appendix C or F/G statements on published inputs. All three "
+            "conditions are general policy and each must hold. CVM GFI #224 "
+            "fails HUMAN and CONSISTENT; it satisfies FINAL, and this "
+            "finding previously misstated that. A future FDA example failing "
+            "any one of the three does not close this. Reproducing an "
+            "example does not close it by itself either: the release gate "
+            "separately requires a pinned source, no disqualifying blocker, "
+            "and a reviewed transition."
         ),
         blocker_id="FDA-TIER-1B-WORKED-EXAMPLE",
     ),

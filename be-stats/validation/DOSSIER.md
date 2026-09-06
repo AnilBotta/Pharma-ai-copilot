@@ -572,6 +572,55 @@ side effect of an upload, and no test fixture may set them at all.
 
 ---
 
+## Evidence searches
+
+A negative finding that cannot be audited is an assertion. These are
+the documents opened while looking for evidence this package does
+not have, with the verdict on each and the sections actually read.
+
+`no_numerical_output` is not a criticism of a guidance. A document
+that states a procedure and publishes no dataset to run it on is
+tier-1A material, which is a description of its contents and not a
+complaint about them.
+
+### Ordinary (non-replicate) average bioequivalence, tier 1B
+
+Tracked by `DOSSIER-003`. The question: has any regulator published
+a worked ordinary 2x2 or parallel average-BE analysis WITH its point
+estimate and confidence interval?
+
+| authority | document | version | verdict |
+|---|---|---|---|
+| FDA | Statistical Approaches to Establishing Bioequivalence | final, May 2026 | `no_numerical_output` |
+| FDA | M13A Bioequivalence for Immediate-Release Solid Oral Dosage Forms — Guidance for Industry | final, October 2024 | `no_numerical_output` |
+| FDA | M13A Bioequivalence for Immediate-Release Solid Oral Dosage Forms: Questions and Answers — Guidance for Industry | final, October 2024 | `no_numerical_output` |
+| ICH | M13A — Bioequivalence for Immediate-Release Solid Oral Dosage Forms | Final version, adopted 23 July 2024 | `no_numerical_output` |
+| EMA | Guideline on the Investigation of Bioequivalence | CPMP/EWP/QWP/1401/98 Rev. 1, effective 1 August 2010 | `no_numerical_output` |
+| EMA | Questions & Answers: Positions on specific questions addressed to the Pharmacokinetics Working Party | EMA/618604/2008 Rev. 13 | `numbers_for_another_method` |
+| EMA | Appendix IV of the Guideline on the Investigation on Bioequivalence: presentation of biopharmaceutical and bioanalytical data in module 2.7.1 | EMA/CHMP/600958/2010/Corr. | `template_only` |
+| FDA | CVM GFI #224 (Supplement to VICH GL52) — Supplemental Examples For Illustrating Statistical Concepts Described in the VICH In Vivo Bioequivalence Guidance GL52 | CVM GFI #224, final, September 2014 | `numbers_out_of_scope` |
+
+**Adopted: 0.** Nothing in this search became evidence, which is the answer rather than the absence of one.
+
+#### Candidates that published the right kind of number
+
+The near miss is the dangerous case, because the next reader
+finds it again. Each carries the condition it fails.
+
+**EMA — Questions & Answers: Positions on specific questions addressed to the Pharmacokinetics Working Party** (EMA/618604/2008 Rev. 13)
+
+- read at: Sections 1-3, the statistical analysis question, and the annexed Data set I and Data set II.
+- found: THE CLOSEST EMA COMES, and it is a replicate design. Data set I is four-period unbalanced and Data set II three-period balanced; both are published WITH results and both are already reproduced as tier-1B evidence for EMA_REPLICATE_METHOD_A. The document says in terms that the fixed-versus-random question 'is not important for the standard two period, two sequence (2x2) crossover trial' - and then publishes no 2x2 example, because its subject is replicate designs.
+- not used because: A replicate design routed through an ordinary ANOVA is a different model from an ordinary 2x2 analysis; the package already separates them into different capabilities for exactly this reason. Reusing this evidence for AVERAGE_BE_2X2 would claim a design the data does not contain.
+
+**FDA — CVM GFI #224 (Supplement to VICH GL52) — Supplemental Examples For Illustrating Statistical Concepts Described in the VICH In Vivo Bioequivalence Guidance GL52** (CVM GFI #224, final, September 2014)
+
+- read at: 'Bioequivalence data statistical analysis' in full: Table 1 (the dataset), Table 2 (tests of fixed effects), Table 3 (difference and confidence interval), and the text deriving the BE bounds. Status and date read from FDA's guidance page for GFI #224, not from the PDF, which carries neither.
+- found: THE ONLY FDA-PUBLISHED ORDINARY 2x2 WORKED EXAMPLE FOUND, and a FINAL guidance: FDA's guidance page carries the status field 'Final' with September 2014 and docket FDA-2014-D-1352, and FDA's Guidance-by-Number listing gives 24 September 2014. A twelve-subject, two-sequence, two-period crossover with the subject-level values printed, analysed on the natural-log scale, published with denominator df 10, SE 0.02991, 90% limits -0.0346 and 0.0738, and the bounds exp(-0.0346)=0.97 and exp(0.0738)=1.08. be-stats reproduces the limits and the df through its production `analyse_crossover` path - see tests/validation/test_fda_cvm_vich_gl52_candidate.py, which records the comparison rather than claiming it as evidence.
+- not used because: Two independent reasons, either of which is sufficient. (1) SCOPE: it is FDA Center for Veterinary Medicine guidance supplementing VICH GL52, and its subjects are animals; AVERAGE_BE_2X2 is cited to ICH M13A 2.2.4, whose scope is human immediate-release solid oral dosage forms. Applying a document outside its scope is the failure this package exists to prevent. (2) INTERNAL CONSISTENCY: Table 3 prints the difference as 0.1958, which does not lie between its own published 90% limits of -0.0346 and 0.0738. The limits and the standard error are mutually consistent with a difference of 0.01958, so the printed figure carries a misplaced decimal point. Adopting the table would mean deciding which of its published numbers is authoritative, which is inferring an expected value rather than reproducing one. NOT a reason, and recorded here because this record asserted it and was wrong: the supplement is NOT a draft and NOT undated. It is final, September 2014, and could be pinned. Removing a false ground makes the rejection rest on the two that survive scrutiny.
+
+---
+
 ## Source provenance
 
 Every regulatory number, and why it is here.
@@ -899,10 +948,10 @@ M13A Q&A 2.1 states the twelve-evaluable-subject floor for PIVOTAL bioequivalenc
 
 ### `DOSSIER-003`
 
-No FDA capability holds tier-1B evidence, because FDA has published no worked numerical example of any of these procedures. Every FDA method that produces a number therefore stands at IMPLEMENTED_UNVALIDATED regardless of how much tier-1A and tier-3 evidence supports it.
+No FDA capability holds tier-1B evidence. Every FDA method that produces a number therefore stands at IMPLEMENTED_UNVALIDATED regardless of how much tier-1A and tier-3 evidence supports it. This finding previously said FDA 'has published no worked numerical example of any of these procedures'; that was stated without a recorded search behind it and is too strong - see the evidence below. The finding stands; its premise is narrower.
 
-- **evidence** - The validation ladder in validation/README.md, and the absence of any FDA-published dataset with published results.
-- **resolution condition** - An FDA-published worked example, or a licensed SAS run of FDA's own example code on published inputs.
+- **evidence** - The validation ladder in validation/README.md, and now a recorded search: `dossier.evidence_search`. Eight documents were opened and read at their sections. FDA's Statistical Approaches (final, May 2026), FDA and ICH M13A and its Q&As, and the EMA guideline all state procedure and publish no output. EMA's PKWP Q&A publishes data WITH results, and they are replicate designs already serving EMA_REPLICATE_METHOD_A. EMA's Appendix IV is a blank template. One near miss: FDA's Center for Veterinary Medicine published a worked twelve-subject 2x2 crossover with its confidence interval, as CVM GFI #224 supplementing VICH GL52 - a FINAL guidance, September 2014. be-stats reproduces its limits and denominator df through the production path, and in doing so shows its printed difference of 0.1958 carries a misplaced decimal - the published limits and standard error are mutually consistent with 0.01958. It is not adopted, on two grounds: it is veterinary and its subjects are animals, and a table that contradicts itself cannot be reproduced without deciding which of its numbers is authoritative. It is NOT rejected for being a draft; an earlier version of this finding said so and was wrong.
+- **resolution condition** - A HUMAN bioequivalence worked example published by FDA in a final document, internally consistent, for a procedure this package implements - or a licensed SAS run of FDA's own Appendix C or F/G statements on published inputs. All three conditions are general policy and each must hold. CVM GFI #224 fails HUMAN and CONSISTENT; it satisfies FINAL, and this finding previously misstated that. A future FDA example failing any one of the three does not close this. Reproducing an example does not close it by itself either: the release gate separately requires a pinned source, no disqualifying blocker, and a reviewed transition.
 - **blocker** - `FDA-TIER-1B-WORKED-EXAMPLE`
 
 ---
