@@ -160,19 +160,76 @@ def test_the_published_difference_column_is_internally_inconsistent(case):
 # ----------------------------------------- and it is still not tier-1B ---
 
 
+def _gl52():
+    matches = [s for s in ORDINARY_ABE_TIER_1B_SEARCH if "GL52" in s.document]
+    assert len(matches) == 1, "The GL52 candidate is no longer in the registry."
+    return matches[0]
+
+
 def test_the_candidate_is_recorded_as_out_of_scope_not_adopted():
     """The verdict, asserted where it is written down."""
-    gl52 = [
-        s for s in ORDINARY_ABE_TIER_1B_SEARCH if "GL52" in s.document
-    ]
-    assert len(gl52) == 1, "The GL52 candidate is no longer in the registry."
-    source = gl52[0]
+    source = _gl52()
 
     assert source.verdict is SearchVerdict.NUMBERS_OUT_OF_SCOPE
     assert source.rejected_because.strip(), "A rejection must state its reason."
-    # The three independent reasons, each named.
-    for reason in ("VETERINARY", "DRAFT", "0.1958"):
+    # The two surviving reasons, each named.
+    for reason in ("SCOPE", "0.1958"):
         assert reason in source.rejected_because, reason
+
+
+def test_the_candidate_is_recorded_as_a_final_dated_fda_guidance():
+    """THE REVIEW FINDING THIS TEST EXISTS TO PREVENT REPEATING.
+
+    This record first read "FDA/CVM, undated; supplements VICH GL52 in draft",
+    and a rejection ground was built on that. Both were wrong. The PDF's first
+    line says "... VICH In Vivo Bioequivalence DRAFT Guidance GL52", which
+    names the state GL52 was in when the examples were written; FDA's own
+    guidance page carries a status field reading "Final", September 2014,
+    docket FDA-2014-D-1352.
+
+    A document's status is read from the issuing page's status field, never
+    inferred from a phrase inside its title. That is the same rule the
+    citation policy already applies to versions, and this is where it is now
+    enforced for this record.
+    """
+    source = _gl52()
+
+    assert "final" in source.document_version.lower(), source.document_version
+    assert "2014" in source.document_version, source.document_version
+    assert "GFI #224" in source.document_version or "GFI #224" in source.document
+
+    lowered = source.document_version.lower()
+    assert "undated" not in lowered, source.document_version
+    assert "draft" not in lowered, (
+        f"{source.document_version!r} calls the supplement a draft. It is a "
+        "final FDA guidance; the word 'Draft' in the PDF's title belongs to "
+        "GL52, not to this document."
+    )
+
+
+def test_draft_status_is_not_a_rejection_ground_for_this_candidate():
+    """The false ground, kept out by assertion rather than by memory.
+
+    Scoped to the sentence that does the rejecting. The record is allowed to
+    NAME the error it used to make - and does, deliberately - so a blanket
+    ban on the word would either fail on that sentence or be weakened until
+    it matched nothing. What must not return is 'draft' as a REASON.
+    """
+    source = _gl52()
+    reason = source.rejected_because
+
+    # The correction is recorded, so the word appears. What must not appear is
+    # the claim, and the count of grounds is what carries it.
+    assert "Two independent reasons" in reason, (
+        "The rejection no longer states two grounds. If a third has been "
+        "added, it must be defensible - the last one was not."
+    )
+    assert "NOT a reason" in reason, (
+        "The record no longer says draft status is not a reason. That "
+        "sentence is what stops the ground being reinstated by someone "
+        "reading the PDF's title."
+    )
+    assert "is NOT a draft and NOT undated" in reason, reason
 
 
 def test_the_candidate_never_becomes_evidence_for_a_capability():

@@ -215,18 +215,42 @@ ORDINARY_ABE_TIER_1B_SEARCH: tuple[SearchedSource, ...] = (
         sought="ordinary non-replicate average BE, published numerical output",
         authority="FDA",
         document=(
-            "Supplemental Examples For Illustrating Statistical Concepts "
-            "Described in the VICH In Vivo Bioequivalence Draft Guidance GL52"
+            "CVM GFI #224 (Supplement to VICH GL52) — Supplemental Examples "
+            "For Illustrating Statistical Concepts Described in the VICH In "
+            "Vivo Bioequivalence Guidance GL52"
         ),
-        document_version="FDA/CVM, undated; supplements VICH GL52 in draft",
+        # A CORRECTION, AND WHERE THE ERROR CAME FROM
+        #
+        # This record first read "FDA/CVM, undated; supplements VICH GL52 in
+        # draft", and a rejection ground was built on it. Both were wrong.
+        #
+        # The PDF's own first line reads "... VICH In Vivo Bioequivalence
+        # DRAFT Guidance GL52", and that was taken to describe the supplement.
+        # It does not: it names the state GL52 was in when these examples were
+        # written. The supplement itself is a final FDA guidance, and FDA's
+        # guidance page says so in a field of its own - "Final", September
+        # 2014, docket FDA-2014-D-1352. FDA's Guidance-by-Number listing gives
+        # 24 September 2014; the month is used here because that is what the
+        # guidance page itself shows, and an over-specific citation looks
+        # checked when it is not.
+        #
+        # The lesson is the one the citation policy already encodes: a
+        # document's status is read from the issuing page's status field, not
+        # inferred from a phrase inside its title.
+        document_version="CVM GFI #224, final, September 2014",
         sections_read=(
             "'Bioequivalence data statistical analysis' in full: Table 1 (the "
             "dataset), Table 2 (tests of fixed effects), Table 3 (difference "
-            "and confidence interval), and the text deriving the BE bounds."
+            "and confidence interval), and the text deriving the BE bounds. "
+            "Status and date read from FDA's guidance page for GFI #224, not "
+            "from the PDF, which carries neither."
         ),
         verdict=SearchVerdict.NUMBERS_OUT_OF_SCOPE,
         found=(
-            "THE ONLY FDA-PUBLISHED ORDINARY 2x2 WORKED EXAMPLE FOUND. A "
+            "THE ONLY FDA-PUBLISHED ORDINARY 2x2 WORKED EXAMPLE FOUND, and a "
+            "FINAL guidance: FDA's guidance page carries the status field "
+            "'Final' with September 2014 and docket FDA-2014-D-1352, and "
+            "FDA's Guidance-by-Number listing gives 24 September 2014. A "
             "twelve-subject, two-sequence, two-period crossover with the "
             "subject-level values printed, analysed on the natural-log scale, "
             "published with denominator df 10, SE 0.02991, 90% limits "
@@ -237,23 +261,24 @@ ORDINARY_ABE_TIER_1B_SEARCH: tuple[SearchedSource, ...] = (
             "records the comparison rather than claiming it as evidence."
         ),
         rejected_because=(
-            "Three independent reasons, any one of which is sufficient. "
-            "(1) SCOPE: it supplements VICH GL52, a VETERINARY guidance, and "
-            "its subjects are animals; AVERAGE_BE_2X2 is cited to ICH M13A "
-            "2.2.4, whose scope is human immediate-release solid oral dosage "
-            "forms. Applying a document outside its scope is the failure this "
-            "package exists to prevent. "
-            "(2) STATUS: it supplements a DRAFT guidance and carries no issue "
-            "date of its own, so it cannot be pinned to the standard "
-            "`citations.is_pinned` requires. "
-            "(3) INTERNAL CONSISTENCY: Table 3 prints the difference as "
+            "Two independent reasons, either of which is sufficient. "
+            "(1) SCOPE: it is FDA Center for Veterinary Medicine guidance "
+            "supplementing VICH GL52, and its subjects are animals; "
+            "AVERAGE_BE_2X2 is cited to ICH M13A 2.2.4, whose scope is human "
+            "immediate-release solid oral dosage forms. Applying a document "
+            "outside its scope is the failure this package exists to prevent. "
+            "(2) INTERNAL CONSISTENCY: Table 3 prints the difference as "
             "0.1958, which does not lie between its own published 90% limits "
             "of -0.0346 and 0.0738. The limits and the standard error are "
             "mutually consistent with a difference of 0.01958, so the printed "
             "figure carries a misplaced decimal point. Adopting the table "
             "would mean deciding which of its published numbers is "
             "authoritative, which is inferring an expected value rather than "
-            "reproducing one."
+            "reproducing one. "
+            "NOT a reason, and recorded here because this record asserted it "
+            "and was wrong: the supplement is NOT a draft and NOT undated. It "
+            "is final, September 2014, and could be pinned. Removing a false "
+            "ground makes the rejection rest on the two that survive scrutiny."
         ),
         url="https://www.fda.gov/media/89845/download",
     ),

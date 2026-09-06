@@ -5,8 +5,13 @@
   "source": {
     "authority": "FDA",
     "centre": "Center for Veterinary Medicine",
-    "document": "Supplemental Examples For Illustrating Statistical Concepts Described in the VICH In Vivo Bioequivalence Draft Guidance GL52",
-    "document_version": "undated; supplements VICH GL52 in draft",
+    "document": "CVM GFI #224 (Supplement to VICH GL52) - Supplemental Examples For Illustrating Statistical Concepts Described in the VICH In Vivo Bioequivalence Guidance GL52",
+    "document_version": "CVM GFI #224, final, September 2014",
+    "status": "Final",
+    "docket": "FDA-2014-D-1352",
+    "date_on_guidance_by_number_listing": "24 September 2014",
+    "status_and_date_read_from": "FDA's guidance page for GFI #224 and FDA's Guidance-by-Number listing. The PDF itself carries neither a status field nor a date.",
+    "note_on_the_pdf_title": "The PDF's first line reads '... VICH In Vivo Bioequivalence DRAFT Guidance GL52'. That names the state GL52 was in when these examples were written; it does not describe this supplement, which is final. An earlier version of this record inferred draft status from that phrase and was wrong.",
     "section": "Example: bioequivalence data statistical analysis",
     "url": "https://www.fda.gov/media/89845/download"
   },

@@ -200,10 +200,40 @@ def test_dossier_003_stays_open_while_the_capability_has_no_tier_1b():
 
 
 def test_dossier_003_resolution_condition_says_what_is_still_missing():
-    """A condition that only says 'more evidence' closes on anything."""
+    """A condition that only says 'more evidence' closes on anything.
+
+    All three requirements are general governance policy for a future tier-1B
+    source. They are NOT a list of what the GL52 candidate failed - it
+    satisfies FINAL - and the condition says so explicitly, because a reader
+    who assumes otherwise reconstructs the error this PR was reviewed for.
+    """
     condition = FINDINGS["DOSSIER-003"].resolution_condition.lower()
     for requirement in ("human", "final", "consistent"):
         assert requirement in condition, (
             f"The resolution condition no longer requires {requirement!r}. "
-            "Each was added because the VICH GL52 candidate failed it."
+            "Each is a standing requirement on a future tier-1B source."
         )
+    assert "satisfies final" in condition, (
+        "The condition no longer records that CVM GFI #224 meets the FINAL "
+        "requirement. Without that sentence the three requirements read as "
+        "the candidate's three failures, which is the misstatement corrected "
+        "here."
+    )
+
+
+def test_no_finding_calls_the_cvm_supplement_a_draft():
+    """The corrected claim, policed in the register too.
+
+    DOSSIER-003's evidence text carried the same error as the search record.
+    Asserted on the sentence that would restate it rather than on the word,
+    which the correction itself has to use.
+    """
+    evidence_text = FINDINGS["DOSSIER-003"].evidence
+    assert "it supplements a DRAFT" not in evidence_text, (
+        "DOSSIER-003 again describes CVM GFI #224 as supplementing a draft "
+        "as a ground for rejection. It is a final guidance, September 2014."
+    )
+    assert "FINAL guidance" in evidence_text, (
+        "DOSSIER-003 no longer records that the candidate is a final "
+        "guidance, which is the fact the correction turned on."
+    )
