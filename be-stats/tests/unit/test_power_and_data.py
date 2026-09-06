@@ -121,22 +121,35 @@ def test_both_jurisdictions_floor_an_m13a_crossover_at_twelve():
     Both regions cite their own publication of the same Q&A, which is why the
     registry keys on jurisdiction as well as framework and design.
     """
-    from be_stats.minimums import Framework
+    from be_stats.minimums import Framework, StudyRole
 
     m13a = Framework.ICH_M13A
     fda = sample_size_abe(
-        cv_percent=10.0, spec=FDA_SPEC, design="2x2", framework=m13a
+        cv_percent=10.0,
+        spec=FDA_SPEC,
+        design="2x2",
+        framework=m13a,
+        study_role=StudyRole.PIVOTAL,
     )
     ema = sample_size_abe(
-        cv_percent=10.0, spec=EMA_SPEC, design="2x2", framework=m13a
+        cv_percent=10.0,
+        spec=EMA_SPEC,
+        design="2x2",
+        framework=m13a,
+        study_role=StudyRole.PIVOTAL,
     )
 
     assert fda.mathematical_n == ema.mathematical_n == 8
     assert fda.regulatory_n == ema.regulatory_n == 12
     assert fda.recommended_n == ema.recommended_n == 12
 
-    assert "FDA" in str(fda.regulatory_rule.citation)
-    assert "ICH" in str(ema.regulatory_rule.citation)
+    # The AUTHORITY field, not a substring of the rendered citation. This read
+    # `"ICH" in str(ema.regulatory_rule.citation)` and passed for the wrong
+    # reason once EMA's own Q&A was cited in PR #77: that document is TITLED
+    # "ICH M13A Guideline on bioequivalence...", so the letters survive
+    # exactly the change the assertion should have caught.
+    assert fda.regulatory_rule.citation.authority == "FDA"
+    assert ema.regulatory_rule.citation.authority == "EMA"
 
 
 def test_recommended_n_is_even_even_when_the_floor_is_odd():

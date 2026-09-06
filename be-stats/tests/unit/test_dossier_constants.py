@@ -135,6 +135,55 @@ def test_no_normative_constant_is_unpinned():
     )
 
 
+def test_dossier_005_is_resolved_and_backed_by_the_behaviour():
+    """Closure that cannot be asserted in the register alone.
+
+    A finding may not read RESOLVED because somebody edited its status. The
+    behaviour it tracked is exercised here: the pivotal floor applies, the
+    pilot floor does not, and an unstated role collects neither.
+    """
+    from be_stats.dossier.findings import FINDINGS, FindingStatus
+    from be_stats.minimums import (
+        DesignFamily,
+        Framework,
+        MinimumApplicability,
+        StudyRole,
+        lookup,
+    )
+
+    finding = FINDINGS["DOSSIER-005"]
+    assert finding.status is FindingStatus.RESOLVED
+
+    def outcome(role):
+        return lookup(
+            "FDA",
+            DesignFamily.CROSSOVER,
+            framework=Framework.ICH_M13A,
+            study_role=role,
+        )
+
+    assert outcome(StudyRole.PIVOTAL).required_total() == 12
+    assert outcome(StudyRole.PILOT).required_total() is None
+    assert outcome(StudyRole.NOT_STATED).required_total() is None
+    assert (
+        outcome(StudyRole.NOT_STATED).applicability
+        is MinimumApplicability.ROLE_NOT_STATED
+    ), (
+        "DOSSIER-005 reads RESOLVED while an unstated role still collects "
+        "M13A's floor, or while it is indistinguishable from a pilot."
+    )
+
+    # And the rule that is NOT role-scoped still applies to every role.
+    for role in StudyRole:
+        general = lookup(
+            "FDA",
+            DesignFamily.CROSSOVER,
+            framework=Framework.GENERAL,
+            study_role=role,
+        )
+        assert general.required_total() == 12, role
+
+
 def test_dossier_004_is_resolved_and_still_on_the_register():
     """Closed findings are not deleted, and closure is not self-asserted.
 

@@ -75,11 +75,21 @@ jobs:
         # workflow_dispatch. Two of those citations sat unpinned AND
         # undeclared through the release that fixed exactly that defect
         # elsewhere, and no job would have said so.
+        #
+        # `test_power_and_data.py` and `test_golden_cases.py` join them for a
+        # third time on the same reasoning. A regulatory minimum is applied to
+        # a SAMPLE SIZE, so the rule and the arithmetic it modifies are one
+        # behaviour split across two files - and only one of them was run.
+        # Between them they hold the noncentral-t assertions and the pre-floor
+        # baseline taken from the previous revision, which is the guard that a
+        # scope change did not move the mathematics. They run in 1.5s.
         run: |
           python -m pytest be-stats/tests/unit/test_dossier_*.py \
+                           be-stats/tests/unit/test_power_and_data.py \
                            be-stats/tests/integration/test_dossier_routing.py \
                            be-stats/tests/integration/test_minimums_and_provenance.py \
                            be-stats/tests/validation/test_dossier_evidence.py \
+                           be-stats/tests/validation/test_golden_cases.py \
                            be-stats/tests/validation/test_governance_wording.py \
                            be-stats/tests/validation/test_validation_report.py \
                            -q --junitxml=dossier-tests.xml
@@ -118,6 +128,12 @@ jobs:
           } | {
               p.as_posix()
               for p in pathlib.Path("be-stats/tests").rglob("test_minimums*.py")
+          } | {
+              p.as_posix()
+              for p in pathlib.Path("be-stats/tests").rglob("test_power*.py")
+          } | {
+              p.as_posix()
+              for p in pathlib.Path("be-stats/tests").rglob("test_golden*.py")
           }
 
           missing = sorted(expected - listed)
