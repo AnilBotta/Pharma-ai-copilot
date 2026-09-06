@@ -89,6 +89,8 @@ jobs:
                            be-stats/tests/integration/test_dossier_routing.py \
                            be-stats/tests/integration/test_minimums_and_provenance.py \
                            be-stats/tests/validation/test_dossier_evidence.py \
+                           be-stats/tests/validation/test_dossier_evidence_search.py \
+                           be-stats/tests/validation/test_fda_cvm_vich_gl52_candidate.py \
                            be-stats/tests/validation/test_golden_cases.py \
                            be-stats/tests/validation/test_governance_wording.py \
                            be-stats/tests/validation/test_validation_report.py \
@@ -134,6 +136,12 @@ jobs:
           } | {
               p.as_posix()
               for p in pathlib.Path("be-stats/tests").rglob("test_golden*.py")
+          } | {
+              # Assessments of a candidate that was NOT adopted as evidence.
+              # They record why a near miss was rejected, and a rejection
+              # nobody re-runs is the one that gets quietly revisited.
+              p.as_posix()
+              for p in pathlib.Path("be-stats/tests").rglob("*candidate*.py")
           }
 
           missing = sorted(expected - listed)

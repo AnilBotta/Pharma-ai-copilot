@@ -1,0 +1,50 @@
+{
+  "case_id": "FDA-CVM-VICH-GL52-2X2",
+  "status": "CANDIDATE ASSESSED AND NOT ADOPTED AS EVIDENCE",
+  "why_committed": "The comparison is recorded so the verdict in be_stats.dossier.evidence_search can be checked by re-running it, not because this is evidence for any capability. See that module for the three reasons it was rejected.",
+  "source": {
+    "authority": "FDA",
+    "centre": "Center for Veterinary Medicine",
+    "document": "Supplemental Examples For Illustrating Statistical Concepts Described in the VICH In Vivo Bioequivalence Draft Guidance GL52",
+    "document_version": "undated; supplements VICH GL52 in draft",
+    "section": "Example: bioequivalence data statistical analysis",
+    "url": "https://www.fda.gov/media/89845/download"
+  },
+  "design": {
+    "type": "2x2 crossover, two-period two-treatment two-sequence",
+    "n_subjects": 12,
+    "sequence_1": "period 1 = Test, period 2 = Reference",
+    "sequence_2": "period 1 = Reference, period 2 = Test",
+    "data_provenance": "Described by the document as a simulated trial.",
+    "model_as_published": "Log-transformed; sequence, period and treatment fixed; animal-nested-within-sequence random. For a complete balanced 2x2 this gives the same interval as the all-fixed model - EMA/618604/2008 Rev. 13 says so in terms."
+  },
+  "observations": [
+    {"subject": 1,  "sequence": 1, "test": 93.38,  "reference": 86.76},
+    {"subject": 2,  "sequence": 1, "test": 78.81,  "reference": 72.23},
+    {"subject": 3,  "sequence": 1, "test": 108.81, "reference": 102.10},
+    {"subject": 4,  "sequence": 1, "test": 154.68, "reference": 138.42},
+    {"subject": 5,  "sequence": 1, "test": 131.96, "reference": 120.67},
+    {"subject": 6,  "sequence": 1, "test": 71.30,  "reference": 81.83},
+    {"subject": 7,  "sequence": 2, "test": 75.80,  "reference": 84.91},
+    {"subject": 8,  "sequence": 2, "test": 96.98,  "reference": 92.84},
+    {"subject": 9,  "sequence": 2, "test": 129.46, "reference": 114.42},
+    {"subject": 10, "sequence": 2, "test": 131.24, "reference": 119.48},
+    {"subject": 11, "sequence": 2, "test": 91.27,  "reference": 95.32},
+    {"subject": 12, "sequence": 2, "test": 90.47,  "reference": 105.77}
+  ],
+  "published_output": {
+    "denominator_df": 10,
+    "standard_error": 0.02991,
+    "lower_90_limit_log": -0.0346,
+    "upper_90_limit_log": 0.0738,
+    "lower_bound_ratio_as_printed": 0.97,
+    "upper_bound_ratio_as_printed": 1.08,
+    "difference_log_as_printed": 0.1958,
+    "difference_log_as_printed_is_wrong": true,
+    "note_on_the_error": "0.1958 does not lie between the published limits -0.0346 and 0.0738. The midpoint of those limits is 0.0196, and (0.0738 - 0.0196) / t(0.95, 10) = 0.0299, which reproduces the published standard error 0.02991. The limits and the SE are therefore mutually consistent with a difference of 0.01958, and the printed 0.1958 carries a misplaced decimal point."
+  },
+  "printed_precision": {
+    "log_limits": "4 decimal places -> rounding bound 0.00005 on the log scale",
+    "ratio_bounds": "2 decimal places -> rounding bound 0.005 on the ratio"
+  }
+}
