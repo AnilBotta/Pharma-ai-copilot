@@ -61,59 +61,194 @@ def test_the_public_options_route_serves_no_expectation_vocabulary(
     )
 
 
-def test_the_public_route_still_serves_what_a_regulator_published():
-    """Blinding by deletion would be the wrong fix.
+def test_no_reference_value_of_any_status_reaches_the_public_payload():
+    """THE STRUCTURAL INVARIANT, and the primary test in this file.
 
-    EMA's published estimate and interval are not candidates for the SAS run
-    to settle - they are already public in EMA's own Q&A - and the selection
-    screen legitimately shows them.
+    Not a list of numbers. Every `ReferenceValue.value` on every target is
+    checked against the serialised public payload, whatever its evidence
+    status - REGULATOR_PUBLISHED included.
+
+    WHY REGULATOR_PUBLISHED IS NOT AN EXEMPTION
+
+    The first fix filtered to `regulator_published()` and still served
+    estimate 102.26 and the interval 97.05-107.76: expected numerical outputs
+    for the dataset the blinded operator is about to analyse. Provenance
+    status and audience disclosure are different questions, and one was used
+    as a proxy for the other.
+
+    A literal list would also have to be extended by hand the first time a
+    new published example is attached to a target. This cannot go stale: the
+    values are read from the targets themselves.
     """
-    payload = list_options()
-    case = next(
-        c
-        for c in payload["cases"]
-        if c["case_id"] == "FDA_APPENDIX_C_PARTIAL_EMA_DATASET_II"
+    payload = json.dumps(list_options(), default=str)
+
+    checked = 0
+    for target in TARGETS.values():
+        for reference in target.references:
+            if reference.value is None:
+                continue
+            checked += 1
+            for rendering in (
+                str(reference.value),
+                f"{reference.value:g}",
+            ):
+                assert rendering not in payload, (
+                    f"{target.case_id}: the public payload contains "
+                    f"{rendering} ({reference.quantity}, "
+                    f"{reference.status.value}). Evidence provenance is not "
+                    "audience disclosure - a number a regulator printed is "
+                    "still an expected result to the operator who is about "
+                    "to produce it."
+                )
+
+    assert checked >= 5, (
+        f"only {checked} reference values were checked; this guard would be "
+        "close to vacuous. Have the targets' references been deleted rather "
+        "than withheld?"
     )
 
-    quantities = {r["quantity"] for r in case["references"]}
-    assert "estimate_percent" in quantities
-    assert "ci_lower_percent" in quantities
-    assert "ci_upper_percent" in quantities
 
-    for reference in case["references"]:
-        assert reference["regulator_confirmed"] is True, reference["quantity"]
+@pytest.mark.parametrize(
+    "value", ["102.26", "97.05", "107.76", "19.8906", "22.5403"]
+)
+def test_the_specific_values_known_to_have_leaked_are_absent(
+    options_payload, value
+):
+    """The literal check, kept as a companion to the structural one.
+
+    Redundant while the structural test holds, and cheap. If someone ever
+    weakens the invariant above, these five say plainly which numbers went
+    back out.
+    """
+    assert value not in options_payload
+
+
+def test_the_public_payload_carries_no_reference_field_at_all():
+    """Withheld structurally, rather than emptied.
+
+    An empty `references: []` would invite a later change to "just include
+    the published ones" - which is exactly what happened once. The field is
+    not part of the public contract.
+    """
+    for case in list_options()["cases"]:
+        assert "references" not in case, case["case_id"]
+        assert "reviewer_question" not in case, (
+            f"{case['case_id']}: reviewer_question is reviewer context and "
+            "its wording referred to reference values this payload no "
+            "longer carries."
+        )
+
+
+def test_the_public_payload_carries_the_selection_metadata_it_needs():
+    """Blinding must not break case selection."""
+    case = next(
+        c
+        for c in list_options()["cases"]
+        if c["case_id"] == "FDA_APPENDIX_C_PARTIAL_EMA_DATASET_II"
+    )
+    for field in (
+        "case_id",
+        "title",
+        "regulatory_method",
+        "design",
+        "dataset_source",
+        "purpose",
+    ):
+        assert case[field], field
 
 
 def test_the_public_route_says_that_something_is_withheld():
-    """Silence would let a reader conclude the candidates do not exist."""
-    payload = list_options()
+    """Counts, not values. Silence would suggest there is nothing to withhold."""
     case = next(
         c
-        for c in payload["cases"]
+        for c in list_options()["cases"]
         if c["case_id"] == "FDA_APPENDIX_C_PARTIAL_EMA_DATASET_II"
     )
-    withheld = case["unconfirmed_references_withheld"]
-
     target = TARGETS["FDA_APPENDIX_C_PARTIAL_EMA_DATASET_II"]
-    assert withheld == len(target.unconfirmed())
-    assert withheld > 0, (
-        "This target no longer carries any unconfirmed reference, so this "
-        "test proves nothing. Check that the candidates were not deleted "
-        "instead of filtered."
+
+    assert case["unconfirmed_references_withheld"] == len(target.unconfirmed())
+    assert case["published_references_withheld"] == len(
+        target.regulator_published()
     )
+    assert case["unconfirmed_references_withheld"] > 0
+    assert case["published_references_withheld"] > 0
 
 
-def test_the_candidates_still_exist_internally():
+def test_both_kinds_of_reference_still_exist_internally():
     """The fix must scope who sees them, not destroy the record.
 
-    If the leak had been closed by deleting the reference values, the
-    reviewer would have lost the context the run is judged against - and this
-    test would be the only thing to say so.
+    Both kinds. The candidates are the question the SAS run settles, and the
+    regulator-published figures are the context a reviewer judges it against;
+    losing either would turn a disclosure fix into evidence destruction.
     """
     target = TARGETS["FDA_APPENDIX_C_PARTIAL_EMA_DATASET_II"]
-    values = {r.value for r in target.unconfirmed() if r.value is not None}
-    assert 19.8906 in values
-    assert 22.5403 in values
+
+    candidates = {r.value for r in target.unconfirmed() if r.value is not None}
+    assert 19.8906 in candidates
+    assert 22.5403 in candidates
+
+    published = {
+        r.value for r in target.regulator_published() if r.value is not None
+    }
+    assert 102.26 in published
+    assert 97.05 in published
+    assert 107.76 in published
+
+
+def test_regulator_published_is_not_used_as_an_audience_filter():
+    """The architectural mistake, guarded structurally.
+
+    `regulator_published()` answers "may this support a regulatory claim".
+    It does not answer "may the blinded operator see this", and the first fix
+    to this route used it for the second question.
+
+    Asserted on the AST rather than on behaviour: the behavioural tests above
+    would also pass if the route filtered by status and happened to have
+    nothing published attached. This says the route does not consult the
+    status at all.
+    """
+    import ast
+    import inspect
+    import textwrap
+
+    from app.sas_validation import routes
+
+    tree = ast.parse(textwrap.dedent(inspect.getsource(routes.list_options)))
+
+    # `target.references` must not be touched at all: the payload is a
+    # whitelist of named fields, not a filtered copy of the target.
+    attributes = [n for n in ast.walk(tree) if isinstance(n, ast.Attribute)]
+    assert not any(n.attr == "references" for n in attributes), (
+        "list_options touches `target.references`. The public payload is a "
+        "whitelist of non-numeric fields, not a filtered copy."
+    )
+
+    # The two reference accessors may appear ONLY inside `len(...)`. A count
+    # discloses no result; anything else with them renders one.
+    #
+    # NOT a check for `.value` anywhere - `mode.value` on the integration-mode
+    # enum is unrelated and legitimate, and matching it would be the blunt
+    # search this repository keeps relearning to avoid.
+    counted = {
+        id(node.args[0])
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "len"
+        and node.args
+    }
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        if not isinstance(node.func, ast.Attribute):
+            continue
+        if node.func.attr in ("regulator_published", "unconfirmed"):
+            assert id(node) in counted, (
+                f"`{node.func.attr}()` is called outside len() in "
+                "list_options. Evidence provenance is not audience "
+                "disclosure: filtering by status is how 102.26, 97.05 and "
+                "107.76 reached an unauthenticated route."
+            )
 
 
 def test_every_unauthenticated_route_in_this_module_is_accounted_for():
