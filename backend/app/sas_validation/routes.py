@@ -211,6 +211,27 @@ def list_options() -> dict[str, object]:
 
     The interface renders from this rather than deciding for itself, so the
     API and the screen cannot drift into promising different things.
+
+    THIS ROUTE IS PUBLIC, AND THAT IS WHY IT CARRIES NO CANDIDATE
+
+    It takes no `current_user`: the mode-selection screen is reachable before
+    a session exists. It also returned every `target.reference`, so
+    `GET /api/sas-validation/options` served 19.8906, 22.5403, "ReplicateBE"
+    and the note calling one of them BEST-SUPPORTED to anybody on the
+    internet, unauthenticated.
+
+    PR #80 blinded the package the operator downloads. It did not blind this,
+    because nothing here builds a package - and an operator who has been
+    handed a blinded archive need only open the application's own public API
+    to read both answers and which one we prefer. The blind was defeated one
+    route away from where it was installed.
+
+    Unconfirmed references are therefore filtered out here. What survives is
+    what a regulator published, which is not a candidate for the SAS run to
+    settle and is already public in EMA's Q&A.
+
+    The reviewer screen that wants the candidates must read them from an
+    authenticated surface. This one is reachable by anybody.
     """
     options = []
     for mode, title, description in (
@@ -259,6 +280,9 @@ def list_options() -> dict[str, object]:
                 "design": target.design,
                 "purpose": target.purpose,
                 "reviewer_question": target.reviewer_question,
+                # REGULATOR-CONFIRMED ONLY. `target.regulator_confirmed` is
+                # the canonical filter and is used rather than re-testing the
+                # status here, so this route cannot drift from the definition.
                 "references": [
                     {
                         "quantity": r.quantity,
@@ -268,8 +292,12 @@ def list_options() -> dict[str, object]:
                         "source": r.source,
                         "note": r.note,
                     }
-                    for r in target.references
+                    for r in target.regulator_published()
                 ],
+                # Said rather than left to be noticed. A reader comparing this
+                # payload with the internal one should see that something is
+                # withheld, not conclude the candidates do not exist.
+                "unconfirmed_references_withheld": len(target.unconfirmed()),
             }
             for target in TARGETS.values()
         ],
