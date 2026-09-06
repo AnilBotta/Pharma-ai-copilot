@@ -222,7 +222,13 @@ jobs:
           python-version: "3.12"
 
       - name: Install backend
-        run: pip install -r backend/requirements.txt -r backend/requirements-dev.in
+        # From INSIDE backend/. `requirements.in` carries `-e ../be-stats`, a
+        # relative editable path that pip resolves against its own working
+        # directory, not against the requirements file - so installing from
+        # the repo root fails with "../be-stats is not a valid editable
+        # requirement". Found by the first CI run of this job.
+        working-directory: backend
+        run: pip install -r requirements.txt -r requirements-dev.in
 
       - name: Run the SAS validation and governance tests
         working-directory: backend
