@@ -17,6 +17,7 @@ from be_stats.replicate_abe import APPENDIX_C_MODEL
 
 from app.sas_validation.package import (
     FORBIDDEN_EXPECTED_VALUES,
+    PackageAudience,
     build_package,
     write_dataset_csv,
 )
@@ -261,10 +262,15 @@ def test_the_derived_analysis_variable_is_not_claimed_to_be_in_the_file():
 def test_no_candidate_answer_reaches_the_files_sas_reads(forbidden: str):
     """19.8906, 22.5403 and 19.603 must not be in the data, program or spec.
 
-    The README prints them WITH their evidence status, because a human should
-    see the context. SAS must not.
+    Scoped to the INTERNAL QA package, which is what `make()` builds here and
+    where the README legitimately carries the candidates. The operator package
+    is held to a stricter rule in `test_package_audience_blinding.py`: every
+    file, README included.
+
+    This test used to be the whole of the guarantee, and its README exemption
+    was the leak - the operator's copy was the same README.
     """
-    package = make()
+    package = make(audience=PackageAudience.INTERNAL_QA)
     for file in package.files:
         if file.name in ("README.md", "manifest.json"):
             continue
@@ -277,9 +283,14 @@ def test_the_specification_ships_no_expected_answer():
     assert "denominator_df" not in json.dumps(specification.get("expected_answer"))
 
 
-def test_the_readme_labels_every_unconfirmed_reference():
-    """A reviewer must not have to guess which numbers a regulator published."""
-    readme = make().file("README.md").content
+def test_the_internal_readme_labels_every_unconfirmed_reference():
+    """A reviewer must not have to guess which numbers a regulator published.
+
+    INTERNAL_QA only. The operator's README carries no reference values at
+    all, so there is nothing there to label - see
+    `test_package_audience_blinding.py`.
+    """
+    readme = make(audience=PackageAudience.INTERNAL_QA).file("README.md").content
     assert "INDEPENDENT CANDIDATE" in readme
     assert "EXTERNAL IMPLEMENTATION" in readme
     assert "REGULATOR PUBLISHED" in readme
