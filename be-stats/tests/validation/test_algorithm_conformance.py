@@ -46,6 +46,10 @@ CASE_DIR = Path(__file__).resolve().parents[2] / "validation" / "phase1" / "algo
 #: and are checked by a dedicated test below.
 _RUNNERS = {
     "FDA-HVD-SWITCH-001": fda_hvd_method_for,
+    #: Structural: its rows carry a CVwR and an NTI status rather than a single
+    #: sWR, so the shared `run(row["swr"])` runner cannot drive it. Checked by
+    #: `test_the_classification_case_is_reproduced_row_by_row` below.
+    "FDA-HVD-CLASSIFICATION-001": None,
     "FDA-HVD-SWR-FORMULA-001": None,
     "FDA-HVD-RSABE-CRITERION-001": None,
     "FDA-NTI-CRITERIA-001": None,
@@ -229,6 +233,62 @@ def test_the_case_keeps_the_two_adjacent_numbers_apart(case: dict):
     )
     assert case["rule"]["threshold"] != (
         case["separate_and_not_this_rule"]["classification_cv"]
+    )
+
+
+def test_the_classification_case_is_reproduced_row_by_row():
+    """Tier 1A for III.C's DEFINITION, driven from the case file.
+
+    A structural case: each row carries a CVwR and an NTI status, not a single
+    sWR, so the shared runner cannot drive it.
+    """
+    from be_stats.spec import HvdClass, NtiStatus, fda_hvd_classification
+
+    case = _case("FDA-HVD-CLASSIFICATION-001")
+    for row in case["expected"]:
+        got = fda_hvd_classification(
+            cv_wr_percent=row["cv_wr_percent"],
+            nti_status=NtiStatus(row["nti_status"]),
+        )
+        assert got.hvd_class is HvdClass(row["classification"]), (
+            f"CVwR={row['cv_wr_percent']} nti={row['nti_status']}: expected "
+            f"{row['classification']}, got {got.hvd_class}. "
+            f"Case note: {row['why']}"
+        )
+
+
+def test_the_classification_case_keeps_its_threshold_off_the_switch():
+    """The same guard as FDA-HVD-SWITCH-001, from the other side.
+
+    A case file whose stated 30.0 quietly became 29.3560 - or whose window
+    bounds were "tidied" to make the two rules agree - would still reproduce
+    every row, because the rows would have moved with it. So both numbers are
+    checked against the engine's own constants.
+    """
+    from be_stats.conversions import cv_to_log_sd
+    from be_stats.spec import FDA_HVD_CONSTANTS
+
+    case = _case("FDA-HVD-CLASSIFICATION-001")
+
+    assert case["rule"]["threshold_percent"] == (
+        100.0 * FDA_HVD_CONSTANTS["classification_cv"].value
+    )
+    assert case["separate_and_not_this_rule"]["swr_switching_threshold"] == (
+        FDA_HVD_CONSTANTS["swr_switching_threshold"].value
+    )
+    assert case["separate_and_not_this_rule"]["consumed_by_this_rule"] == "nothing"
+
+    # The window the two rules disagree over, asserted as a fact about the
+    # engine's constants rather than as a number somebody typed into JSON.
+    window = case["disagreement_window"]
+    assert window["lower_inclusive"] == cv_to_log_sd(
+        FDA_HVD_CONSTANTS["classification_cv"].value
+    )
+    assert window["upper_exclusive"] == (
+        FDA_HVD_CONSTANTS["swr_switching_threshold"].value
+    )
+    assert window["lower_inclusive"] < window["upper_exclusive"], (
+        "the window is empty, so either a threshold moved or a conversion did"
     )
 
 

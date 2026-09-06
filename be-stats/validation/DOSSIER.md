@@ -48,6 +48,7 @@ the next column and only the next column.
 | `FDA_NTI_RSABE` | FDA | implemented | implemented_unvalidated | tier_1a | yes |
 | `EMA_HVD_ABEL` | EMA | implemented | implemented_unvalidated | tier_1b | yes |
 | `EMA_NTI_NARROW_ABE` | EMA | implemented | implemented_unvalidated | tier_1a | yes |
+| `FDA_HVD_CLASSIFICATION` | FDA | implemented | implemented | tier_1a | no |
 | `FDA_HVD_REPLICATE_DATA_VALIDATION` | FDA | implemented | implemented | tier_1a | no |
 | `FDA_HVD_REFERENCE_VARIANCE` | FDA | implemented | implemented_unvalidated | tier_1a | no |
 | `FDA_HVD_TREATMENT_CONTRAST` | FDA | implemented | implemented_unvalidated | tier_1a | no |
@@ -94,6 +95,12 @@ the next column and only the next column.
 
 - Applies to AUC by default. For Cmax the narrowed interval applies only where Cmax itself matters for safety, efficacy or therapeutic drug monitoring - a per-product decision the engine refuses to guess.
 - EMA narrows the interval; FDA does not. The two NTI procedures are different procedures and neither is a parameterisation of the other.
+
+**`FDA_HVD_CLASSIFICATION`** - Classify a drug as highly variable under III.C's definition
+
+- Classifies the DRUG and routes NOTHING. The analysis is selected by FDA_HVD_METHOD_SELECTION from the estimated sWR, and the two disagree for every study whose sWR falls in [0.293560, 0.294): such a drug is highly variable and its study takes ordinary average BE.
+- III.C defines the class by 'within subject variability (%CV) in BE measures'. This applies the rule to the observed CVwR, which is the reference's within-subject CV from this study. That is the quantity Appendix G makes available and it is narrower than the phrase; a classification from a different variability estimate is not what this reports.
+- The second conjunct - that the drug is not a narrow therapeutic index drug - is a product property that no dataset carries. Unstated, it leaves the drug NOT_CLASSIFIED rather than assumed to be non-NTI.
 
 **`FDA_HVD_REPLICATE_DATA_VALIDATION`** - Recognise and validate an FDA replicate design
 
@@ -972,6 +979,7 @@ release gate: PASS
   ok   FDA_NTI_RSABE = implemented_unvalidated
   ok   EMA_HVD_ABEL = implemented_unvalidated
   ok   EMA_NTI_NARROW_ABE = implemented_unvalidated
+  ok   FDA_HVD_CLASSIFICATION = implemented
   ok   FDA_HVD_REPLICATE_DATA_VALIDATION = implemented
   ok   FDA_HVD_REFERENCE_VARIANCE = implemented_unvalidated
   ok   FDA_HVD_TREATMENT_CONTRAST = implemented_unvalidated

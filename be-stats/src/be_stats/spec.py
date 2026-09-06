@@ -159,6 +159,16 @@ class Capability(StrEnum):
     without being allowed to decide anything with it.
     """
 
+    #: Apply III.C's DEFINITION of a highly variable drug - CVwR >= 30% and
+    #: not a narrow therapeutic index drug - to a study's estimated CVwR.
+    #:
+    #: Tracked separately from `FDA_HVD_METHOD_SELECTION`, and the separation is
+    #: the entire point of the capability existing. One classifies the DRUG on
+    #: the CV scale; the other selects the ANALYSIS on the sWR scale. A single
+    #: row covering both would be a matrix entry asserting that they are one
+    #: thing, which is the misreading the constants have carried warnings about
+    #: since the threshold was first recorded.
+    FDA_HVD_CLASSIFICATION = "fda_hvd_classification"
     #: Recognise a replicate design, validate its structure, construct the
     #: reference replicates.
     FDA_HVD_REPLICATE_DATA_VALIDATION = "fda_hvd_replicate_data_validation"
@@ -229,6 +239,19 @@ class Capability(StrEnum):
 #: Reference variance is `IMPLEMENTED_UNVALIDATED` because it produces sWR,
 #: and no regulator-published worked dataset has been reproduced.
 CAPABILITY_VALIDATION: dict[Capability, ValidationStatus] = {
+    #: IMPLEMENTED, on the same reasoning as
+    #: `EMA_HVD_VARIABILITY_ELIGIBILITY`: a threshold comparison against a
+    #: stated regulatory figure produces no number a regulator could disagree
+    #: with. The CVwR it consumes is produced by
+    #: `FDA_HVD_REFERENCE_VARIANCE`, which carries its own weaker status, and
+    #: a reader must take the weaker of the two for any claim about a
+    #: classification computed from real data.
+    #:
+    #: NOT VALIDATED, and no amount of implementation moves it: FDA has
+    #: published no worked example that classifies a named drug from a named
+    #: CVwR, and promotion is governed by the release gate rather than by this
+    #: table.
+    Capability.FDA_HVD_CLASSIFICATION: ValidationStatus.IMPLEMENTED,
     Capability.FDA_HVD_REPLICATE_DATA_VALIDATION: ValidationStatus.IMPLEMENTED,
     Capability.FDA_HVD_REFERENCE_VARIANCE: (
         ValidationStatus.IMPLEMENTED_UNVALIDATED
@@ -824,6 +847,195 @@ def fda_hvd_theta() -> float:
     return (math.log(1.25) / sigma_w0) ** 2
 
 
+class NtiStatus(StrEnum):
+    """Whether the product is a narrow therapeutic index drug. NEVER inferred.
+
+    III.C's definition of a highly variable drug has two conjuncts, and this is
+    the second one. It is a property of the PRODUCT, not of the data: no amount
+    of within-subject variability tells you whether FDA considers a drug narrow
+    therapeutic index, and nothing in a replicate dataset carries it.
+
+    So it is stated by the caller or it is `NOT_STATED`, on the same reasoning
+    as `minimums.StudyRole`: a default of "not NTI" would be a regulatory
+    assertion the engine has no basis for, made silently, in the direction that
+    produces the more confident answer.
+    """
+
+    NARROW_THERAPEUTIC_INDEX = "narrow_therapeutic_index"
+    NOT_NARROW_THERAPEUTIC_INDEX = "not_narrow_therapeutic_index"
+    NOT_STATED = "not_stated"
+
+
+class HvdClass(StrEnum):
+    """The outcome of III.C's definition, with the reason kept visible.
+
+    `EXCLUDED_NARROW_THERAPEUTIC_INDEX` is not merged into
+    `NOT_HIGHLY_VARIABLE` even though III.C's definition makes both of them
+    "not a highly variable drug". They are different situations: one drug is
+    not variable, the other is variable and excluded by class, and a reader
+    told only "not highly variable" about the second would draw the wrong
+    conclusion about the study's variability.
+    """
+
+    HIGHLY_VARIABLE = "highly_variable"
+    NOT_HIGHLY_VARIABLE = "not_highly_variable"
+    EXCLUDED_NARROW_THERAPEUTIC_INDEX = "excluded_narrow_therapeutic_index"
+    NOT_CLASSIFIED = "not_classified"
+
+
+@dataclass(frozen=True, slots=True)
+class HvdClassification:
+    """III.C's definition applied, and NOTHING routed by it.
+
+    Both conjuncts are reported separately rather than reduced to a boolean,
+    because the two fail for unrelated reasons and a caller that can only see
+    the conjunction cannot tell which.
+    """
+
+    hvd_class: HvdClass
+    #: The observed CVwR as a percentage, or None when sWR was not estimable.
+    cv_wr_percent: float | None
+    #: 30.0. The III.C figure, as a percentage, on the CV scale.
+    threshold_percent: float
+    #: Whether CVwR >= 30%. `None` when there is no CVwR to compare.
+    meets_variability_criterion: bool | None
+    nti_status: NtiStatus
+    #: The III.C constant this rests on, carried so a reported classification
+    #: can cite its own definition.
+    basis: RegulatoryValue
+
+    @property
+    def is_highly_variable(self) -> bool | None:
+        """`None` when undetermined - never `False` by default.
+
+        A drug whose NTI status was not stated and whose CVwR clears 30% has
+        not been shown to be a highly variable drug and has not been shown not
+        to be one. Returning False there would be the same defect as an
+        undecidable endpoint reporting `passes=False`.
+        """
+        if self.hvd_class is HvdClass.NOT_CLASSIFIED:
+            return None
+        return self.hvd_class is HvdClass.HIGHLY_VARIABLE
+
+    def explain(self) -> list[str]:
+        """Wording that cannot be read as a route to reference scaling.
+
+        Every line here is about the DRUG. None of them mentions sWR, 0.294 or
+        which analysis runs, because the sentence "highly variable, therefore
+        reference-scaled" is false and is the exact confusion this record
+        exists to prevent.
+        """
+        observed = (
+            "not estimable"
+            if self.cv_wr_percent is None
+            else f"{self.cv_wr_percent:.4f}%"
+        )
+        lines = [
+            f"FDA III.C classifies the DRUG, not the analysis: highly variable "
+            f"means within-subject variability of {self.threshold_percent:.0f} "
+            "percent or greater AND not a narrow therapeutic index drug.",
+            f"observed CVwR = {observed}; criterion CVwR >= "
+            f"{self.threshold_percent:.0f}% -> "
+            f"{self.meets_variability_criterion}",
+            f"narrow therapeutic index status: {self.nti_status}",
+            f"classification: {self.hvd_class}",
+        ]
+        if self.hvd_class is HvdClass.NOT_CLASSIFIED:
+            lines.append(
+                "not classified: the classification is reported, not assumed, "
+                "and one of its two conjuncts is unavailable. This does not "
+                "affect which analysis was run - that is selected from the "
+                "estimated sWR alone."
+            )
+        return lines
+
+
+def fda_hvd_classification(
+    *,
+    cv_wr_percent: float | None,
+    nti_status: NtiStatus = NtiStatus.NOT_STATED,
+) -> HvdClassification:
+    """Is this a highly variable DRUG? Not: does reference scaling apply?
+
+    THE TWO QUESTIONS, AND WHY THIS FUNCTION ANSWERS ONLY THE FIRST
+
+    III.C states a definition and a procedure, one after the other, and they
+    are routinely collapsed into a single sentence - "CV over 30, so highly
+    variable, so RSABE". Two of those three steps are real and the arrow
+    between them is not:
+
+        III.C     "Highly variable drugs are drugs for which within subject
+                  variability (%CV) in BE measures 30 percent or greater and
+                  that are not considered NTI drugs."
+
+        III.C     "If the estimated within-subject standard deviation of the
+                  reference is < 0.294, the average BE two one-sided test
+                  procedure should be used ... Otherwise, the reference-scaled
+                  average BE procedure should be used"
+
+    The first sentence is about the drug and is expressed on the CV scale. The
+    second is about the data actually collected and is expressed on the sWR
+    scale, and it applies to a study on a highly variable drug whether or not
+    that study's own reference happened to come out above 30%.
+
+    THEY CAN DISAGREE, AND THE WINDOW IS NOT EMPTY
+
+    CVwR >= 30% is exactly sWR >= sqrt(ln(1 + 0.30^2)) = 0.293560..., so every
+    estimated sWR in [0.293560, 0.294) classifies the drug as highly variable
+    and takes ORDINARY average BE. The window is narrow and real, and a study
+    landing in it is decided by 0.294 - the regulator's stated criterion -
+    rather than by the classification.
+
+    `fda_hvd_method_for` is the function that answers the second question, it
+    does not call this one, and a test asserts that.
+
+    NOTHING HERE GATES ANYTHING
+
+    Deliberately: this returns a record, takes no dataset, and is not consulted
+    by `assess_endpoint` for routing. An unstated NTI status leaves the drug
+    unclassified and leaves the analysis entirely unaffected.
+    """
+    threshold_cv = FDA_HVD_CONSTANTS["classification_cv"]
+    threshold_percent = 100.0 * threshold_cv.value
+
+    if cv_wr_percent is None:
+        return HvdClassification(
+            hvd_class=HvdClass.NOT_CLASSIFIED,
+            cv_wr_percent=None,
+            threshold_percent=threshold_percent,
+            meets_variability_criterion=None,
+            nti_status=nti_status,
+            basis=threshold_cv,
+        )
+
+    # "30 percent or greater" - the boundary is INSIDE, and this is not the
+    # same boundary convention as EMA's 4.1.10, which requires strictly
+    # greater. Two regulators, two inequalities, one number; see
+    # `ema_hvd_scaling_eligible`, which is deliberately written the other way.
+    meets = cv_wr_percent >= threshold_percent
+
+    if not meets:
+        # Determinate WITHOUT the NTI status: the conjunction already fails.
+        # Refusing to classify here because NTI was not stated would report
+        # NOT_CLASSIFIED for a drug III.C plainly does not cover.
+        hvd_class = HvdClass.NOT_HIGHLY_VARIABLE
+    elif nti_status is NtiStatus.NARROW_THERAPEUTIC_INDEX:
+        hvd_class = HvdClass.EXCLUDED_NARROW_THERAPEUTIC_INDEX
+    elif nti_status is NtiStatus.NOT_NARROW_THERAPEUTIC_INDEX:
+        hvd_class = HvdClass.HIGHLY_VARIABLE
+    else:
+        hvd_class = HvdClass.NOT_CLASSIFIED
+
+    return HvdClassification(
+        hvd_class=hvd_class,
+        cv_wr_percent=cv_wr_percent,
+        threshold_percent=threshold_percent,
+        meets_variability_criterion=meets,
+        nti_status=nti_status,
+        basis=threshold_cv,
+    )
+
+
 def fda_hvd_method_for(swr: float) -> Method:
     """Which analysis FDA's Appendix G selects for an estimated sWR.
 
@@ -835,6 +1047,16 @@ def fda_hvd_method_for(swr: float) -> Method:
     same guidance uses 0.294 with a STRICT inequality for in vitro permeation
     testing, so this function is wrong for that context by exactly one
     boundary case. See `FDA_IVPT_NOTE`.
+
+    IT DOES NOT CONSULT `fda_hvd_classification`, AND MUST NOT.
+
+    The classification is on the CV scale and this switch is on the sWR scale;
+    routing by the classification would move the boundary from FDA's stated
+    0.294 to the derived 0.293560 for every study in between. That is the same
+    substitution the constants above are written to prevent, arriving through
+    a different door. `test_the_classification_is_not_wired_into_the_switch`
+    asserts the absence structurally, because a call added here would be
+    invisible to a test that only checked outputs on either side of 0.294.
     """
     if swr < 0.0:
         raise ValueError(f"sWR cannot be negative, got {swr}.")

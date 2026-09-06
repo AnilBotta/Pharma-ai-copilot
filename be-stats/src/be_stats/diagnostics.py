@@ -134,6 +134,12 @@ class DiagnosticCode(StrEnum):
     MISSING_TEST_REPLICATE = "MISSING_TEST_REPLICATE"
     #: Fewer than one degree of freedom for the within-test variance.
     INSUFFICIENT_TEST_DF = "INSUFFICIENT_TEST_DF"
+    #: CVwR reaches FDA's 30 percent classification threshold and the drug's
+    #: narrow-therapeutic-index status was not stated, so III.C's definition
+    #: cannot be completed. ADVISORY, and the severity is the point: the
+    #: classification describes the DRUG and routes nothing, so the analysis
+    #: that ran is unaffected.
+    NTI_STATUS_NOT_STATED = "NTI_STATUS_NOT_STATED"
 
 
 class Severity(StrEnum):

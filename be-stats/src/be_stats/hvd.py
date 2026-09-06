@@ -81,7 +81,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from be_stats.abe import AbeResult
-from be_stats.diagnostics import Diagnostic
+from be_stats.diagnostics import Diagnostic, DiagnosticCode, Severity
 from be_stats.howe import howe_upper_bound
 from be_stats.provenance import RegulatoryValue
 from be_stats.reference_variance import (
@@ -95,8 +95,12 @@ from be_stats.spec import (
     BeSpec,
     DrugClass,
     Endpoint,
+    HvdClass,
+    HvdClassification,
     Jurisdiction,
     Method,
+    NtiStatus,
+    fda_hvd_classification,
     fda_hvd_method_for,
     fda_hvd_theta,
     resolve_be_spec,
@@ -327,6 +331,19 @@ class FdaHvdResult:
     reference_variance: ReferenceVarianceResult
     treatment_contrast: TreatmentContrastResult | None = None
 
+    #: III.C's classification of the DRUG, reported and never routed by.
+    #:
+    #: These are the two things most often conflated - the classification and
+    #: the selected method - so they are both on this result, and a reader who
+    #: can see both at once can see that they answer different questions and
+    #: occasionally disagree. `rsabe_applicable` is derived from the method,
+    #: never from this.
+    #:
+    #: `None` means the classification was not requested, which is different
+    #: from a classification of NOT_CLASSIFIED - that one was requested and
+    #: came back undetermined.
+    hvd_classification: HvdClassification | None = None
+
     standard_abe_result: AbeResult | None = None
     rsabe_result: RsabeResult | None = None
     #: The unscaled branch, when it decided. Appendix C's mixed model, for a
@@ -351,6 +368,70 @@ class FdaHvdResult:
     treatment_contrast_df: float = 0.0
 
     @property
+    def rsabe_applicable(self) -> bool | None:
+        """Did FDA's switch select reference scaling? `None` before it ran.
+
+        Read from `selected_method`, which was set by `fda_hvd_method_for` from
+        the estimated sWR. NOT from `hvd_classification`: a drug classified
+        highly variable whose study came out at sWR 0.2937 is analysed by
+        ordinary average BE, and this property must say so.
+        """
+        if self.selected_method is None:
+            return None
+        return self.selected_method is Method.FDA_HVD_RSABE
+
+    @property
+    def swr2(self) -> float | None:
+        """sWR^2 as it entered the criterion. Delegated, never stored twice."""
+        return self.reference_variance.variance_wr
+
+    @property
+    def cv_wr_percent(self) -> float | None:
+        return None if self.cv_wr is None else 100.0 * self.cv_wr
+
+    @property
+    def rsabe_criterion(self) -> float | None:
+        """The 95% upper confidence bound, or None if RSABE did not run."""
+        if self.rsabe_result is None:
+            return None
+        return self.rsabe_result.scaled_criterion.upper_confidence_bound
+
+    @property
+    def rsabe_limit(self) -> float | None:
+        """What that bound must not exceed. Appendix G step 3a: zero.
+
+        A named property rather than a literal at the comparison site, so the
+        report can print the criterion and its limit side by side without
+        either being re-typed.
+        """
+        return None if self.rsabe_result is None else 0.0
+
+    @property
+    def rsabe_passes(self) -> bool | None:
+        if self.rsabe_result is None:
+            return None
+        return self.rsabe_result.scaled_criterion.passes
+
+    @property
+    def gmr(self) -> float | None:
+        """The T/R geometric mean ratio the point-estimate constraint tests."""
+        if self.treatment_contrast is None:
+            return None
+        return self.treatment_contrast.point_estimate
+
+    @property
+    def point_estimate_passes(self) -> bool | None:
+        """Criterion B alone. Separate from `passes`, which is the conjunction.
+
+        Exposed at this level because a caller reading only `passes` cannot
+        tell which of the two criteria failed, and criterion B failing means
+        something different about the product than criterion A failing.
+        """
+        if self.rsabe_result is None:
+            return None
+        return self.rsabe_result.point_estimate_constraint.passes
+
+    @property
     def passes(self) -> bool | None:
         """Whether the endpoint met its criteria. `None` when not decided.
 
@@ -368,20 +449,41 @@ class FdaHvdResult:
         return None
 
     def provenance(self) -> list[str]:
-        lines = [
+        lines: list[str] = []
+        if self.hvd_classification is not None:
+            lines += self.hvd_classification.explain()
+        lines += [
             f"switching rule: {self.switching_threshold.explain()}",
             f"observed sWR = {self.swr}, threshold "
             f"{self.switching_threshold.value} -> {self.selected_method}",
         ]
+        # Said explicitly, because the two lines above and the classification
+        # lines above THEM sit next to each other and the reader's instinct is
+        # to join them with "therefore".
+        if self.hvd_classification is not None:
+            lines.append(
+                "the classification above did not select this method: FDA "
+                "selects the analysis from the estimated sWR on the sWR scale, "
+                "and the classification describes the drug on the CV scale."
+            )
         lines += self.reference_variance.provenance()
         if self.treatment_contrast is not None:
             lines += self.treatment_contrast.provenance()
         return lines
 
     def summary(self) -> str:
+        classification = ""
+        if self.hvd_classification is not None:
+            cv = self.hvd_classification.cv_wr_percent
+            classification = (
+                f"  drug classification (III.C, CV scale): "
+                f"{self.hvd_classification.hvd_class}"
+                f"{'' if cv is None else f' at CVwR {cv:.2f}%'}\n"
+            )
         head = (
             f"{self.endpoint} ({self.design})\n"
-            f"  sWR = {self.swr if self.swr is None else f'{self.swr:.6f}'}, "
+            + classification
+            + f"  sWR = {self.swr if self.swr is None else f'{self.swr:.6f}'}, "
             f"threshold {self.switching_threshold.value} -> "
             f"{self.selected_method}\n"
             f"  n for sWR = {self.n_for_swr}, "
@@ -422,6 +524,7 @@ def assess_endpoint(
     *,
     spec: BeSpec | None = None,
     observations: list | None = None,
+    nti_status: NtiStatus = NtiStatus.NOT_STATED,
 ) -> FdaHvdResult:
     """The whole Appendix G flow for one PK endpoint.
 
@@ -445,10 +548,43 @@ def assess_endpoint(
     Omitting `observations` is legitimate: the scaled branch does not need
     them, and the unscaled branch then refuses with a diagnostic saying what is
     missing rather than guessing.
+
+    `nti_status` REACHES THE CLASSIFICATION AND NOTHING ELSE
+
+    It is the second conjunct of III.C's definition of a highly variable drug,
+    and the definition is REPORTED here rather than acted on. Leaving it unset
+    leaves the drug unclassified and changes no number, no branch and no
+    verdict on this result - which is the whole reason it is safe to default.
     """
     threshold = FDA_HVD_CONSTANTS["swr_switching_threshold"]
     variance = estimate_reference_variance(dataset)
     diagnostics = list(variance.diagnostics)
+
+    # III.C's definition, evaluated on the CV scale from the SAME estimate the
+    # switch will read on the sWR scale. Computed BEFORE the switch and passed
+    # to neither it nor any branch below: it is an output, not an input.
+    classification = fda_hvd_classification(
+        cv_wr_percent=variance.cv_wr_percent, nti_status=nti_status
+    )
+    if classification.hvd_class is HvdClass.NOT_CLASSIFIED and (
+        classification.meets_variability_criterion
+    ):
+        diagnostics.append(
+            Diagnostic(
+                DiagnosticCode.NTI_STATUS_NOT_STATED,
+                Severity.ADVISORY,
+                None,
+                "CVwR reaches FDA's 30 percent classification threshold, but "
+                "III.C also requires that the drug is not a narrow therapeutic "
+                "index drug, and that was not stated. The DRUG is therefore "
+                "not classified. The ANALYSIS is unaffected: it was selected "
+                "from the estimated sWR alone, as Appendix G step 1 specifies",
+                {
+                    "cv_wr_percent": classification.cv_wr_percent,
+                    "threshold_percent": classification.threshold_percent,
+                },
+            )
+        )
 
     if not variance.estimable or variance.swr is None:
         return FdaHvdResult(
@@ -459,6 +595,7 @@ def assess_endpoint(
             switching_threshold=threshold,
             selected_method=None,
             reference_variance=variance,
+            hvd_classification=classification,
             decided=False,
             diagnostics=tuple(diagnostics),
             n_for_swr=variance.n_subjects,
@@ -484,6 +621,7 @@ def assess_endpoint(
         selected_method=method,
         reference_variance=variance,
         treatment_contrast=contrast,
+        hvd_classification=classification,
         n_for_swr=variance.n_subjects,
         n_for_treatment_contrast=contrast.n_subjects,
         reference_variance_df=variance.degrees_of_freedom,
@@ -573,6 +711,7 @@ def assess_study(
     datasets: dict[str, ReplicateDataset],
     *,
     spec: BeSpec | None = None,
+    nti_status: NtiStatus = NtiStatus.NOT_STATED,
 ) -> dict[str, FdaHvdResult]:
     """Every endpoint decided on its own sWR.
 
@@ -581,8 +720,14 @@ def assess_study(
     parameter". AUC and Cmax from the same subjects may take different
     procedures, and the endpoint with the lower reference variability must not
     inherit a scaled acceptance range from the one with more.
+
+    `nti_status` is a property of the PRODUCT, so it is the one thing here that
+    legitimately applies to every endpoint at once. Each endpoint still
+    classifies on its OWN CVwR, so a study may well report AUC as not highly
+    variable and Cmax as highly variable - which is the same per-endpoint logic
+    the method selection follows, for the same reason.
     """
     return {
-        endpoint: assess_endpoint(dataset, spec=spec)
+        endpoint: assess_endpoint(dataset, spec=spec, nti_status=nti_status)
         for endpoint, dataset in datasets.items()
     }

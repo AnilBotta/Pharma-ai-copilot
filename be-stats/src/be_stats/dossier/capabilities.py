@@ -310,6 +310,35 @@ _METHOD_ROWS: tuple[CapabilityRecord, ...] = (
 _CAPABILITY_ROWS: tuple[CapabilityRecord, ...] = (
     # ------------------------------------------- FDA highly variable ---
     _record(
+        capability_id="FDA_HVD_CLASSIFICATION",
+        title="Classify a drug as highly variable under III.C's definition",
+        jurisdiction=Jurisdiction.FDA,
+        method=Method.FDA_HVD_RSABE,
+        source_key=Capability.FDA_HVD_CLASSIFICATION,
+        design_requirement=REPLICATE_DESIGNS,
+        endpoints=ALL_ENDPOINTS,
+        regulatory_source=FDA_STATISTICAL_APPROACHES_III_C,
+        evidence_tier=EvidenceTier.TIER_1A,
+        decision_supported=False,
+        known_limitations=(
+            "Classifies the DRUG and routes NOTHING. The analysis is selected "
+            "by FDA_HVD_METHOD_SELECTION from the estimated sWR, and the two "
+            "disagree for every study whose sWR falls in [0.293560, 0.294): "
+            "such a drug is highly variable and its study takes ordinary "
+            "average BE.",
+            "III.C defines the class by 'within subject variability (%CV) in "
+            "BE measures'. This applies the rule to the observed CVwR, which "
+            "is the reference's within-subject CV from this study. That is "
+            "the quantity Appendix G makes available and it is narrower than "
+            "the phrase; a classification from a different variability "
+            "estimate is not what this reports.",
+            "The second conjunct - that the drug is not a narrow therapeutic "
+            "index drug - is a product property that no dataset carries. "
+            "Unstated, it leaves the drug NOT_CLASSIFIED rather than assumed "
+            "to be non-NTI.",
+        ),
+    ),
+    _record(
         capability_id="FDA_HVD_REPLICATE_DATA_VALIDATION",
         title="Recognise and validate an FDA replicate design",
         jurisdiction=Jurisdiction.FDA,
