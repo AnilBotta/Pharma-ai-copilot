@@ -19,7 +19,24 @@ No expected denominator df. Not 19.8906, not 22.5403, and no pass criterion
 derived from either. A package that shipped an expected answer would be asking
 SAS to confirm a number rather than to produce one, and the whole reason for
 running SAS is that neither candidate is regulator-confirmed.
-`test_package_is_neutral.py` asserts those values appear nowhere in it.
+
+AND FOR ONE RELEASE THAT PARAGRAPH WAS NOT TRUE OF THE README
+
+`_assert_neutral` skipped `README.md`, on the reasoning that a human should
+see the reference values in context. The README then rendered
+`target.references` in full - including the be-stats candidate 19.8906 and
+ReplicateBE's 22.5403, each with a paragraph explaining which is better
+supported - four lines under a heading that reads "It contains NO expected
+answer".
+
+An operator who reads that page before running SAS is no longer independent,
+and the exemption is why nothing failed. `PackageAudience` now decides what a
+package may contain, and the neutrality check reads no exemption list: for an
+operator package it scans EVERY file, README included.
+
+Presentation only. The dataset bytes, the SAS program and the model
+specification are identical across audiences, and tests assert that rather
+than trusting it.
 """
 
 from __future__ import annotations
@@ -31,6 +48,7 @@ import json
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from enum import StrEnum
 
 from app.sas_validation.dataset import validate_observations
 from app.sas_validation.program import (
@@ -45,10 +63,59 @@ from app.sas_validation.targets import ValidationTarget
 
 PACKAGE_SCHEMA = "pharma-copilot/sas-validation-package/1"
 
-#: Values that must never appear in a generated package. Both are candidate
+
+class PackageAudience(StrEnum):
+    """Who the package is being assembled for. Presentation only.
+
+    NOT a statistical switch. The dataset, the SAS program and the model
+    specification are byte-identical whichever audience is chosen, and
+    `test_the_two_audiences_ship_identical_statistics` asserts it. What
+    changes is the README, because the README is the only file a human reads
+    before deciding what to run.
+    """
+
+    #: For the licensed-SAS operator. Carries no candidate result, no
+    #: comparison, no preference between candidates, and nothing that would
+    #: let a reader work out which answer is hoped for. This is the default:
+    #: a caller who has not thought about audience must not be able to hand
+    #: an operator a leading question by omission.
+    OPERATOR_BLINDED = "operator_blinded"
+    #: For internal QA and reviewer use, where the candidate values are the
+    #: point. Never sent outward; the workflow that produces an operator
+    #: download does not offer this audience.
+    INTERNAL_QA = "internal_qa"
+
+
+#: Values that must never appear in an operator package. Both are candidate
 #: denominator dfs from unconfirmed sources; shipping either would turn a
 #: neutral execution package into a leading question.
 FORBIDDEN_EXPECTED_VALUES: tuple[str, ...] = ("19.8906", "22.5403", "19.603")
+
+#: The rest of the blind, which two literals cannot carry on their own.
+#:
+#: A candidate can leak as a name as easily as a number - "ReplicateBE says",
+#: "expected_df", "the preferred result" - and the next candidate will have a
+#: value nobody has hard-coded here. So the scan covers the VOCABULARY of
+#: expectation as well as the two known figures, and is matched
+#: case-insensitively.
+FORBIDDEN_OPERATOR_PHRASES: tuple[str, ...] = (
+    "replicatebe",
+    "expected_df",
+    "expected_ci",
+    "expected_se",
+    "expected_answer_value",
+    "candidate_df",
+    "candidate answer",
+    "reference_result",
+    "preferred_result",
+    "target_result",
+    "best-supported",
+    "independent candidate",
+    "external implementation result",
+    "pass criterion",
+    "pass criteria",
+    "should be approximately",
+)
 
 
 def sha256_text(text: str) -> str:
@@ -131,6 +198,7 @@ def _readme(
     target: ValidationTarget,
     result_filename: str,
     normalizations: tuple[SyntaxNormalization, ...],
+    audience: PackageAudience,
 ) -> str:
     lines = [
         f"# SAS validation package - {target.case_id}",
@@ -205,8 +273,15 @@ def _readme(
             "ran are both part of this package's evidence.",
             "",
         ]
+    if audience is PackageAudience.OPERATOR_BLINDED:
+        lines += _operator_sections(result_filename)
+        return "\n".join(lines) + "\n"
+
     lines += [
         "## Reference values",
+        "",
+        "INTERNAL QA COPY. Not for an operator: a reader who sees these before",
+        "running SAS is no longer independent of the question being asked.",
         "",
         "For context only. None of these is a target to match.",
         "",
@@ -223,6 +298,80 @@ def _readme(
     return "\n".join(lines) + "\n"
 
 
+def _operator_sections(result_filename: str) -> list[str]:
+    """Everything the operator needs, and nothing about what we hope to see.
+
+    Deliberately says what is withheld rather than staying silent about it.
+    An operator who notices the absence and asks is better than one who goes
+    looking, and a stated blind is a blind somebody can hold us to.
+    """
+    return [
+        "## Before you start",
+        "",
+        "You need SAS with SAS/STAT licensed, and `PROC MIXED` available in",
+        "that installation. Nothing else: the package runs entirely inside",
+        "your environment and makes no outbound connection.",
+        "",
+        "## Steps",
+        "",
+        "1. Extract every file in this package into one folder.",
+        "2. Open `validate.sas` and set `%let packagedir = ...;` to that folder.",
+        "3. Run `validate.sas` unmodified.",
+        "4. Do not edit the dataset, the model, or any other line of the program.",
+        f"5. Return `{result_filename}` exactly as written, without opening and",
+        "   re-saving it in a spreadsheet.",
+        "6. Return the COMPLETE SAS log, including any notes and warnings.",
+        "7. State your SAS version, as printed in the log.",
+        "8. State the date and time the program was executed, and the time zone.",
+        "",
+        "## What you must not do",
+        "",
+        "- Do not edit the dataset, in any way, for any reason.",
+        "- Do not edit the model statements or substitute another procedure.",
+        "- Do not hand-correct warnings, or re-run with options changed to",
+        "  silence them. A warning is part of the evidence.",
+        "- Do not copy any value from another system into the result file.",
+        "- Do not adjust the output to match anything.",
+        "",
+        "If the program genuinely cannot run as supplied, stop and tell us what",
+        "was needed and why. We will generate a new package. Please do not",
+        "adjust this one locally: an edited program produces evidence for a",
+        "program nobody specified.",
+        "",
+        "## Package identity",
+        "",
+        "`manifest.json` carries this package's id and the SHA-256 of every",
+        "file. Your returned output is tied back to those hashes, which is what",
+        "makes the run auditable months later.",
+        "",
+        "## Attestation",
+        "",
+        "When you return the files, please state, as the person who ran it:",
+        "",
+        "- that you executed the supplied `validate.sas` unmodified,",
+        "- in a licensed SAS environment you are authorised to use,",
+        "- that the returned result and log are the unedited outputs of that run,",
+        "- your name and role, and the execution date and time.",
+        "",
+        "This attestation is recorded as YOUR STATEMENT. The platform does not",
+        "treat it as proof that the program ran - nothing outside your",
+        "environment can establish that - and the evidence stays marked as",
+        "manually executed for exactly that reason.",
+        "",
+        "## What is deliberately not in this package",
+        "",
+        "No expected denominator degrees of freedom, no expected confidence",
+        "interval, no standard error to aim at, and no result from any other",
+        "software. None is withheld because it is secret; they are withheld",
+        "because this run exists to produce that number independently, and a",
+        "reader who knows the hoped-for answer cannot produce one.",
+        "",
+        "Nothing here defines a right answer, and you are not being asked",
+        "whether the run agrees with anything. Return what SAS produced.",
+        "",
+    ]
+
+
 def build_package(
     *,
     target: ValidationTarget,
@@ -230,6 +379,7 @@ def build_package(
     be_stats_version: str,
     git_sha: str,
     generated_at: datetime | None = None,
+    audience: PackageAudience = PackageAudience.OPERATOR_BLINDED,
 ) -> ValidationPackage:
     """Assemble the package. Pure, apart from the timestamp it is handed.
 
@@ -307,20 +457,26 @@ def build_package(
     specification_hash = sha256_text(specification_text)
 
     readme_text = _readme(
-        target, program.result_filename, program.normalizations_applied
+        target, program.result_filename, program.normalizations_applied, audience
     )
+    readme_hash = sha256_text(readme_text)
 
     files = (
         PackageFile(dataset_name, dataset_csv, dataset_hash),
         PackageFile(program_name, program.text, program_hash),
         PackageFile("model_specification.json", specification_text, specification_hash),
-        PackageFile("README.md", readme_text, sha256_text(readme_text)),
+        PackageFile("README.md", readme_text, readme_hash),
     )
 
     manifest: dict[str, object] = {
         "schema": PACKAGE_SCHEMA,
         "case_id": target.case_id,
         "regulatory_method": target.regulatory_method,
+        # In the manifest, so the package's identity depends on it. Two
+        # packages differing only in audience are different packages, and a
+        # reviewer holding one can tell which was handed out.
+        "audience": str(audience),
+        "readme_sha256": readme_hash,
         "generated_at": stamp,
         "be_stats_version": be_stats_version,
         "git_sha": git_sha,
@@ -358,20 +514,34 @@ def build_package(
         be_stats_version=be_stats_version,
         git_sha=git_sha,
     )
-    _assert_neutral(package)
+    _assert_neutral(package, audience)
     return package
 
 
-def _assert_neutral(package: ValidationPackage) -> None:
-    """No candidate df may travel inside a package. Checked, not trusted.
+def _assert_neutral(package: ValidationPackage, audience: PackageAudience) -> None:
+    """No candidate answer may travel inside a package. Checked, not trusted.
 
-    The README prints reference values with their evidence status, which is
-    context a human should see. The DATASET, the PROGRAM and the SPECIFICATION
-    must contain none of them - those are what SAS reads.
+    NO EXEMPTION LIST FOR AN OPERATOR PACKAGE
+
+    This function used to skip `README.md` and `manifest.json`, reasoning that
+    a human should see the reference values in context. The README was the one
+    file the operator was certain to read, and it carried both candidate dfs
+    and named the software that produced one of them. The exemption was the
+    leak, and an exemption keyed by filename cannot distinguish the human who
+    should see a value from the one who must not.
+
+    So the audience decides, and for an operator package the answer is every
+    file. The DATASET, the PROGRAM and the SPECIFICATION are scanned whatever
+    the audience: those are what SAS reads, and no reader needs a candidate
+    answer in them.
     """
+    always_scanned = {"dataset.csv", "validate.sas", "model_specification.json"}
+
     for file in package.files:
-        if file.name in ("README.md", "manifest.json"):
+        blinded = audience is PackageAudience.OPERATOR_BLINDED
+        if not blinded and file.name not in always_scanned:
             continue
+
         for forbidden in FORBIDDEN_EXPECTED_VALUES:
             if forbidden in file.content:
                 raise ValueError(
@@ -379,11 +549,26 @@ def _assert_neutral(package: ValidationPackage) -> None:
                     "must not ship a candidate answer to the question it is "
                     "being run to settle."
                 )
+        if not blinded:
+            continue
+
+        lowered = file.content.lower()
+        for phrase in FORBIDDEN_OPERATOR_PHRASES:
+            if phrase in lowered:
+                raise ValueError(
+                    f"{file.name} contains {phrase!r}. An "
+                    f"{PackageAudience.OPERATOR_BLINDED} package may not name "
+                    "another engine, an expected value, or a preference "
+                    "between candidates - a candidate leaks as a name as "
+                    "easily as it leaks as a number."
+                )
 
 
 __all__ = [
     "FORBIDDEN_EXPECTED_VALUES",
+    "FORBIDDEN_OPERATOR_PHRASES",
     "PACKAGE_SCHEMA",
+    "PackageAudience",
     "PackageFile",
     "ValidationPackage",
     "build_package",

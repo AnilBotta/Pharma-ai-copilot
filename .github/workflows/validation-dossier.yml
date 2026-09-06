@@ -37,7 +37,9 @@ on:
       - "be-stats/validation/**"
       - "be-stats/scripts/**"
       - "backend/app/statistics/**"
+      - "backend/app/sas_validation/**"
       - "backend/tests/test_statistics_*.py"
+      - "backend/tests/sas_validation/**"
       - ".github/workflows/validation-dossier.yml"
   workflow_dispatch:
 
@@ -188,6 +190,80 @@ jobs:
         with:
           name: validation-bundle
           path: build/validation-bundle
+          if-no-files-found: warn
+
+  sas-governance:
+    name: SAS package governance
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    # WHY THIS JOB EXISTS
+    #
+    # It did not, and `backend/tests/` was run by NO workflow on a pull
+    # request. The `dossier` job's path filter already mentioned
+    # `backend/app/statistics/**`, so a backend change could TRIGGER this
+    # workflow while none of its steps executed a single backend test.
+    #
+    # What was not running included every guard on the manual SAS oracle
+    # workflow: that a package ships no candidate answer, that manual
+    # execution stays UNVERIFIED_MANUAL_EXECUTION, that a TEST_FIXTURE cannot
+    # be accepted as oracle evidence, and that nothing auto-promotes a
+    # validation status. Those are the controls standing between a licensed
+    # SAS run and a false claim, and they were being checked only when
+    # somebody ran pytest locally.
+    #
+    # The blinding tests added alongside this job would have inherited exactly
+    # that fate.
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install backend
+        run: pip install -r backend/requirements.txt -r backend/requirements-dev.in
+
+      - name: Run the SAS validation and governance tests
+        working-directory: backend
+        run: |
+          python -m pytest tests/sas_validation \
+                           tests/test_statistics_surface.py \
+                           -q --junitxml=../sas-governance-tests.xml
+
+      - name: Every backend SAS test file is in the list above
+        # The same staleness guard the dossier job uses, for the same reason:
+        # an explicit list goes stale silently, and a new governance test that
+        # nothing runs is a governance test that rots.
+        run: |
+          python - <<'PY'
+          import pathlib, re, sys
+
+          workflow = pathlib.Path(
+              ".github/workflows/validation-dossier.yml"
+          ).read_text()
+          # The job above runs the whole directory, so the guard checks that
+          # the DIRECTORY is still named rather than enumerating files.
+          if "tests/sas_validation \\" not in workflow:
+              print("the sas-governance job no longer runs tests/sas_validation")
+              sys.exit(1)
+
+          existing = sorted(
+              p.as_posix()
+              for p in pathlib.Path("backend/tests/sas_validation").glob("test_*.py")
+          )
+          if not existing:
+              print("no backend SAS tests found - this guard would pass vacuously")
+              sys.exit(1)
+          print(f"{len(existing)} backend SAS test files are covered by the directory run")
+          PY
+
+      - name: Upload the test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sas-governance-tests
+          path: sas-governance-tests.xml
           if-no-files-found: warn
 
   certification:
