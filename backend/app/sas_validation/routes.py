@@ -211,6 +211,42 @@ def list_options() -> dict[str, object]:
 
     The interface renders from this rather than deciding for itself, so the
     API and the screen cannot drift into promising different things.
+
+    THIS ROUTE IS PUBLIC, AND THAT IS WHY IT CARRIES NO NUMBER AT ALL
+
+    It takes no `current_user`: the mode-selection screen is reachable before
+    a session exists. It returned every `target.reference`, so
+    `GET /api/sas-validation/options` served 19.8906, 22.5403, "ReplicateBE"
+    and the note calling one of them BEST-SUPPORTED to anybody on the
+    internet, unauthenticated. PR #80 blinded the package the operator
+    downloads and did not blind this, so the blind was defeated one route
+    away from where it was installed.
+
+    THE FIRST FIX WAS THE RIGHT INSTINCT AND THE WRONG AXIS
+
+    It filtered to `target.regulator_published()`, which still served
+    estimate 102.26 and the interval 97.05-107.76 - EXPECTED NUMERICAL
+    OUTPUTS for the very dataset the blinded operator is about to analyse.
+
+    That mistake has a name. `REGULATOR_PUBLISHED` is an EVIDENCE PROVENANCE
+    status: it says a figure is admissible, and it is exactly the right
+    filter when asking what may support a regulatory claim. It says nothing
+    about AUDIENCE DISCLOSURE - whether a number may be shown to the person
+    whose independent run we intend to use as oracle evidence. EMA having
+    printed a number does not make showing it to that person neutral.
+
+    Two dimensions, and the first fix used one as a proxy for the other. So
+    this route now filters on neither: it serves no `ReferenceValue.value`
+    of any status, and the invariant is structural rather than a list of
+    numbers somebody has to remember to extend.
+
+    `reviewer_question` is gone from here for the same reason. It was
+    written for a reviewer, and its closing sentence - "Agreement with any
+    number below is not by itself an answer" - referred to references this
+    payload no longer carries.
+
+    The reviewer surface that wants any of this must be authenticated. This
+    one is reachable by anybody.
     """
     options = []
     for mode, title, description in (
@@ -252,24 +288,26 @@ def list_options() -> dict[str, object]:
         # The ENVIRONMENT acknowledgement - "we are authorised to use this SAS"
         # - not the oracle-closure one the review screen shows.
         "acknowledgement_text": ENVIRONMENT_ACKNOWLEDGEMENT_TEXT,
+        # An explicit WHITELIST of non-numeric selection metadata, not a
+        # filtered copy of the target. A whitelist fails closed: a
+        # ReferenceValue added to a target tomorrow does not appear here,
+        # whereas a filter has to be taught about it.
         "cases": [
             {
                 "case_id": target.case_id,
                 "title": target.title,
+                "regulatory_method": target.regulatory_method,
                 "design": target.design,
+                "dataset_source": target.dataset_source,
                 "purpose": target.purpose,
-                "reviewer_question": target.reviewer_question,
-                "references": [
-                    {
-                        "quantity": r.quantity,
-                        "value": r.value,
-                        "evidence_status": r.status.value,
-                        "regulator_confirmed": r.is_regulator_confirmed,
-                        "source": r.source,
-                        "note": r.note,
-                    }
-                    for r in target.references
-                ],
+                # COUNTS, NOT VALUES. Enough to show a reader that provenance
+                # exists and is deliberately withheld; a count reveals no
+                # result. Silence here would instead suggest there is nothing
+                # to withhold.
+                "published_references_withheld": len(
+                    target.regulator_published()
+                ),
+                "unconfirmed_references_withheld": len(target.unconfirmed()),
             }
             for target in TARGETS.values()
         ],
