@@ -169,6 +169,16 @@ class Capability(StrEnum):
     #: thing, which is the misreading the constants have carried warnings about
     #: since the threshold was first recorded.
     FDA_HVD_CLASSIFICATION = "fda_hvd_classification"
+    #: Decide whether FDA's highly variable PROCEDURE may be used for this
+    #: product at all, before any verdict is issued.
+    #:
+    #: SEPARATE FROM THE CLASSIFICATION, and the separation is what independent
+    #: review of the classification's own release required. "The classification
+    #: rule is implemented" and "the HVD procedure applies to this product" are
+    #: different claims, and the first version of that work conflated them by
+    #: reporting a classification of EXCLUDED_NARROW_THERAPEUTIC_INDEX beside a
+    #: decided FDA_HVD_RSABE verdict on the same object.
+    FDA_HVD_APPLICABILITY_GATE = "fda_hvd_applicability_gate"
     #: Recognise a replicate design, validate its structure, construct the
     #: reference replicates.
     FDA_HVD_REPLICATE_DATA_VALIDATION = "fda_hvd_replicate_data_validation"
@@ -252,6 +262,14 @@ CAPABILITY_VALIDATION: dict[Capability, ValidationStatus] = {
     #: CVwR, and promotion is governed by the release gate rather than by this
     #: table.
     Capability.FDA_HVD_CLASSIFICATION: ValidationStatus.IMPLEMENTED,
+    #: IMPLEMENTED, and structural in the strictest sense in this table: it maps
+    #: a declared product class onto "may this procedure decide", consults no
+    #: data, and produces no number at all.
+    #:
+    #: NOT a promotion of anything. It gates verdicts more tightly than before,
+    #: which is the opposite direction from a promotion, and no method or
+    #: capability status moved to accommodate it.
+    Capability.FDA_HVD_APPLICABILITY_GATE: ValidationStatus.IMPLEMENTED,
     Capability.FDA_HVD_REPLICATE_DATA_VALIDATION: ValidationStatus.IMPLEMENTED,
     Capability.FDA_HVD_REFERENCE_VARIANCE: (
         ValidationStatus.IMPLEMENTED_UNVALIDATED
@@ -1034,6 +1052,157 @@ def fda_hvd_classification(
         nti_status=nti_status,
         basis=threshold_cv,
     )
+
+
+class ContradictoryProductClass(ValueError):
+    """A `BeSpec` and an `NtiStatus` were both supplied and disagree.
+
+    Raised rather than resolved by precedence. Two callers' assertions about the
+    same product cannot both be true, and silently preferring either one means
+    the engine choosing which of its inputs to believe about a regulatory
+    property it cannot observe.
+
+    A `ValueError` subclass so that a caller already guarding the entry point
+    against bad arguments keeps catching it, and named so that a caller who
+    wants to handle exactly this can.
+    """
+
+
+#: What each `DrugClass` asserts about narrow therapeutic index status.
+#:
+#: THIS IS THE INVARIANT SECTION 5 ASKED TO BE PROVEN, WRITTEN DOWN.
+#:
+#: `DrugClass` is a single-valued field, so its members are mutually exclusive
+#: by construction: a spec cannot be both HIGHLY_VARIABLE and
+#: NARROW_THERAPEUTIC_INDEX. `resolve_be_spec` then routes them down disjoint
+#: paths - HIGHLY_VARIABLE + FDA reaches `FDA_HVD_RSABE`, and
+#: NARROW_THERAPEUTIC_INDEX + FDA reaches `FDA_NTI_RSABE` - so a caller who has
+#: declared one has declared the negation of the other.
+#:
+#: That makes a declared HIGHLY_VARIABLE spec an assertion of non-NTI of
+#: exactly the same standing as `NtiStatus.NOT_NARROW_THERAPEUTIC_INDEX`: both
+#: are the caller's claim about the product, and neither is observed from data.
+#: `test_the_drug_class_nti_claim_invariant_holds_through_the_resolver` asserts
+#: the disjointness rather than trusting this comment.
+#:
+#: STANDARD carries the same non-NTI claim, for the same exclusivity reason. It
+#: is listed explicitly rather than defaulted: a drug class added later must
+#: state its own claim here, and a `KeyError` is the correct outcome until it
+#: does.
+_DRUG_CLASS_NTI_CLAIM: dict[DrugClass, NtiStatus] = {
+    DrugClass.NARROW_THERAPEUTIC_INDEX: NtiStatus.NARROW_THERAPEUTIC_INDEX,
+    DrugClass.HIGHLY_VARIABLE: NtiStatus.NOT_NARROW_THERAPEUTIC_INDEX,
+    DrugClass.STANDARD: NtiStatus.NOT_NARROW_THERAPEUTIC_INDEX,
+}
+
+
+def nti_status_from_drug_class(drug_class: DrugClass) -> NtiStatus:
+    """The NTI claim a declared drug class carries. No default."""
+    try:
+        return _DRUG_CLASS_NTI_CLAIM[drug_class]
+    except KeyError:
+        raise KeyError(
+            f"{drug_class} states no narrow-therapeutic-index claim. A new drug "
+            "class must declare one in _DRUG_CLASS_NTI_CLAIM rather than "
+            "inherit a neighbour's, because the claim decides whether FDA's "
+            "highly variable procedure applies at all."
+        ) from None
+
+
+def reconcile_nti_status(
+    *, spec: "BeSpec | None", nti_status: NtiStatus
+) -> NtiStatus:
+    """ONE answer about the product, or a refusal. Never a silent preference.
+
+    Two inputs can carry a narrow-therapeutic-index claim: a resolved `BeSpec`
+    carries one through its `drug_class`, and `nti_status` carries one directly.
+    This is the single place the two are turned into one answer, so that no
+    caller downstream has to know which wins.
+
+        neither states it        -> NOT_STATED
+        one states it            -> that one
+        both agree               -> that answer
+        both disagree            -> ContradictoryProductClass
+
+    Failing closed on disagreement rather than preferring the spec: a spec
+    resolved as HIGHLY_VARIABLE beside an explicit
+    `NtiStatus.NARROW_THERAPEUTIC_INDEX` is not a precedence question, it is two
+    incompatible statements about one product, and the safe response to
+    "is this drug narrow therapeutic index?" being answered both ways is to
+    stop.
+    """
+    if spec is None:
+        return nti_status
+
+    from_spec = nti_status_from_drug_class(spec.drug_class)
+
+    if nti_status is NtiStatus.NOT_STATED:
+        return from_spec
+    if nti_status is from_spec:
+        return nti_status
+
+    raise ContradictoryProductClass(
+        f"the supplied spec declares drug_class={spec.drug_class}, which "
+        f"asserts {from_spec}, while nti_status was given as {nti_status}. "
+        "These are incompatible statements about one product's regulatory "
+        "class, and neither is observable from the data, so the engine will "
+        "not choose between them. Supply only one, or correct the one that is "
+        "wrong."
+    )
+
+
+class HvdApplicability(StrEnum):
+    """Whether FDA's highly variable procedure applies to this product at all.
+
+    SEPARATE FROM THE CLASSIFICATION, AND FROM THE SWITCH
+
+    Three questions, asked in order, and only the third produces a verdict:
+
+        applicability    may the FDA HVD procedure be used for this PRODUCT?
+        classification   is this a highly variable DRUG, per III.C?
+        method selection which ANALYSIS applies, per the estimated sWR?
+
+    The first is a gate. III.C defines highly variable drugs as those with
+    within-subject variability of 30 percent or greater "and that are not
+    considered NTI drugs", and FDA assesses NTI drugs under Appendix F - a
+    different procedure, with a different scaling constant and two additional
+    criteria. So a product known to be NTI, or whose NTI status is unknown, must
+    not receive a bioequivalence verdict from this workflow.
+    """
+
+    APPLICABLE = "applicable"
+    NOT_APPLICABLE_NARROW_THERAPEUTIC_INDEX = (
+        "not_applicable_narrow_therapeutic_index"
+    )
+    UNDETERMINED_NTI_NOT_STATED = "undetermined_nti_not_stated"
+
+    @property
+    def permits_verdict(self) -> bool:
+        """Only one member does, and callers ask this rather than comparing."""
+        return self is HvdApplicability.APPLICABLE
+
+
+def fda_hvd_applicability(nti_status: NtiStatus) -> HvdApplicability:
+    """May the FDA HVD procedure decide this product? Fails closed.
+
+    Note what this does NOT depend on: the data, the estimated sWR, the CVwR,
+    and the classification. Applicability is a property of the product, settled
+    before any observation is read, and a variable NTI drug is no more eligible
+    for this procedure than a reproducible one.
+
+    NOT_STATED IS REFUSED, NOT DEFAULTED
+
+    The convenient reading is that an unstated NTI status means "not NTI",
+    which is also the reading that produces an answer. It is an assertion about
+    a product made by a package that was handed numbers and no product
+    information, in the direction that yields a verdict - and the verdict would
+    be from the wrong appendix whenever the assumption was wrong.
+    """
+    if nti_status is NtiStatus.NARROW_THERAPEUTIC_INDEX:
+        return HvdApplicability.NOT_APPLICABLE_NARROW_THERAPEUTIC_INDEX
+    if nti_status is NtiStatus.NOT_NARROW_THERAPEUTIC_INDEX:
+        return HvdApplicability.APPLICABLE
+    return HvdApplicability.UNDETERMINED_NTI_NOT_STATED
 
 
 def fda_hvd_method_for(swr: float) -> Method:

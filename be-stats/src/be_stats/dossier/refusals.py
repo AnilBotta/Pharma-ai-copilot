@@ -100,6 +100,17 @@ class RefusalCode(StrEnum):
     EMA_NTI_CMAX_PRODUCT_SPECIFIC = "EMA_NTI_CMAX_PRODUCT_SPECIFIC"
     #: A jurisdiction and drug-class combination this engine does not route.
     UNSUPPORTED_REGULATORY_ROUTE = "UNSUPPORTED_REGULATORY_ROUTE"
+    #: The product is a narrow therapeutic index drug, so FDA's highly variable
+    #: procedure does not apply to it at all. III.C's definition excludes NTI
+    #: drugs and III.B routes them to Appendix F, which is a different
+    #: procedure - not a stricter parameterisation of this one.
+    FDA_HVD_NOT_APPLICABLE_NTI = "FDA_HVD_NOT_APPLICABLE_NTI"
+    #: The product's narrow-therapeutic-index status was not stated, so whether
+    #: FDA's highly variable procedure applies is undetermined. Refused rather
+    #: than assumed: an unstated status is not an assertion of non-NTI, and
+    #: assuming one decides the endpoint from Appendix G whenever the assumption
+    #: is wrong.
+    FDA_HVD_NTI_STATUS_REQUIRED = "FDA_HVD_NTI_STATUS_REQUIRED"
 
     # ------------------------------------------------- estimability ---
     #: The data are structurally fine and an estimate does not exist -
@@ -223,6 +234,51 @@ REFUSALS: dict[RefusalCode, RefusalReason] = {
             "80.00-125.00% interval, which this engine does support."
         ),
         source="EMA CPMP/EWP/QWP/1401/98 Rev. 1, 4.1.10, final paragraph",
+    ),
+    RefusalCode.FDA_HVD_NOT_APPLICABLE_NTI: RefusalReason(
+        code=RefusalCode.FDA_HVD_NOT_APPLICABLE_NTI,
+        summary=(
+            "FDA HVD procedure not applicable: the product is identified as "
+            "narrow therapeutic index. III.C defines a highly variable drug as "
+            "one with within-subject variability of 30 percent or greater AND "
+            "that is not considered an NTI drug, so an NTI product is outside "
+            "the definition however variable its reference is. Reference "
+            "variability is still reported, descriptively; no bioequivalence "
+            "decision is issued."
+        ),
+        lifted_by=(
+            "Nothing about the study. Assess the product under the FDA NTI "
+            "procedure (Appendix F), which this engine implements separately: "
+            "a reference-scaled criterion on sigma_W0 = 0.10, the unscaled "
+            "80.00-125.00% limits, and a bound on the ratio of within-subject "
+            "variances. It is a different procedure, not a stricter setting of "
+            "this one."
+        ),
+        source=(
+            "FDA Statistical Approaches to Establishing Bioequivalence, final, "
+            "May 2026, III.C (definition) and III.B (NTI procedure)"
+        ),
+    ),
+    RefusalCode.FDA_HVD_NTI_STATUS_REQUIRED: RefusalReason(
+        code=RefusalCode.FDA_HVD_NTI_STATUS_REQUIRED,
+        summary=(
+            "FDA HVD applicability cannot be determined because the product's "
+            "narrow-therapeutic-index status was not stated. III.C's definition "
+            "has two conjuncts and the second is a property of the product that "
+            "no dataset carries, so the engine cannot observe it. Variability "
+            "estimates are reported descriptively; no bioequivalence decision "
+            "is issued."
+        ),
+        lifted_by=(
+            "State the product's class - `nti_status`, or a spec whose "
+            "`drug_class` carries it. Nothing about the data lifts this: a "
+            "larger study, a lower CVwR and a cleaner dataset all leave the "
+            "product's regulatory class exactly as unknown as before."
+        ),
+        source=(
+            "FDA Statistical Approaches to Establishing Bioequivalence, final, "
+            "May 2026, III.C"
+        ),
     ),
     RefusalCode.EMA_NTI_CMAX_PRODUCT_SPECIFIC: RefusalReason(
         code=RefusalCode.EMA_NTI_CMAX_PRODUCT_SPECIFIC,

@@ -257,6 +257,58 @@ def test_the_classification_case_is_reproduced_row_by_row():
         )
 
 
+def test_the_applicability_block_is_reproduced_row_by_row():
+    """Tier 1A for III.C's exclusion of NTI drugs, driven from the case file.
+
+    The rule this checks is the one independent review found missing: the
+    definition excludes NTI drugs, III.B sends them to Appendix F, and a
+    verdict from Appendix G for such a product comes from the wrong appendix.
+    """
+    from be_stats.spec import HvdApplicability, NtiStatus, fda_hvd_applicability
+
+    case = _case("FDA-HVD-CLASSIFICATION-001")
+    block = case["applicability"]
+
+    for row in block["expected"]:
+        got = fda_hvd_applicability(NtiStatus(row["nti_status"]))
+        assert got is HvdApplicability(row["applicability"]), (
+            f"nti_status={row['nti_status']}: expected "
+            f"{row['applicability']}, got {got}. Case note: {row['why']}"
+        )
+        assert got.permits_verdict is row["permits_verdict"], (
+            f"nti_status={row['nti_status']}: permits_verdict should be "
+            f"{row['permits_verdict']}. Case note: {row['why']}"
+        )
+
+    # Exactly one outcome may permit a verdict, and the case file must say so.
+    permitting = [r for r in block["expected"] if r["permits_verdict"]]
+    assert len(permitting) == 1
+    assert permitting[0]["nti_status"] == "not_narrow_therapeutic_index"
+
+    # Every applicability the engine can produce is covered by the case.
+    assert {HvdApplicability(r["applicability"]) for r in block["expected"]} == (
+        set(HvdApplicability)
+    )
+
+
+def test_the_applicability_rule_does_not_depend_on_the_thresholds():
+    """The case file states this, and the signature has to agree.
+
+    If applicability ever became a function of CVwR or sWR, the classification
+    and the gate would have merged - and the disagreement window would decide
+    whether a product's procedure applies, which it must not.
+    """
+    import inspect
+
+    from be_stats.spec import fda_hvd_applicability
+
+    case = _case("FDA-HVD-CLASSIFICATION-001")
+    assert "NTI status ONLY" in case["applicability"]["depends_on"]
+    assert list(inspect.signature(fda_hvd_applicability).parameters) == [
+        "nti_status"
+    ]
+
+
 def test_the_classification_case_keeps_its_threshold_off_the_switch():
     """The same guard as FDA-HVD-SWITCH-001, from the other side.
 
