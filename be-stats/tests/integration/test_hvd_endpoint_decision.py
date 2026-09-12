@@ -27,7 +27,7 @@ from be_stats.replicate import (
     ReplicateObservation,
     parse_sequence,
 )
-from be_stats.spec import Method
+from be_stats.spec import Method, NtiStatus
 from be_stats.study import Treatment
 
 PARTIAL = ("TRR", "RTR", "RRT")
@@ -68,6 +68,33 @@ def synthetic(
     return ReplicateDataset.build(observations)
 
 
+# --------------------------------------------- the product-class precondition ---
+#
+# Every test below exercises Appendix G's FLOW - the switch, the criteria, the
+# subject counts, the invariance properties. None of them is about whether FDA's
+# highly variable procedure applies to the product in the first place, and since
+# independent review of PR #82 that question gates the verdict: an unstated NTI
+# status refuses to decide, because III.C's definition excludes NTI drugs and FDA
+# assesses those under Appendix F.
+#
+# So these tests declare a confirmed non-NTI product, once per call, under a name
+# that says what is being declared. The declaration is NOT moved into
+# `assess_endpoint` as a default - that is precisely the defect the review found.
+# `test_fda_hvd_classification.py` owns the applicability behaviour itself.
+
+
+def assess(dataset, **kwargs):
+    """`assess_endpoint` for a product confirmed NOT to be narrow therapeutic index."""
+    kwargs.setdefault("nti_status", NtiStatus.NOT_NARROW_THERAPEUTIC_INDEX)
+    return assess_endpoint(dataset, **kwargs)
+
+
+def assess_all(datasets, **kwargs):
+    """`assess_study` for a product confirmed NOT to be narrow therapeutic index."""
+    kwargs.setdefault("nti_status", NtiStatus.NOT_NARROW_THERAPEUTIC_INDEX)
+    return assess_study(datasets, **kwargs)
+
+
 # --------------------------------------------------------------- switching ---
 
 
@@ -79,7 +106,7 @@ def test_a_low_variability_endpoint_selects_standard_abe_and_refuses_to_decide()
     returned a verdict. That verdict came from a different model than FDA
     specifies for this branch, and looked identical to one that did not.
     """
-    result = assess_endpoint(synthetic(0.18, 11))
+    result = assess(synthetic(0.18, 11))
 
     assert result.swr < 0.294
     assert result.selected_method is Method.STANDARD_ABE
@@ -105,7 +132,7 @@ def test_the_refusal_still_returns_the_quantities_it_did_compute():
     sWR, CVwR, the selected method and the treatment contrast are all real and
     all returned. Only the verdict is withheld.
     """
-    result = assess_endpoint(synthetic(0.18, 11))
+    result = assess(synthetic(0.18, 11))
 
     assert result.swr is not None and result.swr > 0.0
     assert result.cv_wr is not None
@@ -116,7 +143,7 @@ def test_the_refusal_still_returns_the_quantities_it_did_compute():
 
 
 def test_a_high_variability_endpoint_takes_reference_scaling():
-    result = assess_endpoint(synthetic(0.45, 22))
+    result = assess(synthetic(0.45, 22))
 
     assert result.decided
     assert result.swr >= 0.294
@@ -179,7 +206,7 @@ def test_zero_swr_routes_to_standard_abe():
                         f"{label}-{k}", sequence, period, treatment, "AUC", value
                     )
                 )
-    result = assess_endpoint(ReplicateDataset.build(observations))
+    result = assess(ReplicateDataset.build(observations))
 
     assert result.swr == 0.0
     assert result.selected_method is Method.STANDARD_ABE
@@ -203,7 +230,7 @@ def test_auc_and_cmax_choose_different_methods_in_the_same_study():
     Classifying the study on its worst endpoint and scaling everything would
     hand the well-behaved endpoint a wider acceptance region than it earned.
     """
-    results = assess_study(
+    results = assess_all(
         {
             "AUC": synthetic(0.18, 11, endpoint="AUC"),
             "Cmax": synthetic(0.45, 22, endpoint="Cmax"),
@@ -228,7 +255,7 @@ def test_auc_and_cmax_choose_different_methods_in_the_same_study():
 
 
 def test_the_endpoint_travels_with_its_own_result():
-    results = assess_study(
+    results = assess_all(
         {
             "AUC": synthetic(0.18, 11, endpoint="AUC"),
             "Cmax": synthetic(0.45, 22, endpoint="Cmax"),
@@ -259,7 +286,7 @@ def test_the_two_subject_counts_can_differ_and_both_are_reported():
                         100.0 + 3 * k + period * (2 if treatment is Treatment.TEST else 1),
                     )
                 )
-    result = assess_endpoint(ReplicateDataset.build(observations))
+    result = assess(ReplicateDataset.build(observations))
 
     assert result.n_for_swr == 18, "the subject still has both references"
     assert result.n_for_treatment_contrast == 17
@@ -304,7 +331,7 @@ def test_the_two_degrees_of_freedom_are_separate_fields():
                         100.0 + 4 * k + period * (3 if treatment is Treatment.TEST else 1),
                     )
                 )
-    result = assess_endpoint(ReplicateDataset.build(observations))
+    result = assess(ReplicateDataset.build(observations))
 
     assert result.reference_variance_df == 18 - 3
     assert result.treatment_contrast_df == 17 - 3
@@ -318,7 +345,7 @@ def test_the_two_degrees_of_freedom_are_separate_fields():
 
 
 def test_the_scaled_criterion_scales_by_the_reference_variance_df():
-    result = assess_endpoint(synthetic(0.45, 22))
+    result = assess(synthetic(0.45, 22))
     assert result.rsabe_result is not None
     criterion = result.rsabe_result.scaled_criterion
     assert criterion.reference_variance_df == result.reference_variance_df
@@ -430,7 +457,7 @@ def test_the_unscaled_branch_was_never_marked_experimental():
 
 
 def test_the_summary_says_the_endpoint_was_not_decided():
-    result = assess_endpoint(synthetic(0.18, 11))
+    result = assess(synthetic(0.18, 11))
     text = result.summary()
     assert "sWR" in text
     assert "0.294" in text
@@ -541,7 +568,7 @@ def test_the_constants_are_not_duplicated_in_this_module():
 
 
 def test_the_result_can_explain_where_its_numbers_came_from():
-    result = assess_endpoint(synthetic(0.45, 22))
+    result = assess(synthetic(0.45, 22))
     text = " ".join(result.provenance())
     assert "Appendix G" in text
     assert "May 2026" in text
@@ -573,7 +600,7 @@ def test_rsabe_is_implemented_but_not_validated():
 
 
 def _decision(observations) -> tuple:
-    result = assess_endpoint(ReplicateDataset.build(observations))
+    result = assess(ReplicateDataset.build(observations))
     criterion = result.rsabe_result.scaled_criterion if result.rsabe_result else None
     return (
         result.selected_method,
@@ -673,7 +700,7 @@ def test_an_undecidable_endpoint_says_so_rather_than_failing():
                         100.0 + k + period,
                     )
                 )
-    result = assess_endpoint(ReplicateDataset.build(observations))
+    result = assess(ReplicateDataset.build(observations))
 
     assert not result.decided
     assert result.passes is None
@@ -686,7 +713,7 @@ def test_an_undecidable_endpoint_says_so_rather_than_failing():
 
 
 def test_a_fully_replicate_study_is_decided_too():
-    result = assess_endpoint(synthetic(0.45, 33, n_per_sequence=12, labels=FULLY))
+    result = assess(synthetic(0.45, 33, n_per_sequence=12, labels=FULLY))
     assert result.decided
     assert result.selected_method is Method.FDA_HVD_RSABE
     assert result.reference_variance_df == 24 - 2

@@ -48,6 +48,8 @@ the next column and only the next column.
 | `FDA_NTI_RSABE` | FDA | implemented | implemented_unvalidated | tier_1a | yes |
 | `EMA_HVD_ABEL` | EMA | implemented | implemented_unvalidated | tier_1b | yes |
 | `EMA_NTI_NARROW_ABE` | EMA | implemented | implemented_unvalidated | tier_1a | yes |
+| `FDA_HVD_CLASSIFICATION` | FDA | implemented | implemented | tier_1a | no |
+| `FDA_HVD_APPLICABILITY_GATE` | FDA | implemented | implemented | tier_1a | no |
 | `FDA_HVD_REPLICATE_DATA_VALIDATION` | FDA | implemented | implemented | tier_1a | no |
 | `FDA_HVD_REFERENCE_VARIANCE` | FDA | implemented | implemented_unvalidated | tier_1a | no |
 | `FDA_HVD_TREATMENT_CONTRAST` | FDA | implemented | implemented_unvalidated | tier_1a | no |
@@ -94,6 +96,20 @@ the next column and only the next column.
 
 - Applies to AUC by default. For Cmax the narrowed interval applies only where Cmax itself matters for safety, efficacy or therapeutic drug monitoring - a per-product decision the engine refuses to guess.
 - EMA narrows the interval; FDA does not. The two NTI procedures are different procedures and neither is a parameterisation of the other.
+
+**`FDA_HVD_CLASSIFICATION`** - Classify a drug as highly variable under III.C's definition
+
+- Classifies the DRUG and routes NOTHING. The analysis is selected by FDA_HVD_METHOD_SELECTION from the estimated sWR, and the two disagree for every study whose sWR falls in [0.293560, 0.294): such a drug is highly variable and its study takes ordinary average BE.
+- III.C defines the class by 'within subject variability (%CV) in BE measures'. This applies the rule to the observed CVwR, which is the reference's within-subject CV from this study. That is the quantity Appendix G makes available and it is narrower than the phrase; a classification from a different variability estimate is not what this reports.
+- The second conjunct - that the drug is not a narrow therapeutic index drug - is a product property that no dataset carries. Unstated, it leaves the drug NOT_CLASSIFIED rather than assumed to be non-NTI.
+- Classifying a drug does NOT establish that the FDA HVD procedure applies to it, and does not establish that any other procedure does either. A classification of NOT_HIGHLY_VARIABLE on a product of unknown class does not license the conventional 80.00-125.00% limits, because the product could be an NTI drug. Applicability is FDA_HVD_APPLICABILITY_GATE's question.
+
+**`FDA_HVD_APPLICABILITY_GATE`** - Refuse an FDA HVD verdict unless the product is confirmed non-NTI
+
+- Structural, and it consults no data: a variable NTI drug is no more eligible for Appendix G than a reproducible one, so applicability cannot be computed from sWR, CVwR or the classification.
+- It REFUSES rather than redirects. A product identified as narrow therapeutic index receives no verdict here and is not passed to the NTI procedure automatically; routing between regulatory methods belongs to the caller that resolved the spec, not to one method's module.
+- An unstated NTI status is refused, not defaulted to non-NTI. The cost is that a caller who has not stated the product's class gets descriptive variability and no decision; the alternative cost was a verdict from the wrong appendix.
+- The gate cannot detect a MISSTATED class. A caller who declares a narrow therapeutic index product as non-NTI gets the HVD procedure, and nothing in the data would contradict them.
 
 **`FDA_HVD_REPLICATE_DATA_VALIDATION`** - Recognise and validate an FDA replicate design
 
@@ -286,6 +302,8 @@ that is a dead end rather than an answer.
 | `EMA_ABEL_REPLICATE_DESIGN_REQUIRED` | EMA permits widened Cmax limits only where CVwR was demonstrated in a replicate design of three or four periods. | Submit a 3-period or 4-period replicate crossover study. |
 | `UNSUPPORTED_REPLICATE_DESIGN` | The sequences present do not form a replicate design this engine recognises. Guessing the intended design would silently analyse a different study from the one submitted. | Submit one of the supported designs, or correct the sequence labels if they were mis-coded. |
 | `EMA_ABEL_CMAX_ONLY` | EMA's widened acceptance range applies to Cmax only. 4.1.10 keeps AUC at 80.00-125.00% regardless of variability, so a widened limit is not available for this endpoint. | Nothing about the study. Analyse AUC under the ordinary 80.00-125.00% interval, which this engine does support. |
+| `FDA_HVD_NOT_APPLICABLE_NTI` | FDA HVD procedure not applicable: the product is identified as narrow therapeutic index. III.C defines a highly variable drug as one with within-subject variability of 30 percent or greater AND that is not considered an NTI drug, so an NTI product is outside the definition however variable its reference is. Reference variability is still reported, descriptively; no bioequivalence decision is issued. | Nothing about the study. Assess the product under the FDA NTI procedure (Appendix F), which this engine implements separately: a reference-scaled criterion on sigma_W0 = 0.10, the unscaled 80.00-125.00% limits, and a bound on the ratio of within-subject variances. It is a different procedure, not a stricter setting of this one. |
+| `FDA_HVD_NTI_STATUS_REQUIRED` | FDA HVD applicability cannot be determined because the product's narrow-therapeutic-index status was not stated. III.C's definition has two conjuncts and the second is a property of the product that no dataset carries, so the engine cannot observe it. Variability estimates are reported descriptively; no bioequivalence decision is issued. | State the product's class - `nti_status`, or a spec whose `drug_class` carries it. Nothing about the data lifts this: a larger study, a lower CVwR and a cleaner dataset all leave the product's regulatory class exactly as unknown as before. |
 | `EMA_NTI_CMAX_PRODUCT_SPECIFIC` | EMA narrows Cmax for an NTI drug only where Cmax itself matters for safety, efficacy or therapeutic drug monitoring, and that is a per-product decision: ciclosporin narrows both AUC and Cmax, colchicine narrows AUC and leaves Cmax at 80.00-125.00%. | Supply the Cmax limits from the applicable product-specific guidance as a ProductOverride. |
 | `UNSUPPORTED_REGULATORY_ROUTE` | This jurisdiction and drug-class combination is not routed by this engine. Falling back to the ordinary 80.00-125.00% interval would answer a question the regulator answers differently. | Implementation of the route, with its own validation ladder. |
 | `QUANTITY_NOT_ESTIMABLE` | The quantity the criterion needs does not exist for these data - too few residual degrees of freedom, no replicated test measurement, or a ratio whose denominator is exactly zero. | More evaluable subjects, or the missing replicate measurements. The accompanying diagnostics name which subjects and why. |
@@ -972,6 +990,8 @@ release gate: PASS
   ok   FDA_NTI_RSABE = implemented_unvalidated
   ok   EMA_HVD_ABEL = implemented_unvalidated
   ok   EMA_NTI_NARROW_ABE = implemented_unvalidated
+  ok   FDA_HVD_CLASSIFICATION = implemented
+  ok   FDA_HVD_APPLICABILITY_GATE = implemented
   ok   FDA_HVD_REPLICATE_DATA_VALIDATION = implemented
   ok   FDA_HVD_REFERENCE_VARIANCE = implemented_unvalidated
   ok   FDA_HVD_TREATMENT_CONTRAST = implemented_unvalidated

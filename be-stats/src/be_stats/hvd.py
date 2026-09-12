@@ -81,7 +81,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from be_stats.abe import AbeResult
-from be_stats.diagnostics import Diagnostic
+from be_stats.diagnostics import Diagnostic, DiagnosticCode, Severity
 from be_stats.howe import howe_upper_bound
 from be_stats.provenance import RegulatoryValue
 from be_stats.reference_variance import (
@@ -95,16 +95,44 @@ from be_stats.spec import (
     BeSpec,
     DrugClass,
     Endpoint,
+    HvdApplicability,
+    HvdClass,
+    HvdClassification,
     Jurisdiction,
     Method,
+    NtiStatus,
+    fda_hvd_applicability,
+    fda_hvd_classification,
     fda_hvd_method_for,
     fda_hvd_theta,
+    reconcile_nti_status,
     resolve_be_spec,
 )
 from be_stats.treatment_contrast import (
     TreatmentContrastResult,
     estimate_treatment_contrast,
 )
+
+
+def _applicability_explanation(applicability: HvdApplicability) -> str:
+    """One sentence per applicability outcome, shared by summary and provenance.
+
+    One function rather than two strings: the wording is the deliverable here,
+    and two copies would drift until the summary and the provenance disagreed
+    about whether a decision had been issued.
+    """
+    if applicability is HvdApplicability.NOT_APPLICABLE_NARROW_THERAPEUTIC_INDEX:
+        return (
+            "FDA HVD procedure not applicable: the product is identified as "
+            "narrow therapeutic index. Use the FDA NTI procedure."
+        )
+    if applicability is HvdApplicability.UNDETERMINED_NTI_NOT_STATED:
+        return (
+            "FDA HVD applicability cannot be determined because NTI status was "
+            "not specified. Variability estimates are descriptive only; no "
+            "regulatory BE decision was issued."
+        )
+    return "FDA HVD procedure applies: the product is confirmed not to be a narrow therapeutic index drug."
 
 
 class NotDecidable(Exception):
@@ -327,6 +355,24 @@ class FdaHvdResult:
     reference_variance: ReferenceVarianceResult
     treatment_contrast: TreatmentContrastResult | None = None
 
+    #: III.C's classification of the DRUG, reported and never routed by.
+    #:
+    #: These are the two things most often conflated - the classification and
+    #: the selected method - so they are both on this result, and a reader who
+    #: can see both at once can see that they answer different questions and
+    #: occasionally disagree. `rsabe_applicable` is derived from the method,
+    #: never from this.
+    #:
+    #: `None` means the classification was not requested, which is different
+    #: from a classification of NOT_CLASSIFIED - that one was requested and
+    #: came back undetermined.
+    hvd_classification: HvdClassification | None = None
+
+    #: Whether FDA's HVD procedure may decide this PRODUCT at all, settled
+    #: before any observation is read. Only `APPLICABLE` permits a verdict, and
+    #: `__post_init__` enforces that rather than leaving it to callers.
+    applicability: HvdApplicability = HvdApplicability.APPLICABLE
+
     standard_abe_result: AbeResult | None = None
     rsabe_result: RsabeResult | None = None
     #: The unscaled branch, when it decided. Appendix C's mixed model, for a
@@ -350,6 +396,119 @@ class FdaHvdResult:
     reference_variance_df: int = 0
     treatment_contrast_df: float = 0.0
 
+    def __post_init__(self) -> None:
+        """The contradictory state made UNCONSTRUCTIBLE, not merely untested.
+
+        Independent review of the first version of this PR found that it could
+        return, on one object:
+
+            hvd_classification = EXCLUDED_NARROW_THERAPEUTIC_INDEX
+            selected_method    = FDA_HVD_RSABE
+            decided            = True
+            passes             = True
+
+        - a bioequivalence verdict from FDA's highly variable procedure for a
+        product FDA assesses under Appendix F. Every individual field was
+        computed correctly and the object as a whole asserted something false.
+
+        A test would have caught the paths the test happened to cover. This
+        raises in the constructor, so no path can produce it: a refused
+        applicability cannot carry a method, a branch result or a decision, and
+        a decision cannot exist without an applicability that permits one.
+
+        Raising from a frozen dataclass's `__post_init__` is the only place this
+        can live and still be unavoidable. Every return in this module goes
+        through it.
+        """
+        if self.applicability.permits_verdict:
+            return
+
+        if self.decided:
+            raise NotDecidable(
+                f"a decided result was constructed with applicability "
+                f"{self.applicability}. FDA's highly variable procedure does "
+                "not apply to this product, so there is no verdict for it to "
+                "report."
+            )
+        for field, value in (
+            ("selected_method", self.selected_method),
+            ("rsabe_result", self.rsabe_result),
+            ("appendix_c_result", self.appendix_c_result),
+            ("standard_abe_result", self.standard_abe_result),
+        ):
+            if value is not None:
+                raise NotDecidable(
+                    f"applicability is {self.applicability} and {field} is "
+                    f"{value!r}. A product the procedure does not apply to "
+                    "must not be carrying the analysis it would have received; "
+                    "that is the dual state that made a contradictory result "
+                    "possible."
+                )
+
+    @property
+    def rsabe_applicable(self) -> bool | None:
+        """Did FDA's switch select reference scaling? `None` before it ran.
+
+        Read from `selected_method`, which was set by `fda_hvd_method_for` from
+        the estimated sWR. NOT from `hvd_classification`: a drug classified
+        highly variable whose study came out at sWR 0.2937 is analysed by
+        ordinary average BE, and this property must say so.
+        """
+        if self.selected_method is None:
+            return None
+        return self.selected_method is Method.FDA_HVD_RSABE
+
+    @property
+    def swr2(self) -> float | None:
+        """sWR^2 as it entered the criterion. Delegated, never stored twice."""
+        return self.reference_variance.variance_wr
+
+    @property
+    def cv_wr_percent(self) -> float | None:
+        return None if self.cv_wr is None else 100.0 * self.cv_wr
+
+    @property
+    def rsabe_criterion(self) -> float | None:
+        """The 95% upper confidence bound, or None if RSABE did not run."""
+        if self.rsabe_result is None:
+            return None
+        return self.rsabe_result.scaled_criterion.upper_confidence_bound
+
+    @property
+    def rsabe_limit(self) -> float | None:
+        """What that bound must not exceed. Appendix G step 3a: zero.
+
+        A named property rather than a literal at the comparison site, so the
+        report can print the criterion and its limit side by side without
+        either being re-typed.
+        """
+        return None if self.rsabe_result is None else 0.0
+
+    @property
+    def rsabe_passes(self) -> bool | None:
+        if self.rsabe_result is None:
+            return None
+        return self.rsabe_result.scaled_criterion.passes
+
+    @property
+    def gmr(self) -> float | None:
+        """The T/R geometric mean ratio the point-estimate constraint tests."""
+        if self.treatment_contrast is None:
+            return None
+        return self.treatment_contrast.point_estimate
+
+    @property
+    def point_estimate_passes(self) -> bool | None:
+        """Criterion B alone. Separate from `passes`, which is the conjunction.
+
+        Exposed at this level because a caller reading only `passes` cannot
+        tell which of the two criteria failed, and criterion B failing means
+        something different about the product than criterion A failing.
+        """
+        if self.rsabe_result is None:
+            return None
+        return self.rsabe_result.point_estimate_constraint.passes
+
     @property
     def passes(self) -> bool | None:
         """Whether the endpoint met its criteria. `None` when not decided.
@@ -368,20 +527,84 @@ class FdaHvdResult:
         return None
 
     def provenance(self) -> list[str]:
-        lines = [
+        lines: list[str] = []
+        if not self.applicability.permits_verdict:
+            # FIRST, and on its own. A reader who stops after one line must
+            # come away knowing no decision was issued - which is the opposite
+            # of what they would conclude from a classification line followed
+            # by a switching-rule line.
+            lines.append(_applicability_explanation(self.applicability))
+        if self.hvd_classification is not None:
+            lines += self.hvd_classification.explain()
+        if not self.applicability.permits_verdict:
+            lines.append(
+                "the variability figures below are DESCRIPTIVE ONLY. No "
+                "bioequivalence decision was issued and no analysis method was "
+                "selected, because FDA's highly variable procedure was not "
+                "established to apply to this product."
+            )
+            lines += self.reference_variance.provenance()
+            return lines
+        lines += [
             f"switching rule: {self.switching_threshold.explain()}",
             f"observed sWR = {self.swr}, threshold "
             f"{self.switching_threshold.value} -> {self.selected_method}",
         ]
+        # Said explicitly, because the two lines above and the classification
+        # lines above THEM sit next to each other and the reader's instinct is
+        # to join them with "therefore".
+        if self.hvd_classification is not None:
+            lines.append(
+                "the classification above did not select this method: FDA "
+                "selects the analysis from the estimated sWR on the sWR scale, "
+                "and the classification describes the drug on the CV scale."
+            )
         lines += self.reference_variance.provenance()
         if self.treatment_contrast is not None:
             lines += self.treatment_contrast.provenance()
         return lines
 
     def summary(self) -> str:
+        if not self.applicability.permits_verdict:
+            # The refusal, the reason, and the descriptive figures. No method
+            # line and no criteria block, because there are none.
+            cv = (
+                None
+                if self.hvd_classification is None
+                else self.hvd_classification.cv_wr_percent
+            )
+            body = (
+                f"{self.endpoint} ({self.design})\n"
+                f"  NO BE DECISION ISSUED - {self.applicability}\n"
+                f"  {_applicability_explanation(self.applicability)}\n"
+                f"  descriptive only: sWR = "
+                f"{'n/a' if self.swr is None else f'{self.swr:.6f}'}, "
+                f"CVwR = {'n/a' if cv is None else f'{cv:.2f}%'}, "
+                f"n = {self.n_for_swr}, df = {self.reference_variance_df}\n"
+            )
+            if self.hvd_classification is not None:
+                body += (
+                    f"  drug classification (III.C, CV scale): "
+                    f"{self.hvd_classification.hvd_class}\n"
+                )
+            if self.diagnostics:
+                body += "  diagnostics:\n" + "\n".join(
+                    f"    {d}" for d in self.diagnostics
+                )
+            return body
+
+        classification = ""
+        if self.hvd_classification is not None:
+            cv = self.hvd_classification.cv_wr_percent
+            classification = (
+                f"  drug classification (III.C, CV scale): "
+                f"{self.hvd_classification.hvd_class}"
+                f"{'' if cv is None else f' at CVwR {cv:.2f}%'}\n"
+            )
         head = (
             f"{self.endpoint} ({self.design})\n"
-            f"  sWR = {self.swr if self.swr is None else f'{self.swr:.6f}'}, "
+            + classification
+            + f"  sWR = {self.swr if self.swr is None else f'{self.swr:.6f}'}, "
             f"threshold {self.switching_threshold.value} -> "
             f"{self.selected_method}\n"
             f"  n for sWR = {self.n_for_swr}, "
@@ -417,11 +640,66 @@ def _hvd_spec() -> BeSpec:
     )
 
 
+def _applicability_refusal(
+    applicability: HvdApplicability, classification: HvdClassification
+) -> Diagnostic:
+    """Why no verdict was issued, in words that name the next step.
+
+    FATAL, not advisory. The analysis did not produce a regulatory decision,
+    which is what this package's FATAL severity means; an ADVISORY here would
+    say "recorded, changed nothing" about the one condition that changed
+    everything. The first version of this PR attached exactly that advisory.
+    """
+    if applicability is HvdApplicability.NOT_APPLICABLE_NARROW_THERAPEUTIC_INDEX:
+        return Diagnostic(
+            DiagnosticCode.FDA_HVD_NOT_APPLICABLE_NTI,
+            Severity.FATAL,
+            None,
+            "FDA HVD procedure not applicable: the product is identified as "
+            "narrow therapeutic index. Use the FDA NTI procedure. III.C "
+            "defines a highly variable drug as one with within-subject "
+            "variability of 30 percent or greater AND that is not considered "
+            "an NTI drug, and FDA assesses NTI drugs under Appendix F - a "
+            "reference-scaled criterion on sigma_W0 = 0.10, plus the unscaled "
+            "80.00-125.00 limits, plus a bound on the ratio of within-subject "
+            "variances. Reference variability is reported below as a "
+            "descriptive quantity and no bioequivalence decision was issued",
+            {
+                "applicability": str(applicability),
+                "hvd_classification": str(classification.hvd_class),
+                "required_procedure": "FDA Appendix F (narrow therapeutic index)",
+                "cv_wr_percent": classification.cv_wr_percent,
+            },
+        )
+    return Diagnostic(
+        DiagnosticCode.FDA_HVD_APPLICABILITY_REQUIRES_NTI_STATUS,
+        Severity.FATAL,
+        None,
+        "FDA HVD applicability cannot be determined because NTI status was not "
+        "specified. Variability estimates are descriptive only; no regulatory "
+        "BE decision was issued. III.C's definition has two conjuncts and the "
+        "second - that the drug is not a narrow therapeutic index drug - is a "
+        "property of the product that no dataset carries. An unstated status "
+        "is not an assertion of non-NTI, and assuming one would decide this "
+        "endpoint from Appendix G whenever the assumption was wrong. Supply "
+        "nti_status, or a spec whose drug_class states the product's class",
+        {
+            "applicability": str(applicability),
+            "hvd_classification": str(classification.hvd_class),
+            "cv_wr_percent": classification.cv_wr_percent,
+            "meets_variability_criterion": (
+                classification.meets_variability_criterion
+            ),
+        },
+    )
+
+
 def assess_endpoint(
     dataset: ReplicateDataset,
     *,
     spec: BeSpec | None = None,
     observations: list | None = None,
+    nti_status: NtiStatus = NtiStatus.NOT_STATED,
 ) -> FdaHvdResult:
     """The whole Appendix G flow for one PK endpoint.
 
@@ -445,10 +723,87 @@ def assess_endpoint(
     Omitting `observations` is legitimate: the scaled branch does not need
     them, and the unscaled branch then refuses with a diagnostic saying what is
     missing rather than guessing.
+
+    `nti_status` GATES THE VERDICT - A CORRECTION
+
+    An earlier version of this function documented, in this docstring, that
+    `nti_status` "REACHES THE CLASSIFICATION AND NOTHING ELSE" and that leaving
+    it unset "changes no number, no branch and no verdict". That was accurate
+    about the code and wrong about the regulation, and independent review caught
+    it.
+
+    III.C defines a highly variable drug as one whose within-subject variability
+    is 30 percent or greater AND that is not considered an NTI drug, and FDA
+    assesses NTI drugs under Appendix F: a different procedure, a different
+    scaling constant, two additional criteria. A function that returns
+    `FDA_HVD_RSABE`, `decided=True` and a pass for a product known to be NTI has
+    answered from the wrong appendix, and the old code could do exactly that
+    while simultaneously reporting the classification
+    `EXCLUDED_NARROW_THERAPEUTIC_INDEX` on the same object.
+
+    So applicability is now a GATE, evaluated before the switch and independent
+    of the data:
+
+        NOT_NARROW_THERAPEUTIC_INDEX  the flow below runs unchanged. Not one
+                                      number moves.
+        NARROW_THERAPEUTIC_INDEX      no verdict. sWR and CVwR are reported as
+                                      descriptive quantities; the product
+                                      belongs to the NTI procedure.
+        NOT_STATED                    no verdict. Applicability is undetermined,
+                                      and an unstated NTI status is not an
+                                      assertion of non-NTI.
+
+    WHAT THE GATE DOES NOT DO
+
+    It does not route by CVwR, it does not touch the 0.294 switch, and it does
+    not collapse the classification into the decision. For a confirmed non-NTI
+    product the disagreement window is intact: CVwR at or above 30 percent with
+    sWR below 0.294 is a highly variable drug taking ordinary average BE.
+
+    It also does not call the NTI engine. `nti.py` owns that procedure, and a
+    cross-call from here would put two regulatory methods in one module.
     """
     threshold = FDA_HVD_CONSTANTS["swr_switching_threshold"]
+
+    # ONE answer about the product, from both places that can carry one, or a
+    # refusal. Before any estimation: a contradiction about the product's
+    # regulatory class is not something to discover after computing a verdict.
+    resolved_nti = reconcile_nti_status(spec=spec, nti_status=nti_status)
+    applicability = fda_hvd_applicability(resolved_nti)
+
     variance = estimate_reference_variance(dataset)
     diagnostics = list(variance.diagnostics)
+
+    # III.C's definition, evaluated on the CV scale from the SAME estimate the
+    # switch will read on the sWR scale. Computed BEFORE the switch and passed
+    # to neither it nor any branch below: it is an output, not an input.
+    classification = fda_hvd_classification(
+        cv_wr_percent=variance.cv_wr_percent, nti_status=resolved_nti
+    )
+
+    if not applicability.permits_verdict:
+        # THE GATE. Descriptive quantities are reported; nothing decisional is.
+        #
+        # No treatment contrast is estimated here, deliberately. sWR and CVwR
+        # describe the reference's variability and carry no comparison; a point
+        # estimate of T against R is the shape of an answer, and this product is
+        # not one this procedure may answer for.
+        diagnostics.append(_applicability_refusal(applicability, classification))
+        return FdaHvdResult(
+            endpoint=dataset.endpoint,
+            design=dataset.design,
+            swr=variance.swr,
+            cv_wr=variance.cv_wr,
+            switching_threshold=threshold,
+            selected_method=None,
+            reference_variance=variance,
+            hvd_classification=classification,
+            applicability=applicability,
+            decided=False,
+            diagnostics=tuple(diagnostics),
+            n_for_swr=variance.n_subjects,
+            reference_variance_df=variance.degrees_of_freedom,
+        )
 
     if not variance.estimable or variance.swr is None:
         return FdaHvdResult(
@@ -459,6 +814,8 @@ def assess_endpoint(
             switching_threshold=threshold,
             selected_method=None,
             reference_variance=variance,
+            hvd_classification=classification,
+            applicability=applicability,
             decided=False,
             diagnostics=tuple(diagnostics),
             n_for_swr=variance.n_subjects,
@@ -484,6 +841,8 @@ def assess_endpoint(
         selected_method=method,
         reference_variance=variance,
         treatment_contrast=contrast,
+        hvd_classification=classification,
+        applicability=applicability,
         n_for_swr=variance.n_subjects,
         n_for_treatment_contrast=contrast.n_subjects,
         reference_variance_df=variance.degrees_of_freedom,
@@ -573,6 +932,7 @@ def assess_study(
     datasets: dict[str, ReplicateDataset],
     *,
     spec: BeSpec | None = None,
+    nti_status: NtiStatus = NtiStatus.NOT_STATED,
 ) -> dict[str, FdaHvdResult]:
     """Every endpoint decided on its own sWR.
 
@@ -581,8 +941,20 @@ def assess_study(
     parameter". AUC and Cmax from the same subjects may take different
     procedures, and the endpoint with the lower reference variability must not
     inherit a scaled acceptance range from the one with more.
+
+    `nti_status` is a property of the PRODUCT, so it is the one thing here that
+    legitimately applies to every endpoint at once. Each endpoint still
+    classifies on its OWN CVwR, so a study may well report AUC as not highly
+    variable and Cmax as highly variable - which is the same per-endpoint logic
+    the method selection follows, for the same reason.
+
+    APPLICABILITY, BY CONTRAST, IS THE SAME FOR EVERY ENDPOINT
+
+    It depends only on the product's NTI status, so an NTI product's AUC and
+    Cmax are both refused, and an unstated status refuses both. There is no
+    endpoint for which the wrong appendix becomes the right one.
     """
     return {
-        endpoint: assess_endpoint(dataset, spec=spec)
+        endpoint: assess_endpoint(dataset, spec=spec, nti_status=nti_status)
         for endpoint, dataset in datasets.items()
     }

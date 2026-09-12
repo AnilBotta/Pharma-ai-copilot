@@ -310,6 +310,75 @@ _METHOD_ROWS: tuple[CapabilityRecord, ...] = (
 _CAPABILITY_ROWS: tuple[CapabilityRecord, ...] = (
     # ------------------------------------------- FDA highly variable ---
     _record(
+        capability_id="FDA_HVD_CLASSIFICATION",
+        title="Classify a drug as highly variable under III.C's definition",
+        jurisdiction=Jurisdiction.FDA,
+        method=Method.FDA_HVD_RSABE,
+        source_key=Capability.FDA_HVD_CLASSIFICATION,
+        design_requirement=REPLICATE_DESIGNS,
+        endpoints=ALL_ENDPOINTS,
+        regulatory_source=FDA_STATISTICAL_APPROACHES_III_C,
+        evidence_tier=EvidenceTier.TIER_1A,
+        decision_supported=False,
+        known_limitations=(
+            "Classifies the DRUG and routes NOTHING. The analysis is selected "
+            "by FDA_HVD_METHOD_SELECTION from the estimated sWR, and the two "
+            "disagree for every study whose sWR falls in [0.293560, 0.294): "
+            "such a drug is highly variable and its study takes ordinary "
+            "average BE.",
+            "III.C defines the class by 'within subject variability (%CV) in "
+            "BE measures'. This applies the rule to the observed CVwR, which "
+            "is the reference's within-subject CV from this study. That is "
+            "the quantity Appendix G makes available and it is narrower than "
+            "the phrase; a classification from a different variability "
+            "estimate is not what this reports.",
+            "The second conjunct - that the drug is not a narrow therapeutic "
+            "index drug - is a product property that no dataset carries. "
+            "Unstated, it leaves the drug NOT_CLASSIFIED rather than assumed "
+            "to be non-NTI.",
+            "Classifying a drug does NOT establish that the FDA HVD procedure "
+            "applies to it, and does not establish that any other procedure "
+            "does either. A classification of NOT_HIGHLY_VARIABLE on a product "
+            "of unknown class does not license the conventional 80.00-125.00% "
+            "limits, because the product could be an NTI drug. Applicability "
+            "is FDA_HVD_APPLICABILITY_GATE's question.",
+        ),
+    ),
+    _record(
+        capability_id="FDA_HVD_APPLICABILITY_GATE",
+        title="Refuse an FDA HVD verdict unless the product is confirmed non-NTI",
+        jurisdiction=Jurisdiction.FDA,
+        method=Method.FDA_HVD_RSABE,
+        source_key=Capability.FDA_HVD_APPLICABILITY_GATE,
+        design_requirement=REPLICATE_DESIGNS,
+        endpoints=ALL_ENDPOINTS,
+        regulatory_source=FDA_STATISTICAL_APPROACHES_III_C,
+        evidence_tier=EvidenceTier.TIER_1A,
+        decision_supported=False,
+        known_limitations=(
+            "Structural, and it consults no data: a variable NTI drug is no "
+            "more eligible for Appendix G than a reproducible one, so "
+            "applicability cannot be computed from sWR, CVwR or the "
+            "classification.",
+            "It REFUSES rather than redirects. A product identified as narrow "
+            "therapeutic index receives no verdict here and is not passed to "
+            "the NTI procedure automatically; routing between regulatory "
+            "methods belongs to the caller that resolved the spec, not to one "
+            "method's module.",
+            "An unstated NTI status is refused, not defaulted to non-NTI. The "
+            "cost is that a caller who has not stated the product's class gets "
+            "descriptive variability and no decision; the alternative cost was "
+            "a verdict from the wrong appendix.",
+            "The gate cannot detect a MISSTATED class. A caller who declares a "
+            "narrow therapeutic index product as non-NTI gets the HVD "
+            "procedure, and nothing in the data would contradict them.",
+        ),
+        refusal_conditions=(
+            RefusalCode.FDA_HVD_NOT_APPLICABLE_NTI,
+            RefusalCode.FDA_HVD_NTI_STATUS_REQUIRED,
+        ),
+    ),
+    _record(
         capability_id="FDA_HVD_REPLICATE_DATA_VALIDATION",
         title="Recognise and validate an FDA replicate design",
         jurisdiction=Jurisdiction.FDA,

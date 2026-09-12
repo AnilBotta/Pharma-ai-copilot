@@ -201,7 +201,14 @@ _NORMATIVE: tuple[ConstantRecord, ...] = (
         "FDA_HVD_CLASSIFICATION_CV",
         FDA_HVD_CONSTANTS["classification_cv"],
         role="Defines WHICH DRUGS are highly variable. Not the analysis switch.",
-        consumed_by=(),
+        #: `FDA_HVD_CLASSIFICATION` and NOTHING ELSE. The absence of
+        #: `FDA_HVD_METHOD_SELECTION` from this tuple is the load-bearing part:
+        #: this constant reaching the switch would mean the boundary had moved
+        #: from FDA's stated 0.294 to the derived 0.293560. This row sat with
+        #: an EMPTY tuple until the classification was implemented, and the
+        #: emptiness was accurate - the constant was recorded, cited and
+        #: consumed by no code path at all.
+        consumed_by=("FDA_HVD_CLASSIFICATION",),
     ),
     _from_regulatory_value(
         "FDA_HVD_SWR_SWITCH",

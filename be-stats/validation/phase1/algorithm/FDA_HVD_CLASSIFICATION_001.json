@@ -1,0 +1,70 @@
+{
+  "case_id": "FDA-HVD-CLASSIFICATION-001",
+  "title": "FDA highly variable drug: which DRUGS the definition covers",
+  "case_type": "algorithm_conformance",
+  "subject": "drug classification",
+  "jurisdiction": "FDA",
+
+  "rule": {
+    "statement": "A highly variable drug is one for which within-subject variability (%CV) in bioequivalence measures is 30 percent or greater AND that is not considered a narrow therapeutic index drug. Both conjuncts are required.",
+    "threshold_percent": 30.0,
+    "comparison": ">=",
+    "scale": "CV, as a percentage",
+    "second_conjunct": "not a narrow therapeutic index drug",
+    "applies_to": "the DRUG. It does not select an analysis."
+  },
+
+  "expected": [
+    { "cv_wr_percent": 12.0, "nti_status": "not_stated", "classification": "not_highly_variable", "why": "the variability conjunct fails, so the conjunction fails and the unstated NTI status cannot rescue it" },
+    { "cv_wr_percent": 29.99, "nti_status": "not_narrow_therapeutic_index", "classification": "not_highly_variable", "why": "just below the threshold" },
+    { "cv_wr_percent": 30.0, "nti_status": "not_narrow_therapeutic_index", "classification": "highly_variable", "why": "the boundary itself; 'or greater' puts it inside" },
+    { "cv_wr_percent": 30.01, "nti_status": "not_narrow_therapeutic_index", "classification": "highly_variable", "why": "just above the threshold" },
+    { "cv_wr_percent": 60.0, "nti_status": "narrow_therapeutic_index", "classification": "excluded_narrow_therapeutic_index", "why": "variable, and excluded by the second conjunct - assessed under Appendix F, not Appendix G" },
+    { "cv_wr_percent": 45.0, "nti_status": "not_stated", "classification": "not_classified", "why": "the variability conjunct holds and the other is unknown; the engine reports undetermined rather than assuming non-NTI" },
+    { "cv_wr_percent": null, "nti_status": "not_narrow_therapeutic_index", "classification": "not_classified", "why": "sWR was not estimable, so there is no CVwR to compare" }
+  ],
+
+  "applicability": {
+    "statement": "FDA's highly variable procedure (Appendix G) may be used only for a product confirmed not to be a narrow therapeutic index drug. III.C's definition excludes NTI drugs, and III.B routes an NTI drug to Appendix F - a different procedure with its own scaling constant and two additional criteria. Classifying a drug is therefore not the same as establishing that this procedure applies to it.",
+    "depends_on": "the product's NTI status ONLY. Not on sWR, not on CVwR, and not on the classification: a variable NTI drug is no more eligible for Appendix G than a reproducible one.",
+    "expected": [
+      { "nti_status": "not_narrow_therapeutic_index", "applicability": "applicable", "permits_verdict": true, "why": "the second conjunct of III.C's definition is satisfied, so the procedure may decide this product" },
+      { "nti_status": "narrow_therapeutic_index", "applicability": "not_applicable_narrow_therapeutic_index", "permits_verdict": false, "why": "outside III.C's definition however variable the reference is; assessed under Appendix F" },
+      { "nti_status": "not_stated", "applicability": "undetermined_nti_not_stated", "permits_verdict": false, "why": "fails closed - an unstated status is not an assertion of non-NTI, and assuming one would decide the endpoint from Appendix G whenever the assumption was wrong" }
+    ],
+    "and_not_highly_variable_does_not_imply_standard_abe": "A CVwR below 30 percent fails the HVD conjunction on variability alone, so the drug can be classified NOT_HIGHLY_VARIABLE without knowing its NTI status. That classification does NOT establish that the conventional 80.00-125.00% limits are the applicable regulatory method, because an unknown product could still be an NTI drug, which FDA assesses under Appendix F. The two claims are kept apart.",
+    "history": "Added after independent review of the release that implemented the classification. That release computed the classification correctly and then ignored it when deciding, so it could return hvd_classification = EXCLUDED_NARROW_THERAPEUTIC_INDEX together with selected_method = FDA_HVD_RSABE, decided = true and a pass - a bioequivalence verdict from the wrong appendix, on an object whose own classification field said so."
+  },
+
+  "separate_and_not_this_rule": {
+    "swr_switching_threshold": 0.294,
+    "note": "Which ANALYSIS applies is decided by the estimated sWR against 0.294, on the sWR scale, at a different time and of a different quantity. CVwR >= 30% is exactly sWR >= sqrt(ln(1+0.30^2)) = 0.293560, so the two rules DISAGREE for every study whose sWR lands in [0.293560, 0.294): the drug is highly variable and the study takes ordinary average BE.",
+    "citation_section": "Appendix G step 1",
+    "consumed_by_this_rule": "nothing"
+  },
+
+  "disagreement_window": {
+    "lower_inclusive": 0.29356037920852385,
+    "upper_exclusive": 0.294,
+    "classification": "highly_variable",
+    "method": "standard_abe",
+    "why_recorded": "This is the interval that makes 'highly variable, therefore reference-scaled' false. A classification wired into the switch would change the verdict for exactly these studies and for no others, which is why the guard against it is structural rather than behavioural."
+  },
+
+  "source": {
+    "tier": 1,
+    "subtier": "1A",
+    "type": "regulator-stated definition",
+    "authority": "FDA",
+    "document": "Statistical Approaches to Establishing Bioequivalence",
+    "document_version": "final, May 2026",
+    "section": "III.C",
+    "url": "https://www.fda.gov/media/163638/download",
+    "verified_by": "primary document, read at the cited section",
+    "limitation": "III.C states the definition in one sentence: 'Highly variable drugs are drugs for which within subject variability (%CV) in BE measures 30 percent or greater and that are not considered NTI drugs.' That closes tier 1A for the DEFINITION and for the APPLICABILITY consequence recorded above - the exclusion of NTI drugs is stated in the definition itself, and III.B states where they go instead. It closes nothing else. It does NOT close tier 1B: the guidance publishes no worked example that classifies a named drug from a named CVwR, so there is no regulator-published number to reproduce. It also does not resolve the scope of the phrase 'within subject variability (%CV) in BE measures': the engine applies the rule to the observed CVwR, which is the reference's within-subject CV from the study in hand, and that is narrower than the phrase. A classification computed from some other variability estimate is not what this case covers."
+  },
+
+  "covers": "The definition only. This case asserts nothing about the switching rule, the RSABE criterion arithmetic or the point-estimate constraint, each of which has its own case.",
+
+  "history": "The constant FDA_HVD_CLASSIFICATION_CV was recorded with this citation, indexed in the constants register with consumed_by=(), asserted by three tests to be a different number from 0.294, and applied to nothing. The package could state the definition and could not evaluate it, so no report it produced ever said whether the drug under analysis was highly variable."
+}
