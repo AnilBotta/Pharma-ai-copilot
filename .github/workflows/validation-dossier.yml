@@ -85,11 +85,35 @@ jobs:
         # Between them they hold the noncentral-t assertions and the pre-floor
         # baseline taken from the previous revision, which is the guard that a
         # scope change did not move the mathematics. They run in 1.5s.
+        #
+        # THE FDA HIGHLY-VARIABLE SURFACE JOINS THEM, FOR A FOURTH TIME.
+        #
+        # `test_fda_hvd_*`, `test_hvd_endpoint_decision`, `test_rsabe_criterion`,
+        # `test_reference_variance` and `test_conversions` ran in NO workflow on
+        # a pull request. Between them they hold FDA's 0.294 switch and its
+        # boundary, the separation of that switch from the 30% classification,
+        # Howe's upper bound, the point-estimate constraint, the sWR estimator
+        # and the CV/sWR conversions the two thresholds are expressed in.
+        #
+        # That is the entire decision path for highly variable drugs, and the
+        # only job that ran it is `certification`, which is workflow_dispatch.
+        # A reviewer approving a change to `fda_hvd_method_for` was reading a
+        # green check that had not executed a single assertion about it.
+        #
+        # 152 tests, 7 seconds.
         run: |
           python -m pytest be-stats/tests/unit/test_dossier_*.py \
                            be-stats/tests/unit/test_power_and_data.py \
+                           be-stats/tests/unit/test_rsabe_criterion.py \
+                           be-stats/tests/unit/test_reference_variance.py \
+                           be-stats/tests/unit/test_conversions.py \
                            be-stats/tests/integration/test_dossier_routing.py \
+                           be-stats/tests/integration/test_fda_hvd_classification.py \
+                           be-stats/tests/integration/test_fda_hvd_thresholds.py \
+                           be-stats/tests/integration/test_hvd_endpoint_decision.py \
                            be-stats/tests/integration/test_minimums_and_provenance.py \
+                           be-stats/tests/validation/test_algorithm_conformance.py \
+                           be-stats/tests/validation/test_reference_variance_simulation.py \
                            be-stats/tests/validation/test_dossier_evidence.py \
                            be-stats/tests/validation/test_dossier_evidence_search.py \
                            be-stats/tests/validation/test_fda_cvm_vich_gl52_candidate.py \
@@ -144,6 +168,24 @@ jobs:
               # nobody re-runs is the one that gets quietly revisited.
               p.as_posix()
               for p in pathlib.Path("be-stats/tests").rglob("*candidate*.py")
+          } | {
+              # The FDA highly-variable decision path. Patterns rather than
+              # filenames so the NEXT hvd test file is picked up without
+              # anybody remembering: `test_fda_hvd_classification.py` was
+              # written for this workflow's own pull request and would
+              # otherwise have repeated the defect it was added to fix.
+              p.as_posix()
+              for pattern in (
+                  "test_*hvd*.py",
+                  "test_rsabe*.py",
+                  "test_reference_variance*.py",
+                  "test_conversions*.py",
+                  # The tier-1A case files are globbed from a directory, so a
+                  # new case is picked up automatically by the suite and would
+                  # have been run by nothing on a pull request.
+                  "test_algorithm_conformance*.py",
+              )
+              for p in pathlib.Path("be-stats/tests").rglob(pattern)
           }
 
           missing = sorted(expected - listed)
