@@ -116,6 +116,22 @@ jobs:
         # case oracle already runs in `validation-r` on every change to the
         # source or its cases. Neither is an NTI file, and neither guards the
         # NTI decision path.
+        #
+        # THE RELEASE GATE'S AUTHORITY CONDITION.
+        #
+        # `test_dossier_tier_1b_authority.py` holds the rule that another
+        # regulator's published numbers cannot qualify a capability for
+        # VALIDATED. The existing gate and evidence tests already ran here;
+        # the guard below gains `test_*authority*`, `test_*release_gate*` and
+        # `test_*certification*` so the next file about the gate is picked up
+        # without anybody remembering to list it.
+        #
+        # `test_ema_tier1b.py` joins it. It re-derives EMA's published
+        # numbers - the only QUALIFYING tier-1B evidence in the package, and
+        # what the three EMA VALIDATED statuses rest on - and ran in no
+        # workflow on a pull request. The authority tests use those records as
+        # their positive control; a control nobody re-establishes is a record
+        # of a past run. Twelve tests, well under a second.
         run: |
           python -m pytest be-stats/tests/unit/test_dossier_*.py \
                            be-stats/tests/unit/test_power_and_data.py \
@@ -141,6 +157,8 @@ jobs:
                            be-stats/tests/validation/test_reference_variance_simulation.py \
                            be-stats/tests/validation/test_dossier_evidence.py \
                            be-stats/tests/validation/test_dossier_evidence_search.py \
+                           be-stats/tests/validation/test_dossier_tier_1b_authority.py \
+                           be-stats/tests/validation/test_ema_tier1b.py \
                            be-stats/tests/validation/test_fda_cvm_vich_gl52_candidate.py \
                            be-stats/tests/validation/test_golden_cases.py \
                            be-stats/tests/validation/test_governance_wording.py \
@@ -218,6 +236,13 @@ jobs:
                   "test_appendix_c_specification*.py",
                   "test_regulator_separation*.py",
                   "test_spec_routing*.py",
+                  # The release gate and what certification inherits from it.
+                  "test_*authority*.py",
+                  "test_*release_gate*.py",
+                  "test_*certification*.py",
+                  # Tier-1B evidence itself, spelled both ways it is spelled.
+                  "test_*tier1b*.py",
+                  "test_*tier_1b*.py",
               )
               for p in pathlib.Path("be-stats/tests").rglob(pattern)
           }

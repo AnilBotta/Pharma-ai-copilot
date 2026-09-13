@@ -31,6 +31,17 @@ Required is not sufficient. Neither tier alone establishes VALIDATED status or
 submission suitability; the gate reads this field alongside a pinned regulatory
 source, the open findings and blockers, and an explicitly reviewed transition.
 
+TIER DESCRIBES THE SOURCE; QUALIFICATION RELATES IT TO A CAPABILITY
+
+EMA's published Method C output is tier 1B wherever it is attached: it is a
+regulator's own numbers, reproduced. Attached to an FDA capability it remains
+tier 1B and remains useful - it shows the shared Appendix C model computes
+correctly - and it still cannot carry an FDA VALIDATED claim, because FDA did
+not publish it. That second fact is not a property of the record, so it is not
+recorded here as a tier or a flag. The record carries `evidence_authority`, the
+capability carries a citation, and `release_gate.assess_tier_1b` compares the
+two.
+
 A MISSING ENVIRONMENT IS NEVER A PASS
 
 Tier-3 records depend on R, Julia and a pinned container that a developer
@@ -46,6 +57,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 
 from be_stats.dossier.statuses import EvidenceTier
+from be_stats.provenance import Authority
 
 
 class EvidenceStatus(StrEnum):
@@ -93,10 +105,30 @@ class EvidenceRecord:
     capabilities: tuple[str, ...]
     tier: EvidenceTier
     source_type: SourceType
-    #: Who stands behind the expected values. "FDA", "EMA", "PowerTOST",
-    #: "be-stats". Named separately from the source type because tier 3 and
-    #: tier 1B can both be "published" and only one of them is a regulator.
+    #: Who stands behind the expected values, in words a reader needs: "FDA",
+    #: "EMA", "PowerTOST (R)", "be-stats". Named separately from the source
+    #: type because tier 3 and tier 1B can both be "published" and only one of
+    #: them is a regulator.
+    #:
+    #: FOR PEOPLE, NOT FOR COMPARISON. Nothing may decide anything by reading
+    #: this string - see `evidence_authority`.
     source_authority: str
+    #: The same fact as a value the release gate can compare: the regulator
+    #: whose published document the expected values come from, or `None` where
+    #: no regulator stands behind them (an implementation, this package, a
+    #: SAS session, an empty tier).
+    #:
+    #: REQUIRED, with no default, so a new record cannot omit it by accident.
+    #: It exists because the gate used to accept any tier-1B record for any
+    #: capability, and the one piece of text that would have told a reader
+    #: otherwise - "EMA - ... attributes to FDA by name. NOT FDA." - was prose
+    #: that contains the string "FDA".
+    #:
+    #: It describes the EVIDENCE, not what the evidence may qualify. Whether a
+    #: record from this authority can carry a given capability's VALIDATED
+    #: claim is a relation between the two, and it is decided in
+    #: `release_gate.assess_tier_1b`.
+    evidence_authority: Authority | None
     #: The scenario, in one line.
     scenario: str
     #: The data, identified well enough to fetch again.
@@ -148,6 +180,7 @@ EVIDENCE_MANIFEST: tuple[EvidenceRecord, ...] = (
         tier=EvidenceTier.TIER_1A,
         source_type=SourceType.REGULATORY_ALGORITHM,
         source_authority="FDA",
+        evidence_authority=Authority.FDA,
         scenario=(
             "Which analysis Appendix G selects across the sWR range, "
             "including the boundary case sWR = 0.294 exactly."
@@ -174,6 +207,7 @@ EVIDENCE_MANIFEST: tuple[EvidenceRecord, ...] = (
         tier=EvidenceTier.TIER_1A,
         source_type=SourceType.REGULATORY_ALGORITHM,
         source_authority="FDA",
+        evidence_authority=Authority.FDA,
         scenario="The sWR estimator Appendix G specifies.",
         dataset="Enumerated structural cases.",
         software_environment="None.",
@@ -190,6 +224,7 @@ EVIDENCE_MANIFEST: tuple[EvidenceRecord, ...] = (
         tier=EvidenceTier.TIER_1A,
         source_type=SourceType.REGULATORY_ALGORITHM,
         source_authority="FDA",
+        evidence_authority=Authority.FDA,
         scenario=(
             "The scaled criterion AND the point-estimate constraint, both "
             "required by Appendix G step 3."
@@ -217,6 +252,7 @@ EVIDENCE_MANIFEST: tuple[EvidenceRecord, ...] = (
         tier=EvidenceTier.TIER_1A,
         source_type=SourceType.REGULATORY_ALGORITHM,
         source_authority="FDA",
+        evidence_authority=Authority.FDA,
         scenario=(
             "All three Appendix F criteria and every combination of their "
             "outcomes, including the ones where a single criterion decides "
@@ -245,6 +281,7 @@ EVIDENCE_MANIFEST: tuple[EvidenceRecord, ...] = (
         tier=EvidenceTier.TIER_1A,
         source_type=SourceType.REGULATORY_ALGORITHM,
         source_authority="FDA",
+        evidence_authority=Authority.FDA,
         scenario=(
             "Which products Appendix F may decide, and in what order the "
             "product class, the applicability gate and the design gate are "
@@ -271,6 +308,7 @@ EVIDENCE_MANIFEST: tuple[EvidenceRecord, ...] = (
         tier=EvidenceTier.TIER_1A,
         source_type=SourceType.REGULATORY_ALGORITHM,
         source_authority="FDA",
+        evidence_authority=Authority.FDA,
         scenario=(
             "That mu_T - mu_R is the equally weighted mean of the SEQUENCE "
             "means of Iij, with the design's own degrees of freedom - and not "
@@ -298,6 +336,7 @@ EVIDENCE_MANIFEST: tuple[EvidenceRecord, ...] = (
         tier=EvidenceTier.TIER_1A,
         source_type=SourceType.REGULATORY_ALGORITHM,
         source_authority="EMA",
+        evidence_authority=Authority.EMA,
         scenario=(
             "That the GMR constraint is required IN ADDITION to the widened "
             "interval, and that a study inside the widened limits with a GMR "
@@ -325,6 +364,7 @@ EVIDENCE_MANIFEST: tuple[EvidenceRecord, ...] = (
         tier=EvidenceTier.TIER_1A,
         source_type=SourceType.REGULATORY_ALGORITHM,
         source_authority="EMA",
+        evidence_authority=Authority.EMA,
         scenario=(
             "The whole endpoint decision: eligibility, widened limits, the "
             "Method A interval and the GMR constraint, combined into one "
@@ -355,6 +395,7 @@ EVIDENCE_MANIFEST: tuple[EvidenceRecord, ...] = (
         tier=EvidenceTier.TIER_1A,
         source_type=SourceType.REGULATORY_ALGORITHM,
         source_authority="EMA",
+        evidence_authority=Authority.EMA,
         scenario=(
             "That an NTI drug under EMA routes to the NARROWED interval for "
             "AUC, that Cmax refuses pending product-specific guidance, and "
@@ -383,6 +424,7 @@ EVIDENCE_MANIFEST: tuple[EvidenceRecord, ...] = (
         tier=EvidenceTier.TIER_1B,
         source_type=SourceType.REGULATOR_PUBLISHED_NUMBERS,
         source_authority="EMA",
+        evidence_authority=Authority.EMA,
         scenario=(
             "Method A on EMA's Data set I - a four-period fully replicate "
             "design, UNBALANCED, with eight incomplete subjects that must be "
@@ -412,6 +454,7 @@ EVIDENCE_MANIFEST: tuple[EvidenceRecord, ...] = (
         tier=EvidenceTier.TIER_1B,
         source_type=SourceType.REGULATOR_PUBLISHED_NUMBERS,
         source_authority="EMA",
+        evidence_authority=Authority.EMA,
         scenario="Method A on EMA's Data set II.",
         dataset="EMA/618604/2008 Rev. 13 annex, Data set II.",
         software_environment="EMA published the output from SAS 9.1.",
@@ -428,6 +471,7 @@ EVIDENCE_MANIFEST: tuple[EvidenceRecord, ...] = (
         tier=EvidenceTier.TIER_1B,
         source_type=SourceType.REGULATOR_PUBLISHED_NUMBERS,
         source_authority="EMA",
+        evidence_authority=Authority.EMA,
         scenario=(
             "The reference-only model for CVwR, on both annexed data sets."
         ),
@@ -449,6 +493,7 @@ EVIDENCE_MANIFEST: tuple[EvidenceRecord, ...] = (
         tier=EvidenceTier.TIER_1B,
         source_type=SourceType.REGULATOR_PUBLISHED_NUMBERS,
         source_authority="EMA",
+        evidence_authority=Authority.EMA,
         scenario=(
             "The guideline's own table of widened limits at CVwR 30, 35, 40, "
             "45 and >=50 percent, including the row where the cap binds."
@@ -483,6 +528,10 @@ EVIDENCE_MANIFEST: tuple[EvidenceRecord, ...] = (
             "EMA - publishing output for a model EMA transcribes and "
             "attributes to FDA by name. NOT FDA."
         ),
+        # EMA published these numbers. The model is FDA's; the authority
+        # standing behind the NUMBERS is EMA's, and that is what this
+        # field records.
+        evidence_authority=Authority.EMA,
         scenario=(
             "FDA's Appendix C mixed model fitted to EMA Data set I, compared "
             "against EMA's published SAS 9.1 Method C output."
@@ -511,6 +560,7 @@ EVIDENCE_MANIFEST: tuple[EvidenceRecord, ...] = (
         tier=EvidenceTier.TIER_2,
         source_type=SourceType.PUBLISHED_REFERENCE,
         source_authority="-",
+        evidence_authority=None,
         scenario=(
             "No textbook or peer-reviewed reference dataset is currently used "
             "by this package."
@@ -535,6 +585,7 @@ EVIDENCE_MANIFEST: tuple[EvidenceRecord, ...] = (
         tier=EvidenceTier.TIER_3,
         source_type=SourceType.INDEPENDENT_IMPLEMENTATION,
         source_authority="PowerTOST (R)",
+        evidence_authority=None,
         scenario=(
             "Twelve Monte Carlo cases across ABE, RSABE, ABEL and NTI, "
             "simulating 20,000 studies through the be-stats pipeline against "
@@ -578,6 +629,7 @@ EVIDENCE_MANIFEST: tuple[EvidenceRecord, ...] = (
         tier=EvidenceTier.TIER_3,
         source_type=SourceType.INDEPENDENT_IMPLEMENTATION,
         source_authority="ReplicateBE.jl 1.0.15 on Julia 1.10.5",
+        evidence_authority=None,
         scenario=(
             "Nine synthetic fully replicate cases compared on all five "
             "covariance parameters, the standard error and the denominator "
@@ -616,6 +668,7 @@ EVIDENCE_MANIFEST: tuple[EvidenceRecord, ...] = (
         tier=EvidenceTier.TIER_4,
         source_type=SourceType.INTERNAL_STRUCTURAL,
         source_authority="be-stats",
+        evidence_authority=None,
         scenario=(
             "For a balanced, complete, interior fit the Appendix C model "
             "reduces exactly to the classical subject-level analysis and the "
@@ -640,6 +693,7 @@ EVIDENCE_MANIFEST: tuple[EvidenceRecord, ...] = (
         tier=EvidenceTier.TIER_4,
         source_type=SourceType.INTERNAL_STRUCTURAL,
         source_authority="be-stats",
+        evidence_authority=None,
         scenario="The sWR estimator's behaviour under simulation.",
         dataset="Simulated replicate studies.",
         software_environment="be-stats only.",
@@ -656,6 +710,11 @@ EVIDENCE_MANIFEST: tuple[EvidenceRecord, ...] = (
         tier=EvidenceTier.TIER_1B,
         source_type=SourceType.REGULATOR_PUBLISHED_NUMBERS,
         source_authority="Licensed SAS, pending",
+        # None, and deliberately. A licensed SAS session running FDA's
+        # statements is not FDA publishing numbers. What authority an
+        # accepted run would carry is a decision for the SAS closure
+        # review, and not one to make by filling this field in.
+        evidence_authority=None,
         scenario=(
             "FDA's Appendix C statements run in a licensed SAS session on a "
             "partial replicate dataset, reporting the estimate, its standard "

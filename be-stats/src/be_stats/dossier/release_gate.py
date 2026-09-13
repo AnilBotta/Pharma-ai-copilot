@@ -13,23 +13,49 @@ authority into another's.
 So the conditions are enumerated, machine-checked, and all of them must hold:
 
     1  the capability is implemented
-    2  it holds TIER 1B evidence - a REGULATOR'S OWN published numbers,
-       reproduced. Not tier 1A, not tier 3, however much of either exists
-    3  that evidence PASSED, and did not skip because an environment was
-       missing
-    4  its regulatory source is PINNED - one authority, a named document, the
+    2  it holds QUALIFYING TIER 1B evidence - a record that is
+         a  tier 1B,
+         b  of source type REGULATOR_PUBLISHED_NUMBERS,
+         c  PASSED or PASSED_WITH_FINDING, not skipped or pending, and
+         d  published by the capability's GOVERNING AUTHORITY: the authority
+            named by the capability's own regulatory source.
+       Not tier 1A, not tier 3, however much of either exists - and not
+       another regulator's numbers, however well they reproduce
+    3  its regulatory source is PINNED - one authority, a named document, the
        section within it, and which issue is meant - with no declared citation
        exception outstanding. The definition lives in `dossier.citations` and
        nowhere else; this module used to carry a weaker copy of it
-    5  no BLOCKING finding is open against it
-    6  no blocker lists it as affected
-    7  the transition has been explicitly reviewed - `reviewed_transitions`
+    4  no BLOCKING finding is open against it
+    5  no blocker lists it as affected
+    6  the transition has been explicitly reviewed - `reviewed_transitions`
        must name it
 
-Condition 7 is the one that cannot be automated away, and the gate does not
+Condition 6 is the one that cannot be automated away, and the gate does not
 try: it requires the reviewer to have named the capability, so that promoting
 something is always a deliberate act by a person and never a consequence of
 evidence arriving.
+
+CONDITION 2d, AND WHY IT WAS MISSING
+
+The module docstring above always SAID "a regulator's own published numbers"
+and named the Appendix C near-miss as the thing it existed to stop. The code
+checked `tier is TIER_1B`. `APPENDIX-C-EMA-SAS-METHOD-C` is tier 1B, EMA's, and
+attached to three FDA capabilities, so for all three the tier-1B condition was
+satisfied by another regulator's numbers. What actually stood between them and
+a VALIDATED claim was a blocker or a finding that happened to be open -
+`FDA_HVD_UNSCALED_BRANCH` was held back by the partial-replicate blocker alone.
+
+The fix does not detach that evidence. It is good evidence: it shows the
+shared mixed model computes what EMA's SAS output computed. It is SUPPORTING
+for an FDA capability and QUALIFYING for none, and `assess_tier_1b` says which,
+per record and per capability, so the distinction is visible rather than
+enforced by deletion.
+
+TIER VERSUS QUALIFICATION
+
+Tier describes the SOURCE and does not change with what the record is attached
+to - EMA's output is tier 1B beside an FDA capability too. Qualification is a
+RELATION between a record and a capability, decided here and nowhere else.
 
 CI VERSUS CERTIFICATION
 
@@ -43,18 +69,183 @@ evidence record anywhere is in a skipped state - see `certification_blockers`.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from enum import StrEnum
 
 from be_stats.dossier.blockers import blockers_for
 from be_stats.dossier.capabilities import CAPABILITY_MATRIX
 from be_stats.dossier.citations import why_not_pinned
 from be_stats.dossier.evidence import (
     EVIDENCE_MANIFEST,
+    EvidenceRecord,
     EvidenceStatus,
+    SourceType,
     evidence_for,
 )
 from be_stats.dossier.findings import FindingSeverity, findings_for
 from be_stats.dossier.statuses import EvidenceTier, ImplementationStatus
-from be_stats.provenance import ValidationStatus
+from be_stats.provenance import Authority, ValidationStatus
+
+#: The evidence statuses that establish something. Anything else - pending,
+#: skipped, not available - is a comparison that did not produce a result.
+_ESTABLISHED: frozenset[EvidenceStatus] = frozenset(
+    {EvidenceStatus.PASSED, EvidenceStatus.PASSED_WITH_FINDING}
+)
+
+
+class Tier1BRelation(StrEnum):
+    """What one tier-1B record is to one capability.
+
+    Exactly one member is QUALIFYING. Every other member keeps the record
+    visible and says why it cannot carry a VALIDATED claim - which is the
+    difference between evidence that is not enough and evidence that is not
+    there.
+    """
+
+    #: Counts toward condition 2: regulator-published numbers, established,
+    #: from the capability's governing authority.
+    QUALIFYING = "qualifying"
+    #: Regulator-published and established, from a DIFFERENT authority. Real
+    #: evidence about the computation, kept and shown, never qualifying.
+    SUPPORTING_CROSS_AUTHORITY = "supporting_cross_authority"
+    #: The record names no canonical authority, or the capability's citation
+    #: resolves to none. Fails closed.
+    NOT_QUALIFYING_AUTHORITY_UNKNOWN = "not_qualifying_authority_unknown"
+    #: Labelled tier 1B, but not regulator-published numbers. The tier label
+    #: alone qualifies nothing.
+    NOT_QUALIFYING_SOURCE_TYPE = "not_qualifying_source_type"
+    #: Pending, skipped or not available. A comparison that did not run.
+    NOT_QUALIFYING_NOT_ESTABLISHED = "not_qualifying_not_established"
+
+
+@dataclass(frozen=True, slots=True)
+class Tier1BAssessment:
+    """One tier-1B record, judged against one capability."""
+
+    evidence_id: str
+    capability_id: str
+    governing_authority: Authority | None
+    evidence_authority: Authority | None
+    source_type: SourceType
+    status: EvidenceStatus
+    relation: Tier1BRelation
+    #: Why, in a sentence a reviewer can act on.
+    reason: str
+
+    @property
+    def qualifies(self) -> bool:
+        return self.relation is Tier1BRelation.QUALIFYING
+
+
+def _authority_name(authority: Authority | None) -> str:
+    return str(authority) if authority is not None else "no canonical authority"
+
+
+def _assess(
+    evidence: EvidenceRecord, capability_id: str, governing: Authority | None
+) -> Tier1BAssessment:
+    """The four qualifying conditions, in the order a reviewer asks them.
+
+    Source type, then status, then authority. A record failing an earlier
+    condition is reported for that one, because "it is from the wrong
+    regulator" is not the interesting fact about a comparison that never ran.
+    """
+    if evidence.source_type is not SourceType.REGULATOR_PUBLISHED_NUMBERS:
+        relation = Tier1BRelation.NOT_QUALIFYING_SOURCE_TYPE
+        reason = (
+            f"labelled tier 1B with source type {evidence.source_type}, not "
+            f"{SourceType.REGULATOR_PUBLISHED_NUMBERS}; the tier label alone "
+            "qualifies nothing"
+        )
+    elif evidence.status not in _ESTABLISHED:
+        relation = Tier1BRelation.NOT_QUALIFYING_NOT_ESTABLISHED
+        reason = (
+            f"status {evidence.status}; a skipped or pending comparison is "
+            "not a pass"
+        )
+    elif governing is None or evidence.evidence_authority is None:
+        relation = Tier1BRelation.NOT_QUALIFYING_AUTHORITY_UNKNOWN
+        reason = (
+            f"evidence authority is {_authority_name(evidence.evidence_authority)} "
+            f"and the capability's governing authority is "
+            f"{_authority_name(governing)}; an authority that cannot be "
+            "compared qualifies nothing"
+        )
+    # Identity of two enum members. Not a string test of any kind: the
+    # record's human-readable `source_authority` is never read by this module.
+    elif evidence.evidence_authority is not governing:
+        relation = Tier1BRelation.SUPPORTING_CROSS_AUTHORITY
+        reason = (
+            f"published by {evidence.evidence_authority}, not {governing}. "
+            f"Kept as supporting evidence for the computation; it cannot carry "
+            f"a {governing} VALIDATED claim"
+        )
+    else:
+        relation = Tier1BRelation.QUALIFYING
+        reason = (
+            f"{governing}-published numbers, reproduced, for a capability "
+            f"governed by {governing}"
+        )
+    return Tier1BAssessment(
+        evidence_id=evidence.evidence_id,
+        capability_id=capability_id,
+        governing_authority=governing,
+        evidence_authority=evidence.evidence_authority,
+        source_type=evidence.source_type,
+        status=evidence.status,
+        relation=relation,
+        reason=reason,
+    )
+
+
+def assess_tier_1b(capability_id: str) -> tuple[Tier1BAssessment, ...]:
+    """Every tier-1B record bearing on a capability, and what each is to it.
+
+    Nothing is filtered out. A cross-authority record appears here as
+    SUPPORTING_CROSS_AUTHORITY rather than disappearing, so a report built on
+    this function shows the evidence and says why it does not qualify.
+    """
+    governing = CAPABILITY_MATRIX[capability_id].governing_authority
+    return tuple(
+        _assess(record, capability_id, governing)
+        for record in evidence_for(capability_id)
+        if record.tier is EvidenceTier.TIER_1B
+    )
+
+
+def _no_qualifying_violation(
+    capability_id: str,
+    governing: Authority | None,
+    assessments: tuple[Tier1BAssessment, ...],
+) -> str:
+    """Say what exists and why none of it counts - not "no evidence"."""
+    listed = ", ".join(
+        f"{a.evidence_id} ({_authority_name(a.evidence_authority)})"
+        for a in assessments
+    )
+    if governing is None:
+        source = CAPABILITY_MATRIX[capability_id].regulatory_source
+        headline = (
+            f"capability {capability_id} names no canonical governing "
+            f"authority (its regulatory source reads {source.authority!r}), so "
+            f"no tier-1B evidence can qualify it. Tier 1B evidence exists: "
+            f"{listed}."
+        )
+    else:
+        headline = f"capability {capability_id} is governed by {governing}."
+        # Said only when it is true of every record. An FDA record that is
+        # merely pending is FROM the governing authority, and a message
+        # claiming otherwise would send the reviewer to the wrong problem.
+        if all(a.evidence_authority is not governing for a in assessments):
+            headline += (
+                f" Tier 1B evidence exists, but none is from the governing "
+                f"authority {governing}."
+            )
+        headline += (
+            f" Tier 1B evidence held: {listed}; no qualifying {governing} "
+            f"tier-1B regulator-published numerical evidence exists."
+        )
+    reasons = "; ".join(f"{a.evidence_id}: {a.reason}" for a in assessments)
+    return f"VALIDATED without qualifying tier-1B evidence. {headline} {reasons}."
 
 
 @dataclass(frozen=True, slots=True)
@@ -68,6 +259,10 @@ class GateResult:
     #: Conditions that held, so a reviewer can see what was checked rather
     #: than only what failed.
     satisfied: tuple[str, ...] = ()
+    #: Tier-1B records the capability holds that do NOT qualify it - another
+    #: regulator's numbers, most importantly. Listed so a passing result does
+    #: not hide them and a failing one does not read as "no evidence".
+    supporting_evidence: tuple[str, ...] = ()
 
     @property
     def passed(self) -> bool:
@@ -93,6 +288,11 @@ class ReleaseGateReport:
             lines.append(f"  {mark} {result.capability_id} = {result.claimed_status}")
             for violation in result.violations:
                 lines.append(f"         - {violation}")
+            if result.supporting_evidence:
+                lines.append(
+                    "         supporting, not qualifying: "
+                    + ", ".join(result.supporting_evidence)
+                )
         return lines
 
 
@@ -147,33 +347,32 @@ def check_capability(
         )
 
     # --------------------------------------------- VALIDATED is claimed ---
-    records = evidence_for(capability_id)
-    if not records:
+    if not evidence_for(capability_id):
         violations.append("VALIDATED with no evidence record at all.")
 
-    tier_1b = [r for r in records if r.tier is EvidenceTier.TIER_1B]
-    if not tier_1b:
+    governing = record.governing_authority
+    assessments = assess_tier_1b(capability_id)
+    qualifying = [a for a in assessments if a.qualifies]
+    supporting = tuple(a.evidence_id for a in assessments if not a.qualifies)
+
+    if not assessments:
         violations.append(
             "VALIDATED without tier-1B evidence. A regulator's own published "
             "numbers are the bar; an attested algorithm (1A) and an "
             "independent implementation agreeing (3) are not substitutes."
         )
-    else:
-        satisfied.append(f"{len(tier_1b)} tier-1B record(s)")
-
-    established = [
-        r
-        for r in tier_1b
-        if r.status in (EvidenceStatus.PASSED, EvidenceStatus.PASSED_WITH_FINDING)
-    ]
-    if tier_1b and not established:
-        statuses = ", ".join(str(r.status) for r in tier_1b)
+    elif not qualifying:
         violations.append(
-            f"VALIDATED on tier-1B evidence that did not establish anything "
-            f"({statuses}). A skipped or pending comparison is not a pass."
+            _no_qualifying_violation(capability_id, governing, assessments)
         )
-    elif established:
+    else:
+        satisfied.append(f"{len(assessments)} tier-1B record(s)")
         satisfied.append("tier-1B evidence passed")
+        satisfied.append(
+            f"governed by {governing}; qualifying {governing} tier-1B "
+            "regulator-published evidence: "
+            + ", ".join(a.evidence_id for a in qualifying)
+        )
 
     # SOURCE PINNING, VIA THE ONE DEFINITION.
     #
@@ -248,13 +447,14 @@ def check_capability(
         claimed_status=claimed,
         violations=tuple(violations),
         satisfied=tuple(satisfied),
+        supporting_evidence=supporting,
     )
 
 
 #: Capabilities whose VALIDATED status has been reviewed and recorded.
 #:
 #: Three EMA capabilities, promoted on tier-1B evidence in the ABEL release.
-#: Adding a name here is the deliberate act condition 7 requires; it is a
+#: Adding a name here is the deliberate act condition 6 requires; it is a
 #: visible line in a diff, which is the whole point of it being data.
 REVIEWED_TRANSITIONS: frozenset[str] = frozenset(
     {
@@ -291,6 +491,10 @@ def certification_blockers() -> list[str]:
 
     So this function exists separately from `check_release_gate`, and a
     missing external environment appears here and only here.
+
+    It inherits condition 2d by calling the gate rather than restating it: a
+    capability claiming VALIDATED on another regulator's numbers fails the
+    gate, and so it appears here with the gate's own explanation.
     """
     problems: list[str] = []
 

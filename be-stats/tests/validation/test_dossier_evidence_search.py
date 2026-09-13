@@ -153,9 +153,10 @@ def test_establishing_tier_1b_does_not_move_the_validation_status(monkeypatch):
         EvidenceStatus,
         SourceType,
     )
+    from be_stats.provenance import Authority
     from be_stats.spec import ValidationStatus
 
-    before = capabilities.CAPABILITY_MATRIX[CAP].validation_status
+    before =capabilities.CAPABILITY_MATRIX[CAP].validation_status
 
     injected = EvidenceRecord(
         evidence_id="TEST-ONLY-INJECTED-TIER-1B",
@@ -163,6 +164,9 @@ def test_establishing_tier_1b_does_not_move_the_validation_status(monkeypatch):
         tier=EvidenceTier.TIER_1B,
         source_type=SourceType.REGULATOR_PUBLISHED_NUMBERS,
         source_authority="test fixture",
+        # ICH, the authority AVERAGE_BE_2X2's M13A citation names - so the
+        # record would QUALIFY at the gate, and the status still must not move.
+        evidence_authority=Authority.ICH,
         scenario="Synthetic, to prove evidence does not promote.",
         dataset="-",
         software_environment="-",

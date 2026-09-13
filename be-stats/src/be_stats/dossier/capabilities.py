@@ -64,8 +64,10 @@ from be_stats.provenance import (
     FDA_STATISTICAL_APPROACHES_II_A,
     FDA_STATISTICAL_APPROACHES_III_B,
     FDA_STATISTICAL_APPROACHES_III_C,
+    Authority,
     Citation,
     ValidationStatus,
+    authority_of,
 )
 from be_stats.replicate_abe import FDA_STATISTICAL_APPROACHES_APPENDIX_C
 from be_stats.spec import (
@@ -154,6 +156,22 @@ class CapabilityRecord:
         and the release gate held the weakest version of the three.
         """
         return is_pinned(self.regulatory_source)
+
+    @property
+    def governing_authority(self) -> Authority | None:
+        """The regulator whose numbers could qualify this capability for VALIDATED.
+
+        Read from `regulatory_source` - the citation the capability is already
+        held to - and from nothing else. Not from the capability id's prefix,
+        not from `jurisdiction` (which is `None` for AVERAGE_BE_2X2, whose
+        citation is ICH's), not from a title or a note. There is one source of
+        this fact, and a second mapping kept beside it would be the next thing
+        to drift.
+
+        `None` when the citation names no single canonical authority. The
+        release gate then qualifies no tier-1B evidence at all.
+        """
+        return authority_of(self.regulatory_source)
 
     @property
     def source_citation_exception(self) -> CitationException | None:

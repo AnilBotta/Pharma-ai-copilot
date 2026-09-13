@@ -95,6 +95,53 @@ class Citation:
         )
 
 
+class Authority(StrEnum):
+    """A body that issues regulatory documents, as a value a machine can compare.
+
+    WHY THIS IS NOT `spec.Jurisdiction`
+
+    `Jurisdiction` answers "whose rules is this study assessed under" and is
+    consumed by routing: a study is routed to FDA or to EMA. ICH is not a
+    jurisdiction - no study is assessed under ICH's rules rather than a
+    regulator's - yet ICH issues documents, and `AVERAGE_BE_2X2` is cited to
+    one. Adding ICH to `Jurisdiction` would make it a routable answer, which
+    it is not. So the two are kept apart, and a test asserts every
+    `Jurisdiction` value is also an `Authority` value so they cannot drift.
+
+    WHAT IT IS FOR
+
+    Comparing the authority behind a capability's citation with the authority
+    behind a piece of evidence, by identity. Before this existed the evidence
+    side was free text - "EMA - publishing output for a model EMA transcribes
+    and attributes to FDA by name. NOT FDA." - and the only comparisons
+    available were substring tests, which that very sentence defeats: it
+    contains "FDA".
+
+    Deliberately short. Implementations (PowerTOST, ReplicateBE.jl), this
+    package itself and a licensed SAS session are not authorities and have no
+    member; their records carry `None`, and `None` never qualifies anything.
+    """
+
+    FDA = "FDA"
+    EMA = "EMA"
+    ICH = "ICH"
+
+
+def authority_of(citation: Citation) -> Authority | None:
+    """The canonical authority a citation names, or `None` if it names none.
+
+    An EXACT lookup of `Citation.authority` against the member values - not a
+    prefix, not a substring, not a case-folded guess. "ICH / FDA / EMA" names
+    three bodies and resolves to `None`; so does "be-stats". Failing closed is
+    the point: a capability whose governing authority cannot be resolved can be
+    qualified by no regulator's evidence, rather than by any.
+    """
+    try:
+        return Authority(citation.authority)
+    except ValueError:
+        return None
+
+
 @dataclass(frozen=True, slots=True)
 class RegulatoryValue:
     """A number that came from somewhere, and says where."""

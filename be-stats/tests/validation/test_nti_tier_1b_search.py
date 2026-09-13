@@ -9,7 +9,7 @@ these tests hold it to the same standard as the ordinary-ABE search.
 from __future__ import annotations
 
 from be_stats import CAPABILITY_VALIDATION, VALIDATION, Capability, Method
-from be_stats.dossier.evidence import EVIDENCE_MANIFEST
+from be_stats.dossier.evidence import EVIDENCE_MANIFEST, SourceType
 from be_stats.dossier.evidence_search import (
     FDA_NTI_TIER_1B_SEARCH,
     ORDINARY_ABE_TIER_1B_SEARCH,
@@ -19,7 +19,7 @@ from be_stats.dossier.evidence_search import (
     sources_with_verdict,
 )
 from be_stats.dossier.statuses import EvidenceTier
-from be_stats.provenance import ValidationStatus
+from be_stats.provenance import Authority, ValidationStatus
 
 
 def test_every_source_is_identified_well_enough_to_re_open():
@@ -87,13 +87,26 @@ def test_the_only_tier_1b_label_near_nti_is_inherited_appendix_c_evidence():
             continue
         assert nti == ["FDA_NTI_UNSCALED_ABE"], record.evidence_id
         assert "FDA_REPLICATE_STANDARD_ABE_FULL" in record.capabilities
-        assert record.source_authority != "FDA", record.evidence_id
+        # Structural, not a string test on the prose authority. That prose
+        # reads "... attributes to FDA by name. NOT FDA." and contains "FDA".
+        assert record.evidence_authority is not Authority.FDA, record.evidence_id
 
 
 def test_powertost_stays_tier_3_for_nti():
-    for record in EVIDENCE_MANIFEST:
-        if record.source_authority.startswith("PowerTOST"):
-            assert record.tier is EvidenceTier.TIER_3, record.evidence_id
+    """An independent implementation is tier 3, whatever it cross-checks.
+
+    Selected by source type rather than by the words "PowerTOST" at the start
+    of a free-text field, which a reworded label would silently stop matching.
+    """
+    implementations = [
+        r
+        for r in EVIDENCE_MANIFEST
+        if r.source_type is SourceType.INDEPENDENT_IMPLEMENTATION
+    ]
+    assert any("FDA_NTI_RSABE" in r.capabilities for r in implementations)
+    for record in implementations:
+        assert record.tier is EvidenceTier.TIER_3, record.evidence_id
+        assert record.evidence_authority is None, record.evidence_id
 
 
 def test_the_search_promotes_nothing():
