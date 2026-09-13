@@ -243,8 +243,13 @@ _METHOD_ROWS: tuple[CapabilityRecord, ...] = (
             "criterion is reading a third of the procedure.",
             "Requires a FULLY replicate design; a partial replicate study is "
             "refused before any arithmetic runs.",
+            "Applies only to a product DECLARED narrow therapeutic index. A "
+            "standard, highly variable or unstated product is refused by "
+            "FDA_NTI_APPLICABILITY_GATE before the design gate runs.",
         ),
         refusal_conditions=(
+            RefusalCode.FDA_NTI_NOT_APPLICABLE_NOT_NTI,
+            RefusalCode.FDA_NTI_PRODUCT_CLASS_REQUIRED,
             RefusalCode.FDA_NTI_FULL_REPLICATE_REQUIRED,
             RefusalCode.QUANTITY_NOT_ESTIMABLE,
         ),
@@ -554,8 +559,42 @@ _CAPABILITY_ROWS: tuple[CapabilityRecord, ...] = (
         decision_supported=False,
         known_limitations=(
             "Structural. The gate either enforces III.B or it does not.",
+            "Runs only for a product already confirmed NTI by "
+            "FDA_NTI_APPLICABILITY_GATE. A wrong design for an NTI product is "
+            "a specification failure and raises; it never selects another "
+            "method.",
         ),
         refusal_conditions=(RefusalCode.FDA_NTI_FULL_REPLICATE_REQUIRED,),
+    ),
+    _record(
+        capability_id="FDA_NTI_APPLICABILITY_GATE",
+        title="Refuse an Appendix F verdict unless the product is confirmed NTI",
+        jurisdiction=Jurisdiction.FDA,
+        method=Method.FDA_NTI_RSABE,
+        source_key=Capability.FDA_NTI_APPLICABILITY_GATE,
+        design_requirement=(DesignFamily.REPLICATE,),
+        endpoints=ALL_ENDPOINTS,
+        regulatory_source=FDA_STATISTICAL_APPROACHES_III_B,
+        evidence_tier=EvidenceTier.TIER_1A,
+        decision_supported=False,
+        known_limitations=(
+            "Structural, and it consults no data. A fully replicate design and "
+            "a low within-subject CV are both common among products that are "
+            "not NTI, so neither is evidence of the class.",
+            "It REFUSES rather than redirects. A non-NTI product receives no "
+            "verdict here and is not passed to another procedure; routing "
+            "between methods belongs to whoever resolved the spec.",
+            "An unstated class is refused, not inferred. A spec and an "
+            "explicit status that disagree raise ContradictoryProductClass "
+            "rather than one silently taking precedence.",
+            "The gate cannot detect a MISSTATED class. A product wrongly "
+            "declared NTI receives the NTI procedure, and nothing in the data "
+            "would contradict the declaration.",
+        ),
+        refusal_conditions=(
+            RefusalCode.FDA_NTI_NOT_APPLICABLE_NOT_NTI,
+            RefusalCode.FDA_NTI_PRODUCT_CLASS_REQUIRED,
+        ),
     ),
     _record(
         capability_id="FDA_NTI_REFERENCE_SCALED_CRITERION",
@@ -608,6 +647,13 @@ _CAPABILITY_ROWS: tuple[CapabilityRecord, ...] = (
             "evidence and its requirement for raw observations.",
             "NTI's design gate already requires a fully replicate design, so "
             "unlike the HVD branch there is no partial replicate case here.",
+            "The TIER_1B label is INHERITED: it is Appendix C's EMA-published "
+            "evidence for the unscaled mixed model. It is not an NTI worked "
+            "example - no regulator has published one - and it reproduces no "
+            "NTI verdict.",
+            "Appendix F step 3 says 'use the unscaled average BE procedure' "
+            "and names no model. Computing it through Appendix C is this "
+            "package's reading of that step, recorded as an interpretation.",
         ),
         refusal_conditions=(RefusalCode.APPENDIX_C_REQUIRES_RAW_OBSERVATIONS,),
     ),

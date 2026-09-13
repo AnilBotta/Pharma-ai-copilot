@@ -309,6 +309,15 @@ _NORMATIVE: tuple[ConstantRecord, ...] = (
         consumed_by=("FDA_NTI_VARIABILITY_RATIO",),
     ),
     _from_regulatory_value(
+        "FDA_NTI_VARIABILITY_CI_ALPHA",
+        FDA_NTI_CONSTANTS["variability_ci_alpha"],
+        role=(
+            "Criterion (c): alpha for the equal-tails F interval, giving the "
+            "90% interval whose upper limit is tested against 2.500."
+        ),
+        consumed_by=("FDA_NTI_VARIABILITY_RATIO",),
+    ),
+    _from_regulatory_value(
         "FDA_NTI_UNSCALED_LOWER_PERCENT",
         FDA_NTI_CONSTANTS["unscaled_lower_percent"],
         role="Criterion (b): the ordinary limits, which must ALSO be passed.",

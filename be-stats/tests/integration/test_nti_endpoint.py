@@ -30,6 +30,7 @@ from be_stats.howe import HoweUpperBound
 from be_stats.nti import (
     FdaNtiResult,
     NtiDesignError,
+    NtiNotDecidable,
     NtiScaledMeanCriterion,
     NtiUnscaledAbeCriterion,
     NtiVariabilityRatioCriterion,
@@ -44,7 +45,7 @@ from be_stats.replicate import (
     ReplicateObservation,
     parse_sequence,
 )
-from be_stats.spec import fda_nti_theta
+from be_stats.spec import NtiStatus, fda_nti_theta
 from be_stats.study import Treatment
 
 FULLY = ("TRTR", "RTRT")
@@ -90,32 +91,75 @@ def synthetic(
     return ReplicateDataset.build(observations)
 
 
+# ------------------------------------------ the product-class precondition ---
+#
+# Every pipeline test below is about Appendix F's FLOW - the design gate, the
+# criteria, the counts, the invariances. Since the NTI applicability gate, an
+# undeclared product gets no Appendix F verdict at all, so these tests declare
+# a confirmed NTI product at every call, under a name that says so. The
+# declaration is deliberately NOT a default inside `assess_nti_endpoint`;
+# `test_fda_nti_applicability.py` owns the gate itself.
+
+
+def assess(dataset, **kwargs):
+    """`assess_nti_endpoint` for a product confirmed to be narrow therapeutic index."""
+    kwargs.setdefault("nti_status", NtiStatus.NARROW_THERAPEUTIC_INDEX)
+    return assess_nti_endpoint(dataset, **kwargs)
+
+
+def assess_study_nti(datasets, **kwargs):
+    """`assess_nti_study` for a product confirmed to be narrow therapeutic index."""
+    kwargs.setdefault("nti_status", NtiStatus.NARROW_THERAPEUTIC_INDEX)
+    return assess_nti_study(datasets, **kwargs)
+
+
 # ------------------------------------------------------------ design gate ---
 
 
 def test_the_design_gate_runs_before_any_arithmetic():
     """A partial replicate never reaches a criterion.
 
-    Checked structurally as well as behaviourally: `assess_nti_endpoint` must
-    call the gate before it calls anything that estimates.
+    Checked structurally as well as behaviourally.
+
+    A CORRECTION TO WHAT "FIRST" MEANS. This test used to assert that
+    `require_fully_replicate` was the first call in `assess_nti_endpoint`. It
+    no longer is, and deliberately: the product class is reconciled and the
+    applicability gate is asked BEFORE the design, because the design
+    requirement belongs to a procedure that may not apply. The property that
+    matters survives and is what is asserted now - no estimator that serves a
+    CRITERION runs before the design gate, and the only estimate reachable
+    earlier is the descriptive sWR of a refused product, inside its own helper.
     """
     partial = synthetic(0.12, 0.13, 5, n_per_sequence=4, labels=("TRR", "RTR", "RRT"))
     with pytest.raises(NtiDesignError):
-        assess_nti_endpoint(partial)
+        assess(partial)
 
     source = Path(inspect.getfile(nti)).read_text(encoding="utf-8")
     function = next(
         n for n in ast.walk(ast.parse(source))
         if isinstance(n, ast.FunctionDef) and n.name == "assess_nti_endpoint"
     )
-    calls = [
-        n.func.id
-        for n in ast.walk(function)
-        if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
-    ]
-    assert calls[0] == "require_fully_replicate", (
-        f"the gate must be the first call; got {calls[:3]}"
+    lines: dict[str, list[int]] = {}
+    for n in ast.walk(function):
+        if isinstance(n, ast.Call) and isinstance(n.func, ast.Name):
+            lines.setdefault(n.func.id, []).append(n.lineno)
+
+    gate = min(lines["require_fully_replicate"])
+    assert min(lines["reconcile_nti_status"]) < min(lines["fda_nti_applicability"]) < gate, (
+        "the product class must be settled, and applicability asked, before the design"
     )
+    for estimator in (
+        "estimate_reference_variance",
+        "estimate_test_variance",
+        "estimate_treatment_contrast",
+        "scaled_mean_criterion",
+        "variability_ratio_criterion",
+        "analyse_replicate_abe_full",
+    ):
+        for line in lines.get(estimator, []):
+            assert line > gate, (
+                f"{estimator} is called at line {line}, before the design gate at {gate}"
+            )
 
 
 def test_a_two_by_two_crossover_cannot_reach_nti_at_all():
@@ -209,26 +253,29 @@ def test_only_one_of_eight_combinations_passes():
 
 @pytest.mark.parametrize("missing", ["a", "b", "c"])
 def test_one_missing_criterion_yields_not_decided_not_failure(missing):
-    """Missing is neither pass nor fail."""
-    result = _criteria(True, True, True)
-    if missing == "a":
-        result = FdaNtiResult(
-            **{**_as_kwargs(result), "scaled_mean_criterion": None}
-        )
-    elif missing == "b":
-        result = FdaNtiResult(
-            **{
-                **_as_kwargs(result),
-                "unscaled_abe_criterion": NtiUnscaledAbeCriterion(
-                    80.0, 125.0, computed=False, reason="not implemented"
-                ),
-            }
-        )
-    else:
-        result = FdaNtiResult(
-            **{**_as_kwargs(result), "variability_ratio_criterion": None}
-        )
+    """Missing is neither pass nor fail - and now cannot be called decided.
 
+    A CORRECTION. This test used to build `decided=True` with a criterion
+    missing and check that `passes` still came out `None`. That object is now
+    UNCONSTRUCTIBLE: `FdaNtiResult.__post_init__` refuses it, naming the
+    criterion. What survives is the property that mattered - an undecided
+    endpoint with a criterion missing reports `None`, never `False`.
+    """
+    replacement = {
+        "a": {"scaled_mean_criterion": None},
+        "b": {
+            "unscaled_abe_criterion": NtiUnscaledAbeCriterion(
+                80.0, 125.0, computed=False, reason="not computed"
+            )
+        },
+        "c": {"variability_ratio_criterion": None},
+    }[missing]
+    base = _as_kwargs(_criteria(True, True, True))
+
+    with pytest.raises(NtiNotDecidable, match=f"criterion {missing}"):
+        FdaNtiResult(**{**base, **replacement})
+
+    result = FdaNtiResult(**{**base, **replacement, "decided": False})
     assert result.passes is None
     assert result.passes is not False
 
@@ -240,16 +287,21 @@ def _as_kwargs(result: FdaNtiResult) -> dict:
 
 
 def test_an_unavailable_variability_ratio_blocks_the_verdict():
-    """The zero-sWR case, end to end through the conjunction."""
-    result = _criteria(True, True, True)
+    """The zero-sWR case, end to end through the conjunction.
+
+    An unestimable ratio cannot sit under `decided=True` - the constructor
+    names criterion c - and under `decided=False` it reports `None`.
+    """
+    unavailable = NtiVariabilityRatioCriterion(
+        swt=0.2, swr=0.0, ratio=None, df_test=22, df_reference=22,
+        ci_lower=None, ci_upper=None, limit=2.5, estimable=False,
+    )
+    base = _as_kwargs(_criteria(True, True, True))
+    with pytest.raises(NtiNotDecidable, match="criterion c"):
+        FdaNtiResult(**{**base, "variability_ratio_criterion": unavailable})
+
     blocked = FdaNtiResult(
-        **{
-            **_as_kwargs(result),
-            "variability_ratio_criterion": NtiVariabilityRatioCriterion(
-                swt=0.2, swr=0.0, ratio=None, df_test=22, df_reference=22,
-                ci_lower=None, ci_upper=None, limit=2.5, estimable=False,
-            ),
-        }
+        **{**base, "variability_ratio_criterion": unavailable, "decided": False}
     )
     assert blocked.variability_ratio_criterion.passes is None
     assert blocked.passes is None
@@ -259,7 +311,7 @@ def test_an_unavailable_variability_ratio_blocks_the_verdict():
 
 
 def test_a_real_endpoint_computes_two_criteria_and_withholds_the_verdict():
-    result = assess_nti_endpoint(synthetic(0.12, 0.13, 5))
+    result = assess(synthetic(0.12, 0.13, 5))
 
     assert result.scaled_mean_criterion is not None
     assert result.scaled_mean_criterion.passes in (True, False)
@@ -283,7 +335,7 @@ def test_two_of_three_never_becomes_a_verdict():
 
     Both computable criteria passing comfortably still gives NOT DECIDED.
     """
-    result = assess_nti_endpoint(synthetic(0.10, 0.11, 3))
+    result = assess(synthetic(0.10, 0.11, 3))
     assert result.scaled_mean_criterion.passes is True
     assert result.variability_ratio_criterion.passes is True
     assert result.passes is None
@@ -291,7 +343,7 @@ def test_two_of_three_never_becomes_a_verdict():
 
 
 def test_the_three_subject_counts_and_degrees_of_freedom_are_separate():
-    result = assess_nti_endpoint(synthetic(0.12, 0.13, 5))
+    result = assess(synthetic(0.12, 0.13, 5))
     assert result.n_for_swr == 24
     assert result.n_for_swt == 24
     assert result.n_for_treatment_contrast == 24
@@ -309,7 +361,7 @@ def test_a_subject_missing_one_test_period_moves_only_the_test_count():
         for o in _rows(0.12, 0.13, 5)
         if not (o.subject_id == "TRTR-0" and o.period == 3)
     ]
-    result = assess_nti_endpoint(ReplicateDataset.build(observations))
+    result = assess(ReplicateDataset.build(observations))
 
     assert result.n_for_swr == 24, "both reference replicates survive"
     assert result.n_for_swt == 23
@@ -349,7 +401,7 @@ def _rows(cv_wr: float, cv_wt: float, seed: int) -> list[ReplicateObservation]:
 
 def test_auc_and_cmax_are_assessed_independently():
     """One endpoint's outcome must not enter the other's arithmetic."""
-    results = assess_nti_study(
+    results = assess_study_nti(
         {
             "AUC": synthetic(0.10, 0.11, 3, endpoint="AUC"),
             "Cmax": synthetic(0.10, 0.40, 9, endpoint="Cmax"),
@@ -362,8 +414,8 @@ def test_auc_and_cmax_are_assessed_independently():
     assert results["Cmax"].variability_ratio_criterion.passes is False
 
     # Assessed alone, each endpoint gives exactly the same numbers.
-    alone_auc = assess_nti_endpoint(synthetic(0.10, 0.11, 3, endpoint="AUC"))
-    alone_cmax = assess_nti_endpoint(synthetic(0.10, 0.40, 9, endpoint="Cmax"))
+    alone_auc = assess(synthetic(0.10, 0.11, 3, endpoint="AUC"))
+    alone_cmax = assess(synthetic(0.10, 0.40, 9, endpoint="Cmax"))
     for combined, alone in (
         (results["AUC"], alone_auc),
         (results["Cmax"], alone_cmax),
@@ -443,7 +495,7 @@ def test_the_result_cites_appendix_f_and_not_appendix_g():
     its job. Phase 1 learned that distinction the hard way, when a
     text-searching guard failed on its own explanatory comment.
     """
-    result = assess_nti_endpoint(synthetic(0.12, 0.13, 5))
+    result = assess(synthetic(0.12, 0.13, 5))
     text = " ".join(result.provenance())
 
     assert "Appendix F" in text
@@ -523,7 +575,7 @@ def test_ema_abel_did_not_arrive_through_the_nti_module():
 
 
 def _quantities(observations) -> tuple:
-    result = assess_nti_endpoint(ReplicateDataset.build(observations))
+    result = assess(ReplicateDataset.build(observations))
     return (
         result.reference_variance.swr,
         result.test_variance.swt,

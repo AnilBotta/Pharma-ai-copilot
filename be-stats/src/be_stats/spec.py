@@ -42,6 +42,7 @@ from be_stats.provenance import (
     FDA_M13A_BE_CRITERIA,
     FDA_STATISTICAL_APPROACHES,
     FDA_STATISTICAL_APPROACHES_APPENDIX_F,
+    FDA_STATISTICAL_APPROACHES_APPENDIX_F_STEPS_4_5,
     FDA_STATISTICAL_APPROACHES_APPENDIX_G,
     FDA_STATISTICAL_APPROACHES_III_A,
     FDA_STATISTICAL_APPROACHES_III_C,
@@ -213,6 +214,12 @@ class Capability(StrEnum):
     #: Enforce that an NTI drug is on a fully replicate design before any
     #: arithmetic runs.
     FDA_NTI_DESIGN_VALIDATION = "fda_nti_design_validation"
+    #: Refuse an Appendix F verdict unless the product is confirmed to be a
+    #: narrow therapeutic index drug. The converse of
+    #: FDA_HVD_APPLICABILITY_GATE, and added for the same reason: the NTI
+    #: engine took no product-class input and decided any fully replicate
+    #: study handed to it.
+    FDA_NTI_APPLICABILITY_GATE = "fda_nti_applicability_gate"
     #: Appendix F steps 2 and 5a: the reference-scaled mean criterion.
     FDA_NTI_REFERENCE_SCALED_CRITERION = "fda_nti_reference_scaled_criterion"
     #: Appendix F steps 4 and 5c: the 90% equal-tails F interval for
@@ -371,6 +378,11 @@ CAPABILITY_VALIDATION: dict[Capability, ValidationStatus] = {
     # ------------------------------------ narrow therapeutic index drugs ---
     #: Structural: the design gate either enforces III.B or it does not.
     Capability.FDA_NTI_DESIGN_VALIDATION: ValidationStatus.IMPLEMENTED,
+    #: IMPLEMENTED, and structural: it maps a declared product class onto
+    #: "may Appendix F decide", consults no data and produces no number.
+    #: Not a promotion of anything - it withholds verdicts the engine
+    #: previously issued.
+    Capability.FDA_NTI_APPLICABILITY_GATE: ValidationStatus.IMPLEMENTED,
     Capability.FDA_NTI_REFERENCE_SCALED_CRITERION: (
         ValidationStatus.IMPLEMENTED_UNVALIDATED
     ),
@@ -1205,6 +1217,64 @@ def fda_hvd_applicability(nti_status: NtiStatus) -> HvdApplicability:
     return HvdApplicability.UNDETERMINED_NTI_NOT_STATED
 
 
+class NtiApplicability(StrEnum):
+    """Whether FDA's narrow therapeutic index PROCEDURE may decide this product.
+
+    THE MIRROR IMAGE OF `HvdApplicability`, AND DELIBERATELY A SEPARATE TYPE
+
+    PR #82 found that the highly variable procedure would issue a verdict for a
+    product nobody had said was not NTI. The NTI procedure had the same defect
+    from the other side, and worse: `assess_nti_endpoint` took no product-class
+    input at all, so a STANDARD or HIGHLY_VARIABLE product on a fully replicate
+    design received an Appendix F verdict - three criteria, sigma_W0 = 0.10,
+    and the variability comparison - that FDA applies to nothing but NTI drugs.
+
+    The rule is the converse of the HVD one. Appendix G may decide a product
+    confirmed NOT to be NTI; Appendix F may decide only a product confirmed TO
+    BE one. III.B introduces the procedure with the class definition itself -
+    "NTI drugs are those drugs where small differences in dose or blood
+    concentration may lead to serious therapeutic failures..." - and nothing in
+    a dataset establishes membership of that class.
+
+    Not merged with `HvdApplicability` into one enum with a regulator
+    parameter. The two gates admit disjoint sets of products, and a shared type
+    would make "applicable" mean opposite things depending on who asked - the
+    exact shape of defect the per-procedure module split exists to prevent.
+    """
+
+    APPLICABLE = "applicable"
+    NOT_APPLICABLE_NOT_NTI = "not_applicable_not_nti"
+    UNDETERMINED_NTI_NOT_STATED = "undetermined_nti_not_stated"
+
+    @property
+    def permits_verdict(self) -> bool:
+        """Only one member does, and callers ask this rather than comparing."""
+        return self is NtiApplicability.APPLICABLE
+
+
+def fda_nti_applicability(nti_status: NtiStatus) -> NtiApplicability:
+    """May Appendix F decide this product? Fails closed.
+
+    Depends on the product's declared class and on NOTHING in the data.
+
+    NOT INFERRED FROM THE DESIGN OR THE VARIABILITY
+
+    Two inferences are tempting and both are refused. A fully replicate design
+    is what an NTI study uses, but it is also a perfectly ordinary design for a
+    highly variable or a standard product, so the design proves nothing about
+    the class. And a low within-subject CV is characteristic of NTI drugs -
+    FDA's own material describes them as having "low-to-moderate" variability -
+    but plenty of non-NTI drugs are reproducible too. Classifying a product as
+    NTI because its study looks like an NTI study would apply sigma_W0 = 0.10
+    and the variance-ratio criterion to a product FDA never subjected to them.
+    """
+    if nti_status is NtiStatus.NARROW_THERAPEUTIC_INDEX:
+        return NtiApplicability.APPLICABLE
+    if nti_status is NtiStatus.NOT_NARROW_THERAPEUTIC_INDEX:
+        return NtiApplicability.NOT_APPLICABLE_NOT_NTI
+    return NtiApplicability.UNDETERMINED_NTI_NOT_STATED
+
+
 def fda_hvd_method_for(swr: float) -> Method:
     """Which analysis FDA's Appendix G selects for an estimated sWR.
 
@@ -1272,6 +1342,18 @@ FDA_NTI_CONSTANTS: dict[str, RegulatoryValue] = {
         "interval for sigma_WT / sigma_WR must be less than or equal to 2.500. "
         "The interval is an F-based one at alpha = 0.1, not a normal "
         "approximation.",
+        VIA_PRIMARY_DOCUMENT,
+    ),
+    "variability_ci_alpha": RegulatoryValue(
+        0.10,
+        FDA_STATISTICAL_APPROACHES_APPENDIX_F_STEPS_4_5,
+        VerificationStatus.VERIFIED,
+        "Appendix F step 4: the 100(1-alpha)% confidence interval for "
+        "sigma_WT / sigma_WR, 'here, alpha = 0.1' - the 90% equal-tails "
+        "interval whose upper limit step 5c tests against 2.500. III.B "
+        "describes the same comparison as a one-sided F test, and the "
+        "upper limit of a 90% equal-tails interval is that one-sided test "
+        "at 0.05. Previously a bare module literal in nti.py.",
         VIA_PRIMARY_DOCUMENT,
     ),
     "unscaled_lower_percent": RegulatoryValue(
@@ -1516,7 +1598,8 @@ def resolve_be_spec(
                 notes=(
                     "FDA requires reference-scaled BE, an additional unscaled "
                     "80.00-125.00 criterion, and a comparison of test and "
-                    "reference within-subject variability. Phase 2B."
+                    "reference within-subject variability - and applies only to a "
+                    "product confirmed to be narrow therapeutic index."
                 ),
             )
 

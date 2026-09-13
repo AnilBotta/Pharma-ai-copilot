@@ -146,9 +146,14 @@ ROUTING_MATRIX: tuple[RoutingRoute, ...] = (
         refusal_behaviour=(
             "Anything but a fully replicate crossover is refused before any "
             "arithmetic runs. If any single criterion is not estimable the "
-            "endpoint is NOT DECIDED rather than failed."
+            "endpoint is NOT DECIDED rather than failed. The route is reached "
+            "only by a DECLARED narrow therapeutic index drug: the engine "
+            "refuses a verdict for a product declared otherwise or not "
+            "declared, and raises when a spec and an explicit status disagree."
         ),
         refusal_conditions=(
+            RefusalCode.FDA_NTI_NOT_APPLICABLE_NOT_NTI,
+            RefusalCode.FDA_NTI_PRODUCT_CLASS_REQUIRED,
             RefusalCode.FDA_NTI_FULL_REPLICATE_REQUIRED,
             RefusalCode.APPENDIX_C_REQUIRES_RAW_OBSERVATIONS,
             RefusalCode.QUANTITY_NOT_ESTIMABLE,

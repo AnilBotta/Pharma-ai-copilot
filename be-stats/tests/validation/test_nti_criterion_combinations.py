@@ -48,6 +48,11 @@ from be_stats.replicate import (
     parse_sequence,
     parse_treatment,
 )
+from be_stats.spec import NtiStatus
+
+#: Every case is an NTI product - the cases were generated as one - so the
+#: class is declared. The applicability gate refuses an undeclared product.
+NTI = NtiStatus.NARROW_THERAPEUTIC_INDEX
 
 ROOT = Path(__file__).resolve().parents[2]
 CASES = json.loads(
@@ -71,7 +76,9 @@ def observations(name: str) -> list[ReplicateObservation]:
 
 def assess(name: str):
     obs = observations(name)
-    return assess_nti_endpoint(ReplicateDataset.build(obs), observations=obs)
+    return assess_nti_endpoint(
+        ReplicateDataset.build(obs), observations=obs, nti_status=NTI
+    )
 
 
 def criteria(result) -> tuple[bool | None, bool | None, bool | None]:
@@ -171,7 +178,9 @@ def test_without_the_raw_observations_the_endpoint_withholds():
     stays undecided - which is different from failing, and must not have
     quietly become a pass now that the code path exists.
     """
-    result = assess_nti_endpoint(ReplicateDataset.build(observations("all_pass")))
+    result = assess_nti_endpoint(
+        ReplicateDataset.build(observations("all_pass")), nti_status=NTI
+    )
 
     assert result.unscaled_abe_criterion.computed is False
     assert result.unscaled_abe_criterion.passes is None

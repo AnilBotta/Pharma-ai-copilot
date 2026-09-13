@@ -285,20 +285,203 @@ ORDINARY_ABE_TIER_1B_SEARCH: tuple[SearchedSource, ...] = (
 )
 
 
-def sources_with_verdict(verdict: SearchVerdict) -> list[SearchedSource]:
-    return [s for s in ORDINARY_ABE_TIER_1B_SEARCH if s.verdict is verdict]
+#: The tier-1B search for FDA's NARROW THERAPEUTIC INDEX procedure, Appendix F.
+#:
+#: The question: has FDA published a worked numerical example of the NTI
+#: procedure - a dataset carried through sWR, sWT, the reference-scaled bound,
+#: the unscaled interval and the variance-ratio interval to a stated outcome -
+#: such that `FDA_NTI_RSABE` could hold tier-1B evidence?
+#:
+#: The answer is no, and every document below was read from its own extracted
+#: text rather than from a summary of it. The recurring shape is instructive:
+#: FDA states this procedure in four places and the text of each is traceable
+#: to the one before - the 2012 warfarin PSG carried the method and its SAS, the
+#: 2021 draft ANDA guidance moved it into an appendix, and the May 2026 final
+#: guidances point to Statistical Approaches. Four statements of one algorithm
+#: are tier-1A material four times over, and none of them is a number to
+#: reproduce.
+FDA_NTI_TIER_1B_SEARCH: tuple[SearchedSource, ...] = (
+    SearchedSource(
+        sought="FDA narrow therapeutic index procedure (Appendix F), published numerical output",
+        authority="FDA",
+        document="Statistical Approaches to Establishing Bioequivalence",
+        document_version="final, May 2026",
+        sections_read=(
+            "III.B (statistical method for NTI drugs) and Appendix F steps 1-5 "
+            "with its SAS example, read in full from the extracted text of "
+            "pages 22-23 and 44-48."
+        ),
+        verdict=SearchVerdict.NO_NUMERICAL_OUTPUT,
+        found=(
+            "The governing statement of the procedure: a fully replicate "
+            "crossover; sigma_W0 = 0.10 and Delta = 1/0.9 'approximately "
+            "=1.11111'; criterion (a) the 95% upper bound <= 0; (b) 'Regular "
+            "unscaled BE limits of 80.00%-125.00% should be passed'; (c) the "
+            "upper limit of the 90% equal-tails interval for sigma_WT/sigma_WR "
+            "<= 2.500, with the F quantiles defined by right-tail probability "
+            "and alpha = 0.1. The SAS assumes datasets TEST and REF 'have "
+            "already been created' and prints no data and no output."
+        ),
+        url="https://www.fda.gov/media/163638/download",
+    ),
+    SearchedSource(
+        sought="FDA narrow therapeutic index procedure (Appendix F), published numerical output",
+        authority="FDA",
+        document=(
+            "Bioequivalence Studies With Pharmacokinetic Endpoints for Drugs "
+            "Submitted Under an ANDA — Guidance for Industry"
+        ),
+        document_version="final, May 2026",
+        sections_read=(
+            "Full extracted text (35 pages) searched for the NTI terms, the "
+            "Appendix F constants and any numeric table; every hit read in "
+            "context, including III.A.4 (study designs) and the data analysis "
+            "paragraph on narrow therapeutic index drugs."
+        ),
+        verdict=SearchVerdict.NO_NUMERICAL_OUTPUT,
+        found=(
+            "Recommends a fully replicate design for NTI drugs 'where "
+            "within-subject variability for both the reference standard and "
+            "test product can be computed', and refers the statistical analysis "
+            "to Statistical Approaches (May 2026). No dataset, no worked "
+            "result, and no clustered numeric table anywhere in the text."
+        ),
+        url="https://www.fda.gov/media/192774/download",
+    ),
+    SearchedSource(
+        sought="FDA narrow therapeutic index procedure (Appendix F), published numerical output",
+        authority="FDA",
+        document="Draft Guidance on Warfarin Sodium (product-specific guidance)",
+        document_version="draft, Recommended December 2012",
+        sections_read="All seven pages of extracted text, including the full statistical method and SAS.",
+        verdict=SearchVerdict.NO_NUMERICAL_OUTPUT,
+        found=(
+            "THE ORIGIN OF THE PROCEDURE'S WORDING: the full method and SAS "
+            "later carried into Statistical Approaches, for a fully replicated "
+            "4-way crossover. Notably it writes the constant as '1.11111 "
+            "(=1/0.9, the upper BE limit)', where the final May 2026 guidance "
+            "states 1/0.9 'approximately =1.11111' - the draft PSG leads with "
+            "the rounded literal, the governing final guidance with the ratio, "
+            "which is the one this package decides with. No data and no output."
+        ),
+        url=(
+            "https://www.accessdata.fda.gov/drugsatfda_docs/psg/"
+            "Warfarin_Sodium_tab_09218_RC12-12.pdf"
+        ),
+    ),
+    SearchedSource(
+        sought="FDA narrow therapeutic index procedure (Appendix F), published numerical output",
+        authority="FDA",
+        document="Draft Guidance on Tacrolimus (product-specific guidance, PSG_210115)",
+        document_version="draft, Recommended March 2020; Revised August 2022 and May 2026",
+        sections_read="All three pages of extracted text.",
+        verdict=SearchVerdict.NO_NUMERICAL_OUTPUT,
+        found=(
+            "Classifies tacrolimus as NTI with the evidence for that "
+            "classification, requires a fully replicate crossover 'to scale "
+            "bioequivalence limits' and 'compare test product and RLD "
+            "within-subject variability', and defers the method to the ANDA PK "
+            "guidance. No data and no output."
+        ),
+        url="https://www.accessdata.fda.gov/drugsatfda_docs/psg/PSG_210115.pdf",
+    ),
+    SearchedSource(
+        sought="FDA narrow therapeutic index procedure (Appendix F), published numerical output",
+        authority="FDA",
+        document=(
+            "Bioequivalence Studies with Pharmacokinetic Endpoints for Drugs "
+            "Submitted Under an ANDA — SBIA webinar slides (L. Zhang, N. Tampal, "
+            "Office of Generic Drugs)"
+        ),
+        document_version="presentation, 24 February 2022",
+        sections_read="All 44 slides of extracted text.",
+        verdict=SearchVerdict.NO_NUMERICAL_OUTPUT,
+        found=(
+            "Describes the August 2021 revised draft ANDA guidance adding "
+            "Appendix C on reference-scaled BE for NTI drugs, 'previously "
+            "included in PSG for ... warfarin sodium oral tablets' - which is "
+            "the lineage recorded above. A presentation of guidance history "
+            "with no worked example."
+        ),
+        url="https://www.fda.gov/media/164681/download",
+    ),
+    SearchedSource(
+        sought="FDA narrow therapeutic index procedure (Appendix F), published numerical output",
+        authority="FDA",
+        document=(
+            "FDA Drug Topics: Understanding Generic Narrow Therapeutic Index "
+            "Drugs — presentation slides (W. Jiang, Office of Generic Drugs)"
+        ),
+        # No issue date is printed in the document, and none is inferred. The
+        # GL52 correction in ORDINARY_ABE_TIER_1B_SEARCH is the reason: a date
+        # read from somewhere other than the issuing record looks checked when
+        # it is not.
+        document_version="presentation; no issue date printed in the document",
+        sections_read=(
+            "All 43 slides of extracted text; slide 24 ('Reference Scaled BE "
+            "Limits for NTI Drugs') read against the Appendix F constants."
+        ),
+        verdict=SearchVerdict.NUMBERS_OUT_OF_SCOPE,
+        found=(
+            "THE ONLY NTI NUMBERS FDA MATERIAL PRINTS. Slide 24 tabulates the "
+            "reference-scaled BE limits implied by Delta = 1/0.9 and sigma_W0 "
+            "= 0.10 at CVwR 5, 10, 15 and 20%, and '>21.42' where they reach "
+            "80.00-125.00%. Seven of the eight printed limits and the 21.42 "
+            "crossover reproduce to the two decimals printed - see "
+            "tests/validation/test_fda_nti_drug_topics_candidate.py, which "
+            "records the comparison rather than claiming it as evidence."
+        ),
+        rejected_because=(
+            "Three independent reasons, any one sufficient. "
+            "(1) STANDING: a speaker presentation carrying the disclaimer that "
+            "its views 'are those of the speaker and not necessarily those of "
+            "the Food and Drug Administration'. It is not guidance. "
+            "(2) WHAT THE NUMBERS ARE: a function of two regulatory constants "
+            "and nothing else - no dataset, no sWR estimate, no Howe bound, no "
+            "criterion (b), no criterion (c). Reproducing them re-checks theta, "
+            "which is already tier-1A material from the guidance itself; it "
+            "cannot reproduce a single step of the procedure applied to data. "
+            "Nor can it even adjudicate the normative Delta: 1/0.9 and 1.11111 "
+            "give the same table at the printed precision. "
+            "(3) INTERNAL CONSISTENCY: the CVwR 15% lower limit is printed "
+            "85.35, while the limits are reciprocal by construction and the "
+            "printed upper limit 117.02 implies 85.46 - which is also what the "
+            "constants give. Adopting the table would mean deciding which of "
+            "its printed numbers to believe."
+        ),
+        url="https://www.fda.gov/media/162779/download",
+    ),
+)
 
 
-def adopted_sources() -> list[SearchedSource]:
+def sources_with_verdict(
+    verdict: SearchVerdict,
+    search: tuple[SearchedSource, ...] = ORDINARY_ABE_TIER_1B_SEARCH,
+) -> list[SearchedSource]:
+    """Sources in one search with one verdict.
+
+    `search` defaults to the ordinary-ABE registry, which is what every caller
+    meant before the NTI registry existed; a second search is asked for by name
+    rather than merged into the first, because the two answer different
+    questions and a combined "nothing adoptable" would hide which one found what.
+    """
+    return [s for s in search if s.verdict is verdict]
+
+
+def adopted_sources(
+    search: tuple[SearchedSource, ...] = ORDINARY_ABE_TIER_1B_SEARCH,
+) -> list[SearchedSource]:
     """Anything this search actually turned into evidence. Empty is an answer."""
-    return sources_with_verdict(SearchVerdict.ADOPTED)
+    return sources_with_verdict(SearchVerdict.ADOPTED, search)
 
 
-def rejected_candidates() -> list[SearchedSource]:
+def rejected_candidates(
+    search: tuple[SearchedSource, ...] = ORDINARY_ABE_TIER_1B_SEARCH,
+) -> list[SearchedSource]:
     """Documents that published the right kind of number and were not used."""
     return [
         s
-        for s in ORDINARY_ABE_TIER_1B_SEARCH
+        for s in search
         if s.verdict
         in (
             SearchVerdict.NUMBERS_OUT_OF_SCOPE,

@@ -236,6 +236,36 @@ EVIDENCE_MANIFEST: tuple[EvidenceRecord, ...] = (
         artifact="validation/nti/cases/criterion_combinations.json",
     ),
     EvidenceRecord(
+        evidence_id="FDA-NTI-APPLICABILITY-001",
+        capabilities=(
+            "FDA_NTI_APPLICABILITY_GATE",
+            "FDA_NTI_DESIGN_VALIDATION",
+            "FDA_NTI_RSABE",
+        ),
+        tier=EvidenceTier.TIER_1A,
+        source_type=SourceType.REGULATORY_ALGORITHM,
+        source_authority="FDA",
+        scenario=(
+            "Which products Appendix F may decide, and in what order the "
+            "product class, the applicability gate and the design gate are "
+            "asked - across every declared status, a spec of each FDA drug "
+            "class, the three contradictions, and both replicate designs."
+        ),
+        dataset="Seeded synthetic replicate studies; no data are needed to decide applicability.",
+        software_environment="None.",
+        expected=(
+            "A verdict only for a product confirmed NTI; a refusal with no "
+            "criterion, no method and no decision otherwise; a raise on a "
+            "contradictory spec and status; and no result constructible that "
+            "asserts a decision the procedure did not make."
+        ),
+        observed="Conforms on every combination enumerated.",
+        tolerance="Exact: these are decisions, not quantities.",
+        status=EvidenceStatus.PASSED,
+        established_by="tests/integration/test_fda_nti_applicability.py",
+        artifact="validation/phase1/algorithm/FDA_NTI_CRITERIA_001.json",
+    ),
+    EvidenceRecord(
         evidence_id="FDA-HVD-TREATMENT-CONTRAST",
         capabilities=("FDA_HVD_TREATMENT_CONTRAST",),
         tier=EvidenceTier.TIER_1A,

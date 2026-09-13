@@ -146,6 +146,17 @@ class DiagnosticCode(StrEnum):
     FDA_HVD_APPLICABILITY_REQUIRES_NTI_STATUS = (
         "FDA_HVD_APPLICABILITY_REQUIRES_NTI_STATUS"
     )
+    #: The product is confirmed NOT to be a narrow therapeutic index drug, so
+    #: FDA's Appendix F procedure does not apply to it. FATAL: no bioequivalence
+    #: decision was issued.
+    FDA_NTI_NOT_APPLICABLE_NOT_NTI = "FDA_NTI_NOT_APPLICABLE_NOT_NTI"
+    #: The product's narrow-therapeutic-index status was not stated, so whether
+    #: Appendix F applies is undetermined. FATAL, and never inferred from the
+    #: design or the variability - a fully replicate, low-CV study is an
+    #: ordinary study for many products that are not NTI.
+    FDA_NTI_APPLICABILITY_REQUIRES_NTI_STATUS = (
+        "FDA_NTI_APPLICABILITY_REQUIRES_NTI_STATUS"
+    )
 
 
 class Severity(StrEnum):

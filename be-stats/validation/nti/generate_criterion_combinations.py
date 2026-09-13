@@ -56,6 +56,7 @@ from generate_cases import simulate, to_observations  # noqa: E402
 
 from be_stats.nti import assess_nti_endpoint  # noqa: E402
 from be_stats.replicate import ReplicateDataset  # noqa: E402
+from be_stats.spec import NtiStatus  # noqa: E402
 
 PERIOD_EFFECTS = (0.0, 0.02, -0.01, 0.03)
 
@@ -94,7 +95,9 @@ WANTED = {
 def pattern(rows: list[dict]):
     observations = to_observations(rows)
     result = assess_nti_endpoint(
-        ReplicateDataset.build(observations), observations=observations
+        ReplicateDataset.build(observations),
+        observations=observations,
+        nti_status=NtiStatus.NARROW_THERAPEUTIC_INDEX,
     )
     return (
         (
