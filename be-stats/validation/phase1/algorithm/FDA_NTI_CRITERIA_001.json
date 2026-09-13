@@ -12,6 +12,20 @@
     "all_three_required": true
   },
 
+  "applicability": {
+    "statement": "FDA's NTI procedure (Appendix F) may decide only a product confirmed to be a narrow therapeutic index drug. III.B introduces the procedure with the class itself - drugs where small differences in dose or blood concentration may lead to serious therapeutic failures or adverse reactions - and Appendix F is titled for that class. A standard or highly variable product on a fully replicate design is outside it, and so is a product whose class nobody stated.",
+    "sections": ["III.B", "Appendix F"],
+    "depends_on": "the product's declared class ONLY. Not the design, not sWR, not CVwR: a fully replicate design and a low within-subject variability are both common among products that are not NTI, so neither is evidence of the class.",
+    "asked_before_the_design_gate": "The design requirement is a requirement OF the NTI procedure. For a product the procedure does not apply to, a partial replicate is refused as not applicable, never as the wrong design.",
+    "expected": [
+      { "nti_status": "narrow_therapeutic_index", "applicability": "applicable", "permits_verdict": true, "why": "the declared class is the one Appendix F is for" },
+      { "nti_status": "not_narrow_therapeutic_index", "applicability": "not_applicable_not_nti", "permits_verdict": false, "why": "a product outside the class is assessed under the procedure its own class requires" },
+      { "nti_status": "not_stated", "applicability": "undetermined_nti_not_stated", "permits_verdict": false, "why": "fails closed - the class is declared, never inferred from a study that looks like an NTI study" }
+    ],
+    "contradiction": "A spec whose drug_class asserts one class beside an explicit nti_status asserting the other raises ContradictoryProductClass. Neither input takes precedence.",
+    "history": "Added when the NTI engine was audited for the defect PR #82 found in the highly variable one. assess_nti_endpoint took no product-class input at all, so a STANDARD or HIGHLY_VARIABLE product on a fully replicate design received an Appendix F verdict."
+  },
+
   "design_gate": {
     "statement": "For NTI drugs, a fully replicate crossover design should be used.",
     "section": "III.B",
@@ -39,6 +53,7 @@
     "delta": "1/0.9",
     "theta": "[ln(Delta) / sigma_W0]^2",
     "variance_ratio_upper_limit": 2.5,
+    "variability_ci_alpha": 0.1,
     "unscaled_lower_percent": 80.00,
     "unscaled_upper_percent": 125.00,
     "delta_precision_discrepancy": {
@@ -87,14 +102,15 @@
       "statement": "Regular unscaled BE limits of 80.00%-125.00% should be passed.",
       "section": "Appendix F step 5b",
       "not_the_ema_interval": "90.00-111.11% is EMA's narrowed interval for the same drug class. FDA does not narrow - it adds criteria. Using the narrowed limits here would be the single most consequential substitution available in this procedure.",
-      "computed": false,
-      "why_not": "the unscaled average BE analysis of a fully replicate study is FDA Appendix C's mixed model, which is not implemented. Appendix F's own ilat interval is a different model - no period term, one residual variance, no subject-by-formulation covariance - and is not substituted.",
+      "computed": true,
+      "how_computed": "through FDA Appendix C's mixed model on the subject-period observations, which the full-replicate release implemented. Appendix F step 3 says 'use the unscaled average BE procedure' and names no model; Appendix C is the guidance's own analysis for replicate average BE, so that reading is recorded as an interpretation. Appendix F's own ilat interval is a different model - no period term, one residual variance, no subject-by-formulation covariance - and is still not substituted.",
+      "history": "This block read computed: false, with the reason that Appendix C was not implemented, for three releases after that stopped being true.",
       "expected": [
         { "ci_lower_percent": 92.0, "ci_upper_percent": 118.0, "passes": true },
         { "ci_lower_percent": 80.0, "ci_upper_percent": 125.0, "passes": true },
         { "ci_lower_percent": 79.99, "ci_upper_percent": 118.0, "passes": false }
       ],
-      "expected_note": "the containment test is written out and tested so that implementing Appendix C is a matter of supplying the interval, not of also deciding what to do with it. It is not exercised by the pipeline in this release."
+      "expected_note": "the containment test is written out and tested on its own, and is exercised by the pipeline whenever the raw observations are supplied."
     },
     "c": {
       "statement": "The upper limit of the 90% equal-tails confidence interval for sigma_WT / sigma_WR must be less than or equal to 2.500",
@@ -148,8 +164,8 @@
     "section": "III.B and Appendix F (steps 1-5 and the SAS example)",
     "url": "https://www.fda.gov/media/163638/download",
     "verified_by": "primary document, read at the cited section",
-    "limitation": "The guidance states the algorithm, the constants and the SAS route for steps 1-2, and contains no worked dataset - no input values and no published answer anywhere in the document. So this closes tier 1A for the criteria and cannot close tier 1B. No external numerical oracle has been run either: PowerTOST would be a tier-3 cross-check and R is not available in this environment. Separately, sWT is an interpretation rather than a transcription - Appendix F states the closed form for sWR only."
+    "limitation": "The guidance states the algorithm, the constants and the SAS route for steps 1-2, and contains no worked dataset - no input values and no published answer anywhere in the document. So this closes tier 1A for the criteria and cannot close tier 1B. The only external numerical check is tier 3: PowerTOST's power.NTID, run in the validation-r workflow against criteria (a) and (c) - an independent implementation, not a regulator, and not a check of the assembled three-criterion verdict. Separately, sWT is an interpretation rather than a transcription - Appendix F states the closed form for sWR only."
   },
 
-  "covers": "The design gate, the two computable criteria, the conjunction of all three, the constants and their discrepancy, and the zero-reference handling. It asserts nothing about EMA ABEL, which is not implemented, and nothing about Appendix C, which criterion b needs."
+  "covers": "The applicability gate, the design gate, all three criteria, the conjunction of all three, the constants and their discrepancy, and the zero-reference handling. It asserts nothing about EMA ABEL, and nothing about the arithmetic of Appendix C, which criterion b is computed through and which carries its own evidence."
 }

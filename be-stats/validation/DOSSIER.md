@@ -58,6 +58,7 @@ the next column and only the next column.
 | `FDA_REPLICATE_STANDARD_ABE_FULL` | FDA | implemented | implemented_unvalidated | tier_1b | yes |
 | `FDA_REPLICATE_STANDARD_ABE_PARTIAL` | FDA | not_implemented | not_implemented | none | no |
 | `FDA_NTI_DESIGN_VALIDATION` | FDA | implemented | implemented | tier_1a | no |
+| `FDA_NTI_APPLICABILITY_GATE` | FDA | implemented | implemented | tier_1a | no |
 | `FDA_NTI_REFERENCE_SCALED_CRITERION` | FDA | implemented | implemented_unvalidated | tier_1a | no |
 | `FDA_NTI_VARIABILITY_RATIO` | FDA | implemented | implemented_unvalidated | tier_1a | no |
 | `FDA_NTI_UNSCALED_ABE` | FDA | implemented | implemented_unvalidated | tier_1b | no |
@@ -86,6 +87,7 @@ the next column and only the next column.
 - Tier 1A only. FDA publishes the three criteria and no worked dataset carrying all three through to a verdict.
 - All three criteria must hold. A caller reading only the scaled criterion is reading a third of the procedure.
 - Requires a FULLY replicate design; a partial replicate study is refused before any arithmetic runs.
+- Applies only to a product DECLARED narrow therapeutic index. A standard, highly variable or unstated product is refused by FDA_NTI_APPLICABILITY_GATE before the design gate runs.
 
 **`EMA_HVD_ABEL`** - EMA average bioequivalence with expanding limits
 
@@ -148,6 +150,14 @@ the next column and only the next column.
 **`FDA_NTI_DESIGN_VALIDATION`** - Enforce a fully replicate design before any NTI arithmetic
 
 - Structural. The gate either enforces III.B or it does not.
+- Runs only for a product already confirmed NTI by FDA_NTI_APPLICABILITY_GATE. A wrong design for an NTI product is a specification failure and raises; it never selects another method.
+
+**`FDA_NTI_APPLICABILITY_GATE`** - Refuse an Appendix F verdict unless the product is confirmed NTI
+
+- Structural, and it consults no data. A fully replicate design and a low within-subject CV are both common among products that are not NTI, so neither is evidence of the class.
+- It REFUSES rather than redirects. A non-NTI product receives no verdict here and is not passed to another procedure; routing between methods belongs to whoever resolved the spec.
+- An unstated class is refused, not inferred. A spec and an explicit status that disagree raise ContradictoryProductClass rather than one silently taking precedence.
+- The gate cannot detect a MISSTATED class. A product wrongly declared NTI receives the NTI procedure, and nothing in the data would contradict the declaration.
 
 **`FDA_NTI_REFERENCE_SCALED_CRITERION`** - Appendix F criterion (a): the reference-scaled mean criterion
 
@@ -162,6 +172,8 @@ the next column and only the next column.
 
 - Computed through Appendix C, and therefore inherits Appendix C's evidence and its requirement for raw observations.
 - NTI's design gate already requires a fully replicate design, so unlike the HVD branch there is no partial replicate case here.
+- The TIER_1B label is INHERITED: it is Appendix C's EMA-published evidence for the unscaled mixed model. It is not an NTI worked example - no regulator has published one - and it reproduces no NTI verdict.
+- Appendix F step 3 says 'use the unscaled average BE procedure' and names no model. Computing it through Appendix C is this package's reading of that step, recorded as an interpretation.
 
 **`EMA_HVD_DESIGN_GATE`** - Which replicate designs EMA 4.1.10 permits, with a reason
 
@@ -233,8 +245,8 @@ unsupported row at the end.
 - **input classification** - A drug declared narrow therapeutic index.
 - **design required** - replicate
 - **decision rule** - ALL THREE Appendix F criteria must hold: (a) the 95% upper bound for (muT-muR)^2 - theta.sigma_WR^2 <= 0; (b) the ordinary unscaled 80.00-125.00% interval; (c) the upper limit of the 90% equal-tails interval for sigma_WT/sigma_WR <= 2.500. FDA ADDS criteria; it does not narrow the interval.
-- **refusal behaviour** - Anything but a fully replicate crossover is refused before any arithmetic runs. If any single criterion is not estimable the endpoint is NOT DECIDED rather than failed.
-- **refusal codes** - `FDA_NTI_FULL_REPLICATE_REQUIRED`, `APPENDIX_C_REQUIRES_RAW_OBSERVATIONS`, `QUANTITY_NOT_ESTIMABLE`
+- **refusal behaviour** - Anything but a fully replicate crossover is refused before any arithmetic runs. If any single criterion is not estimable the endpoint is NOT DECIDED rather than failed. The route is reached only by a DECLARED narrow therapeutic index drug: the engine refuses a verdict for a product declared otherwise or not declared, and raises when a spec and an explicit status disagree.
+- **refusal codes** - `FDA_NTI_NOT_APPLICABLE_NOT_NTI`, `FDA_NTI_PRODUCT_CLASS_REQUIRED`, `FDA_NTI_FULL_REPLICATE_REQUIRED`, `APPENDIX_C_REQUIRES_RAW_OBSERVATIONS`, `QUANTITY_NOT_ESTIMABLE`
 
 ### `EMA_STANDARD`
 
@@ -304,6 +316,8 @@ that is a dead end rather than an answer.
 | `EMA_ABEL_CMAX_ONLY` | EMA's widened acceptance range applies to Cmax only. 4.1.10 keeps AUC at 80.00-125.00% regardless of variability, so a widened limit is not available for this endpoint. | Nothing about the study. Analyse AUC under the ordinary 80.00-125.00% interval, which this engine does support. |
 | `FDA_HVD_NOT_APPLICABLE_NTI` | FDA HVD procedure not applicable: the product is identified as narrow therapeutic index. III.C defines a highly variable drug as one with within-subject variability of 30 percent or greater AND that is not considered an NTI drug, so an NTI product is outside the definition however variable its reference is. Reference variability is still reported, descriptively; no bioequivalence decision is issued. | Nothing about the study. Assess the product under the FDA NTI procedure (Appendix F), which this engine implements separately: a reference-scaled criterion on sigma_W0 = 0.10, the unscaled 80.00-125.00% limits, and a bound on the ratio of within-subject variances. It is a different procedure, not a stricter setting of this one. |
 | `FDA_HVD_NTI_STATUS_REQUIRED` | FDA HVD applicability cannot be determined because the product's narrow-therapeutic-index status was not stated. III.C's definition has two conjuncts and the second is a property of the product that no dataset carries, so the engine cannot observe it. Variability estimates are reported descriptively; no bioequivalence decision is issued. | State the product's class - `nti_status`, or a spec whose `drug_class` carries it. Nothing about the data lifts this: a larger study, a lower CVwR and a cleaner dataset all leave the product's regulatory class exactly as unknown as before. |
+| `FDA_NTI_NOT_APPLICABLE_NOT_NTI` | FDA NTI procedure not applicable: the product is identified as not narrow therapeutic index. Appendix F - sigma_W0 = 0.10, the unscaled 80.00-125.00% limits and the within-subject variability comparison - is FDA's procedure for NTI drugs. Reference variability is reported descriptively; no bioequivalence decision is issued. | Nothing about the study. Assess the product under the procedure its declared class requires: Appendix G for a highly variable drug, ordinary average BE otherwise. If the class was declared wrongly, correct the declaration - the data cannot. |
+| `FDA_NTI_PRODUCT_CLASS_REQUIRED` | FDA NTI applicability cannot be determined because the product's narrow-therapeutic-index status was not stated. The class is a regulatory property of the product and is not inferred from a fully replicate design or a low within-subject variability. Variability estimates are reported descriptively; no bioequivalence decision is issued. | State the product's class - `nti_status`, or a spec whose `drug_class` carries it. Nothing about the data lifts this. |
 | `EMA_NTI_CMAX_PRODUCT_SPECIFIC` | EMA narrows Cmax for an NTI drug only where Cmax itself matters for safety, efficacy or therapeutic drug monitoring, and that is a per-product decision: ciclosporin narrows both AUC and Cmax, colchicine narrows AUC and leaves Cmax at 80.00-125.00%. | Supply the Cmax limits from the applicable product-specific guidance as a ProductOverride. |
 | `UNSUPPORTED_REGULATORY_ROUTE` | This jurisdiction and drug-class combination is not routed by this engine. Falling back to the ordinary 80.00-125.00% interval would answer a question the regulator answers differently. | Implementation of the route, with its own validation ladder. |
 | `QUANTITY_NOT_ESTIMABLE` | The quantity the criterion needs does not exist for these data - too few residual degrees of freedom, no replicated test measurement, or a ratio whose denominator is exactly zero. | More evaluable subjects, or the missing replicate measurements. The accompanying diagnostics name which subjects and why. |
@@ -324,6 +338,7 @@ re-established. A record whose environment was unavailable reads
 | `FDA-HVD-SWR-FORMULA-001` | tier_1a | FDA | passed | `FDA_HVD_REFERENCE_VARIANCE` |
 | `FDA-HVD-RSABE-CRITERION-001` | tier_1a | FDA | passed | `FDA_HVD_RSABE` |
 | `FDA-NTI-CRITERIA-001` | tier_1a | FDA | passed | `FDA_NTI_RSABE`, `FDA_NTI_REFERENCE_SCALED_CRITERION`, `FDA_NTI_VARIABILITY_RATIO`, `FDA_NTI_UNSCALED_ABE` |
+| `FDA-NTI-APPLICABILITY-001` | tier_1a | FDA | passed | `FDA_NTI_APPLICABILITY_GATE`, `FDA_NTI_DESIGN_VALIDATION`, `FDA_NTI_RSABE` |
 | `FDA-HVD-TREATMENT-CONTRAST` | tier_1a | FDA | passed | `FDA_HVD_TREATMENT_CONTRAST` |
 | `EMA-ABEL-PE-CONSTRAINT` | tier_1a | EMA | passed | `EMA_ABEL_PE_CONSTRAINT` |
 | `EMA-HVD-ENDPOINT-DECISION` | tier_1a | EMA | passed | `EMA_HVD_ENDPOINT_DECISION` |
@@ -383,6 +398,17 @@ re-established. A record whose environment was unavailable reads
 - **tolerance** - Exact on the conjunction and on the decided/not-decided split.
 - **established by** - `tests/validation/test_nti_criterion_combinations.py`
 - **artefact (committed)** - `validation/nti/cases/criterion_combinations.json`
+
+### `FDA-NTI-APPLICABILITY-001`
+
+- **scenario** - Which products Appendix F may decide, and in what order the product class, the applicability gate and the design gate are asked - across every declared status, a spec of each FDA drug class, the three contradictions, and both replicate designs.
+- **dataset** - Seeded synthetic replicate studies; no data are needed to decide applicability.
+- **environment** - None.
+- **expected** - A verdict only for a product confirmed NTI; a refusal with no criterion, no method and no decision otherwise; a raise on a contradictory spec and status; and no result constructible that asserts a decision the procedure did not make.
+- **observed** - Conforms on every combination enumerated.
+- **tolerance** - Exact: these are decisions, not quantities.
+- **established by** - `tests/integration/test_fda_nti_applicability.py`
+- **artefact (committed)** - `validation/phase1/algorithm/FDA_NTI_CRITERIA_001.json`
 
 ### `FDA-HVD-TREATMENT-CONTRAST`
 
@@ -657,16 +683,16 @@ The history is recorded in the CHANGELOG and in finding
 that reproduces a wrong claim in order to correct it hands the
 sentence to the next reader who quotes one line out of context.
 
-**All 29 indexed constants** carry an authority, a
+**All 30 indexed constants** carry an authority, a
 source label, a stated role and a verification classification -
-29/29.
+30/30.
 
-**Normative (21)** - the regulator wrote the
+**Normative (22)** - the regulator wrote the
 number.
 
-- pinned to authority, document, **section** and version - **21/21**
-- carrying a declared citation exception - 0/21
-- VERIFIED - 21/21
+- pinned to authority, document, **section** and version - **22/22**
+- carrying a declared citation exception - 0/22
+- VERIFIED - 22/22
 
 **Derived (6)** - this package computed it.
 
@@ -708,6 +734,7 @@ entry.
 | `FDA_NTI_SIGMA_W0` | 0.1 | normative | verified | Statistical Approaches to Establishing Bioequivalence | Appendix F (narrow therapeutic index drugs) | final, May 2026 | - |
 | `FDA_NTI_DELTA` | 1.11111 | normative | verified | Statistical Approaches to Establishing Bioequivalence | Appendix F (narrow therapeutic index drugs) | final, May 2026 | - |
 | `FDA_NTI_VARIANCE_RATIO_LIMIT` | 2.5 | normative | verified | Statistical Approaches to Establishing Bioequivalence | Appendix F (narrow therapeutic index drugs) | final, May 2026 | - |
+| `FDA_NTI_VARIABILITY_CI_ALPHA` | 0.1 | normative | verified | Statistical Approaches to Establishing Bioequivalence | Appendix F, steps 4-5 (variability comparison and the three conditions) | final, May 2026 | - |
 | `FDA_NTI_UNSCALED_LOWER_PERCENT` | 80 | normative | verified | Statistical Approaches to Establishing Bioequivalence | Appendix F (narrow therapeutic index drugs) | final, May 2026 | - |
 | `FDA_NTI_UNSCALED_UPPER_PERCENT` | 125 | normative | verified | Statistical Approaches to Establishing Bioequivalence | Appendix F (narrow therapeutic index drugs) | final, May 2026 | - |
 | `CONVENTIONAL_LOWER_PERCENT` | 80 | normative | verified | M13A — Bioequivalence for Immediate-Release Solid Oral Dosage Forms | 2.2.4 Bioequivalence Criteria (within 2.2, non-replicate designs) | Final version, adopted 23 July 2024 | - |
@@ -1000,6 +1027,7 @@ release gate: PASS
   ok   FDA_REPLICATE_STANDARD_ABE_FULL = implemented_unvalidated
   ok   FDA_REPLICATE_STANDARD_ABE_PARTIAL = not_implemented
   ok   FDA_NTI_DESIGN_VALIDATION = implemented
+  ok   FDA_NTI_APPLICABILITY_GATE = implemented
   ok   FDA_NTI_REFERENCE_SCALED_CRITERION = implemented_unvalidated
   ok   FDA_NTI_VARIABILITY_RATIO = implemented_unvalidated
   ok   FDA_NTI_UNSCALED_ABE = implemented_unvalidated

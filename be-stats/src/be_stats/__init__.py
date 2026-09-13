@@ -76,6 +76,7 @@ from be_stats.ema_hvd import (
 from be_stats.howe import HoweUpperBound, howe_upper_bound
 from be_stats.linear_model import LeastSquaresFit, fit_least_squares
 from be_stats.nti import (
+    NtiNotDecidable,
     FdaNtiResult,
     NtiDesignError,
     NtiScaledMeanCriterion,
@@ -176,6 +177,7 @@ from be_stats.spec import (
     Method,
     NotApplicable,
     NotImplementedMethod,
+    NtiApplicability,
     NtiStatus,
     ProductOverride,
     SpecificationRequired,
@@ -185,6 +187,7 @@ from be_stats.spec import (
     fda_hvd_classification,
     fda_hvd_method_for,
     fda_hvd_theta,
+    fda_nti_applicability,
     fda_nti_theta,
     fda_nti_theta_sas_example,
     nti_status_from_drug_class,
@@ -256,6 +259,8 @@ __all__ = [
     "NotPowerable",
     "NotValidated",
     "NtiDesignError",
+    "NtiApplicability",
+    "NtiNotDecidable",
     "NtiScaledMeanCriterion",
     "NtiStatus",
     "NtiUnscaledAbeCriterion",
@@ -323,6 +328,7 @@ __all__ = [
     "fda_hvd_classification",
     "fda_hvd_method_for",
     "fda_hvd_theta",
+    "fda_nti_applicability",
     "fda_nti_theta",
     "fda_nti_theta_sas_example",
     "fit_appendix_c",

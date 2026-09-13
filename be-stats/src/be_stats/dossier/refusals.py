@@ -111,6 +111,15 @@ class RefusalCode(StrEnum):
     #: assuming one decides the endpoint from Appendix G whenever the assumption
     #: is wrong.
     FDA_HVD_NTI_STATUS_REQUIRED = "FDA_HVD_NTI_STATUS_REQUIRED"
+    #: The product is confirmed not to be a narrow therapeutic index drug, so
+    #: FDA's Appendix F procedure does not apply. The converse of
+    #: FDA_HVD_NOT_APPLICABLE_NTI: each FDA reference-scaled procedure admits a
+    #: disjoint set of products.
+    FDA_NTI_NOT_APPLICABLE_NOT_NTI = "FDA_NTI_NOT_APPLICABLE_NOT_NTI"
+    #: The product's NTI status was not stated, so whether Appendix F applies is
+    #: undetermined. Refused rather than inferred from a fully replicate design
+    #: or a low CVwR, neither of which establishes the class.
+    FDA_NTI_PRODUCT_CLASS_REQUIRED = "FDA_NTI_PRODUCT_CLASS_REQUIRED"
 
     # ------------------------------------------------- estimability ---
     #: The data are structurally fine and an estimate does not exist -
@@ -278,6 +287,46 @@ REFUSALS: dict[RefusalCode, RefusalReason] = {
         source=(
             "FDA Statistical Approaches to Establishing Bioequivalence, final, "
             "May 2026, III.C"
+        ),
+    ),
+    RefusalCode.FDA_NTI_NOT_APPLICABLE_NOT_NTI: RefusalReason(
+        code=RefusalCode.FDA_NTI_NOT_APPLICABLE_NOT_NTI,
+        summary=(
+            "FDA NTI procedure not applicable: the product is identified as "
+            "not narrow therapeutic index. Appendix F - sigma_W0 = 0.10, the "
+            "unscaled 80.00-125.00% limits and the within-subject variability "
+            "comparison - is FDA's procedure for NTI drugs. Reference "
+            "variability is reported descriptively; no bioequivalence "
+            "decision is issued."
+        ),
+        lifted_by=(
+            "Nothing about the study. Assess the product under the procedure "
+            "its declared class requires: Appendix G for a highly variable "
+            "drug, ordinary average BE otherwise. If the class was declared "
+            "wrongly, correct the declaration - the data cannot."
+        ),
+        source=(
+            "FDA Statistical Approaches to Establishing Bioequivalence, final, "
+            "May 2026, III.B and Appendix F"
+        ),
+    ),
+    RefusalCode.FDA_NTI_PRODUCT_CLASS_REQUIRED: RefusalReason(
+        code=RefusalCode.FDA_NTI_PRODUCT_CLASS_REQUIRED,
+        summary=(
+            "FDA NTI applicability cannot be determined because the "
+            "product's narrow-therapeutic-index status was not stated. The "
+            "class is a regulatory property of the product and is not "
+            "inferred from a fully replicate design or a low within-subject "
+            "variability. Variability estimates are reported descriptively; "
+            "no bioequivalence decision is issued."
+        ),
+        lifted_by=(
+            "State the product's class - `nti_status`, or a spec whose "
+            "`drug_class` carries it. Nothing about the data lifts this."
+        ),
+        source=(
+            "FDA Statistical Approaches to Establishing Bioequivalence, final, "
+            "May 2026, III.B"
         ),
     ),
     RefusalCode.EMA_NTI_CMAX_PRODUCT_SPECIFIC: RefusalReason(

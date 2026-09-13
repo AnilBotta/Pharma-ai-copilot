@@ -760,3 +760,38 @@ def test_tier_1a_does_not_promote_a_method_to_validated():
     )
     for status in VALIDATION.values():
         assert status is not ValidationStatus.VALIDATED
+
+
+def test_the_nti_case_states_the_applicability_rule_row_by_row():
+    """Tier 1A for WHICH PRODUCTS Appendix F may decide, from the case file.
+
+    The rule the NTI audit found missing from the engine: the procedure is
+    for NTI drugs, and a product outside the class - or of unstated class -
+    must not receive its verdict.
+    """
+    from be_stats.spec import NtiApplicability, NtiStatus, fda_nti_applicability
+
+    block = _case("FDA-NTI-CRITERIA-001")["applicability"]
+    for row in block["expected"]:
+        got = fda_nti_applicability(NtiStatus(row["nti_status"]))
+        assert got is NtiApplicability(row["applicability"]), row
+        assert got.permits_verdict is row["permits_verdict"], row
+
+    assert {NtiApplicability(r["applicability"]) for r in block["expected"]} == set(
+        NtiApplicability
+    )
+    assert [r for r in block["expected"] if r["permits_verdict"]] == [
+        r for r in block["expected"] if r["nti_status"] == "narrow_therapeutic_index"
+    ]
+
+
+def test_the_nti_case_no_longer_says_criterion_b_is_uncomputed():
+    """The case said computed: false for three releases after it stopped being true."""
+    from be_stats.spec import FDA_NTI_CONSTANTS
+
+    case = _case("FDA-NTI-CRITERIA-001")
+    assert case["criteria"]["b"]["computed"] is True
+    assert "why_not" not in case["criteria"]["b"]
+    assert case["constants"]["variability_ci_alpha"] == (
+        FDA_NTI_CONSTANTS["variability_ci_alpha"].value
+    )

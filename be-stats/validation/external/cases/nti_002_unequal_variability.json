@@ -38,8 +38,8 @@
                         }
                     ],
     "not_cross_checkable":  [
-                                "The overall p(BE). It requires criterion (b), the unscaled 80.00-125.00% test, which for a fully replicate study is FDA Appendix C\u0027s mixed model and is not implemented.",
-                                "p(BE-ABE), PowerTOST\u0027s conventional ABE component. That is the same missing criterion (b) seen from the other side - PowerTOST computes it, be-stats cannot, so the comparison has one operand.",
+                                "The overall p(BE). It requires criterion (b), which for a fully replicate study is FDA Appendix C\u0027s mixed model. That IS implemented, and is exercised on real datasets elsewhere; it is not run here because the Python side would have to fit the REML model for each of 20,000 simulated studies. The omission is one of cost, recorded as such, not of capability.",
+                                "p(BE-ABE), PowerTOST\u0027s conventional ABE component. Not compared, for the same reason: be-stats computes criterion (b) through Appendix C, and the simulator does not fit that model per simulated study.",
                                 "The Howe intermediates, for the same reason as the RSABE cases."
                             ],
     "notes":  "The test product is markedly less reproducible than the reference. This is the axis criterion (c) exists to police, and the one a central case cannot exercise at all. Note PowerTOST takes CV as c(CVwT, CVwR) in that order."

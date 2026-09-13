@@ -238,7 +238,15 @@ def simulate_scaled_power(
             counts["p_be_pe"] += int(point_estimate_constraint(contrast).passes)
 
         elif method == "fda_nti":
-            result = assess_nti_endpoint(dataset)
+            # The simulated product IS narrow therapeutic index - that is the
+            # procedure PowerTOST's power.NTID models - so the class is
+            # declared. Without it the applicability gate refuses every study
+            # and the cross-check would compare nothing.
+            from be_stats.spec import NtiStatus
+
+            result = assess_nti_endpoint(
+                dataset, nti_status=NtiStatus.NARROW_THERAPEUTIC_INDEX
+            )
             scaled = result.scaled_mean_criterion
             ratio = result.variability_ratio_criterion
             if scaled is None or ratio is None or ratio.passes is None:
