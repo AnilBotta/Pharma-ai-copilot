@@ -332,28 +332,28 @@ What has actually been checked, against what, and where it is
 re-established. A record whose environment was unavailable reads
 `skipped_environment_unavailable` and never `passed`.
 
-| evidence | tier | authority | status | capabilities |
-|---|---|---|---|---|
-| `FDA-HVD-SWITCH-001` | tier_1a | FDA | passed | `FDA_HVD_METHOD_SELECTION`, `FDA_HVD_RSABE` |
-| `FDA-HVD-SWR-FORMULA-001` | tier_1a | FDA | passed | `FDA_HVD_REFERENCE_VARIANCE` |
-| `FDA-HVD-RSABE-CRITERION-001` | tier_1a | FDA | passed | `FDA_HVD_RSABE` |
-| `FDA-NTI-CRITERIA-001` | tier_1a | FDA | passed | `FDA_NTI_RSABE`, `FDA_NTI_REFERENCE_SCALED_CRITERION`, `FDA_NTI_VARIABILITY_RATIO`, `FDA_NTI_UNSCALED_ABE` |
-| `FDA-NTI-APPLICABILITY-001` | tier_1a | FDA | passed | `FDA_NTI_APPLICABILITY_GATE`, `FDA_NTI_DESIGN_VALIDATION`, `FDA_NTI_RSABE` |
-| `FDA-HVD-TREATMENT-CONTRAST` | tier_1a | FDA | passed | `FDA_HVD_TREATMENT_CONTRAST` |
-| `EMA-ABEL-PE-CONSTRAINT` | tier_1a | EMA | passed | `EMA_ABEL_PE_CONSTRAINT` |
-| `EMA-HVD-ENDPOINT-DECISION` | tier_1a | EMA | passed | `EMA_HVD_ENDPOINT_DECISION` |
-| `EMA-NTI-NARROWED-INTERVAL` | tier_1a | EMA | passed | `EMA_NTI_NARROW_ABE` |
-| `EMA-PKWP-METHOD-A-DATASET-I` | tier_1b | EMA | passed | `EMA_REPLICATE_METHOD_A` |
-| `EMA-PKWP-METHOD-A-DATASET-II` | tier_1b | EMA | passed | `EMA_REPLICATE_METHOD_A` |
-| `EMA-PKWP-CVWR` | tier_1b | EMA | passed | `EMA_HVD_REFERENCE_VARIABILITY` |
-| `EMA-ABEL-LIMITS-TABLE` | tier_1b | EMA | passed_with_finding | `EMA_ABEL_LIMIT_CALCULATION` |
-| `APPENDIX-C-EMA-SAS-METHOD-C` | tier_1b | EMA - publishing output for a model EMA transcribes and attributes to FDA by name. NOT FDA. | passed | `FDA_REPLICATE_STANDARD_ABE_FULL`, `FDA_HVD_UNSCALED_BRANCH`, `FDA_NTI_UNSCALED_ABE` |
-| `TIER-2-PUBLISHED-REFERENCE` | tier_2 | - | not_available | - |
-| `POWERTOST-CROSS-CHECK` | tier_3 | PowerTOST (R) | skipped_environment_unavailable | `AVERAGE_BE_2X2`, `FDA_HVD_RSABE`, `EMA_HVD_ABEL`, `FDA_NTI_RSABE` |
-| `REPLICATEBE-APPENDIX-C-CASES` | tier_3 | ReplicateBE.jl 1.0.15 on Julia 1.10.5 | skipped_environment_unavailable | `FDA_REPLICATE_STANDARD_ABE_FULL` |
-| `APPENDIX-C-SYNTHETIC-STRUCTURE` | tier_4 | be-stats | passed | `FDA_REPLICATE_STANDARD_ABE_FULL` |
-| `REFERENCE-VARIANCE-SIMULATION` | tier_4 | be-stats | passed | `FDA_HVD_REFERENCE_VARIANCE` |
-| `SAS-APPENDIX-C-PARTIAL-REPLICATE` | tier_1b | Licensed SAS, pending | pending | `FDA_REPLICATE_STANDARD_ABE_PARTIAL` |
+| evidence | tier | authority | canonical authority | status | capabilities |
+|---|---|---|---|---|---|
+| `FDA-HVD-SWITCH-001` | tier_1a | FDA | FDA | passed | `FDA_HVD_METHOD_SELECTION`, `FDA_HVD_RSABE` |
+| `FDA-HVD-SWR-FORMULA-001` | tier_1a | FDA | FDA | passed | `FDA_HVD_REFERENCE_VARIANCE` |
+| `FDA-HVD-RSABE-CRITERION-001` | tier_1a | FDA | FDA | passed | `FDA_HVD_RSABE` |
+| `FDA-NTI-CRITERIA-001` | tier_1a | FDA | FDA | passed | `FDA_NTI_RSABE`, `FDA_NTI_REFERENCE_SCALED_CRITERION`, `FDA_NTI_VARIABILITY_RATIO`, `FDA_NTI_UNSCALED_ABE` |
+| `FDA-NTI-APPLICABILITY-001` | tier_1a | FDA | FDA | passed | `FDA_NTI_APPLICABILITY_GATE`, `FDA_NTI_DESIGN_VALIDATION`, `FDA_NTI_RSABE` |
+| `FDA-HVD-TREATMENT-CONTRAST` | tier_1a | FDA | FDA | passed | `FDA_HVD_TREATMENT_CONTRAST` |
+| `EMA-ABEL-PE-CONSTRAINT` | tier_1a | EMA | EMA | passed | `EMA_ABEL_PE_CONSTRAINT` |
+| `EMA-HVD-ENDPOINT-DECISION` | tier_1a | EMA | EMA | passed | `EMA_HVD_ENDPOINT_DECISION` |
+| `EMA-NTI-NARROWED-INTERVAL` | tier_1a | EMA | EMA | passed | `EMA_NTI_NARROW_ABE` |
+| `EMA-PKWP-METHOD-A-DATASET-I` | tier_1b | EMA | EMA | passed | `EMA_REPLICATE_METHOD_A` |
+| `EMA-PKWP-METHOD-A-DATASET-II` | tier_1b | EMA | EMA | passed | `EMA_REPLICATE_METHOD_A` |
+| `EMA-PKWP-CVWR` | tier_1b | EMA | EMA | passed | `EMA_HVD_REFERENCE_VARIABILITY` |
+| `EMA-ABEL-LIMITS-TABLE` | tier_1b | EMA | EMA | passed_with_finding | `EMA_ABEL_LIMIT_CALCULATION` |
+| `APPENDIX-C-EMA-SAS-METHOD-C` | tier_1b | EMA - publishing output for a model EMA transcribes and attributes to FDA by name. NOT FDA. | EMA | passed | `FDA_REPLICATE_STANDARD_ABE_FULL`, `FDA_HVD_UNSCALED_BRANCH`, `FDA_NTI_UNSCALED_ABE` |
+| `TIER-2-PUBLISHED-REFERENCE` | tier_2 | - | none | not_available | - |
+| `POWERTOST-CROSS-CHECK` | tier_3 | PowerTOST (R) | none | skipped_environment_unavailable | `AVERAGE_BE_2X2`, `FDA_HVD_RSABE`, `EMA_HVD_ABEL`, `FDA_NTI_RSABE` |
+| `REPLICATEBE-APPENDIX-C-CASES` | tier_3 | ReplicateBE.jl 1.0.15 on Julia 1.10.5 | none | skipped_environment_unavailable | `FDA_REPLICATE_STANDARD_ABE_FULL` |
+| `APPENDIX-C-SYNTHETIC-STRUCTURE` | tier_4 | be-stats | none | passed | `FDA_REPLICATE_STANDARD_ABE_FULL` |
+| `REFERENCE-VARIANCE-SIMULATION` | tier_4 | be-stats | none | passed | `FDA_HVD_REFERENCE_VARIANCE` |
+| `SAS-APPENDIX-C-PARTIAL-REPLICATE` | tier_1b | Licensed SAS, pending | none | pending | `FDA_REPLICATE_STANDARD_ABE_PARTIAL` |
 
 ### `FDA-HVD-SWITCH-001`
 
@@ -613,6 +613,44 @@ following, in this order:
 edited in step 5 and never earlier. Nothing in this package sets either as a
 side effect of an upload, and no test fixture may set them at all.
 ```
+
+---
+
+## Tier 1B qualification by capability
+
+Tier describes where the numbers came from: a tier-1B record is a
+regulator's own published numbers, reproduced, wherever it is attached.
+Whether it can carry a capability's `VALIDATED` claim is a separate
+question - it must also be regulator-published numbers that passed,
+published by the authority the capability's own citation names.
+
+- **qualifying** - counts toward a `VALIDATED` claim. Other release
+  conditions still apply, including a reviewed transition.
+- **supporting_cross_authority** - another regulator's published
+  numbers. Evidence that a shared COMPUTATION is right, kept and shown,
+  and never evidence that the governing regulator's METHOD is
+  validated. Evidence is inherited; regulatory authority is not.
+- **not_qualifying_*** - the record names no comparable authority, is
+  not regulator-published numbers, or did not run.
+
+| capability | governed by | tier-1B evidence | published by | relation | why |
+|---|---|---|---|---|---|
+| `FDA_HVD_UNSCALED_BRANCH` | FDA | `APPENDIX-C-EMA-SAS-METHOD-C` | EMA | supporting_cross_authority | published by EMA, not FDA. Kept as supporting evidence for the computation; it cannot carry a FDA VALIDATED claim |
+| `FDA_REPLICATE_STANDARD_ABE_FULL` | FDA | `APPENDIX-C-EMA-SAS-METHOD-C` | EMA | supporting_cross_authority | published by EMA, not FDA. Kept as supporting evidence for the computation; it cannot carry a FDA VALIDATED claim |
+| `FDA_REPLICATE_STANDARD_ABE_PARTIAL` | FDA | `SAS-APPENDIX-C-PARTIAL-REPLICATE` | none | not_qualifying_not_established | status pending; a skipped or pending comparison is not a pass |
+| `FDA_NTI_UNSCALED_ABE` | FDA | `APPENDIX-C-EMA-SAS-METHOD-C` | EMA | supporting_cross_authority | published by EMA, not FDA. Kept as supporting evidence for the computation; it cannot carry a FDA VALIDATED claim |
+| `EMA_HVD_REFERENCE_VARIABILITY` | EMA | `EMA-PKWP-CVWR` | EMA | qualifying | EMA-published numbers, reproduced, for a capability governed by EMA |
+| `EMA_REPLICATE_METHOD_A` | EMA | `EMA-PKWP-METHOD-A-DATASET-I` | EMA | qualifying | EMA-published numbers, reproduced, for a capability governed by EMA |
+| `EMA_REPLICATE_METHOD_A` | EMA | `EMA-PKWP-METHOD-A-DATASET-II` | EMA | qualifying | EMA-published numbers, reproduced, for a capability governed by EMA |
+| `EMA_ABEL_LIMIT_CALCULATION` | EMA | `EMA-ABEL-LIMITS-TABLE` | EMA | qualifying | EMA-published numbers, reproduced, for a capability governed by EMA |
+
+Capabilities whose only regulator-published numbers come from a
+different regulator: `FDA_HVD_UNSCALED_BRANCH`, `FDA_NTI_UNSCALED_ABE`, `FDA_REPLICATE_STANDARD_ABE_FULL`.
+For each, the evidence shows the implementation reproduces a
+regulator's published output for the model it computes through. It
+is not the governing regulator's numerical evidence for the
+capability's own procedure, and cannot by itself support a
+`VALIDATED` transition for it.
 
 ---
 
@@ -1004,9 +1042,11 @@ No FDA capability holds tier-1B evidence. Every FDA method that produces a numbe
 ## Release gate
 
 Whether each capability's claimed status is supportable by the
-evidence recorded above. A `VALIDATED` claim needs tier-1B evidence
-that passed, a pinned source, no open blocking finding, no blocker,
-and an explicitly reviewed transition.
+evidence recorded above. A `VALIDATED` claim needs QUALIFYING tier-1B
+evidence - regulator-published numbers that passed, published by the
+authority the capability's own citation names - a pinned source, no
+open blocking finding, no blocker, and an explicitly reviewed
+transition.
 
 **Result: PASS**
 

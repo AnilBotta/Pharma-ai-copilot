@@ -518,13 +518,19 @@ def test_promoting_an_unevidenced_capability_fails_the_gate(monkeypatch):
     )
 
 
-def _tier_1b_evidence_for(capability_id: str):
+def _tier_1b_evidence_for(capability_id: str, authority=None):
     """A passing tier-1B record, so a gate test can isolate one condition.
 
     Every other requirement is satisfied deliberately. A test that fails for
     three reasons at once proves nothing about any of them.
+
+    That now includes the governing authority. Every caller here uses
+    AVERAGE_BE_2X2, whose citation is ICH M13A 2.2.4, so the fixture is ICH's
+    unless told otherwise. It used to carry only the free-text label "test
+    fixture" - which the gate never compared, because it compared nothing.
     """
     from be_stats.dossier.evidence import EvidenceRecord, SourceType
+    from be_stats.provenance import Authority
 
     return EvidenceRecord(
         evidence_id="TEST-FIXTURE-TIER-1B",
@@ -532,6 +538,7 @@ def _tier_1b_evidence_for(capability_id: str):
         tier=EvidenceTier.TIER_1B,
         source_type=SourceType.REGULATOR_PUBLISHED_NUMBERS,
         source_authority="test fixture",
+        evidence_authority=Authority.ICH if authority is None else authority,
         scenario="Synthetic, for a release-gate test only.",
         dataset="-",
         software_environment="-",
@@ -645,8 +652,18 @@ def test_restoring_the_placeholder_citation_fails_the_gate_again(monkeypatch):
         "no section and version 'current'. The pinning policy has been "
         "weakened."
     )
-    assert len(result.violations) == 1, result.violations
-    violation = result.violations[0]
+    # CORRECTED: this asserted exactly one violation. The placeholder names
+    # three authorities, and a citation naming three authorities also names
+    # no single GOVERNING authority - so the tier-1B authority condition now
+    # fails closed beside the pinning condition, instead of the fixture's
+    # evidence qualifying against a governing authority nobody can name. Both
+    # are the same defect in the citation, reported twice for two controls.
+    assert len(result.violations) == 2, result.violations
+    (authority_violation,) = [
+        v for v in result.violations if "qualifying tier-1B" in v
+    ]
+    assert "names no canonical governing authority" in authority_violation
+    (violation,) = [v for v in result.violations if "unpinned" in v]
     # No declared exception exists for it any more, so the gate reports the
     # conditions it fails rather than a tracked finding id.
     assert "unpinned regulatory source" in violation

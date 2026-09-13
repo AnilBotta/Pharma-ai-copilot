@@ -45,7 +45,11 @@ from be_stats.dossier.evidence_search import (
 )
 from be_stats.dossier.findings import FINDINGS_REGISTER
 from be_stats.dossier.refusals import REFUSALS
-from be_stats.dossier.release_gate import check_release_gate
+from be_stats.dossier.release_gate import (
+    Tier1BRelation,
+    assess_tier_1b,
+    check_release_gate,
+)
 from be_stats.dossier.routing import ROUTING_MATRIX, UNSUPPORTED_COMBINATION
 from be_stats.dossier.semantics import CONTRACT
 
@@ -180,12 +184,21 @@ def _evidence_section() -> list[str]:
                 f"`{record.evidence_id}`",
                 str(record.tier),
                 record.source_authority,
+                str(record.evidence_authority or "none"),
                 str(record.status),
                 ", ".join(f"`{c}`" for c in record.capabilities) or "-",
             ]
         )
     lines += _table(
-        ["evidence", "tier", "authority", "status", "capabilities"], rows
+        [
+            "evidence",
+            "tier",
+            "authority",
+            "canonical authority",
+            "status",
+            "capabilities",
+        ],
+        rows,
     )
     lines.append("")
     for record in EVIDENCE_MANIFEST:
@@ -547,15 +560,92 @@ def _catalogue_section() -> list[str]:
     return lines
 
 
+def _tier_1b_qualification_section() -> list[str]:
+    """Which tier-1B evidence could carry which capability - and which cannot.
+
+    Every tier-1B record attached to a capability is listed, including the
+    ones that do not qualify it. Removing cross-authority evidence from view
+    would make the gate pass for the wrong reason and make the evidence
+    disappear from the one document that explains it.
+    """
+    lines = [
+        "## Tier 1B qualification by capability",
+        "",
+        "Tier describes where the numbers came from: a tier-1B record is a",
+        "regulator's own published numbers, reproduced, wherever it is attached.",
+        "Whether it can carry a capability's `VALIDATED` claim is a separate",
+        "question - it must also be regulator-published numbers that passed,",
+        "published by the authority the capability's own citation names.",
+        "",
+        "- **qualifying** - counts toward a `VALIDATED` claim. Other release",
+        "  conditions still apply, including a reviewed transition.",
+        "- **supporting_cross_authority** - another regulator's published",
+        "  numbers. Evidence that a shared COMPUTATION is right, kept and shown,",
+        "  and never evidence that the governing regulator's METHOD is",
+        "  validated. Evidence is inherited; regulatory authority is not.",
+        "- **not_qualifying_*** - the record names no comparable authority, is",
+        "  not regulator-published numbers, or did not run.",
+        "",
+    ]
+    rows = []
+    for capability_id, record in CAPABILITY_MATRIX.items():
+        for assessment in assess_tier_1b(capability_id):
+            rows.append(
+                [
+                    f"`{capability_id}`",
+                    str(record.governing_authority or "none"),
+                    f"`{assessment.evidence_id}`",
+                    str(assessment.evidence_authority or "none"),
+                    str(assessment.relation),
+                    assessment.reason,
+                ]
+            )
+    lines += _table(
+        [
+            "capability",
+            "governed by",
+            "tier-1B evidence",
+            "published by",
+            "relation",
+            "why",
+        ],
+        rows,
+    )
+    lines.append("")
+
+    cross = sorted(
+        {
+            a.capability_id
+            for cid in CAPABILITY_MATRIX
+            for a in assess_tier_1b(cid)
+            if a.relation is Tier1BRelation.SUPPORTING_CROSS_AUTHORITY
+        }
+    )
+    if cross:
+        lines += [
+            "Capabilities whose only regulator-published numbers come from a",
+            "different regulator: " + ", ".join(f"`{c}`" for c in cross) + ".",
+            "For each, the evidence shows the implementation reproduces a",
+            "regulator's published output for the model it computes through. It",
+            "is not the governing regulator's numerical evidence for the",
+            "capability's own procedure, and cannot by itself support a",
+            "`VALIDATED` transition for it.",
+            "",
+        ]
+    return lines
+
+
 def _gate_section() -> list[str]:
     report = check_release_gate()
     lines = [
         "## Release gate",
         "",
         "Whether each capability's claimed status is supportable by the",
-        "evidence recorded above. A `VALIDATED` claim needs tier-1B evidence",
-        "that passed, a pinned source, no open blocking finding, no blocker,",
-        "and an explicitly reviewed transition.",
+        "evidence recorded above. A `VALIDATED` claim needs QUALIFYING tier-1B",
+        "evidence - regulator-published numbers that passed, published by the",
+        "authority the capability's own citation names - a pinned source, no",
+        "open blocking finding, no blocker, and an explicitly reviewed",
+        "transition.",
         "",
         f"**Result: {'PASS' if report.passed else 'FAIL'}**",
         "",
@@ -592,6 +682,8 @@ def render_dossier() -> str:
     lines += _refusal_section()
     lines += ["---", ""]
     lines += _evidence_section()
+    lines += ["---", ""]
+    lines += _tier_1b_qualification_section()
     lines += ["---", ""]
     lines += _evidence_search_section()
     lines += ["---", ""]
