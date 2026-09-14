@@ -24,7 +24,7 @@ The user-facing view. Three states, one qualification each.
 | Average bioequivalence, conventional 80.00-125.00% interval | FDA / EMA | 2x2 crossover, parallel group | all endpoints | IMPLEMENTED - VALIDATION PENDING | Implemented, and validation is pending: no regulator-published numerical output has been reproduced through this path. |
 | FDA reference-scaled average BE for highly variable drugs | FDA | fully replicate crossover, partial replicate crossover | all endpoints | IMPLEMENTED - VALIDATION PENDING | Implemented, and validation is pending: the regulator's stated algorithm is conformed to, and no regulator-published worked example of it exists to reproduce. |
 | FDA narrow therapeutic index procedure, all three criteria | FDA | fully replicate crossover | all endpoints | IMPLEMENTED - VALIDATION PENDING | Implemented, and validation is pending: the regulator's stated algorithm is conformed to, and no regulator-published worked example of it exists to reproduce. |
-| EMA average bioequivalence with expanding limits | EMA | fully replicate crossover, partial replicate crossover | Cmax | IMPLEMENTED - VALIDATION PENDING | Implemented, and validation is pending: no regulator-published numerical output has been reproduced through this path. |
+| EMA average bioequivalence with expanding limits | EMA | fully replicate crossover, partial replicate crossover | Cmax | IMPLEMENTED - VALIDATION PENDING | Implemented, and validation is pending: the regulator's stated algorithm is conformed to, and no regulator-published worked example of it exists to reproduce. |
 | EMA narrowed 90.00-111.11% interval for NTI drugs | EMA | 2x2 crossover, fully replicate crossover | AUC, Cmax | IMPLEMENTED - VALIDATION PENDING | Implemented, and validation is pending: the regulator's stated algorithm is conformed to, and no regulator-published worked example of it exists to reproduce. |
 | FDA Appendix C mixed model, fully replicate design | FDA | fully replicate crossover | all endpoints | IMPLEMENTED - VALIDATION PENDING | Implemented, and validation is pending: a regulator's published output has been reproduced for the model, and not by the regulator whose procedure this is. |
 | FDA Appendix C mixed model, partial replicate design | FDA | partial replicate crossover | all endpoints | NOT IMPLEMENTED | Not implemented - external SAS oracle evidence pending. |
@@ -46,7 +46,7 @@ the next column and only the next column.
 | `AVERAGE_BE_2X2` | both | implemented | implemented_unvalidated | tier_3 | yes |
 | `FDA_HVD_RSABE` | FDA | implemented | implemented_unvalidated | tier_1a | yes |
 | `FDA_NTI_RSABE` | FDA | implemented | implemented_unvalidated | tier_1a | yes |
-| `EMA_HVD_ABEL` | EMA | implemented | implemented_unvalidated | tier_1b | yes |
+| `EMA_HVD_ABEL` | EMA | implemented | implemented_unvalidated | tier_1a | yes |
 | `EMA_NTI_NARROW_ABE` | EMA | implemented | implemented_unvalidated | tier_1a | yes |
 | `FDA_HVD_CLASSIFICATION` | FDA | implemented | implemented | tier_1a | no |
 | `FDA_HVD_APPLICABILITY_GATE` | FDA | implemented | implemented | tier_1a | no |
@@ -64,6 +64,7 @@ the next column and only the next column.
 | `FDA_NTI_UNSCALED_ABE` | FDA | implemented | implemented_unvalidated | tier_1b | no |
 | `EMA_HVD_DESIGN_GATE` | EMA | implemented | implemented | tier_1a | no |
 | `EMA_HVD_VARIABILITY_ELIGIBILITY` | EMA | implemented | implemented | tier_1a | no |
+| `EMA_ABEL_WIDENING_BASIS_GATE` | EMA | implemented | implemented | tier_1a | no |
 | `EMA_HVD_REFERENCE_VARIABILITY` | EMA | implemented | validated | tier_1b | no |
 | `EMA_REPLICATE_METHOD_A` | EMA | implemented | validated | tier_1b | no |
 | `EMA_ABEL_LIMIT_CALCULATION` | EMA | implemented | validated | tier_1b | no |
@@ -93,6 +94,9 @@ the next column and only the next column.
 
 - Three of its four component capabilities are VALIDATED on tier-1B evidence and the METHOD is not. No EMA publication carries one end-to-end example from CVwR > 30% through widened limits and the Method A interval to a stated verdict, so the wiring between validated parts is itself unvalidated.
 - Cmax only. AUC stays at 80.00-125.00% regardless of variability.
+- CVwR > 30% is necessary and not sufficient. Widening also needs a sound clinical justification that a wider Cmax difference is clinically irrelevant, and a widened interval prospectively specified in the protocol - both stated by the caller. Either one unstated gives no decision; either one explicitly absent gives the conventional 80.00-125.00% range.
+- The engine records the justification; it cannot judge whether the justification is sound, or whether the CVwR estimate is reliable rather than driven by outliers, which 4.1.10 asks the applicant to justify.
+- No EMA publication carries one scenario end to end through variability, eligibility, widened limits, the Method A interval and the GMR constraint to a stated verdict. The search is recorded as EMA_HVD_ABEL_END_TO_END_SEARCH, and components validated separately are not stitched into one.
 
 **`EMA_NTI_NARROW_ABE`** - EMA narrowed 90.00-111.11% interval for NTI drugs
 
@@ -183,6 +187,12 @@ the next column and only the next column.
 
 - Compared on the CV scale and never converted to an sWR boundary. EMA's threshold on that scale is 0.293560..., which is a different number from FDA's stated 0.294, and studies exist between them.
 
+**`EMA_ABEL_WIDENING_BASIS_GATE`** - Widen Cmax only on a stated clinical justification and a prespecified protocol
+
+- Structural, and it consults no data. Whether a wider Cmax difference is clinically irrelevant is a judgement about the product, and whether widening was prespecified is a fact about the protocol; neither can be read from CVwR, the endpoint, the design or the result.
+- An unstated basis REFUSES rather than defaulting to either range. An explicitly absent basis applies the conventional 80.00-125.00% range, because 4.1.8 sets that range for Cmax and 4.1.10 widens it only 'in certain cases'.
+- The gate cannot detect a MISSTATED basis. A product declared justified and prespecified is widened, and nothing in the data would contradict the declaration.
+
 **`EMA_HVD_REFERENCE_VARIABILITY`** - CVwR from the reference measurements alone
 
 - Validated against the two annexed EMA data sets. Both are four-period; no published three-period example exists.
@@ -203,6 +213,7 @@ the next column and only the next column.
 **`EMA_HVD_ENDPOINT_DECISION`** - The two EMA criteria combined into one endpoint verdict
 
 - Every PART has tier-1B evidence and the WHOLE does not. Validating the components does not validate the wiring between them, and this is exactly where correct pieces could be assembled into a wrong verdict.
+- The decision asks four separate questions - design, variability, endpoint and basis for widening, then the two criteria - and reports each. It issues no verdict where the applicable range is unknown, and no result can be constructed that widens an endpoint 4.1.10 does not widen.
 
 ---
 
@@ -260,9 +271,9 @@ unsupported row at the end.
 
 - **input classification** - A drug declared highly variable. EMA's WIDENING is available for Cmax only; the route accepts every endpoint and the widening does not.
 - **design required** - replicate, partial_replicate
-- **decision rule** - Where CVwR for Cmax exceeds 30% strictly, the limits widen to exp(+/- 0.760.sWR) capped at 69.84-143.19%; the Method A 90% interval must fall within them AND the GMR must fall within 80.00-125.00%. Both are required. AUC stays at 80.00-125.00% regardless of variability.
-- **refusal behaviour** - Widening requested for AUC is refused rather than granted. A non-replicate design is refused. CVwR at or below 30% does not widen - it is not a failure, the ordinary limits simply apply.
-- **refusal codes** - `EMA_ABEL_CMAX_ONLY`, `EMA_ABEL_REPLICATE_DESIGN_REQUIRED`, `QUANTITY_NOT_ESTIMABLE`
+- **decision rule** - Where CVwR for Cmax exceeds 30% strictly AND the product's wider Cmax difference is clinically justified AND widening was prospectively specified in the protocol, the limits widen to exp(+/- 0.760.sWR) capped at 69.84-143.19%; the Method A 90% interval must fall within them AND the GMR must fall within 80.00-125.00%. Both are required. AUC stays at 80.00-125.00% regardless of variability.
+- **refusal behaviour** - Widening requested for AUC is refused rather than granted. A non-replicate design is refused. CVwR at or below 30% does not widen - it is not a failure, the ordinary limits simply apply. A highly variable Cmax whose clinical justification or protocol prespecification is NOT STATED gets no decision; one explicitly not justified or not prespecified is assessed against 80.00-125.00%.
+- **refusal codes** - `EMA_ABEL_CMAX_ONLY`, `EMA_ABEL_REPLICATE_DESIGN_REQUIRED`, `EMA_ABEL_WIDENING_BASIS_REQUIRED`, `QUANTITY_NOT_ESTIMABLE`
 
 ### `EMA_NTI_AUC`
 
@@ -314,6 +325,7 @@ that is a dead end rather than an answer.
 | `EMA_ABEL_REPLICATE_DESIGN_REQUIRED` | EMA permits widened Cmax limits only where CVwR was demonstrated in a replicate design of three or four periods. | Submit a 3-period or 4-period replicate crossover study. |
 | `UNSUPPORTED_REPLICATE_DESIGN` | The sequences present do not form a replicate design this engine recognises. Guessing the intended design would silently analyse a different study from the one submitted. | Submit one of the supported designs, or correct the sequence labels if they were mis-coded. |
 | `EMA_ABEL_CMAX_ONLY` | EMA's widened acceptance range applies to Cmax only. 4.1.10 keeps AUC at 80.00-125.00% regardless of variability, so a widened limit is not available for this endpoint. | Nothing about the study. Analyse AUC under the ordinary 80.00-125.00% interval, which this engine does support. |
+| `EMA_ABEL_WIDENING_BASIS_REQUIRED` | No EMA decision issued: the reference CVwR for Cmax exceeds 30%, and 4.1.10 widens the range only for a product whose wider Cmax difference is clinically irrelevant on a sound clinical justification, with the widened interval prospectively specified in the protocol. At least one of those was not stated, so neither the widened nor the conventional range can be applied. Reference variability is reported descriptively. | State the product's clinical justification (JUSTIFIED or NOT_JUSTIFIED) and whether the protocol prespecified widening (PRESPECIFIED or NOT_PRESPECIFIED). |
 | `FDA_HVD_NOT_APPLICABLE_NTI` | FDA HVD procedure not applicable: the product is identified as narrow therapeutic index. III.C defines a highly variable drug as one with within-subject variability of 30 percent or greater AND that is not considered an NTI drug, so an NTI product is outside the definition however variable its reference is. Reference variability is still reported, descriptively; no bioequivalence decision is issued. | Nothing about the study. Assess the product under the FDA NTI procedure (Appendix F), which this engine implements separately: a reference-scaled criterion on sigma_W0 = 0.10, the unscaled 80.00-125.00% limits, and a bound on the ratio of within-subject variances. It is a different procedure, not a stricter setting of this one. |
 | `FDA_HVD_NTI_STATUS_REQUIRED` | FDA HVD applicability cannot be determined because the product's narrow-therapeutic-index status was not stated. III.C's definition has two conjuncts and the second is a property of the product that no dataset carries, so the engine cannot observe it. Variability estimates are reported descriptively; no bioequivalence decision is issued. | State the product's class - `nti_status`, or a spec whose `drug_class` carries it. Nothing about the data lifts this: a larger study, a lower CVwR and a cleaner dataset all leave the product's regulatory class exactly as unknown as before. |
 | `FDA_NTI_NOT_APPLICABLE_NOT_NTI` | FDA NTI procedure not applicable: the product is identified as not narrow therapeutic index. Appendix F - sigma_W0 = 0.10, the unscaled 80.00-125.00% limits and the within-subject variability comparison - is FDA's procedure for NTI drugs. Reference variability is reported descriptively; no bioequivalence decision is issued. | Nothing about the study. Assess the product under the procedure its declared class requires: Appendix G for a highly variable drug, ordinary average BE otherwise. If the class was declared wrongly, correct the declaration - the data cannot. |
@@ -342,6 +354,7 @@ re-established. A record whose environment was unavailable reads
 | `FDA-HVD-TREATMENT-CONTRAST` | tier_1a | FDA | FDA | passed | `FDA_HVD_TREATMENT_CONTRAST` |
 | `EMA-ABEL-PE-CONSTRAINT` | tier_1a | EMA | EMA | passed | `EMA_ABEL_PE_CONSTRAINT` |
 | `EMA-HVD-ENDPOINT-DECISION` | tier_1a | EMA | EMA | passed | `EMA_HVD_ENDPOINT_DECISION` |
+| `EMA-ABEL-WIDENING-BASIS-001` | tier_1a | EMA | EMA | passed | `EMA_ABEL_WIDENING_BASIS_GATE`, `EMA_HVD_ENDPOINT_DECISION`, `EMA_HVD_ABEL` |
 | `EMA-NTI-NARROWED-INTERVAL` | tier_1a | EMA | EMA | passed | `EMA_NTI_NARROW_ABE` |
 | `EMA-PKWP-METHOD-A-DATASET-I` | tier_1b | EMA | EMA | passed | `EMA_REPLICATE_METHOD_A` |
 | `EMA-PKWP-METHOD-A-DATASET-II` | tier_1b | EMA | EMA | passed | `EMA_REPLICATE_METHOD_A` |
@@ -442,6 +455,17 @@ re-established. A record whose environment was unavailable reads
 - **tolerance** - Exact on the decision; 1e-12 on the limits.
 - **established by** - `tests/integration/test_hvd_endpoint_decision.py`
 - **note** - THE WIRING, and the reason this capability is deliberately NOT validated: every part below it has tier-1B evidence and no EMA publication carries one end-to-end example through to a stated verdict. Validated components assembled by unvalidated wiring is exactly what the ladder exists to make visible.
+
+### `EMA-ABEL-WIDENING-BASIS-001`
+
+- **scenario** - Which acceptance range 4.1.10 applies to one endpoint, across Cmax and AUC, CVwR either side of 30% - including exactly 30% - and every combination of clinical justification and protocol prespecification, stated or not.
+- **dataset** - Constructed replicate studies, and the pure rule evaluated on exact CVwR values.
+- **environment** - be-stats only.
+- **expected** - Widening only for Cmax with CVwR > 30%, clinically justified AND prospectively specified; the conventional 80.00-125.00% range where either is explicitly absent, where CVwR <= 30%, and for AUC always; no decision where either is unstated; and no result constructible that widens an endpoint the rule does not widen.
+- **observed** - Conforms on every combination enumerated.
+- **tolerance** - Exact: these are decisions, not quantities.
+- **established by** - `tests/unit/test_ema_abel_applicability.py`
+- **note** - Tier 1A. EMA states the rule and publishes no worked example of it being applied to a product, which is why neither the gate nor the method rises above its current status.
 
 ### `EMA-NTI-NARROWED-INTERVAL`
 
@@ -1073,6 +1097,7 @@ release gate: PASS
   ok   FDA_NTI_UNSCALED_ABE = implemented_unvalidated
   ok   EMA_HVD_DESIGN_GATE = implemented
   ok   EMA_HVD_VARIABILITY_ELIGIBILITY = implemented
+  ok   EMA_ABEL_WIDENING_BASIS_GATE = implemented
   ok   EMA_HVD_REFERENCE_VARIABILITY = validated
   ok   EMA_REPLICATE_METHOD_A = validated
   ok   EMA_ABEL_LIMIT_CALCULATION = validated

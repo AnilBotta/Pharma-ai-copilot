@@ -24,6 +24,8 @@ from be_stats.replicate import DataError, ReplicateObservation, parse_sequence
 from be_stats.spec import (
     EMA_ABEL_SCALABLE_ENDPOINTS,
     EMA_HVD_CONSTANTS,
+    EmaWideningJustification,
+    EmaWideningPrespecification,
     Endpoint,
     Method,
     ema_hvd_scaling_eligible,
@@ -31,6 +33,20 @@ from be_stats.spec import (
 from be_stats.study import Treatment
 
 THRESHOLD = EMA_HVD_CONSTANTS["cv_wr_scaling_threshold_percent"].value
+
+#: A product whose widening is clinically justified and was prospectively
+#: specified in the protocol.
+#:
+#: CORRECTION. The end-to-end tests below that expect widening used to call
+#: `assess_ema_endpoint` with only an endpoint, and got widened limits from
+#: CVwR alone. 4.1.10 requires both of these as well, and the engine now
+#: refuses to assume them - so the tests that are about the FLOW of a widened
+#: endpoint declare them, once, under a name that says what is declared.
+#: `test_ema_abel_applicability.py` owns the behaviour when they are absent.
+JUSTIFIED_AND_PRESPECIFIED = {
+    "clinical_justification": EmaWideningJustification.JUSTIFIED,
+    "protocol_prespecification": EmaWideningPrespecification.PRESPECIFIED,
+}
 
 
 def swr_for(cv_percent: float) -> float:
@@ -275,7 +291,9 @@ def test_a_low_variability_study_routes_to_the_conventional_range():
 
 def test_a_highly_variable_study_routes_to_abel_and_shows_its_working():
     result = assess_ema_endpoint(
-        _study(cv_wr_percent=45.0, ratio=0.90), endpoint=Endpoint.CMAX
+        _study(cv_wr_percent=45.0, ratio=0.90),
+        endpoint=Endpoint.CMAX,
+        **JUSTIFIED_AND_PRESPECIFIED,
     )
     assert result.scaling_eligible is True
     assert result.selected_method is Method.EMA_HVD_ABEL
@@ -294,7 +312,9 @@ def test_both_criteria_are_reported_separately():
     missed on precision from one that missed on location.
     """
     result = assess_ema_endpoint(
-        _study(cv_wr_percent=45.0, ratio=0.78), endpoint=Endpoint.CMAX
+        _study(cv_wr_percent=45.0, ratio=0.78),
+        endpoint=Endpoint.CMAX,
+        **JUSTIFIED_AND_PRESPECIFIED,
     )
     assert result.interval_criterion_passes is not None
     assert result.point_estimate_criterion_passes is False, (
@@ -317,6 +337,7 @@ def test_the_point_estimate_constraint_can_fail_a_study_the_interval_passes():
     result = assess_ema_endpoint(
         _study(cv_wr_percent=55.0, ratio=0.79, n_per_sequence=60),
         endpoint=Endpoint.CMAX,
+        **JUSTIFIED_AND_PRESPECIFIED,
     )
     if result.interval_criterion_passes and not result.point_estimate_criterion_passes:
         assert result.passes is False
@@ -337,7 +358,9 @@ def test_auc_and_cmax_are_decided_independently_in_one_study():
     cmax = _study(cv_wr_percent=45.0, ratio=0.90, endpoint="Cmax")
     auc = _study(cv_wr_percent=45.0, ratio=0.90, endpoint="AUC", seed=11)
 
-    results = assess_ema_study({Endpoint.CMAX: cmax, Endpoint.AUC: auc})
+    results = assess_ema_study(
+        {Endpoint.CMAX: cmax, Endpoint.AUC: auc}, **JUSTIFIED_AND_PRESPECIFIED
+    )
 
     assert results[Endpoint.CMAX].scaling_eligible is True
     assert results[Endpoint.CMAX].selected_method is Method.EMA_HVD_ABEL
@@ -355,7 +378,9 @@ def test_auc_and_cmax_are_decided_independently_in_one_study():
 def test_the_result_cites_ema_and_never_appendix_g():
     """Provenance is regulator-specific even where the arithmetic rhymes."""
     result = assess_ema_endpoint(
-        _study(cv_wr_percent=45.0, ratio=0.95), endpoint=Endpoint.CMAX
+        _study(cv_wr_percent=45.0, ratio=0.95),
+        endpoint=Endpoint.CMAX,
+        **JUSTIFIED_AND_PRESPECIFIED,
     )
     text = " ".join(result.provenance())
     assert "4.1.10" in text
@@ -391,7 +416,9 @@ def test_a_partial_replicate_study_is_supported():
                     )
                 )
 
-    result = assess_ema_endpoint(rows, endpoint=Endpoint.CMAX)
+    result = assess_ema_endpoint(
+        rows, endpoint=Endpoint.CMAX, **JUSTIFIED_AND_PRESPECIFIED
+    )
     assert str(result.design) == "partial_replicate"
     assert result.decided is True
 

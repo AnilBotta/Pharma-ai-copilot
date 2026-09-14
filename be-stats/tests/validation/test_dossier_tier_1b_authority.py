@@ -256,6 +256,7 @@ EXPECTED_AUTHORITY: dict[str, Authority | None] = {
     "EMA-ABEL-PE-CONSTRAINT": Authority.EMA,
     "EMA-HVD-ENDPOINT-DECISION": Authority.EMA,
     "EMA-NTI-NARROWED-INTERVAL": Authority.EMA,
+    "EMA-ABEL-WIDENING-BASIS-001": Authority.EMA,
     "EMA-PKWP-METHOD-A-DATASET-I": Authority.EMA,
     "EMA-PKWP-METHOD-A-DATASET-II": Authority.EMA,
     "EMA-PKWP-CVWR": Authority.EMA,

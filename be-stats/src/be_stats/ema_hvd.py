@@ -6,18 +6,43 @@ EMA, *Guideline on the Investigation of Bioequivalence*,
 CPMP/EWP/QWP/1401/98 Rev. 1, effective 1 August 2010, section 4.1.10.
 
     Highly variable drug products (HVDP) are those whose intra-subject
-    variability for a parameter is larger than 30%. ... For the acceptance
-    interval to be widened the bioequivalence study must be of a replicate
-    design where it has been demonstrated that the within-subject variability
-    for Cmax of the reference compound in the study is >30%. ... The extent of
-    the widening is defined ... using scaled-average-bioequivalence according
-    to [U, L] = exp [+/- k.sWR], where ... k is the regulatory constant set to
-    0.760 ... the acceptance criteria for Cmax can be widened to a maximum of
-    69.84 - 143.19%. ... The geometric mean ratio (GMR) should lie within the
-    conventional acceptance range 80.00-125.00%. The possibility to widen the
-    acceptance criteria based on high intra-subject variability does not apply
-    to AUC where the acceptance range should remain at 80.00 - 125.00%
-    regardless of variability.
+    variability for a parameter is larger than 30%. ... Those HVDP for which a
+    wider difference in Cmax is considered clinically irrelevant based on a
+    sound clinical justification can be assessed with a widened acceptance
+    range. ... For the acceptance interval to be widened the bioequivalence
+    study must be of a replicate design where it has been demonstrated that the
+    within-subject variability for Cmax of the reference compound in the study
+    is >30%. ... The request for widened interval must be prospectively
+    specified in the protocol. The extent of the widening is defined ... using
+    scaled-average-bioequivalence according to [U, L] = exp [+/- k.sWR], where
+    ... k is the regulatory constant set to 0.760 ... the acceptance criteria
+    for Cmax can be widened to a maximum of 69.84 - 143.19%. ... The geometric
+    mean ratio (GMR) should lie within the conventional acceptance range
+    80.00-125.00%. The possibility to widen the acceptance criteria based on
+    high intra-subject variability does not apply to AUC where the acceptance
+    range should remain at 80.00 - 125.00% regardless of variability.
+
+VARIABILITY IS NECESSARY AND NOT SUFFICIENT
+
+An earlier version of this module widened every Cmax endpoint whose CVwR
+exceeded 30%. The paragraph above names two more conditions and the engine
+asked neither: a sound clinical justification that a wider Cmax difference is
+clinically irrelevant for the product, and a widened interval prospectively
+specified in the protocol. EMA's own Q&A (EMA/618604/2008 Rev. 13, question 4)
+calls the first "a prerequisite" and applies it to refuse widening for
+clopidogrel. Neither is a property of the data, so both arrive as typed
+product metadata - see `spec.ema_abel_widening` - and an unstated one refuses.
+
+FOUR QUESTIONS, ASKED SEPARATELY
+
+    A  design        is this a replicate design 4.1.10 accepts?
+    B  variability   is the reference CVwR strictly greater than 30%?
+    C  applicability is the endpoint Cmax, and is widening justified and
+                     prespecified for this product?
+    D  decision      is the Method A 90% CI inside the applicable limits AND
+                     the GMR inside 80.00-125.00%?
+
+Each answer is a field on the result. There is no boolean that collapses them.
 
 WHY A 2010 DOCUMENT IS STILL THE RULE
 
@@ -50,10 +75,10 @@ records Appendix C's five-parameter mixed model and refuses to approximate it.
 
     THERE IS NO FDA MATERIAL IN THIS MODULE.
 
-No Howe approximation, no linearized criterion, no sigma_w0, no NTI logic. EMA
-does not scale a criterion; it scales the LIMITS and then runs an ordinary
-confidence-interval test against them. The two procedures share arithmetic no
-deeper than "fit a linear model", which lives in `linear_model`.
+No Howe approximation, no linearized criterion, no sigma_w0, no NTI logic, and
+no 0.294. EMA does not scale a criterion; it scales the LIMITS and then runs an
+ordinary confidence-interval test against them. The two procedures share
+arithmetic no deeper than "fit a linear model", which lives in `linear_model`.
 
 WITHIN-SUBJECT VARIABILITY OF THE REFERENCE
 
@@ -76,6 +101,13 @@ EMA's published result for it requires keeping them. `ReplicateDataset` drops
 such subjects, correctly, because FDA's sWR needs both reference replicates —
 so this module does not use `ReplicateDataset`. It shares the row-level
 validation (`validate_subject_rows`) and applies its own inclusion rule.
+
+UNITS
+
+Every limit and every criterion is compared in PERCENT. The treatment effect is
+estimated on the log scale and converted exactly once, by the `*_percent`
+properties of `TreatmentEffect`; the regulatory constants are stored in percent.
+Nothing converts a percentage a second time.
 """
 
 from __future__ import annotations
@@ -84,7 +116,7 @@ import math
 from dataclasses import dataclass, field
 
 from be_stats.diagnostics import Diagnostic, DiagnosticCode, Severity
-from be_stats.linear_model import LeastSquaresFit, fit_least_squares
+from be_stats.linear_model import fit_least_squares
 from be_stats.provenance import (
     EMA_BIOEQUIVALENCE_HVD,
     EMA_M13A_IMPLEMENTATION,
@@ -102,11 +134,17 @@ from be_stats.replicate import (
     validate_subject_rows,
 )
 from be_stats.spec import (
-    EMA_ABEL_SCALABLE_ENDPOINTS,
     EMA_HVD_CONSTANTS,
+    BeSpec,
+    EmaWideningJustification,
+    EmaWideningPrespecification,
+    EmaWideningStatus,
     Endpoint,
+    Jurisdiction,
     Method,
-    ema_hvd_scaling_eligible,
+    NotApplicable,
+    ema_abel_widening,
+    ema_hvd_variability_eligible,
 )
 
 #: One-sided level. EMA asks for a 90% confidence interval, which is the
@@ -391,6 +429,16 @@ def estimate_reference_variability(
     )
 
 
+#: The model, named once. Read from here rather than from `TreatmentEffect.model`
+#: on the class: with `slots=True` a field default is not a class attribute, and
+#: the class-level lookup returns a descriptor rather than this string.
+METHOD_A_MODEL = (
+    "EMA/618604/2008 Rev. 13 Method A (guideline recommended): "
+    "fixed-effects ANOVA, model = sequence + subject(sequence) + period + "
+    "formulation"
+)
+
+
 @dataclass(frozen=True, slots=True)
 class TreatmentEffect:
     """mu_T - mu_R and its 90% interval, from Method A."""
@@ -403,11 +451,7 @@ class TreatmentEffect:
     alpha: float
     n_observations: int
     n_subjects: int
-    model: str = (
-        "EMA/618604/2008 Rev. 13 Method A (guideline recommended): "
-        "fixed-effects ANOVA, model = sequence + subject(sequence) + period + "
-        "formulation"
-    )
+    model: str = METHOD_A_MODEL
 
     @property
     def geometric_mean_ratio_percent(self) -> float:
@@ -501,9 +545,12 @@ def ema_abel_limits(swr: float) -> AbelLimits:
     the guideline publishes, and the stated pair is what decides.
 
     The cap is applied to each limit independently rather than by capping sWR
-    first, because the guideline states it as a limit pair. The two agree
-    wherever the pair is exactly the formula's value at the cap, and stating
-    which one is normative is the point of keeping both.
+    first, because the guideline states it as a limit pair. The stated pair is
+    not exactly reciprocal (1/0.6984 = 1.43184, not 1.4319), so there is a
+    narrow band of sWR - CVwR just under 50% - where the lower limit has
+    reached 69.84 and the upper has not yet reached 143.19. Within it only the
+    lower limit is capped, which is what "a maximum of 69.84 - 143.19%" says,
+    and a test pins that band rather than letting it pass unnoticed.
     """
     if swr <= 0.0:
         raise DataError(
@@ -537,48 +584,22 @@ def ema_abel_limits(swr: float) -> AbelLimits:
 # ------------------------------------------------------------- the result ---
 
 
-@dataclass(frozen=True, slots=True)
-class EmaHighlyVariableResult:
-    """One endpoint, decided or explicitly not.
+class EmaResultInconsistent(ValueError):
+    """An EMA result was built asserting something the rule did not produce.
 
-    Every criterion is exposed on its own. There is no single opaque boolean
-    that a caller could read without also seeing which of the two conditions
-    produced it.
+    Raised by `EmaHighlyVariableResult.__post_init__`. The lesson of the FDA
+    applicability work applies here unchanged: a contradiction that can be
+    constructed will eventually be constructed, and a path-only guarantee
+    ("the assess function never builds that") does not survive the next
+    refactor. So the contradictions are made impossible to build.
     """
 
-    endpoint: Endpoint
-    design: ReplicateDesign
 
-    swr: float | None
-    cv_wr_percent: float | None
-
-    scaling_eligible: bool
-    scaling_eligibility_reason: str
-    selected_method: Method
-
-    raw_scaled_limits: tuple[float, float] | None
-    final_scaled_limits: tuple[float, float] | None
-    cap_applied: bool | None
-
-    applied_limits: tuple[float, float] | None
-    confidence_interval: tuple[float, float] | None
-    geometric_mean_ratio: float | None
-
-    interval_criterion_passes: bool | None
-    point_estimate_criterion_passes: bool | None
-
-    decided: bool
-    passes: bool | None
-
-    diagnostics: tuple[Diagnostic, ...] = ()
-    provenance_lines: tuple[str, ...] = ()
-    validation_status: ValidationStatus = ValidationStatus.IMPLEMENTED_UNVALIDATED
-    reference_variability: ReferenceVariability | None = None
-    treatment_effect: TreatmentEffect | None = None
-    notes: tuple[str, ...] = field(default_factory=tuple)
-
-    def provenance(self) -> list[str]:
-        return list(self.provenance_lines)
+def _conventional_limits() -> tuple[float, float]:
+    return (
+        EMA_HVD_CONSTANTS["point_estimate_lower_percent"].value,
+        EMA_HVD_CONSTANTS["point_estimate_upper_percent"].value,
+    )
 
 
 def _both_criteria(
@@ -591,10 +612,11 @@ def _both_criteria(
 
     4.1.10 requires both: the 90% confidence interval inside the applicable
     limits, AND the GMR inside 80.00-125.00%. They are computed and reported
-    separately so a failure says which one failed.
+    separately so a failure says which one failed. The GMR range is read from
+    the constants and never from the limits passed in, so widening the
+    interval cannot widen it.
     """
-    pe_lower = EMA_HVD_CONSTANTS["point_estimate_lower_percent"].value
-    pe_upper = EMA_HVD_CONSTANTS["point_estimate_upper_percent"].value
+    pe_lower, pe_upper = _conventional_limits()
 
     interval_ok = (
         effect.ci_lower_percent >= lower_percent
@@ -606,37 +628,460 @@ def _both_criteria(
     return interval_ok, pe_ok, (interval_ok and pe_ok)
 
 
+_JUSTIFICATION_WORDS = {
+    EmaWideningJustification.JUSTIFIED: "established",
+    EmaWideningJustification.NOT_JUSTIFIED: "explicitly NOT established",
+    EmaWideningJustification.NOT_STATED: "NOT STATED",
+}
+
+_PRESPECIFICATION_WORDS = {
+    EmaWideningPrespecification.PRESPECIFIED: "yes",
+    EmaWideningPrespecification.NOT_PRESPECIFIED: "explicitly NO",
+    EmaWideningPrespecification.NOT_STATED: "NOT STATED",
+}
+
+
+@dataclass(frozen=True, slots=True)
+class EmaHighlyVariableResult:
+    """One endpoint, decided or explicitly not - and unable to say otherwise.
+
+    The four questions each have their own fields:
+
+        A  design                       `design` (a supported replicate design,
+                                        or the analysis raised before this)
+        B  variability                  `reference_variability`,
+                                        `variability_eligible`
+        C  endpoint and basis           `clinical_justification`,
+                                        `protocol_prespecification`,
+                                        `widening_status`, `widening_reason`
+        D  decision                     `applied_limits`, the two criteria,
+                                        `decided`, `passes`
+
+    Everything else - the selected method, the scaled limits, the interval,
+    the GMR - is DERIVED from those, so there is no second field to disagree
+    with the first. `__post_init__` re-runs the rule and refuses any object
+    whose widening status the rule would not give, and any decision whose
+    criteria do not follow from its own interval.
+    """
+
+    endpoint: Endpoint
+    design: ReplicateDesign
+    clinical_justification: EmaWideningJustification
+    protocol_prespecification: EmaWideningPrespecification
+    widening_status: EmaWideningStatus
+    widening_reason: str
+    reference_variability: ReferenceVariability | None
+    variability_eligible: bool | None
+    limits: AbelLimits | None
+    treatment_effect: TreatmentEffect | None
+    applied_limits: tuple[float, float] | None
+    interval_criterion_passes: bool | None
+    point_estimate_criterion_passes: bool | None
+    decided: bool
+    passes: bool | None
+    diagnostics: tuple[Diagnostic, ...] = ()
+    provenance_lines: tuple[str, ...] = ()
+    validation_status: ValidationStatus = ValidationStatus.IMPLEMENTED_UNVALIDATED
+    notes: tuple[str, ...] = field(default_factory=tuple)
+
+    def __post_init__(self) -> None:
+        def refuse(message: str) -> None:
+            raise EmaResultInconsistent(f"{self.endpoint}: {message}")
+
+        if not isinstance(self.clinical_justification, EmaWideningJustification):
+            refuse("clinical_justification is not an EmaWideningJustification")
+        if not isinstance(
+            self.protocol_prespecification, EmaWideningPrespecification
+        ):
+            refuse("protocol_prespecification is not an EmaWideningPrespecification")
+        if not isinstance(self.widening_status, EmaWideningStatus):
+            refuse("widening_status is not an EmaWideningStatus")
+
+        cv = (
+            None
+            if self.reference_variability is None
+            else self.reference_variability.cv_wr_percent
+        )
+
+        # C: the status must be the one the rule gives for these inputs. This
+        # single check is what makes "AUC widened", "not justified yet
+        # widened" and "CVwR 20% yet widened" impossible to construct.
+        expected, _ = ema_abel_widening(
+            endpoint=self.endpoint,
+            cv_wr_percent=cv,
+            clinical_justification=self.clinical_justification,
+            protocol_prespecification=self.protocol_prespecification,
+        )
+        if expected is not self.widening_status:
+            refuse(
+                f"widening_status {self.widening_status} contradicts the rule, "
+                f"which gives {expected} for these inputs"
+            )
+
+        # B: the variability answer follows from the estimate, or is absent.
+        expected_eligible = (
+            None
+            if cv is None
+            else ema_hvd_variability_eligible(cv_wr_percent=cv)[0]
+        )
+        if self.variability_eligible is not expected_eligible:
+            refuse(
+                f"variability_eligible={self.variability_eligible} but the "
+                f"estimated CVwR gives {expected_eligible}"
+            )
+
+        # Widened limits exist exactly when the range is widened.
+        if self.widening_status.widened:
+            if self.limits is None:
+                refuse("widened, with no widened limits")
+            if self.limits.swr != self.reference_variability.swr:
+                refuse("widened limits formed from a different sWR")
+        elif self.limits is not None:
+            refuse(
+                f"widened limits carried although the range is "
+                f"{self.widening_status}"
+            )
+
+        # The limits applied are the ones the status selects, or none.
+        # No separate "undetermined" check here: an undetermined range with
+        # applied limits is refused below either as a decision on an
+        # undetermined range or as a refusal carrying an analysis. A second
+        # guard for the same state was removed after mutation testing showed
+        # neither could be observed while the other existed.
+        if self.applied_limits is not None:
+            if self.widening_status.widened:
+                selected = (
+                    self.limits.final_lower_percent,
+                    self.limits.final_upper_percent,
+                )
+            else:
+                selected = _conventional_limits()
+            if tuple(self.applied_limits) != selected:
+                refuse(
+                    f"applied limits {self.applied_limits} are not the "
+                    f"{self.widening_status} limits {selected}"
+                )
+
+        # D.
+        if self.decided:
+            if not self.widening_status.determined:
+                refuse("decided although the applicable range is undetermined")
+            if self.treatment_effect is None:
+                refuse("decided with no Method A result")
+            if not self.treatment_effect.standard_error > 0.0:
+                refuse("decided on a Method A interval with no width")
+            if self.applied_limits is None:
+                refuse("decided with no applied limits")
+            interval_ok, pe_ok, both = _both_criteria(
+                effect=self.treatment_effect,
+                lower_percent=self.applied_limits[0],
+                upper_percent=self.applied_limits[1],
+            )
+            if (
+                self.interval_criterion_passes is not interval_ok
+                or self.point_estimate_criterion_passes is not pe_ok
+                or self.passes is not both
+            ):
+                refuse(
+                    "the criteria and the verdict do not follow from the "
+                    "interval, the GMR and the applied limits"
+                )
+        else:
+            if self.passes is not None:
+                refuse("not decided, yet passes is not None")
+            if (
+                self.interval_criterion_passes is not None
+                or self.point_estimate_criterion_passes is not None
+            ):
+                refuse("not decided, yet a criterion was evaluated")
+            if self.applied_limits is not None or self.treatment_effect is not None:
+                refuse("not decided, yet carries applied limits or a Method A result")
+            if not any(d.severity is Severity.FATAL for d in self.diagnostics):
+                refuse("not decided, and no FATAL diagnostic says why")
+
+    # ------------------------------------------------------ derived views ---
+
+    @property
+    def swr(self) -> float | None:
+        return None if self.reference_variability is None else self.reference_variability.swr
+
+    @property
+    def cv_wr_percent(self) -> float | None:
+        return (
+            None
+            if self.reference_variability is None
+            else self.reference_variability.cv_wr_percent
+        )
+
+    @property
+    def scaling_eligible(self) -> bool:
+        """True only when the range IS widened - every condition, not variability alone."""
+        return self.widening_status.widened
+
+    @property
+    def scaling_eligibility_reason(self) -> str:
+        return self.widening_reason
+
+    @property
+    def selected_method(self) -> Method | None:
+        """Derived, never stored. None when the applicable range is unknown."""
+        if self.widening_status.widened:
+            return Method.EMA_HVD_ABEL
+        if self.widening_status.determined:
+            return Method.STANDARD_ABE
+        return None
+
+    @property
+    def raw_scaled_limits(self) -> tuple[float, float] | None:
+        if self.limits is None:
+            return None
+        return (self.limits.raw_lower_percent, self.limits.raw_upper_percent)
+
+    @property
+    def final_scaled_limits(self) -> tuple[float, float] | None:
+        if self.limits is None:
+            return None
+        return (self.limits.final_lower_percent, self.limits.final_upper_percent)
+
+    @property
+    def cap_applied(self) -> bool | None:
+        return None if self.limits is None else self.limits.cap_applied
+
+    @property
+    def confidence_interval(self) -> tuple[float, float] | None:
+        if self.treatment_effect is None:
+            return None
+        return (
+            self.treatment_effect.ci_lower_percent,
+            self.treatment_effect.ci_upper_percent,
+        )
+
+    @property
+    def geometric_mean_ratio(self) -> float | None:
+        if self.treatment_effect is None:
+            return None
+        return self.treatment_effect.geometric_mean_ratio_percent
+
+    @property
+    def point_estimate_limits(self) -> tuple[float, float]:
+        """80.00-125.00%, always. Never the widened limits."""
+        return _conventional_limits()
+
+    def provenance(self) -> list[str]:
+        return list(self.provenance_lines)
+
+    def summary(self) -> str:
+        """One endpoint, top to bottom, in the order a reviewer checks it."""
+        lines: list[str] = []
+        if not self.decided:
+            lines.append("NO ABEL DECISION ISSUED")
+        lines.append("Regulator: EMA.")
+        lines.append(f"Endpoint: {self.endpoint}.")
+        lines.append(
+            f"Replicate design: {self.design} - acceptable under 4.1.10 "
+            "(3- or 4-period replicate crossover)."
+        )
+        threshold = EMA_HVD_CONSTANTS["cv_wr_scaling_threshold_percent"].value
+        if self.reference_variability is None:
+            lines.append(
+                f"Reference CVwR: not estimable; EMA ABEL requires >{threshold:.0f}%."
+            )
+        else:
+            lines.append(
+                f"Reference CVwR = {self.reference_variability.cv_wr_percent:.2f}% "
+                f"(sWR = {self.reference_variability.swr:.6f}); EMA ABEL "
+                f"requires >{threshold:.0f}%."
+            )
+        lines.append(
+            "Clinical justification for widening: "
+            f"{_JUSTIFICATION_WORDS[self.clinical_justification]}."
+        )
+        lines.append(
+            "Widened interval prospectively specified in the protocol: "
+            f"{_PRESPECIFICATION_WORDS[self.protocol_prespecification]}."
+        )
+        if self.widening_status.widened:
+            limits = self.limits
+            lines.append(f"k = {limits.regulatory_constant_k:.3f}.")
+            cap = "cap applied" if limits.cap_applied else "cap not reached"
+            lines.append(
+                f"Expanded acceptance interval = [{limits.final_lower_percent:.2f}%, "
+                f"{limits.final_upper_percent:.2f}%], capped at "
+                f"{limits.cap_lower_percent:.2f}-{limits.cap_upper_percent:.2f}% "
+                f"({cap})."
+            )
+        elif self.widening_status.determined:
+            low, high = _conventional_limits()
+            lines.append(
+                f"Acceptance interval = [{low:.2f}%, {high:.2f}%], NOT widened: "
+                f"{self.widening_reason}"
+            )
+        else:
+            lines.append(f"Acceptance range UNDETERMINED: {self.widening_reason}")
+
+        if self.treatment_effect is not None:
+            effect = self.treatment_effect
+            lines.append(
+                f"Method A 90% CI = [{effect.ci_lower_percent:.2f}%, "
+                f"{effect.ci_upper_percent:.2f}%]."
+            )
+            low, high = _conventional_limits()
+            lines.append(
+                f"GMR = {effect.geometric_mean_ratio_percent:.2f}%; required "
+                f"inside {low:.2f}-{high:.2f}%."
+            )
+
+        lines.append(f"Final decision: {self._decision_sentence()}")
+        for diagnostic in self.diagnostics:
+            if diagnostic.severity is Severity.FATAL:
+                lines.append(str(diagnostic))
+        return "\n".join(lines)
+
+    def _decision_sentence(self) -> str:
+        if not self.decided:
+            reasons = "; ".join(
+                d.detail for d in self.diagnostics if d.severity is Severity.FATAL
+            )
+            return f"NONE - no bioequivalence decision was issued. {reasons}"
+        low, high = self.applied_limits
+        interval = (
+            f"the Method A 90% CI {'lies' if self.interval_criterion_passes else 'does not lie'} "
+            f"inside [{low:.2f}%, {high:.2f}%]"
+        )
+        pe_low, pe_high = _conventional_limits()
+        gmr = (
+            f"the GMR {'lies' if self.point_estimate_criterion_passes else 'does not lie'} "
+            f"inside {pe_low:.2f}-{pe_high:.2f}%"
+        )
+        verdict = "PASS" if self.passes else "FAIL"
+        joiner = "and" if self.passes else "because"
+        return (
+            f"{verdict}: {interval}, {gmr}."
+            if self.passes
+            else f"{verdict} {joiner} {interval}, and {gmr}."
+        )
+
+
+# -------------------------------------------------------------- assembly ---
+
+
+def _require_ema_hvd_spec(spec: BeSpec | None, endpoint: Endpoint) -> None:
+    """A supplied spec must be EMA's highly variable route, for this endpoint."""
+    if spec is None:
+        return
+    if spec.jurisdiction is not Jurisdiction.EMA or spec.method is not Method.EMA_HVD_ABEL:
+        raise NotApplicable(
+            f"assess_ema_endpoint implements EMA 4.1.10 and was given a spec "
+            f"for {spec.jurisdiction} {spec.method}. It does not reconcile "
+            "another route's spec; resolve the spec for the EMA highly variable "
+            "route or use the module that implements the one resolved."
+        )
+    if spec.endpoint is not endpoint:
+        raise NotApplicable(
+            f"The spec was resolved for {spec.endpoint} and the analysis was "
+            f"asked for {endpoint}. Whether Cmax may be widened is decided per "
+            "endpoint, so the two may not differ."
+        )
+
+
+def _not_estimable(quantity: str, exc: Exception, *, fatal: bool) -> Diagnostic:
+    return Diagnostic(
+        DiagnosticCode.EMA_ABEL_QUANTITY_NOT_ESTIMABLE,
+        Severity.FATAL if fatal else Severity.ADVISORY,
+        None,
+        f"{quantity} could not be estimated: {exc}",
+        {"quantity": quantity},
+    )
+
+
 def assess_ema_endpoint(
     observations: list[ReplicateObservation],
     *,
     endpoint: Endpoint,
+    clinical_justification: EmaWideningJustification = EmaWideningJustification.NOT_STATED,
+    protocol_prespecification: EmaWideningPrespecification = (
+        EmaWideningPrespecification.NOT_STATED
+    ),
+    spec: BeSpec | None = None,
 ) -> EmaHighlyVariableResult:
     """The EMA highly-variable decision for one endpoint.
 
-        validated replicate dataset
-                -> estimate CVwR from the reference data
-                -> is this endpoint scalable at all?
-                -> is CVwR > 30%?
-              no /                          \\ yes
-        ordinary EMA ABE            widened limits, capped
-        at 80.00-125.00%            plus the GMR constraint
+        A  validated replicate dataset, on a design 4.1.10 accepts
+        B  CVwR from the reference data only
+        C  the rule: endpoint, then variability, then the basis for widening
+                                 |
+          widened  ------  conventional 80.00-125.00%  ------  undetermined
+              \\                    |                              |
+        D  Method A 90% CI inside the applied limits          no decision:
+           AND GMR inside 80.00-125.00%                       CVwR reported,
+                                                              nothing else
 
-    Both branches run Method A for the contrast; they differ only in the limits
-    the interval is compared against. That is what ABEL is: EMA moves the
-    limits, it does not change the test.
+    Both determined branches run Method A for the contrast; they differ only in
+    the limits the interval is compared against. That is what ABEL is: EMA
+    moves the limits, it does not change the test.
+
+    The basis for widening defaults to NOT_STATED and is never inferred. A
+    highly variable Cmax endpoint analysed without it receives no decision - on
+    purpose, because the alternative is to assume a clinical judgement nobody
+    made.
     """
+    endpoint = Endpoint(endpoint)
+    _require_ema_hvd_spec(spec, endpoint)
+    # Refuse a bool or a string before any data is read.
+    ema_abel_widening(
+        endpoint=endpoint,
+        cv_wr_percent=None,
+        clinical_justification=clinical_justification,
+        protocol_prespecification=protocol_prespecification,
+    )
+
     dataset = EmaReplicateDataset.build(observations)
-    support, reason = ema_design_support(str(dataset.design))
-    if support is not EmaDesignSupport.SUPPORTED:
+    known_endpoints = {e.value for e in Endpoint}
+    if dataset.endpoint in known_endpoints and dataset.endpoint != endpoint.value:
         raise DataError(
-            f"EMA design support for {dataset.design} is {support}: {reason}"
+            f"The observations are labelled {dataset.endpoint!r} and the "
+            f"analysis was asked for {endpoint}. Widening is decided per "
+            "endpoint, so a mislabelled AUC must not be analysed as Cmax."
         )
 
-    variability = estimate_reference_variability(dataset)
-    effect = estimate_treatment_effect(dataset)
+    # A: the design.
+    support, design_reason = ema_design_support(str(dataset.design))
+    if support is not EmaDesignSupport.SUPPORTED:
+        raise DataError(
+            f"EMA design support for {dataset.design} is {support}: {design_reason}"
+        )
 
-    eligible, eligibility_reason = ema_hvd_scaling_eligible(
-        cv_wr_percent=variability.cv_wr_percent, endpoint=endpoint
+    diagnostics = list(dataset.diagnostics)
+    widenable_endpoint = not ema_abel_widening(
+        endpoint=endpoint,
+        cv_wr_percent=None,
+        clinical_justification=clinical_justification,
+        protocol_prespecification=protocol_prespecification,
+    )[0] is EmaWideningStatus.NOT_WIDENED_ENDPOINT
+
+    # B: reference variability. Its failure decides nothing for AUC, whose
+    # range does not depend on it, and leaves Cmax undetermined.
+    variability: ReferenceVariability | None
+    try:
+        variability = estimate_reference_variability(dataset)
+    except (DataError, ValueError) as exc:
+        variability = None
+        diagnostics.append(
+            _not_estimable("reference variability", exc, fatal=widenable_endpoint)
+        )
+
+    variability_eligible = (
+        None
+        if variability is None
+        else ema_hvd_variability_eligible(cv_wr_percent=variability.cv_wr_percent)[0]
+    )
+
+    # C: which range applies.
+    status, reason = ema_abel_widening(
+        endpoint=endpoint,
+        cv_wr_percent=None if variability is None else variability.cv_wr_percent,
+        clinical_justification=clinical_justification,
+        protocol_prespecification=protocol_prespecification,
     )
 
     provenance = [
@@ -645,31 +1090,91 @@ def assess_ema_endpoint(
         f"precedence: {EMA_M13A_IMPLEMENTATION.document_version} — ICH M13A "
         "does not address highly variable drugs on a replicate design, so "
         "4.1.10 continues to apply",
-        f"analysis model: {effect.model} ({EMA_PKWP_QA.document_version})",
-        *variability.provenance(),
-        f"scaling eligibility: {eligibility_reason}",
+        f"design: {dataset.design} — {design_reason}",
+        f"analysis model: {METHOD_A_MODEL} ({EMA_PKWP_QA.document_version})",
+        *([] if variability is None else variability.provenance()),
+        f"clinical justification: {clinical_justification}; protocol "
+        f"prespecification: {protocol_prespecification}",
+        f"acceptance range: {status} — {reason}",
     ]
 
-    if eligible:
-        limits = ema_abel_limits(variability.swr)
-        applied = (limits.final_lower_percent, limits.final_upper_percent)
-        provenance.extend(limits.provenance())
-        raw = (limits.raw_lower_percent, limits.raw_upper_percent)
-        final = applied
-        cap_applied: bool | None = limits.cap_applied
-        method = Method.EMA_HVD_ABEL
-    else:
-        pe_lower = EMA_HVD_CONSTANTS["point_estimate_lower_percent"].value
-        pe_upper = EMA_HVD_CONSTANTS["point_estimate_upper_percent"].value
-        applied = (pe_lower, pe_upper)
-        raw = final = None
-        cap_applied = None
-        method = Method.STANDARD_ABE
-        provenance.append(
-            f"conventional acceptance range {pe_lower:.2f} - {pe_upper:.2f}% "
-            "applied, no widening"
+    if status is EmaWideningStatus.UNDETERMINED_BASIS_NOT_STATED:
+        diagnostics.append(
+            Diagnostic(
+                DiagnosticCode.EMA_ABEL_WIDENING_BASIS_NOT_STATED,
+                Severity.FATAL,
+                None,
+                reason,
+                {
+                    "clinical_justification": str(clinical_justification),
+                    "protocol_prespecification": str(protocol_prespecification),
+                },
+            )
+        )
+    elif status is EmaWideningStatus.NOT_WIDENED_BASIS_ABSENT:
+        diagnostics.append(
+            Diagnostic(
+                DiagnosticCode.EMA_ABEL_WIDENING_NOT_PERMITTED,
+                Severity.ADVISORY,
+                None,
+                reason,
+                {
+                    "clinical_justification": str(clinical_justification),
+                    "protocol_prespecification": str(protocol_prespecification),
+                },
+            )
         )
 
+    def refused() -> EmaHighlyVariableResult:
+        return EmaHighlyVariableResult(
+            endpoint=endpoint,
+            design=dataset.design,
+            clinical_justification=clinical_justification,
+            protocol_prespecification=protocol_prespecification,
+            widening_status=status,
+            widening_reason=reason,
+            reference_variability=variability,
+            variability_eligible=variability_eligible,
+            limits=limits,
+            treatment_effect=None,
+            applied_limits=None,
+            interval_criterion_passes=None,
+            point_estimate_criterion_passes=None,
+            decided=False,
+            passes=None,
+            diagnostics=tuple(diagnostics),
+            provenance_lines=tuple(provenance),
+        )
+
+    limits = ema_abel_limits(variability.swr) if status.widened else None
+    if limits is not None:
+        provenance.extend(limits.provenance())
+
+    if not status.determined:
+        return refused()
+
+    # D: Method A, then the two criteria.
+    try:
+        effect = estimate_treatment_effect(dataset)
+        if not effect.standard_error > 0.0:
+            raise ValueError(
+                "the Method A residual variance is zero, so the 90% interval "
+                "has no width and cannot be compared with any limit"
+            )
+    except (DataError, ValueError) as exc:
+        diagnostics.append(_not_estimable("Method A treatment effect", exc, fatal=True))
+        return refused()
+
+    applied = (
+        (limits.final_lower_percent, limits.final_upper_percent)
+        if limits is not None
+        else _conventional_limits()
+    )
+    if limits is None:
+        provenance.append(
+            f"conventional acceptance range {applied[0]:.2f} - {applied[1]:.2f}% "
+            "applied, no widening"
+        )
     interval_ok, pe_ok, passes = _both_criteria(
         effect=effect, lower_percent=applied[0], upper_percent=applied[1]
     )
@@ -677,40 +1182,47 @@ def assess_ema_endpoint(
     return EmaHighlyVariableResult(
         endpoint=endpoint,
         design=dataset.design,
-        swr=variability.swr,
-        cv_wr_percent=variability.cv_wr_percent,
-        scaling_eligible=eligible,
-        scaling_eligibility_reason=eligibility_reason,
-        selected_method=method,
-        raw_scaled_limits=raw,
-        final_scaled_limits=final,
-        cap_applied=cap_applied,
+        clinical_justification=clinical_justification,
+        protocol_prespecification=protocol_prespecification,
+        widening_status=status,
+        widening_reason=reason,
+        reference_variability=variability,
+        variability_eligible=variability_eligible,
+        limits=limits,
+        treatment_effect=effect,
         applied_limits=applied,
-        confidence_interval=(effect.ci_lower_percent, effect.ci_upper_percent),
-        geometric_mean_ratio=effect.geometric_mean_ratio_percent,
         interval_criterion_passes=interval_ok,
         point_estimate_criterion_passes=pe_ok,
         decided=True,
         passes=passes,
-        diagnostics=dataset.diagnostics,
+        diagnostics=tuple(diagnostics),
         provenance_lines=tuple(provenance),
-        reference_variability=variability,
-        treatment_effect=effect,
     )
 
 
 def assess_ema_study(
     observations_by_endpoint: dict[Endpoint, list[ReplicateObservation]],
+    *,
+    clinical_justification: EmaWideningJustification = EmaWideningJustification.NOT_STATED,
+    protocol_prespecification: EmaWideningPrespecification = (
+        EmaWideningPrespecification.NOT_STATED
+    ),
 ) -> dict[Endpoint, EmaHighlyVariableResult]:
     """Every endpoint, decided independently.
 
     AUC and Cmax do NOT share a scaling decision. Under 4.1.10 Cmax may be
     widened and AUC may not, so the same study can route one endpoint to ABEL
     and the other to the conventional range. Each endpoint is assessed on its
-    own data and its own eligibility; nothing is carried across.
+    own data and its own eligibility; the basis for widening is product
+    metadata and is passed to each, where only Cmax consults it.
     """
     return {
-        endpoint: assess_ema_endpoint(rows, endpoint=endpoint)
+        endpoint: assess_ema_endpoint(
+            rows,
+            endpoint=endpoint,
+            clinical_justification=clinical_justification,
+            protocol_prespecification=protocol_prespecification,
+        )
         for endpoint, rows in observations_by_endpoint.items()
     }
 
@@ -723,6 +1235,7 @@ __all__ = [
     "EmaHighlyVariableResult",
     "EmaObservation",
     "EmaReplicateDataset",
+    "EmaResultInconsistent",
     "ReferenceVariability",
     "TreatmentEffect",
     "assess_ema_endpoint",

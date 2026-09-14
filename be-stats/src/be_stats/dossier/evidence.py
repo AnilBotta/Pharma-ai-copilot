@@ -390,6 +390,45 @@ EVIDENCE_MANIFEST: tuple[EvidenceRecord, ...] = (
         ),
     ),
     EvidenceRecord(
+        evidence_id="EMA-ABEL-WIDENING-BASIS-001",
+        capabilities=(
+            "EMA_ABEL_WIDENING_BASIS_GATE",
+            "EMA_HVD_ENDPOINT_DECISION",
+            "EMA_HVD_ABEL",
+        ),
+        tier=EvidenceTier.TIER_1A,
+        source_type=SourceType.REGULATORY_ALGORITHM,
+        source_authority="EMA",
+        evidence_authority=Authority.EMA,
+        scenario=(
+            "Which acceptance range 4.1.10 applies to one endpoint, across "
+            "Cmax and AUC, CVwR either side of 30% - including exactly 30% - "
+            "and every combination of clinical justification and protocol "
+            "prespecification, stated or not."
+        ),
+        dataset=(
+            "Constructed replicate studies, and the pure rule evaluated on "
+            "exact CVwR values."
+        ),
+        software_environment="be-stats only.",
+        expected=(
+            "Widening only for Cmax with CVwR > 30%, clinically justified AND "
+            "prospectively specified; the conventional 80.00-125.00% range "
+            "where either is explicitly absent, where CVwR <= 30%, and for "
+            "AUC always; no decision where either is unstated; and no result "
+            "constructible that widens an endpoint the rule does not widen."
+        ),
+        observed="Conforms on every combination enumerated.",
+        tolerance="Exact: these are decisions, not quantities.",
+        status=EvidenceStatus.PASSED,
+        established_by="tests/unit/test_ema_abel_applicability.py",
+        note=(
+            "Tier 1A. EMA states the rule and publishes no worked example of "
+            "it being applied to a product, which is why neither the gate nor "
+            "the method rises above its current status."
+        ),
+    ),
+    EvidenceRecord(
         evidence_id="EMA-NTI-NARROWED-INTERVAL",
         capabilities=("EMA_NTI_NARROW_ABE",),
         tier=EvidenceTier.TIER_1A,

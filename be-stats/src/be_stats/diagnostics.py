@@ -157,6 +157,20 @@ class DiagnosticCode(StrEnum):
     FDA_NTI_APPLICABILITY_REQUIRES_NTI_STATUS = (
         "FDA_NTI_APPLICABILITY_REQUIRES_NTI_STATUS"
     )
+    #: A Cmax endpoint whose reference CVwR exceeds 30%, for which the clinical
+    #: justification or the protocol prespecification of widening was not
+    #: stated. EMA 4.1.10 requires both before widening, so which acceptance
+    #: range applies is undetermined. FATAL: no decision was issued. Never
+    #: resolved by assuming widening is justified.
+    EMA_ABEL_WIDENING_BASIS_NOT_STATED = "EMA_ABEL_WIDENING_BASIS_NOT_STATED"
+    #: Widening was explicitly not justified or not prespecified, so the
+    #: conventional 80.00-125.00% range was applied to a Cmax endpoint whose
+    #: reference variability would otherwise have allowed widening. ADVISORY:
+    #: the decision stands, against the conventional range.
+    EMA_ABEL_WIDENING_NOT_PERMITTED = "EMA_ABEL_WIDENING_NOT_PERMITTED"
+    #: A quantity the EMA decision needs could not be estimated - the reference
+    #: variability of a Cmax endpoint, or the Method A contrast. FATAL.
+    EMA_ABEL_QUANTITY_NOT_ESTIMABLE = "EMA_ABEL_QUANTITY_NOT_ESTIMABLE"
 
 
 class Severity(StrEnum):
