@@ -415,8 +415,12 @@ EVIDENCE_MANIFEST: tuple[EvidenceRecord, ...] = (
             "Widening only for Cmax with CVwR > 30%, clinically justified AND "
             "prospectively specified; the conventional 80.00-125.00% range "
             "where either is explicitly absent, where CVwR <= 30%, and for "
-            "AUC always; no decision where either is unstated; and no result "
-            "constructible that widens an endpoint the rule does not widen."
+            "AUC always; no decision where either is unstated or where the "
+            "endpoint is neither Cmax nor AUC; CI bounds rounded to two "
+            "decimals against 80.00-125.00% as 4.1.8 states; the published "
+            "cap pair exactly from CVwR 50% and the formula below it; and no "
+            "result constructible that widens an endpoint the rule does not "
+            "widen or decides with a comparison the rule does not use."
         ),
         observed="Conforms on every combination enumerated.",
         tolerance="Exact: these are decisions, not quantities.",

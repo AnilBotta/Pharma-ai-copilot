@@ -97,6 +97,8 @@ the next column and only the next column.
 - CVwR > 30% is necessary and not sufficient. Widening also needs a sound clinical justification that a wider Cmax difference is clinically irrelevant, and a widened interval prospectively specified in the protocol - both stated by the caller. Either one unstated gives no decision; either one explicitly absent gives the conventional 80.00-125.00% range.
 - The engine records the justification; it cannot judge whether the justification is sound, or whether the CVwR estimate is reliable rather than driven by outliers, which 4.1.10 asks the applicant to justify.
 - No EMA publication carries one scenario end to end through variability, eligibility, widened limits, the Method A interval and the GMR constraint to a stated verdict. The search is recorded as EMA_HVD_ABEL_END_TO_END_SEARCH, and components validated separately are not stitched into one.
+- Against 80.00-125.00% the CI bounds are rounded to two decimal places before comparison, as 4.1.8 states. Against widened limits they are compared unrounded: 4.1.10 does not say, and the open question is VAL-EMA-ABEL-003.
+- Endpoints other than Cmax and AUC receive no decision. 4.1.10's AUC rule is not applied to them.
 
 **`EMA_NTI_NARROW_ABE`** - EMA narrowed 90.00-111.11% interval for NTI drugs
 
@@ -204,7 +206,8 @@ the next column and only the next column.
 
 **`EMA_ABEL_LIMIT_CALCULATION`** - The widened limits exp(+/- 0.760 sWR), capped as stated
 
-- The cap is applied as the regulator STATES it, 69.84-143.19%, not as the formula recomputes it. PowerTOST keeps the unrounded pair; be-stats follows EMA. See VAL-EMA-ABEL-002.
+- One cap rule, keyed on CVwR: below 50% the formula exp(+/- 0.760.sWR); at CVwR >= 50% exactly the published pair 69.84-143.19%, not recomputed. PowerTOST recomputes the pair at and above 50%; see VAL-EMA-ABEL-002.
+- Between CVwR 49.9928% and 50% the formula gives limits up to 0.0032 percentage points beyond the published pair, and they are applied, because the table switches to the pair at 50. An earlier version clipped each limit independently and capped only the lower one in that band; that was corrected.
 
 **`EMA_ABEL_PE_CONSTRAINT`** - The GMR must additionally fall within 80.00-125.00%
 
@@ -272,8 +275,8 @@ unsupported row at the end.
 - **input classification** - A drug declared highly variable. EMA's WIDENING is available for Cmax only; the route accepts every endpoint and the widening does not.
 - **design required** - replicate, partial_replicate
 - **decision rule** - Where CVwR for Cmax exceeds 30% strictly AND the product's wider Cmax difference is clinically justified AND widening was prospectively specified in the protocol, the limits widen to exp(+/- 0.760.sWR) capped at 69.84-143.19%; the Method A 90% interval must fall within them AND the GMR must fall within 80.00-125.00%. Both are required. AUC stays at 80.00-125.00% regardless of variability.
-- **refusal behaviour** - Widening requested for AUC is refused rather than granted. A non-replicate design is refused. CVwR at or below 30% does not widen - it is not a failure, the ordinary limits simply apply. A highly variable Cmax whose clinical justification or protocol prespecification is NOT STATED gets no decision; one explicitly not justified or not prespecified is assessed against 80.00-125.00%.
-- **refusal codes** - `EMA_ABEL_CMAX_ONLY`, `EMA_ABEL_REPLICATE_DESIGN_REQUIRED`, `EMA_ABEL_WIDENING_BASIS_REQUIRED`, `QUANTITY_NOT_ESTIMABLE`
+- **refusal behaviour** - Widening requested for AUC is refused rather than granted. A non-replicate design is refused. CVwR at or below 30% does not widen - it is not a failure, the ordinary limits simply apply. A highly variable Cmax whose clinical justification or protocol prespecification is NOT STATED gets no decision; one explicitly not justified or not prespecified is assessed against 80.00-125.00%, with the CI bounds rounded to two decimal places as 4.1.8 states. The widened limits are the formula below CVwR 50% and the published pair 69.84-143.19% at or above it, compared with the CI unrounded (VAL-EMA-ABEL-003). An endpoint other than Cmax or AUC gets no decision.
+- **refusal codes** - `EMA_ABEL_CMAX_ONLY`, `EMA_ABEL_REPLICATE_DESIGN_REQUIRED`, `EMA_ABEL_WIDENING_BASIS_REQUIRED`, `EMA_HVD_ENDPOINT_RULE_REQUIRED`, `QUANTITY_NOT_ESTIMABLE`
 
 ### `EMA_NTI_AUC`
 
@@ -326,6 +329,7 @@ that is a dead end rather than an answer.
 | `UNSUPPORTED_REPLICATE_DESIGN` | The sequences present do not form a replicate design this engine recognises. Guessing the intended design would silently analyse a different study from the one submitted. | Submit one of the supported designs, or correct the sequence labels if they were mis-coded. |
 | `EMA_ABEL_CMAX_ONLY` | EMA's widened acceptance range applies to Cmax only. 4.1.10 keeps AUC at 80.00-125.00% regardless of variability, so a widened limit is not available for this endpoint. | Nothing about the study. Analyse AUC under the ordinary 80.00-125.00% interval, which this engine does support. |
 | `EMA_ABEL_WIDENING_BASIS_REQUIRED` | No EMA decision issued: the reference CVwR for Cmax exceeds 30%, and 4.1.10 widens the range only for a product whose wider Cmax difference is clinically irrelevant on a sound clinical justification, with the widened interval prospectively specified in the protocol. At least one of those was not stated, so neither the widened nor the conventional range can be applied. Reference variability is reported descriptively. | State the product's clinical justification (JUSTIFIED or NOT_JUSTIFIED) and whether the protocol prespecified widening (PRESPECIFIED or NOT_PRESPECIFIED). |
+| `EMA_HVD_ENDPOINT_RULE_REQUIRED` | No EMA decision issued: 4.1.10 states the widening rule for Cmax and keeps AUC at 80.00-125.00%, and states nothing for any other endpoint. The engine does not apply AUC's rule to an endpoint that is not AUC. | Submit the endpoint as Cmax or AUC if that is what it is, or supply the product-specific rule that governs it. |
 | `FDA_HVD_NOT_APPLICABLE_NTI` | FDA HVD procedure not applicable: the product is identified as narrow therapeutic index. III.C defines a highly variable drug as one with within-subject variability of 30 percent or greater AND that is not considered an NTI drug, so an NTI product is outside the definition however variable its reference is. Reference variability is still reported, descriptively; no bioequivalence decision is issued. | Nothing about the study. Assess the product under the FDA NTI procedure (Appendix F), which this engine implements separately: a reference-scaled criterion on sigma_W0 = 0.10, the unscaled 80.00-125.00% limits, and a bound on the ratio of within-subject variances. It is a different procedure, not a stricter setting of this one. |
 | `FDA_HVD_NTI_STATUS_REQUIRED` | FDA HVD applicability cannot be determined because the product's narrow-therapeutic-index status was not stated. III.C's definition has two conjuncts and the second is a property of the product that no dataset carries, so the engine cannot observe it. Variability estimates are reported descriptively; no bioequivalence decision is issued. | State the product's class - `nti_status`, or a spec whose `drug_class` carries it. Nothing about the data lifts this: a larger study, a lower CVwR and a cleaner dataset all leave the product's regulatory class exactly as unknown as before. |
 | `FDA_NTI_NOT_APPLICABLE_NOT_NTI` | FDA NTI procedure not applicable: the product is identified as not narrow therapeutic index. Appendix F - sigma_W0 = 0.10, the unscaled 80.00-125.00% limits and the within-subject variability comparison - is FDA's procedure for NTI drugs. Reference variability is reported descriptively; no bioequivalence decision is issued. | Nothing about the study. Assess the product under the procedure its declared class requires: Appendix G for a highly variable drug, ordinary average BE otherwise. If the class was declared wrongly, correct the declaration - the data cannot. |
@@ -461,7 +465,7 @@ re-established. A record whose environment was unavailable reads
 - **scenario** - Which acceptance range 4.1.10 applies to one endpoint, across Cmax and AUC, CVwR either side of 30% - including exactly 30% - and every combination of clinical justification and protocol prespecification, stated or not.
 - **dataset** - Constructed replicate studies, and the pure rule evaluated on exact CVwR values.
 - **environment** - be-stats only.
-- **expected** - Widening only for Cmax with CVwR > 30%, clinically justified AND prospectively specified; the conventional 80.00-125.00% range where either is explicitly absent, where CVwR <= 30%, and for AUC always; no decision where either is unstated; and no result constructible that widens an endpoint the rule does not widen.
+- **expected** - Widening only for Cmax with CVwR > 30%, clinically justified AND prospectively specified; the conventional 80.00-125.00% range where either is explicitly absent, where CVwR <= 30%, and for AUC always; no decision where either is unstated or where the endpoint is neither Cmax nor AUC; CI bounds rounded to two decimals against 80.00-125.00% as 4.1.8 states; the published cap pair exactly from CVwR 50% and the formula below it; and no result constructible that widens an endpoint the rule does not widen or decides with a comparison the rule does not use.
 - **observed** - Conforms on every combination enumerated.
 - **tolerance** - Exact: these are decisions, not quantities.
 - **established by** - `tests/unit/test_ema_abel_applicability.py`
@@ -942,6 +946,7 @@ the finding was.
 | `VAL-FDA-APPENDIX-C-001` | informational | resolved | `FDA_REPLICATE_STANDARD_ABE_FULL`, `FDA_REPLICATE_STANDARD_ABE_PARTIAL` |
 | `VAL-FDA-HVD-002` | qualifying | resolved | `FDA_HVD_RSABE`, `FDA_HVD_METHOD_SELECTION` |
 | `VAL-EMA-ABEL-002` | qualifying | resolved | `EMA_ABEL_LIMIT_CALCULATION` |
+| `VAL-EMA-ABEL-003` | qualifying | open | `EMA_HVD_ABEL`, `EMA_HVD_ENDPOINT_DECISION` |
 | `VAL-EMA-ABEL-001` | informational | preempted | `EMA_HVD_ENDPOINT_DECISION` |
 | `VAL-FDA-HVD-001` | informational | resolved | `FDA_HVD_RSABE` |
 | `DOSSIER-001` | informational | open | `FDA_REPLICATE_STANDARD_ABE_PARTIAL` |
@@ -1002,11 +1007,19 @@ PowerTOST switches at sWR = 0.293560, derived from a 30% CV. FDA states 0.294. b
 
 ### `VAL-EMA-ABEL-002`
 
-EMA states the ABEL cap as the pair 69.84-143.19%; the formula at CVwR = 50% gives a fractionally wider one, which PowerTOST keeps. be-stats applies the stated pair.
+EMA states the ABEL cap as the pair 69.84-143.19%; the formula at CVwR = 50% gives a fractionally wider one, which PowerTOST keeps. be-stats applies the stated pair from CVwR 50% (amended 2026-09-14: one rule keyed on CVwR, no longer two independent per-limit crossings).
 
 - **evidence** - The guideline's own table at CVwR 30, 35, 40, 45 and >=50 percent, all five rows reproduced to the printed decimals.
 - **resolution condition** - Nothing closes it. A documented divergence between an oracle and a regulator is not an open question about the rule.
 - **file** - `validation/findings/VAL-EMA-ABEL-002.json`
+
+### `VAL-EMA-ABEL-003`
+
+4.1.8 compares the 90% CI with 80.00-125.00% after rounding its bounds to two decimal places. 4.1.10 does not say whether the same rounding applies against WIDENED limits. be-stats rounds for the conventional range and compares unrounded against widened limits.
+
+- **evidence** - Read from the extracted text of CPMP/EWP/QWP/1401/98 Rev. 1 4.1.8 and 4.1.10, EMA/618604/2008 Rev. 13 (replicate analysis, questions 4 and 19), EMA/531548/2024, and ICH M13A (Step 5) 2.2.4. 4.1.8's rounding sentence names 80.00% and 125.00%. 4.1.10 gives the limits by formula, prints its table to two decimals, and says nothing about rounding the interval. The Q&A and M13A contain no rounding sentence at all.
+- **resolution condition** - An EMA statement - in the guideline, a PKWP answer or ICH M13C - on how a CI is compared with widened limits. Until then the unrounded comparison stands: it grants no bound a rounding margin EMA has not stated for widened limits.
+- **file** - `validation/findings/VAL-EMA-ABEL-003.json`
 
 ### `VAL-EMA-ABEL-001`
 

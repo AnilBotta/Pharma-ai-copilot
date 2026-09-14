@@ -124,6 +124,7 @@ from be_stats.provenance import (
     VIA_PRIMARY_DOCUMENT,
     ValidationStatus,
 )
+from be_stats.regulatory_rounding import exact_decimal, round_half_up
 from be_stats.replicate import (
     DataError,
     ReplicateDesign,
@@ -519,38 +520,55 @@ class AbelLimits:
             f"unconstrained limits {self.raw_lower_percent:.4f} - "
             f"{self.raw_upper_percent:.4f}%",
         ]
+        cap_cv = EMA_HVD_CONSTANTS["cap_cv_percent"].value
         if self.cap_applied:
             lines.append(
-                f"CAP APPLIED: 4.1.10 permits widening 'to a maximum of "
-                f"{self.cap_lower_percent} - {self.cap_upper_percent}%', and "
-                "the unconstrained limits fall outside it"
+                f"CAP APPLIED: CVwR {self.cv_wr_percent:.4f}% >= {cap_cv:.0f}%, so "
+                f"the widened range is the published maximum pair "
+                f"{self.cap_lower_percent} - {self.cap_upper_percent}% (4.1.10 "
+                "table row '>=50')"
             )
         else:
             lines.append(
-                f"cap not reached ({self.cap_lower_percent} - "
-                f"{self.cap_upper_percent}%)"
+                f"cap not reached: CVwR {self.cv_wr_percent:.4f}% < {cap_cv:.0f}%, "
+                "so the formula limits apply; the published pair "
+                f"{self.cap_lower_percent} - {self.cap_upper_percent}% applies "
+                f"from CVwR {cap_cv:.0f}%"
             )
         return lines
 
 
-def ema_abel_limits(swr: float) -> AbelLimits:
-    """The widened limits for a given sWR, capped as 4.1.10 states.
+def ema_abel_limits(swr: float, *, cv_wr_percent: float | None = None) -> AbelLimits:
+    """The widened limits for a given sWR, under 4.1.10's cap.
 
-    THE CAP IS THE REGULATOR'S STATED PAIR, NOT A RECOMPUTED ONE
+    THE CAP IS ONE RULE, KEYED ON CVwR
 
-    4.1.10 says widening is permitted "to a maximum of 69.84 - 143.19%". Those
-    are the numbers applied. `spec.ema_abel_cap_computed()` gives what the
-    formula would produce at CVwR = 50% (69.83678..., 143.19101...), which
-    rounds to the stated pair; a test asserts they agree to the two decimals
-    the guideline publishes, and the stated pair is what decides.
+    4.1.10's table ends ">=50 | 69.84 | 143.19", and PKWP's Q&A says the
+    widening increases "to a maximum of 50%". So:
 
-    The cap is applied to each limit independently rather than by capping sWR
-    first, because the guideline states it as a limit pair. The stated pair is
-    not exactly reciprocal (1/0.6984 = 1.43184, not 1.4319), so there is a
-    narrow band of sWR - CVwR just under 50% - where the lower limit has
-    reached 69.84 and the upper has not yet reached 143.19. Within it only the
-    lower limit is capped, which is what "a maximum of 69.84 - 143.19%" says,
-    and a test pins that band rather than letting it pass unnoticed.
+        30% < CVwR < 50%    [L, U] = exp(-/+ 0.760 * sWR), the formula
+        CVwR >= 50%         [L, U] = 69.84 - 143.19%, the published pair
+
+    The pair is applied AS PUBLISHED, not recomputed from k: the formula at
+    CVwR = 50% gives 69.83678 - 143.19102, which `spec.ema_abel_cap_computed()`
+    returns for comparison and nothing decides with.
+
+    CORRECTED. An earlier version clipped each limit independently against the
+    published pair. Because the pair is not exactly reciprocal (1/0.6984 is
+    1.43184, not 1.4319), that turned one rule into two floating-point
+    crossings: the lower limit capped from CVwR 49.9928% and the upper from
+    49.9989%, with a band in between where only one side was capped. EMA
+    states no such band, and independent review rejected it.
+
+    The consequence of the corrected rule is stated rather than hidden: for
+    CVwR in [49.9928%, 50%) the formula gives limits up to 0.0032 percentage
+    points beyond the published pair, and they are applied, because the table
+    switches to the pair at 50 and not before. PowerTOST's scABEL applies the
+    same switch.
+
+    `cv_wr_percent` is the CVwR the eligibility decision used. Pass it: the cap
+    is a rule about CVwR, and re-deriving CVwR from sWR can land a CVwR of
+    exactly 50% at 49.99999999999999%. Omitted, it is derived from sWR.
     """
     if swr <= 0.0:
         raise DataError(
@@ -560,22 +578,31 @@ def ema_abel_limits(swr: float) -> AbelLimits:
             "states and not one this package will invent."
         )
     k = EMA_HVD_CONSTANTS["regulatory_constant_k"].value
+    cap_cv = EMA_HVD_CONSTANTS["cap_cv_percent"].value
     cap_lower = EMA_HVD_CONSTANTS["cap_lower_percent"].value
     cap_upper = EMA_HVD_CONSTANTS["cap_upper_percent"].value
+
+    cv = (
+        100.0 * math.sqrt(math.expm1(swr * swr))
+        if cv_wr_percent is None
+        else float(cv_wr_percent)
+    )
 
     raw_lower = 100.0 * math.exp(-k * swr)
     raw_upper = 100.0 * math.exp(+k * swr)
 
-    capped = raw_lower < cap_lower or raw_upper > cap_upper
+    # One rule: the published pair from CVwR 50%, the formula below it. Both
+    # limits change branch together, at the same CVwR.
+    capped = cv >= cap_cv
     return AbelLimits(
         swr=swr,
-        cv_wr_percent=100.0 * math.sqrt(math.expm1(swr * swr)),
+        cv_wr_percent=cv,
         regulatory_constant_k=k,
         raw_lower_percent=raw_lower,
         raw_upper_percent=raw_upper,
         cap_applied=capped,
-        final_lower_percent=max(raw_lower, cap_lower),
-        final_upper_percent=min(raw_upper, cap_upper),
+        final_lower_percent=cap_lower if capped else raw_lower,
+        final_upper_percent=cap_upper if capped else raw_upper,
         cap_lower_percent=cap_lower,
         cap_upper_percent=cap_upper,
     )
@@ -602,11 +629,59 @@ def _conventional_limits() -> tuple[float, float]:
     )
 
 
+def _interval_contained(
+    *,
+    effect: TreatmentEffect,
+    lower_percent: float,
+    upper_percent: float,
+    widened: bool,
+) -> bool:
+    """THE comparison of a 90% CI with acceptance limits. One definition.
+
+    Both the assessment and `EmaHighlyVariableResult.__post_init__` call this,
+    through `_both_criteria`, so the decision and the check on the decision
+    cannot use two different rules.
+
+    CONVENTIONAL 80.00-125.00% - ROUNDED, BECAUSE 4.1.8 SAYS SO
+
+    "the lower bound should be >= 80.00% when rounded to two decimal places
+    and the upper bound should be <= 125.00% when rounded to two decimal
+    places." Applied to AUC, to Cmax with CVwR <= 30%, and to Cmax whose
+    widening is explicitly not justified or not prespecified. The bounds are
+    rounded in `decimal` under `regulatory_rounding.TIE_POLICY`; the limits
+    are compared as the decimals they are. ICH M13A 2.2.4 states the same
+    range without a rounding sentence; for a replicate study EMA/531548/2024
+    reads the 2010 guideline and M13A in conjunction, and 4.1.8 states one.
+
+    WIDENED LIMITS - UNROUNDED, AND RECORDED AS AN OPEN QUESTION
+
+    4.1.10 gives the widened limits by formula and prints its table to two
+    decimals, and does not say whether the CI is rounded before it is compared
+    with them. Nothing in 4.1.10, 4.1.8 or the PKWP Q&A settles it. Rather
+    than choose silently, the CI is compared UNROUNDED with the limits as
+    computed - which grants no bound a rounding margin EMA has not stated -
+    and the question is VAL-EMA-ABEL-003.
+
+    `widened` has no default. A caller that does not say which rule applies
+    does not get one.
+    """
+    if widened:
+        return (
+            effect.ci_lower_percent >= lower_percent
+            and effect.ci_upper_percent <= upper_percent
+        )
+    return (
+        round_half_up(effect.ci_lower_percent) >= exact_decimal(lower_percent)
+        and round_half_up(effect.ci_upper_percent) <= exact_decimal(upper_percent)
+    )
+
+
 def _both_criteria(
     *,
     effect: TreatmentEffect,
     lower_percent: float,
     upper_percent: float,
+    widened: bool,
 ) -> tuple[bool, bool, bool]:
     """Interval containment, point-estimate constraint, and the conjunction.
 
@@ -614,13 +689,16 @@ def _both_criteria(
     limits, AND the GMR inside 80.00-125.00%. They are computed and reported
     separately so a failure says which one failed. The GMR range is read from
     the constants and never from the limits passed in, so widening the
-    interval cannot widen it.
+    interval cannot widen it. The GMR is compared as estimated: 4.1.8's
+    rounding sentence is about the confidence interval's bounds.
     """
     pe_lower, pe_upper = _conventional_limits()
 
-    interval_ok = (
-        effect.ci_lower_percent >= lower_percent
-        and effect.ci_upper_percent <= upper_percent
+    interval_ok = _interval_contained(
+        effect=effect,
+        lower_percent=lower_percent,
+        upper_percent=upper_percent,
+        widened=widened,
     )
     pe_ok = (
         pe_lower <= effect.geometric_mean_ratio_percent <= pe_upper
@@ -734,8 +812,16 @@ class EmaHighlyVariableResult:
         if self.widening_status.widened:
             if self.limits is None:
                 refuse("widened, with no widened limits")
-            if self.limits.swr != self.reference_variability.swr:
-                refuse("widened limits formed from a different sWR")
+            expected_limits = ema_abel_limits(
+                self.reference_variability.swr,
+                cv_wr_percent=self.reference_variability.cv_wr_percent,
+            )
+            if self.limits != expected_limits:
+                refuse(
+                    "widened limits are not the ones 4.1.10 gives for this sWR "
+                    "and CVwR: the formula below CVwR 50%, the published pair "
+                    "69.84 - 143.19% at or above it"
+                )
         elif self.limits is not None:
             refuse(
                 f"widened limits carried although the range is "
@@ -776,6 +862,7 @@ class EmaHighlyVariableResult:
                 effect=self.treatment_effect,
                 lower_percent=self.applied_limits[0],
                 upper_percent=self.applied_limits[1],
+                widened=self.widening_status.widened,
             )
             if (
                 self.interval_criterion_passes is not interval_ok
@@ -903,12 +990,17 @@ class EmaHighlyVariableResult:
         if self.widening_status.widened:
             limits = self.limits
             lines.append(f"k = {limits.regulatory_constant_k:.3f}.")
-            cap = "cap applied" if limits.cap_applied else "cap not reached"
+            cap_cv = EMA_HVD_CONSTANTS["cap_cv_percent"].value
+            cap = (
+                f"CVwR >= {cap_cv:.0f}%: the published pair applies"
+                if limits.cap_applied
+                else f"CVwR < {cap_cv:.0f}%: the formula applies"
+            )
             lines.append(
                 f"Expanded acceptance interval = [{limits.final_lower_percent:.2f}%, "
                 f"{limits.final_upper_percent:.2f}%], capped at "
                 f"{limits.cap_lower_percent:.2f}-{limits.cap_upper_percent:.2f}% "
-                f"({cap})."
+                f"from CVwR {cap_cv:.0f}% ({cap})."
             )
         elif self.widening_status.determined:
             low, high = _conventional_limits()
@@ -953,12 +1045,18 @@ class EmaHighlyVariableResult:
             f"the GMR {'lies' if self.point_estimate_criterion_passes else 'does not lie'} "
             f"inside {pe_low:.2f}-{pe_high:.2f}%"
         )
+        comparison = (
+            "CI bounds compared unrounded with the widened limits - see "
+            "VAL-EMA-ABEL-003"
+            if self.widening_status.widened
+            else "CI bounds rounded to two decimal places before comparison, "
+            "as 4.1.8 states"
+        )
         verdict = "PASS" if self.passes else "FAIL"
-        joiner = "and" if self.passes else "because"
         return (
-            f"{verdict}: {interval}, {gmr}."
+            f"{verdict}: {interval}, {gmr} ({comparison})."
             if self.passes
-            else f"{verdict} {joiner} {interval}, and {gmr}."
+            else f"{verdict} because {interval}, and {gmr} ({comparison})."
         )
 
 
@@ -1024,6 +1122,17 @@ def assess_ema_endpoint(
     highly variable Cmax endpoint analysed without it receives no decision - on
     purpose, because the alternative is to assume a clinical judgement nobody
     made.
+
+    CALLER-SELECTED, NOT ROUTED
+
+    This function executes EMA's highly variable procedure; it does not decide
+    that the procedure applies. `resolve_be_spec` is the router, and a `spec`
+    passed here must be the EMA highly variable route for the same endpoint -
+    an EMA NTI spec, an FDA spec or a standard-class spec raises
+    `NotApplicable`. With `spec=None` the caller has chosen the method itself,
+    and nothing here can tell that the product is not, say, an NTI drug. The
+    basis for widening narrows that risk - a wider Cmax difference is not
+    clinically irrelevant for an NTI drug - and does not remove it.
     """
     endpoint = Endpoint(endpoint)
     _require_ema_hvd_spec(spec, endpoint)
@@ -1124,6 +1233,16 @@ def assess_ema_endpoint(
                 },
             )
         )
+    elif status is EmaWideningStatus.UNDETERMINED_ENDPOINT_NOT_COVERED:
+        diagnostics.append(
+            Diagnostic(
+                DiagnosticCode.EMA_HVD_ENDPOINT_NOT_COVERED,
+                Severity.FATAL,
+                None,
+                reason,
+                {"endpoint": str(endpoint)},
+            )
+        )
 
     def refused() -> EmaHighlyVariableResult:
         return EmaHighlyVariableResult(
@@ -1146,7 +1265,11 @@ def assess_ema_endpoint(
             provenance_lines=tuple(provenance),
         )
 
-    limits = ema_abel_limits(variability.swr) if status.widened else None
+    limits = (
+        ema_abel_limits(variability.swr, cv_wr_percent=variability.cv_wr_percent)
+        if status.widened
+        else None
+    )
     if limits is not None:
         provenance.extend(limits.provenance())
 
@@ -1176,7 +1299,10 @@ def assess_ema_endpoint(
             "applied, no widening"
         )
     interval_ok, pe_ok, passes = _both_criteria(
-        effect=effect, lower_percent=applied[0], upper_percent=applied[1]
+        effect=effect,
+        lower_percent=applied[0],
+        upper_percent=applied[1],
+        widened=status.widened,
     )
 
     return EmaHighlyVariableResult(

@@ -36,6 +36,8 @@ import dataclasses
 import inspect
 import math
 import random
+from decimal import Decimal
+from pathlib import Path
 
 import pytest
 
@@ -72,6 +74,7 @@ from be_stats.ema_hvd import (
     ema_abel_limits,
 )
 from be_stats.provenance import Authority, ValidationStatus
+from be_stats.regulatory_rounding import TIE_POLICY, round_half_up
 from be_stats.replicate import (
     DataError,
     ReplicateObservation,
@@ -92,6 +95,7 @@ from be_stats.spec import (
     Jurisdiction,
     Method,
     NotApplicable,
+    SpecificationRequired,
     ema_abel_widening,
     ema_hvd_variability_eligible,
     fda_hvd_method_for,
@@ -197,7 +201,11 @@ def with_exact_cv(monkeypatch, cv_percent: float) -> None:
         (Endpoint.AUC, 45.0, J, P, S.NOT_WIDENED_ENDPOINT),
         (Endpoint.AUC, 500.0, J, P, S.NOT_WIDENED_ENDPOINT),
         (Endpoint.AUC, 45.0, JS, PS, S.NOT_WIDENED_ENDPOINT),
-        (Endpoint.OTHER, 45.0, J, P, S.NOT_WIDENED_ENDPOINT),
+        # OTHER: no rule. CORRECTED - this was NOT_WIDENED_ENDPOINT, which
+        # silently treated an unnamed endpoint as if it were AUC.
+        (Endpoint.OTHER, 45.0, J, P, S.UNDETERMINED_ENDPOINT_NOT_COVERED),
+        (Endpoint.OTHER, 20.0, J, P, S.UNDETERMINED_ENDPOINT_NOT_COVERED),
+        (Endpoint.OTHER, None, JS, PS, S.UNDETERMINED_ENDPOINT_NOT_COVERED),
         # Variability not estimable.
         (Endpoint.CMAX, None, J, P, S.UNDETERMINED_VARIABILITY_NOT_ESTIMABLE),
         (Endpoint.AUC, None, J, P, S.NOT_WIDENED_ENDPOINT),
@@ -477,40 +485,67 @@ def test_moderate_variability_is_uncapped(cv):
     assert CAP_LOWER < limits.final_lower_percent < PE[0]
 
 
-def test_the_cap_boundary_is_per_limit_and_the_stated_pair_is_not_reciprocal():
-    """The lower cap binds first: 1/0.6984 = 1.43184 < 1.4319.
-
-    Between the two activation points only the lower limit is capped. That is
-    what "a maximum of 69.84 - 143.19%" says, applied to each limit.
-    """
-    swr_lower = -math.log(CAP_LOWER / 100.0) / K
-    swr_upper = math.log(CAP_UPPER / 100.0) / K
-    assert swr_lower < swr_upper
-
-    below = ema_abel_limits(swr_lower * (1 - 1e-9))
-    assert below.cap_applied is False
-
-    between = ema_abel_limits((swr_lower + swr_upper) / 2)
-    assert between.cap_applied is True
-    assert between.final_lower_percent == CAP_LOWER
-    assert between.final_upper_percent == between.raw_upper_percent < CAP_UPPER
-
-    above = ema_abel_limits(swr_upper * (1 + 1e-9))
-    assert (above.final_lower_percent, above.final_upper_percent) == (CAP_LOWER, CAP_UPPER)
+# CORRECTED. A test here used to PIN a band - CVwR 49.9928% to 49.9989% - where
+# only the lower limit was capped, produced by clipping each limit against the
+# rounded published pair. EMA's table states no such band. The cap is one rule
+# keyed on CVwR, and the tests below hold it to that.
 
 
-@pytest.mark.parametrize("cv", [50.0, 60.0, 90.0, 300.0])
-def test_beyond_the_cap_the_limits_are_exactly_the_stated_pair(cv):
-    limits = ema_abel_limits(swr_for(cv))
+@pytest.mark.parametrize("cv", [49.99, 49.995, 49.9999, 49.99999999])
+def test_below_cvwr_50_the_formula_applies_to_both_limits(cv):
+    swr = swr_for(cv)
+    limits = ema_abel_limits(swr, cv_wr_percent=cv)
+    assert limits.cap_applied is False
+    assert limits.final_lower_percent == limits.raw_lower_percent == 100.0 * math.exp(-K * swr)
+    assert limits.final_upper_percent == limits.raw_upper_percent == 100.0 * math.exp(K * swr)
+
+
+def test_just_below_50_the_formula_lies_beyond_the_published_pair_and_is_applied():
+    """Stated rather than hidden: the table switches at 50, not before."""
+    limits = ema_abel_limits(swr_for(49.999), cv_wr_percent=49.999)
+    assert limits.cap_applied is False
+    assert limits.final_lower_percent < CAP_LOWER
+    assert limits.final_upper_percent > CAP_UPPER
+    assert CAP_LOWER - limits.final_lower_percent < 0.0033
+    assert limits.final_upper_percent - CAP_UPPER < 0.0011
+
+
+@pytest.mark.parametrize("cv", [50.0, 50.00000001, 50.0001, 60.0, 90.0, 300.0])
+def test_at_and_above_cvwr_50_the_limits_are_exactly_the_published_pair(cv):
+    limits = ema_abel_limits(swr_for(cv), cv_wr_percent=cv)
+    assert limits.cap_applied is True
     assert (limits.final_lower_percent, limits.final_upper_percent) == (CAP_LOWER, CAP_UPPER)
-    assert limits.raw_lower_percent < CAP_LOWER and limits.raw_upper_percent > CAP_UPPER
 
 
-def test_no_calculated_limit_ever_escapes_the_regulatory_maximum():
-    for i in range(1, 400):
-        limits = ema_abel_limits(i / 200.0)
-        assert limits.final_lower_percent >= CAP_LOWER
-        assert limits.final_upper_percent <= CAP_UPPER
+def test_both_limits_change_branch_together_at_one_cvwr():
+    for step in range(-80, 81):
+        cv = 50.0 + step * 0.00025
+        limits = ema_abel_limits(swr_for(cv), cv_wr_percent=cv)
+        formula = (limits.raw_lower_percent, limits.raw_upper_percent)
+        pair = (CAP_LOWER, CAP_UPPER)
+        final = (limits.final_lower_percent, limits.final_upper_percent)
+        if cv >= 50.0:
+            assert limits.cap_applied and final == pair, cv
+        else:
+            assert not limits.cap_applied and final == formula, cv
+
+
+def test_the_cap_decision_uses_the_supplied_cvwr():
+    limits = ema_abel_limits(swr_for(50.0), cv_wr_percent=50.0)
+    assert limits.cv_wr_percent == 50.0
+    assert limits.cap_applied is True
+
+
+@pytest.mark.parametrize(("cv", "capped"), [(49.99, False), (50.0, True), (60.0, True)])
+def test_the_cap_rule_through_the_whole_assessment(monkeypatch, cv, capped):
+    with_exact_cv(monkeypatch, cv)
+    result = assess_ema_endpoint(study(cv_wr_percent=45.0), endpoint=Endpoint.CMAX, **BASIS)
+    assert result.widening_status is S.WIDENED
+    assert result.cap_applied is capped
+    if capped:
+        assert result.applied_limits == (CAP_LOWER, CAP_UPPER)
+    else:
+        assert result.applied_limits == result.raw_scaled_limits
 
 
 # ------------------------------------------------- the criteria at the edge ---
@@ -532,10 +567,10 @@ def _effect(*, gmr: float, lower: float, upper: float):
 def test_a_ci_touching_the_widened_limits_is_contained_and_just_outside_is_not():
     limits = ema_abel_limits(swr_for(40.0))
     lo, hi = limits.final_lower_percent, limits.final_upper_percent
-    touching, _, _ = _both_criteria(effect=_effect(gmr=100.0, lower=lo, upper=hi), lower_percent=lo, upper_percent=hi)
+    touching, _, _ = _both_criteria(effect=_effect(gmr=100.0, lower=lo, upper=hi), lower_percent=lo, upper_percent=hi, widened=True)
     assert touching is True
-    low_out, _, _ = _both_criteria(effect=_effect(gmr=100.0, lower=lo * (1 - 1e-9), upper=hi), lower_percent=lo, upper_percent=hi)
-    high_out, _, _ = _both_criteria(effect=_effect(gmr=100.0, lower=lo, upper=hi * (1 + 1e-9)), lower_percent=lo, upper_percent=hi)
+    low_out, _, _ = _both_criteria(effect=_effect(gmr=100.0, lower=lo * (1 - 1e-9), upper=hi), lower_percent=lo, upper_percent=hi, widened=True)
+    high_out, _, _ = _both_criteria(effect=_effect(gmr=100.0, lower=lo, upper=hi * (1 + 1e-9)), lower_percent=lo, upper_percent=hi, widened=True)
     assert low_out is False and high_out is False
 
 
@@ -548,6 +583,7 @@ def test_the_gmr_constraint_is_inclusive_and_does_not_widen(gmr, ok):
         effect=_effect(gmr=gmr, lower=72.0, upper=138.0),
         lower_percent=CAP_LOWER,
         upper_percent=CAP_UPPER,
+        widened=True,
     )
     assert pe_ok is ok
 
@@ -775,6 +811,14 @@ def test_an_eligible_result_reads_top_to_bottom(widened):
     assert "capped at 69.84-143.19%" in lines[7]
     assert "required inside 80.00-125.00%" in lines[9]
     assert lines[10].startswith(f"Final decision: {'PASS' if widened.passes else 'FAIL'}")
+    assert "compared unrounded with the widened limits" in lines[10]
+    assert "VAL-EMA-ABEL-003" in lines[10]
+
+
+def test_a_conventional_result_says_its_bounds_were_rounded():
+    result = assess_ema_endpoint(study(cv_wr_percent=45.0, endpoint="AUC"), endpoint=Endpoint.AUC, **BASIS)
+    (final,) = [line for line in result.summary().splitlines() if line.startswith("Final decision: ")]
+    assert "rounded to two decimal places before comparison, as 4.1.8 states" in final
 
 
 def test_a_refused_result_leads_with_no_decision_and_prints_no_limits():
@@ -1004,3 +1048,273 @@ def test_fda_hvd_and_nti_rules_are_unchanged():
     assert VALIDATION[Method.FDA_HVD_RSABE] is ValidationStatus.IMPLEMENTED_UNVALIDATED
     assert VALIDATION[Method.FDA_NTI_RSABE] is ValidationStatus.IMPLEMENTED_UNVALIDATED
     assert not hasattr(spec_module, "SCALED_BE_CONSTANTS")
+
+
+# ------------------------------------------------- 4.1.8's two-decimal rule ---
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        (79.994, "79.99"),
+        (79.996, "80.00"),
+        (80.0, "80.00"),
+        (125.004, "125.00"),
+        (125.006, "125.01"),
+        (125.0, "125.00"),
+    ],
+)
+def test_round_half_up_away_from_any_tie(value, expected):
+    assert round_half_up(value) == Decimal(expected)
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [(79.995, "80.00"), (125.005, "125.01"), (0.125, "0.13"), (2.675, "2.68")],
+)
+def test_the_documented_tie_policy_is_half_up_and_not_binary_round(value, expected):
+    """EMA states no tie convention; this is the documented one, tested as policy.
+
+    Every value here is one Python's binary `round` gets the other way:
+    `round(2.675, 2)` is 2.67 because 2.675 is stored as 2.67499999...
+    """
+    assert round_half_up(value) == Decimal(expected)
+    assert "ROUND_HALF_UP" in TIE_POLICY
+
+
+@pytest.mark.parametrize("bad", [float("nan"), float("inf"), -float("inf")])
+def test_rounding_refuses_a_non_finite_value(bad):
+    with pytest.raises(ValueError):
+        round_half_up(bad)
+
+
+def test_the_rounding_helper_never_uses_binary_round_or_formatting():
+    from be_stats import regulatory_rounding
+
+    tree = ast.parse(inspect.getsource(regulatory_rounding))
+    names = {n.id for n in ast.walk(tree) if isinstance(n, ast.Name)}
+    assert "round" not in names
+    assert not [n for n in ast.walk(tree) if isinstance(n, ast.JoinedStr)] or all(
+        "cannot round" in ast.unparse(n) or "places must" in ast.unparse(n)
+        for n in ast.walk(tree) if isinstance(n, ast.JoinedStr)
+    )
+
+
+def _patch_effect(monkeypatch, *, lower: float, upper: float, gmr: float = 100.0):
+    effect = _effect(gmr=gmr, lower=lower, upper=upper)
+    monkeypatch.setattr(ema_hvd, "estimate_treatment_effect", lambda _dataset: effect)
+    return effect
+
+
+#: Every branch that issues a decision against 80.00-125.00%.
+CONVENTIONAL_BRANCHES = {
+    "AUC": {
+        "rows": {"cv_wr_percent": 45.0, "endpoint": "AUC"},
+        "endpoint": Endpoint.AUC,
+        "basis": BASIS,
+    },
+    "Cmax, CVwR <= 30%": {
+        "rows": {"cv_wr_percent": 15.0},
+        "endpoint": Endpoint.CMAX,
+        "basis": BASIS,
+    },
+    "Cmax, not justified": {
+        "rows": {"cv_wr_percent": 45.0},
+        "endpoint": Endpoint.CMAX,
+        "basis": {"clinical_justification": NJ, "protocol_prespecification": P},
+    },
+    "Cmax, not prespecified": {
+        "rows": {"cv_wr_percent": 45.0},
+        "endpoint": Endpoint.CMAX,
+        "basis": {"clinical_justification": J, "protocol_prespecification": NP},
+    },
+}
+
+
+@pytest.mark.parametrize("branch", sorted(CONVENTIONAL_BRANCHES))
+@pytest.mark.parametrize(
+    ("lower", "upper", "passes"),
+    [
+        (79.994, 110.0, False),   # 79.99
+        (79.996, 110.0, True),    # 80.00
+        (80.0, 110.0, True),
+        (90.0, 125.004, True),    # 125.00
+        (90.0, 125.006, False),   # 125.01
+        (90.0, 125.0, True),
+        (80.0, 125.0, True),      # both clean boundaries
+    ],
+)
+def test_every_conventional_branch_rounds_the_ci_as_4_1_8_states(monkeypatch, branch, lower, upper, passes):
+    config = CONVENTIONAL_BRANCHES[branch]
+    _patch_effect(monkeypatch, lower=lower, upper=upper)
+    result = assess_ema_endpoint(study(**config["rows"]), endpoint=config["endpoint"], **config["basis"])
+    assert result.widening_status.determined and not result.widening_status.widened
+    assert result.applied_limits == PE
+    assert result.decided
+    assert result.interval_criterion_passes is passes
+    assert result.passes is passes
+
+
+def test_against_widened_limits_the_ci_is_compared_unrounded(monkeypatch):
+    """69.836 rounds to 69.84, the published lower limit. Unrounded, it is outside."""
+    with_exact_cv(monkeypatch, 60.0)
+    _patch_effect(monkeypatch, lower=69.836, upper=120.0)
+    result = assess_ema_endpoint(study(cv_wr_percent=45.0), endpoint=Endpoint.CMAX, **BASIS)
+    assert result.widening_status is S.WIDENED
+    assert result.applied_limits == (CAP_LOWER, CAP_UPPER)
+    assert round_half_up(result.confidence_interval[0]) == Decimal("69.84")
+    assert result.interval_criterion_passes is False
+    assert result.passes is False
+
+
+def test_the_criteria_function_demands_an_explicit_rule():
+    with pytest.raises(TypeError):
+        _both_criteria(effect=_effect(gmr=100.0, lower=90.0, upper=110.0), lower_percent=80.0, upper_percent=125.0)
+
+
+def test_one_function_compares_the_ci_with_limits_and_both_paths_use_it():
+    """No second comparison anywhere, so the pipeline and the invariant agree."""
+    tree = ast.parse(inspect.getsource(ema_hvd))
+    compares = [
+        node for node in ast.walk(tree)
+        if isinstance(node, ast.Compare)
+        and any(
+            isinstance(n, ast.Attribute) and n.attr in {"ci_lower_percent", "ci_upper_percent"}
+            for n in ast.walk(node)
+        )
+    ]
+    containing = next(
+        f for f in ast.walk(tree) if isinstance(f, ast.FunctionDef) and f.name == "_interval_contained"
+    )
+    inside = {id(n) for n in ast.walk(containing)}
+    assert compares and all(id(node) in inside for node in compares)
+
+    def calls_in(name):
+        function = next(
+            f for f in ast.walk(tree) if isinstance(f, ast.FunctionDef) and f.name == name
+        )
+        return {
+            n.func.id for n in ast.walk(function) if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
+        }
+
+    assert "_both_criteria" in calls_in("assess_ema_endpoint")
+    assert "_both_criteria" in calls_in("__post_init__")
+
+
+def test_a_conventional_verdict_must_follow_the_rounded_comparison(monkeypatch):
+    effect_fail = _effect(gmr=100.0, lower=79.994, upper=110.0)
+    _patch_effect(monkeypatch, lower=79.996, upper=110.0)
+    passing = assess_ema_endpoint(study(cv_wr_percent=45.0, endpoint="AUC"), endpoint=Endpoint.AUC, **BASIS)
+    assert passing.passes is True
+
+    # A decided result whose rounded CI actually fails.
+    with pytest.raises(EmaResultInconsistent):
+        dataclasses.replace(passing, treatment_effect=effect_fail)
+    # A failed result whose rounded CI actually passes.
+    with pytest.raises(EmaResultInconsistent):
+        dataclasses.replace(passing, interval_criterion_passes=False, passes=False)
+
+
+def _consistent_replace(result, limits):
+    applied = (limits.final_lower_percent, limits.final_upper_percent)
+    interval_ok, pe_ok, both = _both_criteria(
+        effect=result.treatment_effect, lower_percent=applied[0], upper_percent=applied[1], widened=True
+    )
+    return dataclasses.replace(
+        result, limits=limits, applied_limits=applied,
+        interval_criterion_passes=interval_ok, point_estimate_criterion_passes=pe_ok, passes=both,
+    )
+
+
+def test_a_pre_50_result_cannot_carry_the_published_pair(monkeypatch):
+    with_exact_cv(monkeypatch, 45.0)
+    result = assess_ema_endpoint(study(cv_wr_percent=45.0), endpoint=Endpoint.CMAX, **BASIS)
+    forged = dataclasses.replace(
+        result.limits, cap_applied=True, final_lower_percent=CAP_LOWER, final_upper_percent=CAP_UPPER
+    )
+    with pytest.raises(EmaResultInconsistent):
+        _consistent_replace(result, forged)
+
+
+def test_a_50_plus_result_cannot_carry_formula_limits(monkeypatch):
+    with_exact_cv(monkeypatch, 60.0)
+    result = assess_ema_endpoint(study(cv_wr_percent=45.0), endpoint=Endpoint.CMAX, **BASIS)
+    forged = dataclasses.replace(
+        result.limits,
+        cap_applied=False,
+        final_lower_percent=result.limits.raw_lower_percent,
+        final_upper_percent=result.limits.raw_upper_percent,
+    )
+    with pytest.raises(EmaResultInconsistent):
+        _consistent_replace(result, forged)
+
+
+# ------------------------------------------------------------ Endpoint.OTHER ---
+
+
+@pytest.mark.parametrize("cv", [15.0, 45.0])
+@pytest.mark.parametrize(("justification", "prespecification"), [(J, P), (JS, PS), (NJ, NP)])
+def test_endpoint_other_gets_no_decision_and_is_not_treated_as_auc(cv, justification, prespecification):
+    result = assess_ema_endpoint(
+        study(cv_wr_percent=cv, endpoint="other"),
+        endpoint=Endpoint.OTHER,
+        clinical_justification=justification,
+        protocol_prespecification=prespecification,
+    )
+    assert result.widening_status is S.UNDETERMINED_ENDPOINT_NOT_COVERED
+    assert result.decided is False and result.passes is None
+    assert result.applied_limits is None and result.limits is None
+    assert result.selected_method is None
+    assert any(
+        d.code is DiagnosticCode.EMA_HVD_ENDPOINT_NOT_COVERED and d.severity is Severity.FATAL
+        for d in result.diagnostics
+    )
+    text = result.summary()
+    assert text.splitlines()[0] == "NO ABEL DECISION ISSUED"
+    assert "80.00%, 125.00%" not in text
+
+
+def test_an_auc_verdict_cannot_be_relabelled_as_endpoint_other(conventional):
+    with pytest.raises(EmaResultInconsistent):
+        dataclasses.replace(conventional, endpoint=Endpoint.OTHER)
+
+
+def test_the_endpoint_refusal_is_in_the_refusal_vocabulary():
+    assert (
+        DIAGNOSTIC_FOR[RefusalCode.EMA_HVD_ENDPOINT_RULE_REQUIRED]
+        is DiagnosticCode.EMA_HVD_ENDPOINT_NOT_COVERED
+    )
+    for capability_id in ("EMA_HVD_ABEL", "EMA_HVD_ENDPOINT_DECISION"):
+        assert RefusalCode.EMA_HVD_ENDPOINT_RULE_REQUIRED in CAPABILITY_MATRIX[capability_id].refusal_conditions
+
+
+# ---------------------------------------------- product class and routing ---
+
+
+def test_no_nti_or_other_route_can_reach_the_abel_engine():
+    rows_auc = study(cv_wr_percent=45.0, endpoint="AUC")
+    for spec in (
+        resolve_be_spec(jurisdiction=Jurisdiction.EMA, drug_class=DrugClass.NARROW_THERAPEUTIC_INDEX, endpoint=Endpoint.AUC),
+        resolve_be_spec(jurisdiction=Jurisdiction.FDA, drug_class=DrugClass.NARROW_THERAPEUTIC_INDEX, endpoint=Endpoint.AUC),
+        resolve_be_spec(jurisdiction=Jurisdiction.EMA, drug_class=DrugClass.STANDARD, endpoint=Endpoint.AUC),
+    ):
+        with pytest.raises(NotApplicable):
+            assess_ema_endpoint(rows_auc, endpoint=Endpoint.AUC, spec=spec, **BASIS)
+    with pytest.raises(SpecificationRequired):
+        resolve_be_spec(jurisdiction=Jurisdiction.EMA, drug_class=DrugClass.NARROW_THERAPEUTIC_INDEX, endpoint=Endpoint.CMAX)
+
+
+def test_nothing_in_the_package_routes_to_the_abel_engine_automatically():
+    """The engine is caller-selected. No module but its own calls it."""
+    package = Path(ema_hvd.__file__).parent
+    offenders = []
+    for path in package.rglob("*.py"):
+        if path.name in {"ema_hvd.py", "__init__.py"}:
+            continue
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            name = getattr(node, "id", None) or getattr(node, "attr", None)
+            if name in {"assess_ema_endpoint", "assess_ema_study"}:
+                offenders.append(f"{path.name}:{node.lineno}")
+    assert not offenders, offenders
+    assert "CALLER-SELECTED, NOT ROUTED" in (assess_ema_endpoint.__doc__ or "")

@@ -1,0 +1,41 @@
+{
+  "finding_id": "VAL-EMA-ABEL-003",
+  "title": "EMA states two-decimal rounding of the CI for 80.00-125.00%, and is silent on widened limits",
+  "raised_by": "PR #85, independent review of the EMA ABEL audit",
+  "raised_on": "2026-09-14",
+  "status": "OPEN",
+  "method": "ema_hvd_abel",
+  "severity": "regulatory_interpretation_open",
+
+  "what_the_sources_say": {
+    "conventional_range": {
+      "rule": "the lower bound should be >= 80.00% when rounded to two decimal places and the upper bound should be <= 125.00% when rounded to two decimal places",
+      "source": "EMA, Guideline on the Investigation of Bioequivalence, CPMP/EWP/QWP/1401/98 Rev. 1, section 4.1.8",
+      "kind": "stated, for the 80.00-125.00% acceptance interval"
+    },
+    "widened_limits": {
+      "rule": "[U, L] = exp[+/- k.sWR], k = 0.760, to a maximum of 69.84 - 143.19%; a table printed to two decimals",
+      "source": "same guideline, section 4.1.10",
+      "kind": "no statement on rounding the confidence interval before comparing it with widened limits"
+    },
+    "other_documents_read": [
+      "EMA/618604/2008 Rev. 13, PKWP Q&A: replicate analysis section, questions 4 and 19 - no rounding sentence",
+      "EMA/531548/2024, ICH M13A implementation considerations - no rounding sentence",
+      "ICH M13A (EMA Step 5), 2.2.4: 'should lie within a range of 80.00 - 125.00%' - no rounding sentence"
+    ]
+  },
+
+  "what_be_stats_does": {
+    "conventional": "Rounds each CI bound to two decimal places in decimal arithmetic, ROUND_HALF_UP on the shortest decimal representation (be_stats.regulatory_rounding), then compares with 80.00 and 125.00. Applies to AUC, Cmax with CVwR <= 30%, and Cmax whose widening is explicitly not justified or not prespecified.",
+    "widened": "Compares the CI bounds unrounded with the limits as computed: the formula below CVwR 50%, the published pair at or above it.",
+    "gmr": "Compared as estimated against 80.00-125.00%, inclusive. 4.1.8's rounding sentence concerns the interval bounds."
+  },
+
+  "why_unrounded_for_widened_limits": "Applying the conventional rule's rounding to widened limits would grant CI bounds a margin of up to 0.005 percentage points that EMA has not stated for them. The unrounded comparison grants none. A different reading - rounding the formula limits themselves to two decimals, as the table prints them - could be stricter or looser depending on the direction of the rounding, and is not stated by EMA either. The choice is recorded here rather than made silently.",
+
+  "tie_policy_note": "EMA also states no convention for an exact half. be-stats uses ROUND_HALF_UP and names it (regulatory_rounding.TIE_POLICY). No decision test sits on an exact tie.",
+
+  "what_would_close_it": "An EMA statement - in the guideline, a PKWP answer or the future ICH M13C - on how a confidence interval is compared with widened ABEL limits.",
+  "action_required": "None in be-stats until EMA states the rule. If EMA confirms rounding applies to widened limits, switch `ema_hvd._interval_contained` to the rounded comparison for both branches and close this finding.",
+  "related_findings": ["VAL-EMA-ABEL-002"]
+}

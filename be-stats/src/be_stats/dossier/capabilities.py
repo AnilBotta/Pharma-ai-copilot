@@ -310,11 +310,18 @@ _METHOD_ROWS: tuple[CapabilityRecord, ...] = (
             "and the GMR constraint to a stated verdict. The search is "
             "recorded as EMA_HVD_ABEL_END_TO_END_SEARCH, and components "
             "validated separately are not stitched into one.",
+            "Against 80.00-125.00% the CI bounds are rounded to two decimal "
+            "places before comparison, as 4.1.8 states. Against widened limits "
+            "they are compared unrounded: 4.1.10 does not say, and the open "
+            "question is VAL-EMA-ABEL-003.",
+            "Endpoints other than Cmax and AUC receive no decision. 4.1.10's "
+            "AUC rule is not applied to them.",
         ),
         refusal_conditions=(
             RefusalCode.EMA_ABEL_CMAX_ONLY,
             RefusalCode.EMA_ABEL_REPLICATE_DESIGN_REQUIRED,
             RefusalCode.EMA_ABEL_WIDENING_BASIS_REQUIRED,
+            RefusalCode.EMA_HVD_ENDPOINT_RULE_REQUIRED,
             RefusalCode.QUANTITY_NOT_ESTIMABLE,
         ),
     ),
@@ -806,9 +813,15 @@ _CAPABILITY_ROWS: tuple[CapabilityRecord, ...] = (
         evidence_tier=EvidenceTier.TIER_1B,
         decision_supported=False,
         known_limitations=(
-            "The cap is applied as the regulator STATES it, 69.84-143.19%, "
-            "not as the formula recomputes it. PowerTOST keeps the unrounded "
-            "pair; be-stats follows EMA. See VAL-EMA-ABEL-002.",
+            "One cap rule, keyed on CVwR: below 50% the formula exp(+/- "
+            "0.760.sWR); at CVwR >= 50% exactly the published pair "
+            "69.84-143.19%, not recomputed. PowerTOST recomputes the pair at "
+            "and above 50%; see VAL-EMA-ABEL-002.",
+            "Between CVwR 49.9928% and 50% the formula gives limits up to "
+            "0.0032 percentage points beyond the published pair, and they are "
+            "applied, because the table switches to the pair at 50. An earlier "
+            "version clipped each limit independently and capped only the "
+            "lower one in that band; that was corrected.",
         ),
         refusal_conditions=(RefusalCode.EMA_ABEL_CMAX_ONLY,),
     ),
@@ -856,6 +869,7 @@ _CAPABILITY_ROWS: tuple[CapabilityRecord, ...] = (
             RefusalCode.EMA_ABEL_CMAX_ONLY,
             RefusalCode.EMA_ABEL_REPLICATE_DESIGN_REQUIRED,
             RefusalCode.EMA_ABEL_WIDENING_BASIS_REQUIRED,
+            RefusalCode.EMA_HVD_ENDPOINT_RULE_REQUIRED,
             RefusalCode.QUANTITY_NOT_ESTIMABLE,
         ),
     ),

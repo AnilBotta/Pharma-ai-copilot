@@ -46,8 +46,8 @@ three parts in a hundred thousand. It can only change a decision for a study
 whose 90% confidence interval falls in that sliver.
 
 The stated pair is fractionally **narrower** than the formula's value, so
-reading (a) is the marginally more conservative of the two, and the cap engages
-at CVwR ≈ 49.993% rather than exactly 50%.
+reading (a) is the marginally more conservative of the two at and above the
+cap. The cap engages at exactly CVwR = 50% - see the amendment below.
 
 ## Why (a)
 
@@ -103,3 +103,32 @@ about the limit calculation: the tier-1B table is what *confirms* the stated
 reading, since all five of the guideline's own rows reproduce under it. The
 finding records a difference between this package and an **oracle**, and an
 oracle does not outrank the regulator.
+
+## Amendment, 2026-09-14 (PR #85, independent review)
+
+The cap was applied to **each limit independently** against the rounded pair.
+Because the pair is not exactly reciprocal (1/0.6984 = 1.43184, not 1.4319),
+that turned one rule into two floating-point crossings: the lower limit capped
+from CVwR 49.9928% and the upper from 49.9989%, with a band in between where
+only the lower limit was capped. EMA's table states no such band.
+
+The cap is now **one rule keyed on CVwR**:
+
+| CVwR | limits |
+|---|---|
+| 30% < CVwR < 50% | `exp(-/+ 0.760 sWR)` |
+| CVwR >= 50% | exactly 69.84 - 143.19% |
+
+Consequences, stated rather than hidden:
+
+- Below 50% be-stats and PowerTOST's `scABEL` now agree exactly, including in
+  the former band.
+- For CVwR in [49.9928%, 50%) the formula gives limits up to 0.0032 percentage
+  points beyond the published pair, and they are applied, because the table
+  switches to the pair at 50.
+- At and above 50% the divergence this finding records is unchanged -
+  0.00322 / 0.00102 percentage points - so the status stays **`RESOLVED`** and
+  the tier-3 row stays `PASSED_WITH_FINDING`.
+
+The PowerTOST cap case now supplies its CVwR to `ema_abel_limits` exactly, so
+the cap decision is not moved by re-deriving CVwR from sWR.

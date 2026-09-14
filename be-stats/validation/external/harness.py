@@ -340,7 +340,9 @@ def _evaluate_abel_limits(case: Case) -> dict[str, float]:
 
     cv_wr = case.inputs["cv_wr"]
     swr = math.sqrt(math.log1p(cv_wr**2))
-    limits = ema_abel_limits(swr)
+    # The cap is a rule about CVwR, so the case's CVwR is passed exactly.
+    # Re-deriving it from sWR can put a CVwR of exactly 50% a hair below 50.
+    limits = ema_abel_limits(swr, cv_wr_percent=100.0 * cv_wr)
     computed_lower, computed_upper = ema_abel_cap_computed()
 
     return {

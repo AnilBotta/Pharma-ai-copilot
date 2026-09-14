@@ -736,9 +736,11 @@ EMA_HVD_CONSTANTS: dict[str, RegulatoryValue] = {
         50.0,
         EMA_BIOEQUIVALENCE_HVD,
         VerificationStatus.VERIFIED,
-        "The variability at which widening stops. The guideline's own table "
-        "ends at '>=50' and the Q&A says the widening increases 'to a maximum "
-        "of 50%'.",
+        "The CVwR from which the widened range IS the published pair "
+        "69.84 - 143.19%. The guideline's own table ends at '>=50' and the Q&A "
+        "says the widening increases 'to a maximum of 50%'. Below it the "
+        "formula applies; at or above it the pair. One rule, keyed on CVwR - "
+        "not two independent crossings of the rounded pair.",
         VIA_PRIMARY_DOCUMENT,
     ),
     "cap_lower_percent": RegulatoryValue(
@@ -929,7 +931,9 @@ class EmaWideningStatus(StrEnum):
 
     #: Cmax, CVwR > 30%, justified and prespecified: exp(+/- k.sWR), capped.
     WIDENED = "widened"
-    #: Not Cmax. 4.1.10 keeps AUC at 80.00-125.00% "regardless of variability".
+    #: AUC. 4.1.10 keeps AUC at 80.00-125.00% "regardless of variability".
+    #: AUC only: the quoted rule is about AUC and is not borrowed for any other
+    #: endpoint.
     NOT_WIDENED_ENDPOINT = "not_widened_endpoint"
     #: Cmax with CVwR at or below 30%.
     NOT_WIDENED_VARIABILITY = "not_widened_variability"
@@ -942,6 +946,10 @@ class EmaWideningStatus(StrEnum):
     #: Cmax, and the reference variability could not be estimated, so neither
     #: question B nor the range it selects can be answered.
     UNDETERMINED_VARIABILITY_NOT_ESTIMABLE = "undetermined_variability_not_estimable"
+    #: Neither Cmax nor AUC. 4.1.10 states the widening rule for Cmax and the
+    #: no-widening rule for AUC, and this engine encodes no EMA highly variable
+    #: rule for any other endpoint. No decision - AUC's rule is not borrowed.
+    UNDETERMINED_ENDPOINT_NOT_COVERED = "undetermined_endpoint_not_covered"
 
     @property
     def determined(self) -> bool:
@@ -996,13 +1004,20 @@ def ema_abel_widening(
             f"got {protocol_prespecification!r}."
         )
 
-    if endpoint not in EMA_ABEL_SCALABLE_ENDPOINTS:
+    if endpoint is Endpoint.AUC:
         return EmaWideningStatus.NOT_WIDENED_ENDPOINT, (
-            f"{endpoint} is never widened. 4.1.10: 'The possibility to widen "
-            "the acceptance criteria based on high intra-subject variability "
-            "does not apply to AUC where the acceptance range should remain at "
+            "AUC is never widened. 4.1.10: 'The possibility to widen the "
+            "acceptance criteria based on high intra-subject variability does "
+            "not apply to AUC where the acceptance range should remain at "
             "80.00 - 125.00% regardless of variability.' No justification is "
             "consulted, because none could change this."
+        )
+    if endpoint not in EMA_ABEL_SCALABLE_ENDPOINTS:
+        return EmaWideningStatus.UNDETERMINED_ENDPOINT_NOT_COVERED, (
+            f"{endpoint} is neither Cmax nor AUC. 4.1.10 states the widening "
+            "rule for Cmax and the no-widening rule for AUC; this engine "
+            "encodes no EMA highly variable rule for any other endpoint and "
+            "does not borrow AUC's. No decision is issued."
         )
 
     if cv_wr_percent is None:

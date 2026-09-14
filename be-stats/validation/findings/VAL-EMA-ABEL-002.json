@@ -30,13 +30,22 @@
     "relative_magnitude": "about three parts in a hundred thousand"
   },
 
-  "which_be_stats_applies": "The stated pair. `ema_abel_limits` caps each limit at 69.84 and 143.19; `spec.ema_abel_cap_computed()` returns the derived pair, kept for comparison and never used in place of it.",
+  "which_be_stats_applies": "The stated pair, from CVwR 50%. `ema_abel_limits` applies the formula below CVwR 50% and exactly 69.84 - 143.19% at or above it; `spec.ema_abel_cap_computed()` returns the derived pair, kept for comparison and never used in place of it.",
+
+  "amendments": [
+    {
+      "date": "2026-09-14",
+      "by": "PR #85, independent review",
+      "change": "The cap is now ONE rule keyed on CVwR - the formula below 50%, the published pair at or above it. It previously clipped each limit independently against the rounded pair, which capped the lower limit from CVwR 49.9928% and the upper from 49.9989%, with a band where only the lower limit was capped. That band is gone. Below 50% be-stats and PowerTOST's scABEL now agree exactly everywhere; at and above 50% they differ by the same predicted 0.00322 / 0.00102 percentage points as before, so the divergence this finding records is unchanged and it stays RESOLVED. The PowerTOST cap case supplies its CVwR exactly, so the cap decision is not moved by re-deriving CVwR from sWR.",
+      "status_changed": false
+    }
+  ],
 
   "why": "Consistency with how this package has treated every such question. FDA states sWR >= 0.294 where the derivation gives 0.293560 and be-stats follows the stated number (VAL-FDA-HVD-002). FDA's NTI appendix states Delta = 1/0.9 where its own example code writes 1.11111 and be-stats follows the stated constant. The rule applied is the one the regulator wrote down; a value that reproduces it to the published precision is recorded beside it, not substituted for it.",
 
   "side_effects": [
     "The stated pair is fractionally NARROWER than the formula's value, so this reading is the marginally more conservative one.",
-    "The cap engages at CVwR of about 49.993% rather than exactly 50%, because the stated lower limit 69.84 is reached just before CVwR = 50%."
+    "The cap engages at exactly CVwR = 50% (amended 2026-09-14). Just below it, for CVwR in [49.9928%, 50%), the formula gives limits up to 0.0032 percentage points beyond the published pair and they are applied, because the table switches to the pair at 50 - where PowerTOST also switches."
   ],
 
   "consequence_for_tier_3": {

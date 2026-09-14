@@ -171,6 +171,10 @@ class DiagnosticCode(StrEnum):
     #: A quantity the EMA decision needs could not be estimated - the reference
     #: variability of a Cmax endpoint, or the Method A contrast. FATAL.
     EMA_ABEL_QUANTITY_NOT_ESTIMABLE = "EMA_ABEL_QUANTITY_NOT_ESTIMABLE"
+    #: An endpoint that is neither Cmax nor AUC was submitted to EMA's highly
+    #: variable procedure, which states rules for those two only. FATAL: no
+    #: decision issued, and AUC's rule is not borrowed.
+    EMA_HVD_ENDPOINT_NOT_COVERED = "EMA_HVD_ENDPOINT_NOT_COVERED"
 
 
 class Severity(StrEnum):

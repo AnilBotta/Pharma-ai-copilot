@@ -209,12 +209,17 @@ ROUTING_MATRIX: tuple[RoutingRoute, ...] = (
             "A highly variable Cmax whose clinical justification or protocol "
             "prespecification is NOT STATED gets no decision; one explicitly "
             "not justified or not prespecified is assessed against "
-            "80.00-125.00%."
+            "80.00-125.00%, with the CI bounds rounded to two decimal places "
+            "as 4.1.8 states. The widened limits are the formula below CVwR "
+            "50% and the published pair 69.84-143.19% at or above it, compared "
+            "with the CI unrounded (VAL-EMA-ABEL-003). An endpoint other than "
+            "Cmax or AUC gets no decision."
         ),
         refusal_conditions=(
             RefusalCode.EMA_ABEL_CMAX_ONLY,
             RefusalCode.EMA_ABEL_REPLICATE_DESIGN_REQUIRED,
             RefusalCode.EMA_ABEL_WIDENING_BASIS_REQUIRED,
+            RefusalCode.EMA_HVD_ENDPOINT_RULE_REQUIRED,
             RefusalCode.QUANTITY_NOT_ESTIMABLE,
         ),
     ),
