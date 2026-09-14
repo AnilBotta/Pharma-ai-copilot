@@ -36,6 +36,7 @@ import dataclasses
 import inspect
 import math
 import random
+import textwrap
 from decimal import Decimal
 from pathlib import Path
 
@@ -66,6 +67,8 @@ from be_stats.dossier.release_gate import (
 )
 from be_stats.dossier.statuses import EvidenceTier
 from be_stats.ema_hvd import (
+    METHOD_A_MODEL,
+    EmaAcceptanceStrategy,
     EmaResultInconsistent,
     ReferenceVariability,
     _both_criteria,
@@ -323,7 +326,8 @@ def test_cmax_low_cv_justified_is_not_widened_and_is_decided():
     assert result.variability_eligible is False
     assert result.applied_limits == PE
     assert result.limits is None
-    assert result.selected_method is Method.STANDARD_ABE
+    # CORRECTED from STANDARD_ABE: Method A ran; only the range is conventional.
+    assert result.selected_method is Method.EMA_HVD_ABEL
     assert result.decided and result.passes is not None
 
 
@@ -382,7 +386,8 @@ def test_cmax_high_cv_explicitly_not_justified_is_decided_at_the_conventional_ra
     assert result.variability_eligible is True, "variable - and still not widened"
     assert result.limits is None
     assert result.applied_limits == PE
-    assert result.selected_method is Method.STANDARD_ABE
+    # CORRECTED from STANDARD_ABE: Method A ran; only the range is conventional.
+    assert result.selected_method is Method.EMA_HVD_ABEL
     assert result.decided
     assert any(
         d.code is DiagnosticCode.EMA_ABEL_WIDENING_NOT_PERMITTED
@@ -1318,3 +1323,131 @@ def test_nothing_in_the_package_routes_to_the_abel_engine_automatically():
                 offenders.append(f"{path.name}:{node.lineno}")
     assert not offenders, offenders
     assert "CALLER-SELECTED, NOT ROUTED" in (assess_ema_endpoint.__doc__ or "")
+
+
+# ------------------------------------------------------- method identity ---
+#
+# The acceptance range and the method are different facts. Every decided
+# branch below runs the same Method A model under the same regulatory procedure,
+# EMA_HVD_ABEL, and only the limits differ. A result used to call four of these
+# branches Method.STANDARD_ABE - the 2x2 and parallel procedure, which never ran.
+
+
+#: (study kwargs, endpoint, basis, widening status, acceptance strategy)
+DECIDED_BRANCHES = {
+    "Cmax, CVwR <= 30%": (
+        {"cv_wr_percent": 15.0}, Endpoint.CMAX, BASIS,
+        S.NOT_WIDENED_VARIABILITY, EmaAcceptanceStrategy.CONVENTIONAL_LIMITS,
+    ),
+    "Cmax, CVwR > 30%, justified and prespecified": (
+        {"cv_wr_percent": 45.0}, Endpoint.CMAX, BASIS,
+        S.WIDENED, EmaAcceptanceStrategy.WIDENED_ABEL_LIMITS,
+    ),
+    "Cmax, CVwR > 30%, not justified": (
+        {"cv_wr_percent": 45.0}, Endpoint.CMAX,
+        {"clinical_justification": NJ, "protocol_prespecification": P},
+        S.NOT_WIDENED_BASIS_ABSENT, EmaAcceptanceStrategy.CONVENTIONAL_LIMITS,
+    ),
+    "Cmax, CVwR > 30%, not prespecified": (
+        {"cv_wr_percent": 45.0}, Endpoint.CMAX,
+        {"clinical_justification": J, "protocol_prespecification": NP},
+        S.NOT_WIDENED_BASIS_ABSENT, EmaAcceptanceStrategy.CONVENTIONAL_LIMITS,
+    ),
+    "AUC": (
+        {"cv_wr_percent": 45.0, "endpoint": "AUC"}, Endpoint.AUC, BASIS,
+        S.NOT_WIDENED_ENDPOINT, EmaAcceptanceStrategy.CONVENTIONAL_LIMITS,
+    ),
+}
+
+
+@pytest.mark.parametrize("branch", sorted(DECIDED_BRANCHES))
+def test_method_identity_does_not_change_when_the_limits_do(branch):
+    rows, endpoint, basis, status, strategy = DECIDED_BRANCHES[branch]
+    result = assess_ema_endpoint(study(**rows), endpoint=endpoint, **basis)
+
+    # The statistical model actually fitted.
+    assert result.analysis_model == METHOD_A_MODEL
+    assert result.treatment_effect.model == METHOD_A_MODEL
+    assert "sequence + subject(sequence) + period + formulation" in result.analysis_model
+    # The regulatory procedure.
+    assert result.selected_method is Method.EMA_HVD_ABEL
+    assert result.selected_method is not Method.STANDARD_ABE
+    # The acceptance range, separately.
+    assert result.widening_status is status
+    assert result.acceptance_strategy is strategy
+    if strategy is EmaAcceptanceStrategy.WIDENED_ABEL_LIMITS:
+        assert result.applied_limits == result.final_scaled_limits
+    else:
+        assert result.applied_limits == PE
+        assert result.limits is None
+    # Decision semantics.
+    assert result.decided is True
+    assert isinstance(result.passes, bool)
+
+
+def test_refusals_carry_no_method_and_no_strategy():
+    unstated = assess_ema_endpoint(study(cv_wr_percent=45.0), endpoint=Endpoint.CMAX)
+    other = assess_ema_endpoint(study(cv_wr_percent=45.0, endpoint="other"), endpoint=Endpoint.OTHER, **BASIS)
+    for refused in (unstated, other):
+        assert refused.selected_method is None
+        assert refused.acceptance_strategy is None
+        assert refused.analysis_model is None
+
+
+def test_the_router_and_the_result_agree_on_the_method_for_every_decided_endpoint():
+    for endpoint, rows in ((Endpoint.CMAX, study(cv_wr_percent=15.0)), (Endpoint.AUC, study(cv_wr_percent=45.0, endpoint="AUC"))):
+        spec = resolve_be_spec(jurisdiction=Jurisdiction.EMA, drug_class=DrugClass.HIGHLY_VARIABLE, endpoint=endpoint)
+        assert spec.method is Method.EMA_HVD_ABEL
+        result = assess_ema_endpoint(rows, endpoint=endpoint, spec=spec, **BASIS)
+        assert result.decided
+        assert result.acceptance_strategy is EmaAcceptanceStrategy.CONVENTIONAL_LIMITS
+        assert result.spec_method is spec.method is result.selected_method
+
+
+def test_a_supplied_ema_hvd_spec_can_never_yield_a_different_method():
+    spec = resolve_be_spec(jurisdiction=Jurisdiction.EMA, drug_class=DrugClass.HIGHLY_VARIABLE, endpoint=Endpoint.AUC)
+    result = assess_ema_endpoint(study(cv_wr_percent=45.0, endpoint="AUC"), endpoint=Endpoint.AUC, spec=spec, **BASIS)
+    with pytest.raises(EmaResultInconsistent):
+        dataclasses.replace(result, spec_method=Method.STANDARD_ABE)
+    with pytest.raises(EmaResultInconsistent):
+        dataclasses.replace(result, spec_method=Method.EMA_NTI_NARROW_ABE)
+
+
+def test_a_result_cannot_claim_a_model_other_than_method_a(conventional):
+    for model in ("Phase-1 2x2 TOST", "FDA Appendix C mixed model", "FDA Appendix G contrast"):
+        forged = dataclasses.replace(conventional.treatment_effect, model=model)
+        with pytest.raises(EmaResultInconsistent):
+            dataclasses.replace(conventional, treatment_effect=forged)
+
+
+def test_method_identity_reads_the_decision_and_nothing_else():
+    """Structural: the property cannot be computed from limits or widening status."""
+    source = textwrap.dedent(inspect.getsource(ema_hvd.EmaHighlyVariableResult.selected_method.fget))
+    tree = ast.parse(source)
+    attributes = {n.attr for n in ast.walk(tree) if isinstance(n, ast.Attribute)}
+    assert "decided" in attributes
+    for forbidden in ("applied_limits", "limits", "widening_status", "acceptance_strategy", "STANDARD_ABE"):
+        assert forbidden not in attributes, forbidden
+    assert "STANDARD_ABE" not in {n.attr for n in ast.walk(ast.parse(inspect.getsource(ema_hvd))) if isinstance(n, ast.Attribute)}
+
+
+def test_capability_endpoint_scope_matches_what_the_engine_decides_and_widens():
+    decided = {
+        e for e in Endpoint
+        if ema_abel_widening(endpoint=e, cv_wr_percent=20.0, clinical_justification=J, protocol_prespecification=P)[0].determined
+    }
+    widened = {
+        e for e in Endpoint
+        if ema_abel_widening(endpoint=e, cv_wr_percent=45.0, clinical_justification=J, protocol_prespecification=P)[0].widened
+    }
+    assert decided == {Endpoint.AUC, Endpoint.CMAX}
+    assert widened == {Endpoint.CMAX}
+    for capability_id in ("EMA_HVD_ABEL", "EMA_HVD_ENDPOINT_DECISION", "EMA_HVD_DESIGN_GATE"):
+        assert set(CAPABILITY_MATRIX[capability_id].endpoints) == decided, capability_id
+    for capability_id in ("EMA_ABEL_LIMIT_CALCULATION", "EMA_ABEL_WIDENING_BASIS_GATE", "EMA_HVD_VARIABILITY_ELIGIBILITY"):
+        assert set(CAPABILITY_MATRIX[capability_id].endpoints) == widened, capability_id
+    from be_stats.dossier.routing import route_for
+
+    route = route_for(Jurisdiction.EMA, DrugClass.HIGHLY_VARIABLE, Endpoint.AUC)
+    assert route.method is Method.EMA_HVD_ABEL
+    assert decided <= set(route.endpoints)

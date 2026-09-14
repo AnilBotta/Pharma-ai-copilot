@@ -279,7 +279,11 @@ _METHOD_ROWS: tuple[CapabilityRecord, ...] = (
         method=Method.EMA_HVD_ABEL,
         source_key=Method.EMA_HVD_ABEL,
         design_requirement=REPLICATE_DESIGNS,
-        endpoints=(Endpoint.CMAX,),
+        # CORRECTED from (CMAX,). This method is the whole EMA highly variable
+        # replicate procedure: `resolve_be_spec` selects it for AUC as well as
+        # Cmax, and `assess_ema_endpoint` decides both with Method A. Only
+        # Cmax may WIDEN, and that is `widening_status`, not endpoint scope.
+        endpoints=(Endpoint.AUC, Endpoint.CMAX),
         regulatory_source=EMA_BIOEQUIVALENCE_HVD,
         # CORRECTED from TIER_1B. The method row holds no tier-1B record: its
         # tier-1B evidence belongs to three components, and the method's own
@@ -294,7 +298,13 @@ _METHOD_ROWS: tuple[CapabilityRecord, ...] = (
             "carries one end-to-end example from CVwR > 30% through widened "
             "limits and the Method A interval to a stated verdict, so the "
             "wiring between validated parts is itself unvalidated.",
-            "Cmax only. AUC stays at 80.00-125.00% regardless of variability.",
+            "Decides AUC and Cmax, both with the same EMA Method A model. Only "
+            "Cmax may WIDEN; AUC is always assessed against 80.00-125.00% "
+            "regardless of variability. The acceptance range is reported as "
+            "`widening_status` and `acceptance_strategy`, never as a different "
+            "method: a conventional-range result is still EMA_HVD_ABEL, and "
+            "never STANDARD_ABE, which is the 2x2 crossover and parallel "
+            "procedure.",
             "CVwR > 30% is necessary and not sufficient. Widening also needs "
             "a sound clinical justification that a wider Cmax difference is "
             "clinically irrelevant, and a widened interval prospectively "
@@ -711,7 +721,9 @@ _CAPABILITY_ROWS: tuple[CapabilityRecord, ...] = (
         method=Method.EMA_HVD_ABEL,
         source_key=Capability.EMA_HVD_DESIGN_GATE,
         design_requirement=REPLICATE_DESIGNS,
-        endpoints=(Endpoint.CMAX,),
+        # CORRECTED from (CMAX,): the gate runs before every endpoint the
+        # procedure decides, AUC included.
+        endpoints=(Endpoint.AUC, Endpoint.CMAX),
         regulatory_source=EMA_BIOEQUIVALENCE_HVD,
         evidence_tier=EvidenceTier.TIER_1A,
         decision_supported=False,
@@ -850,7 +862,8 @@ _CAPABILITY_ROWS: tuple[CapabilityRecord, ...] = (
         method=Method.EMA_HVD_ABEL,
         source_key=Capability.EMA_HVD_ENDPOINT_DECISION,
         design_requirement=REPLICATE_DESIGNS,
-        endpoints=(Endpoint.CMAX,),
+        # CORRECTED from (CMAX,): the decision is issued for AUC too.
+        endpoints=(Endpoint.AUC, Endpoint.CMAX),
         regulatory_source=EMA_BIOEQUIVALENCE_HVD,
         evidence_tier=EvidenceTier.TIER_1A,
         decision_supported=True,

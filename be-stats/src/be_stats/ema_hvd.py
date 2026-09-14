@@ -114,6 +114,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
+from enum import StrEnum
 
 from be_stats.diagnostics import Diagnostic, DiagnosticCode, Severity
 from be_stats.linear_model import fit_least_squares
@@ -611,6 +612,22 @@ def ema_abel_limits(swr: float, *, cv_wr_percent: float | None = None) -> AbelLi
 # ------------------------------------------------------------- the result ---
 
 
+class EmaAcceptanceStrategy(StrEnum):
+    """Which acceptance range a determined endpoint was compared against.
+
+    NOT a method. Both members are the same regulatory procedure,
+    `Method.EMA_HVD_ABEL`, computed with the same Method A model; they differ
+    only in the limits the interval is held to. An earlier version encoded this
+    difference by reporting the conventional branch as `Method.STANDARD_ABE` -
+    the 2x2 crossover and parallel procedure, which nothing in this module runs.
+    """
+
+    #: exp(+/- 0.760 sWR) below CVwR 50%, 69.84-143.19% at or above it.
+    WIDENED_ABEL_LIMITS = "widened_abel_limits"
+    #: 80.00-125.00%, CI bounds rounded to two decimals as 4.1.8 states.
+    CONVENTIONAL_LIMITS = "conventional_limits"
+
+
 class EmaResultInconsistent(ValueError):
     """An EMA result was built asserting something the rule did not produce.
 
@@ -761,10 +778,34 @@ class EmaHighlyVariableResult:
     provenance_lines: tuple[str, ...] = ()
     validation_status: ValidationStatus = ValidationStatus.IMPLEMENTED_UNVALIDATED
     notes: tuple[str, ...] = field(default_factory=tuple)
+    #: The method of the `BeSpec` the caller supplied, if one was. Kept so a
+    #: decided result can be held to the method the router selected.
+    spec_method: Method | None = None
 
     def __post_init__(self) -> None:
         def refuse(message: str) -> None:
             raise EmaResultInconsistent(f"{self.endpoint}: {message}")
+
+        # METHOD IDENTITY. This engine executes one regulatory procedure,
+        # EMA_HVD_ABEL, with one model, Method A. Which acceptance range applied
+        # is a separate fact and may not masquerade as a different method.
+        if self.spec_method is not None and self.spec_method is not Method.EMA_HVD_ABEL:
+            refuse(
+                f"built for a spec selecting {self.spec_method}; this engine "
+                "implements EMA_HVD_ABEL only"
+            )
+        if self.treatment_effect is not None and self.treatment_effect.model != METHOD_A_MODEL:
+            refuse(
+                f"carries a treatment effect from {self.treatment_effect.model!r}; "
+                "every EMA highly variable decision is computed with Method A"
+            )
+        # Spec and result cannot disagree, by construction rather than by a
+        # third check: a supplied spec must select EMA_HVD_ABEL (above), and a
+        # decided result's method is derived as EMA_HVD_ABEL from `decided`
+        # alone. A separate "spec_method is selected_method" guard was removed
+        # after mutation testing showed it could never fire while those two
+        # hold; `test_the_router_and_the_result_agree_on_the_method_for_every_
+        # decided_endpoint` holds the equality itself.
 
         if not isinstance(self.clinical_justification, EmaWideningJustification):
             refuse("clinical_justification is not an EmaWideningJustification")
@@ -911,12 +952,35 @@ class EmaHighlyVariableResult:
 
     @property
     def selected_method(self) -> Method | None:
-        """Derived, never stored. None when the applicable range is unknown."""
+        """The regulatory procedure that decided this endpoint, or None.
+
+        CORRECTED. This returned `Method.STANDARD_ABE` for every determined
+        branch that was not widened - AUC, Cmax at CVwR <= 30%, Cmax not
+        justified or not prespecified. All of those were computed with EMA
+        Method A, the replicate ANOVA, and `resolve_be_spec` selects
+        EMA_HVD_ABEL for them. STANDARD_ABE is the 2x2 crossover and parallel
+        procedure, and the label claimed a model that never ran.
+
+        Now: EMA_HVD_ABEL for every DECIDED result, None for every refusal. It
+        reads `decided` and nothing else - not the limits, not the widening
+        status - so a change of acceptance range cannot change the method. The
+        range is `acceptance_strategy`.
+        """
+        return Method.EMA_HVD_ABEL if self.decided else None
+
+    @property
+    def acceptance_strategy(self) -> EmaAcceptanceStrategy | None:
+        """Widened or conventional limits; None where the range is undetermined."""
+        if not self.widening_status.determined:
+            return None
         if self.widening_status.widened:
-            return Method.EMA_HVD_ABEL
-        if self.widening_status.determined:
-            return Method.STANDARD_ABE
-        return None
+            return EmaAcceptanceStrategy.WIDENED_ABEL_LIMITS
+        return EmaAcceptanceStrategy.CONVENTIONAL_LIMITS
+
+    @property
+    def analysis_model(self) -> str | None:
+        """The statistical model actually fitted, or None where none was."""
+        return None if self.treatment_effect is None else self.treatment_effect.model
 
     @property
     def raw_scaled_limits(self) -> tuple[float, float] | None:
@@ -966,7 +1030,8 @@ class EmaHighlyVariableResult:
         lines.append(f"Endpoint: {self.endpoint}.")
         lines.append(
             f"Replicate design: {self.design} - acceptable under 4.1.10 "
-            "(3- or 4-period replicate crossover)."
+            "(3- or 4-period replicate crossover); procedure EMA_HVD_ABEL, "
+            "analysed with EMA Method A."
         )
         threshold = EMA_HVD_CONSTANTS["cv_wr_scaling_threshold_percent"].value
         if self.reference_variability is None:
@@ -1263,6 +1328,7 @@ def assess_ema_endpoint(
             passes=None,
             diagnostics=tuple(diagnostics),
             provenance_lines=tuple(provenance),
+            spec_method=None if spec is None else spec.method,
         )
 
     limits = (
@@ -1323,6 +1389,7 @@ def assess_ema_endpoint(
         passes=passes,
         diagnostics=tuple(diagnostics),
         provenance_lines=tuple(provenance),
+        spec_method=None if spec is None else spec.method,
     )
 
 
@@ -1361,7 +1428,9 @@ __all__ = [
     "EmaHighlyVariableResult",
     "EmaObservation",
     "EmaReplicateDataset",
+    "EmaAcceptanceStrategy",
     "EmaResultInconsistent",
+    "METHOD_A_MODEL",
     "ReferenceVariability",
     "TreatmentEffect",
     "assess_ema_endpoint",

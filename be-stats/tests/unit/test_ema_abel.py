@@ -280,7 +280,10 @@ def test_a_low_variability_study_routes_to_the_conventional_range():
         _study(cv_wr_percent=15.0, ratio=0.97), endpoint=Endpoint.CMAX
     )
     assert result.scaling_eligible is False
-    assert result.selected_method is Method.STANDARD_ABE
+    # CORRECTED from Method.STANDARD_ABE. The interval came from EMA Method A;
+    # only the acceptance range is conventional. STANDARD_ABE is the 2x2 and
+    # parallel procedure, which nothing here ran.
+    assert result.selected_method is Method.EMA_HVD_ABEL
     assert result.applied_limits == (80.00, 125.00)
     assert result.raw_scaled_limits is None
     assert result.cap_applied is None
@@ -366,7 +369,9 @@ def test_auc_and_cmax_are_decided_independently_in_one_study():
     assert results[Endpoint.CMAX].applied_limits[1] > 125.0
 
     assert results[Endpoint.AUC].scaling_eligible is False
-    assert results[Endpoint.AUC].selected_method is Method.STANDARD_ABE
+    # CORRECTED from Method.STANDARD_ABE: same procedure, same Method A model,
+    # conventional acceptance range.
+    assert results[Endpoint.AUC].selected_method is Method.EMA_HVD_ABEL
     assert results[Endpoint.AUC].applied_limits == (80.00, 125.00)
     assert results[Endpoint.AUC].cv_wr_percent > 30.0, (
         "the AUC reference really is highly variable — it is the RULE that "
