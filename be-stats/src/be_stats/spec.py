@@ -246,6 +246,11 @@ class Capability(StrEnum):
     EMA_ABEL_PE_CONSTRAINT = "ema_abel_pe_constraint"
     #: The two criteria combined into one endpoint verdict.
     EMA_HVD_ENDPOINT_DECISION = "ema_hvd_endpoint_decision"
+    #: Widen Cmax only for a product whose widening is clinically justified AND
+    #: prospectively specified in the protocol - both stated by the caller as
+    #: product metadata, neither inferred from the data. Added because the
+    #: engine widened every Cmax endpoint with CVwR > 30% and asked neither.
+    EMA_ABEL_WIDENING_BASIS_GATE = "ema_abel_widening_basis_gate"
 
 
 #: Capabilities carry their own statuses, on the same ladder.
@@ -456,6 +461,10 @@ CAPABILITY_VALIDATION: dict[Capability, ValidationStatus] = {
     Capability.EMA_HVD_ENDPOINT_DECISION: (
         ValidationStatus.IMPLEMENTED_UNVALIDATED
     ),
+    #: IMPLEMENTED, and structural: it consults no data. It withholds widening
+    #: the engine previously granted, which is the opposite of a promotion, and
+    #: no EMA publication gives a number a regulator could disagree with here.
+    Capability.EMA_ABEL_WIDENING_BASIS_GATE: ValidationStatus.IMPLEMENTED,
 }
 
 
@@ -727,9 +736,11 @@ EMA_HVD_CONSTANTS: dict[str, RegulatoryValue] = {
         50.0,
         EMA_BIOEQUIVALENCE_HVD,
         VerificationStatus.VERIFIED,
-        "The variability at which widening stops. The guideline's own table "
-        "ends at '>=50' and the Q&A says the widening increases 'to a maximum "
-        "of 50%'.",
+        "The CVwR from which the widened range IS the published pair "
+        "69.84 - 143.19%. The guideline's own table ends at '>=50' and the Q&A "
+        "says the widening increases 'to a maximum of 50%'. Below it the "
+        "formula applies; at or above it the pair. One rule, keyed on CVwR - "
+        "not two independent crossings of the rounded pair.",
         VIA_PRIMARY_DOCUMENT,
     ),
     "cap_lower_percent": RegulatoryValue(
@@ -830,6 +841,236 @@ def ema_hvd_scaling_eligible(
     return True, (
         f"CVwR {cv_wr_percent:.4f}% exceeds {threshold:.0f}% and {endpoint} is "
         "scalable under 4.1.10."
+    )
+
+
+def ema_hvd_variability_eligible(*, cv_wr_percent: float) -> tuple[bool, str]:
+    """Question B alone: is the reference CVwR strictly greater than 30%?
+
+    The endpoint and the product are NOT consulted. `ema_hvd_scaling_eligible`
+    answers variability and endpoint together and is kept for its callers;
+    `ema_abel_widening` asks every question in order and reports each.
+    """
+    threshold = EMA_HVD_CONSTANTS["cv_wr_scaling_threshold_percent"].value
+    if not cv_wr_percent > threshold:
+        return False, (
+            f"CVwR is {cv_wr_percent:.4f}%, which is not greater than the "
+            f"{threshold:.0f}% EMA requires. The comparison is strict and is "
+            "made on the CV scale, as 4.1.10 states it."
+        )
+    return True, (
+        f"CVwR {cv_wr_percent:.4f}% exceeds {threshold:.0f}%, strictly, on the "
+        "CV scale."
+    )
+
+
+# --------------------------- the basis for widening, as product metadata ---
+#
+# 4.1.10, in full on the point:
+#
+#     "Those HVDP for which a wider difference in Cmax is considered clinically
+#     irrelevant based on a sound clinical justification can be assessed with a
+#     widened acceptance range. ... For the acceptance interval to be widened
+#     the bioequivalence study must be of a replicate design where it has been
+#     demonstrated that the within-subject variability for Cmax of the reference
+#     compound in the study is >30%. ... The request for widened interval must
+#     be prospectively specified in the protocol."
+#
+# and EMA/618604/2008 Rev. 13, question 4: "a prerequisite for widening the
+# acceptance criteria is that a wider difference in Cmax is considered
+# clinically irrelevant" - answered, for clopidogrel, with "the widening of 90%
+# confidence intervals for Cmax is not recommended".
+#
+# So variability is NECESSARY and never sufficient. The engine used to widen
+# every Cmax endpoint whose CVwR exceeded 30%. Neither remaining condition is a
+# property of the data: whether a wider Cmax difference is clinically
+# irrelevant is a judgement about the PRODUCT, and whether the protocol asked
+# for widening is a fact about the STUDY PLAN. Both arrive as typed inputs, and
+# an unstated one is never taken as a yes.
+#
+# WHAT HAPPENS WHEN WIDENING IS NOT AVAILABLE
+#
+# 4.1.8 sets the acceptance interval for Cmax at 80.00-125.00%, and says that
+# "for highly variable drug products the acceptance interval for Cmax may in
+# certain cases be widened". Widening is the exception; the conventional range
+# is the rule. So a product explicitly NOT justified, or a protocol that did not
+# prespecify widening, is assessed against 80.00-125.00% - a real decision - and
+# not refused. What cannot be decided is the case where either condition is
+# UNSTATED: the applicable range then depends on a fact nobody supplied.
+
+
+class EmaWideningJustification(StrEnum):
+    """Is a wider Cmax difference clinically irrelevant for THIS product?
+
+    Stated by the caller from the product's regulatory file. Never inferred
+    from CVwR, the endpoint, the design, the GMR or whether a study passed.
+    """
+
+    #: A sound clinical justification establishes that a wider difference in
+    #: Cmax is clinically irrelevant for this product.
+    JUSTIFIED = "justified"
+    #: Explicitly not - as EMA concluded for clopidogrel. Widening is refused
+    #: and the conventional 80.00-125.00% range applies.
+    NOT_JUSTIFIED = "not_justified"
+    #: Nobody said. Fails closed for any endpoint where widening would matter.
+    NOT_STATED = "not_stated"
+
+
+class EmaWideningPrespecification(StrEnum):
+    """Was the widened interval prospectively specified in the protocol?"""
+
+    PRESPECIFIED = "prespecified"
+    #: The protocol did not request it. 4.1.10: the request "must be
+    #: prospectively specified", so a retrospective request does not widen.
+    NOT_PRESPECIFIED = "not_prespecified"
+    NOT_STATED = "not_stated"
+
+
+class EmaWideningStatus(StrEnum):
+    """Which acceptance range applies to one endpoint, and why. One answer."""
+
+    #: Cmax, CVwR > 30%, justified and prespecified: exp(+/- k.sWR), capped.
+    WIDENED = "widened"
+    #: AUC. 4.1.10 keeps AUC at 80.00-125.00% "regardless of variability".
+    #: AUC only: the quoted rule is about AUC and is not borrowed for any other
+    #: endpoint.
+    NOT_WIDENED_ENDPOINT = "not_widened_endpoint"
+    #: Cmax with CVwR at or below 30%.
+    NOT_WIDENED_VARIABILITY = "not_widened_variability"
+    #: Cmax, CVwR > 30%, and widening explicitly not justified or not
+    #: prespecified. The conventional range applies.
+    NOT_WIDENED_BASIS_ABSENT = "not_widened_basis_absent"
+    #: Cmax, CVwR > 30%, and the justification or the prespecification was
+    #: not stated. No decision: the applicable range is unknown.
+    UNDETERMINED_BASIS_NOT_STATED = "undetermined_basis_not_stated"
+    #: Cmax, and the reference variability could not be estimated, so neither
+    #: question B nor the range it selects can be answered.
+    UNDETERMINED_VARIABILITY_NOT_ESTIMABLE = "undetermined_variability_not_estimable"
+    #: Neither Cmax nor AUC. 4.1.10 states the widening rule for Cmax and the
+    #: no-widening rule for AUC, and this engine encodes no EMA highly variable
+    #: rule for any other endpoint. No decision - AUC's rule is not borrowed.
+    UNDETERMINED_ENDPOINT_NOT_COVERED = "undetermined_endpoint_not_covered"
+
+    @property
+    def determined(self) -> bool:
+        """Is the applicable acceptance range known?"""
+        return self in _EMA_WIDENING_DETERMINED
+
+    @property
+    def widened(self) -> bool:
+        return self is EmaWideningStatus.WIDENED
+
+
+_EMA_WIDENING_DETERMINED: frozenset[EmaWideningStatus] = frozenset(
+    {
+        EmaWideningStatus.WIDENED,
+        EmaWideningStatus.NOT_WIDENED_ENDPOINT,
+        EmaWideningStatus.NOT_WIDENED_VARIABILITY,
+        EmaWideningStatus.NOT_WIDENED_BASIS_ABSENT,
+    }
+)
+
+
+def ema_abel_widening(
+    *,
+    endpoint: Endpoint,
+    cv_wr_percent: float | None,
+    clinical_justification: EmaWideningJustification,
+    protocol_prespecification: EmaWideningPrespecification,
+) -> tuple[EmaWideningStatus, str]:
+    """Which acceptance range 4.1.10 applies to one endpoint. Pure; no data.
+
+    The questions are asked in the order that makes each answer meaningful:
+
+        endpoint       widening exists only for Cmax
+        variability    CVwR > 30%, strictly, if Cmax
+        basis          justified AND prespecified, if both of the above hold
+
+    A later question is not asked when an earlier one already settles the
+    range, so an AUC endpoint needs no justification and a CVwR of 20% needs
+    none either. The inputs must be the enum members themselves: a bare bool
+    or a string is refused, because a free-text flag is how "yes" gets typed
+    by accident.
+    """
+    if not isinstance(clinical_justification, EmaWideningJustification):
+        raise TypeError(
+            "clinical_justification must be an EmaWideningJustification, got "
+            f"{clinical_justification!r}. The basis for widening is product "
+            "metadata with an explicit NOT_STATED, not a flag."
+        )
+    if not isinstance(protocol_prespecification, EmaWideningPrespecification):
+        raise TypeError(
+            "protocol_prespecification must be an EmaWideningPrespecification, "
+            f"got {protocol_prespecification!r}."
+        )
+
+    if endpoint is Endpoint.AUC:
+        return EmaWideningStatus.NOT_WIDENED_ENDPOINT, (
+            "AUC is never widened. 4.1.10: 'The possibility to widen the "
+            "acceptance criteria based on high intra-subject variability does "
+            "not apply to AUC where the acceptance range should remain at "
+            "80.00 - 125.00% regardless of variability.' No justification is "
+            "consulted, because none could change this."
+        )
+    if endpoint not in EMA_ABEL_SCALABLE_ENDPOINTS:
+        return EmaWideningStatus.UNDETERMINED_ENDPOINT_NOT_COVERED, (
+            f"{endpoint} is neither Cmax nor AUC. 4.1.10 states the widening "
+            "rule for Cmax and the no-widening rule for AUC; this engine "
+            "encodes no EMA highly variable rule for any other endpoint and "
+            "does not borrow AUC's. No decision is issued."
+        )
+
+    if cv_wr_percent is None:
+        return EmaWideningStatus.UNDETERMINED_VARIABILITY_NOT_ESTIMABLE, (
+            "The within-subject variability of the reference could not be "
+            "estimated, so whether 4.1.10's '>30%' holds is unknown and so is "
+            "the acceptance range."
+        )
+
+    eligible, variability_reason = ema_hvd_variability_eligible(
+        cv_wr_percent=cv_wr_percent
+    )
+    if not eligible:
+        return EmaWideningStatus.NOT_WIDENED_VARIABILITY, (
+            f"{variability_reason} The conventional 80.00-125.00% range applies."
+        )
+
+    refused = []
+    if clinical_justification is EmaWideningJustification.NOT_JUSTIFIED:
+        refused.append(
+            "a wider Cmax difference is explicitly NOT established as clinically "
+            "irrelevant for this product"
+        )
+    if protocol_prespecification is EmaWideningPrespecification.NOT_PRESPECIFIED:
+        refused.append(
+            "the widened interval was NOT prospectively specified in the protocol"
+        )
+    if refused:
+        return EmaWideningStatus.NOT_WIDENED_BASIS_ABSENT, (
+            f"{variability_reason} Widening is still not available: "
+            + "; and ".join(refused)
+            + ". 4.1.10 requires both, so the conventional 80.00-125.00% range "
+            "applies."
+        )
+
+    unstated = []
+    if clinical_justification is EmaWideningJustification.NOT_STATED:
+        unstated.append("whether a wider Cmax difference is clinically irrelevant")
+    if protocol_prespecification is EmaWideningPrespecification.NOT_STATED:
+        unstated.append("whether the protocol prospectively specified widening")
+    if unstated:
+        return EmaWideningStatus.UNDETERMINED_BASIS_NOT_STATED, (
+            f"{variability_reason} Variability alone does not widen the range: "
+            "4.1.10 also requires a sound clinical justification and a "
+            "prospectively specified request, and "
+            + " and ".join(unstated)
+            + " was not stated. Neither is assumed, so the acceptance range - "
+            "widened or conventional - is undetermined."
+        )
+
+    return EmaWideningStatus.WIDENED, (
+        f"{variability_reason} Cmax, clinically justified and prospectively "
+        "specified: the acceptance range is widened under 4.1.10."
     )
 
 
@@ -1659,8 +1900,12 @@ def resolve_be_spec(
                 "69.84-143.19%, with the GMR additionally required to fall "
                 "within 80.00-125.00%. That is a different procedure from "
                 "FDA's RSABE, which scales a CRITERION, and not a relabelling "
-                "of it. Widening applies to Cmax ONLY, and only where CVwR "
-                "exceeds 30 percent - strictly, on the CV scale. Section "
+                "of it. Widening applies to Cmax ONLY, only where CVwR "
+                "exceeds 30 percent - strictly, on the CV scale - and only "
+                "for a product whose wider Cmax difference is clinically "
+                "irrelevant on a sound clinical justification, with the "
+                "widened interval prospectively specified in the protocol. "
+                "Both are product metadata the caller states. Section "
                 "4.1.10; ICH M13A does not address replicate designs, so the "
                 "2010 guideline continues to apply (EMA/531548/2024)."
             ),

@@ -132,6 +132,13 @@ jobs:
         # workflow on a pull request. The authority tests use those records as
         # their positive control; a control nobody re-establishes is a record
         # of a past run. Twelve tests, well under a second.
+        #
+        # THE EMA ABEL DECISION PATH JOINS THEM.
+        #
+        # `test_ema_abel.py` held the strict >30% boundary, the Cmax-only
+        # rule, the cap and both criteria, and ran in no workflow on a pull
+        # request. `test_ema_abel_applicability.py` holds the basis for
+        # widening the ABEL audit found missing. The guard gains `test_ema_*`.
         run: |
           python -m pytest be-stats/tests/unit/test_dossier_*.py \
                            be-stats/tests/unit/test_power_and_data.py \
@@ -159,6 +166,8 @@ jobs:
                            be-stats/tests/validation/test_dossier_evidence_search.py \
                            be-stats/tests/validation/test_dossier_tier_1b_authority.py \
                            be-stats/tests/validation/test_ema_tier1b.py \
+                           be-stats/tests/unit/test_ema_abel.py \
+                           be-stats/tests/unit/test_ema_abel_applicability.py \
                            be-stats/tests/validation/test_fda_cvm_vich_gl52_candidate.py \
                            be-stats/tests/validation/test_golden_cases.py \
                            be-stats/tests/validation/test_governance_wording.py \
@@ -243,6 +252,9 @@ jobs:
                   # Tier-1B evidence itself, spelled both ways it is spelled.
                   "test_*tier1b*.py",
                   "test_*tier_1b*.py",
+                  # EMA highly variable drugs / ABEL. `test_ema_*` rather
+                  # than `*ema*`, which would also match `semantics`.
+                  "test_ema_*.py",
               )
               for p in pathlib.Path("be-stats/tests").rglob(pattern)
           }

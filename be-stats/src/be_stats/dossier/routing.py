@@ -194,7 +194,9 @@ ROUTING_MATRIX: tuple[RoutingRoute, ...] = (
         design_requirement=(DesignFamily.REPLICATE, DesignFamily.PARTIAL_REPLICATE),
         method=Method.EMA_HVD_ABEL,
         decision_rule=(
-            "Where CVwR for Cmax exceeds 30% strictly, the limits widen to "
+            "Where CVwR for Cmax exceeds 30% strictly AND the product's wider "
+            "Cmax difference is clinically justified AND widening was "
+            "prospectively specified in the protocol, the limits widen to "
             "exp(+/- 0.760.sWR) capped at 69.84-143.19%; the Method A 90% "
             "interval must fall within them AND the GMR must fall within "
             "80.00-125.00%. Both are required. AUC stays at 80.00-125.00% "
@@ -203,11 +205,21 @@ ROUTING_MATRIX: tuple[RoutingRoute, ...] = (
         refusal_behaviour=(
             "Widening requested for AUC is refused rather than granted. A "
             "non-replicate design is refused. CVwR at or below 30% does not "
-            "widen - it is not a failure, the ordinary limits simply apply."
+            "widen - it is not a failure, the ordinary limits simply apply. "
+            "A highly variable Cmax whose clinical justification or protocol "
+            "prespecification is NOT STATED gets no decision; one explicitly "
+            "not justified or not prespecified is assessed against "
+            "80.00-125.00%, with the CI bounds rounded to two decimal places "
+            "as 4.1.8 states. The widened limits are the formula below CVwR "
+            "50% and the published pair 69.84-143.19% at or above it, compared "
+            "with the CI unrounded (VAL-EMA-ABEL-003). An endpoint other than "
+            "Cmax or AUC gets no decision."
         ),
         refusal_conditions=(
             RefusalCode.EMA_ABEL_CMAX_ONLY,
             RefusalCode.EMA_ABEL_REPLICATE_DESIGN_REQUIRED,
+            RefusalCode.EMA_ABEL_WIDENING_BASIS_REQUIRED,
+            RefusalCode.EMA_HVD_ENDPOINT_RULE_REQUIRED,
             RefusalCode.QUANTITY_NOT_ESTIMABLE,
         ),
     ),

@@ -454,6 +454,141 @@ FDA_NTI_TIER_1B_SEARCH: tuple[SearchedSource, ...] = (
 )
 
 
+#: The END-TO-END tier-1B search for EMA's highly variable procedure, ABEL.
+#:
+#: The question: has EMA published ONE scenario carried all the way through -
+#: reference variability, eligibility, widened limits, the Method A 90% CI, the
+#: GMR constraint - to a stated bioequivalence verdict, such that
+#: `EMA_HVD_ABEL` could hold method-level tier-1B evidence?
+#:
+#: The answer is no. EMA publishes three of the components with numbers, and
+#: this package already holds them as tier-1B evidence for those components. It
+#: publishes them in different places, for different data, and never joins
+#: them. Joining them here - taking Data set I's CVwR, computing the limits it
+#: would imply, and checking EMA's Method A interval against them - would be
+#: this package writing an end-to-end example and then citing EMA for it.
+EMA_HVD_ABEL_END_TO_END_SEARCH: tuple[SearchedSource, ...] = (
+    SearchedSource(
+        sought="EMA ABEL end to end: one scenario through variability, limits, Method A CI, GMR and a stated verdict",
+        authority="EMA",
+        document="Guideline on the Investigation of Bioequivalence (CPMP/EWP/QWP/1401/98 Rev. 1)",
+        document_version="Rev. 1, effective 1 August 2010",
+        sections_read=(
+            "4.1.8 (acceptance limits and statistical analysis), 4.1.9 and "
+            "4.1.10 in full, read from the extracted text of pages 15-17."
+        ),
+        verdict=SearchVerdict.NUMBERS_OUT_OF_SCOPE,
+        found=(
+            "The rule: widening only for HVDP 'for which a wider difference in "
+            "Cmax is considered clinically irrelevant based on a sound clinical "
+            "justification', a replicate design demonstrating CVwR '>30%', the "
+            "request 'prospectively specified in the protocol', [U, L] = "
+            "exp[+/- k.sWR] with k = 0.760, a maximum of 69.84 - 143.19%, the "
+            "GMR within 80.00-125.00%, and no widening for AUC. One table of "
+            "limits at CVwR 30, 35, 40, 45 and >=50%."
+        ),
+        rejected_because=(
+            "Component numbers only. The table is a function of CVwR and k: no "
+            "dataset, no interval, no GMR, no verdict. It is already tier-1B "
+            "evidence for EMA_ABEL_LIMIT_CALCULATION (EMA-ABEL-LIMITS-TABLE), "
+            "which is what it can support."
+        ),
+        url=(
+            "https://www.ema.europa.eu/en/documents/scientific-guideline/"
+            "guideline-investigation-bioequivalence-rev1_en.pdf"
+        ),
+    ),
+    SearchedSource(
+        sought="EMA ABEL end to end: one scenario through variability, limits, Method A CI, GMR and a stated verdict",
+        authority="EMA",
+        document=(
+            "Questions & Answers: Positions on specific questions addressed to "
+            "the Pharmacokinetics Working Party (EMA/618604/2008)"
+        ),
+        document_version="Rev. 13, 19 November 2015",
+        sections_read=(
+            "The replicate-design analysis section (Methods A, B and C; results "
+            "for Data sets I and II; 3.4 estimating the within subject "
+            "variability; discussion and conclusion) and its annex, read from "
+            "pages 16-19; question 4 (widening Cmax for clopidogrel); question "
+            "19 (3-period replicate designs); the orally inhaled products "
+            "answer on scaled limits."
+        ),
+        verdict=SearchVerdict.NUMBERS_OUT_OF_SCOPE,
+        found=(
+            "Data set I (4-period, unbalanced) and Data set II (3-period): "
+            "Method A point estimates and 90% intervals, 115.66 (107.11, "
+            "124.89) and 102.26 (97.32, 107.46), and reference CVwR 47.0% and "
+            "11.2% by the reference-only model - with the raw data. These are "
+            "tier-1B evidence for EMA_REPLICATE_METHOD_A and "
+            "EMA_HVD_REFERENCE_VARIABILITY. Question 4 is the only passage "
+            "applying the widening rule to a product, and it concludes 'the "
+            "widening of 90% confidence intervals for Cmax is not recommended' "
+            "for clopidogrel, with no numbers."
+        ),
+        rejected_because=(
+            "The data sets illustrate MODELS, not the ABEL decision. EMA states "
+            "no widened limits for either, no clinical justification or "
+            "protocol prespecification, and no bioequivalence conclusion - "
+            "Data set I's CVwR of 47.0% is never taken through 4.1.10. Stitching "
+            "its CVwR, the limits it would imply and its published interval "
+            "into a PASS would be a verdict this package wrote, attributed to "
+            "EMA."
+        ),
+        url=(
+            "https://www.ema.europa.eu/en/documents/scientific-guideline/"
+            "questions-and-answers-positions-specific-questions-addressed-"
+            "pharmacokinetics-working-party_en.pdf"
+        ),
+    ),
+    SearchedSource(
+        sought="EMA ABEL end to end: one scenario through variability, limits, Method A CI, GMR and a stated verdict",
+        authority="EMA",
+        document=(
+            "Considerations regarding the implementation of ICH M13A on "
+            "bioequivalence for immediate-release solid oral dosage forms "
+            "(EMA/531548/2024)"
+        ),
+        document_version="adopted by CHMP 17 February 2025",
+        sections_read="All three pages.",
+        verdict=SearchVerdict.NO_NUMERICAL_OUTPUT,
+        found=(
+            "Precedence only: the 2010 guideline 'pertaining to specific topics "
+            "not addressed in ICH M13A will continue to apply', naming 'BE "
+            "studies with highly variable drugs (replicate design)'. No numbers."
+        ),
+        url=(
+            "https://www.ema.europa.eu/en/documents/scientific-guideline/"
+            "considerations-regarding-implementation-ich-m13a-bioequivalence-"
+            "immediate-release-solid-oral-dosage-forms_en.pdf"
+        ),
+    ),
+    SearchedSource(
+        sought="EMA ABEL end to end: one scenario through variability, limits, Method A CI, GMR and a stated verdict",
+        authority="EMA",
+        document=(
+            "ICH M13A Guideline on bioequivalence for immediate-release solid "
+            "oral dosage forms - Questions and answers (EMA/CHMP/ICH/325575/2024)"
+        ),
+        document_version="final adoption by CHMP 25 July 2024",
+        sections_read=(
+            "Full extracted text (17 pages) searched for replicate, highly "
+            "variable and widening terms; none is present."
+        ),
+        verdict=SearchVerdict.NO_NUMERICAL_OUTPUT,
+        found=(
+            "Addresses non-replicate design and analysis only, consistent with "
+            "M13A's scope. Nothing on highly variable drugs or widened limits."
+        ),
+        url=(
+            "https://www.ema.europa.eu/en/documents/other/ich-m13a-guideline-"
+            "bioequivalence-immediate-release-solid-oral-dosage-forms-"
+            "questions-answers_en.pdf"
+        ),
+    ),
+)
+
+
 def sources_with_verdict(
     verdict: SearchVerdict,
     search: tuple[SearchedSource, ...] = ORDINARY_ABE_TIER_1B_SEARCH,

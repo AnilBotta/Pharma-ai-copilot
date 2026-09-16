@@ -94,6 +94,14 @@ class RefusalCode(StrEnum):
     #: AUC request for ABEL is refused rather than answered with the widened
     #: limits.
     EMA_ABEL_CMAX_ONLY = "EMA_ABEL_CMAX_ONLY"
+    #: A highly variable Cmax endpoint for which the clinical justification or
+    #: the protocol prespecification of widening was not stated. 4.1.10 makes
+    #: both prerequisites of widening, so the applicable range is unknown.
+    EMA_ABEL_WIDENING_BASIS_REQUIRED = "EMA_ABEL_WIDENING_BASIS_REQUIRED"
+    #: An endpoint other than Cmax or AUC. EMA's highly variable procedure
+    #: states a rule for those two and no other, and the engine does not treat
+    #: an unnamed endpoint as if it were AUC.
+    EMA_HVD_ENDPOINT_RULE_REQUIRED = "EMA_HVD_ENDPOINT_RULE_REQUIRED"
     #: EMA narrows Cmax for an NTI drug only where Cmax is itself important
     #: for safety, efficacy or therapeutic drug monitoring - decided per
     #: product. Both defaults are wrong for some products.
@@ -243,6 +251,38 @@ REFUSALS: dict[RefusalCode, RefusalReason] = {
             "80.00-125.00% interval, which this engine does support."
         ),
         source="EMA CPMP/EWP/QWP/1401/98 Rev. 1, 4.1.10, final paragraph",
+    ),
+    RefusalCode.EMA_ABEL_WIDENING_BASIS_REQUIRED: RefusalReason(
+        code=RefusalCode.EMA_ABEL_WIDENING_BASIS_REQUIRED,
+        summary=(
+            "No EMA decision issued: the reference CVwR for Cmax exceeds 30%, "
+            "and 4.1.10 widens the range only for a product whose wider Cmax "
+            "difference is clinically irrelevant on a sound clinical "
+            "justification, with the widened interval prospectively specified "
+            "in the protocol. At least one of those was not stated, so neither "
+            "the widened nor the conventional range can be applied. Reference "
+            "variability is reported descriptively."
+        ),
+        lifted_by=(
+            "State the product's clinical justification (JUSTIFIED or "
+            "NOT_JUSTIFIED) and whether the protocol prespecified widening "
+            "(PRESPECIFIED or NOT_PRESPECIFIED)."
+        ),
+        source="EMA CPMP/EWP/QWP/1401/98 Rev. 1, 4.1.10; EMA/618604/2008 Rev. 13, question 4",
+    ),
+    RefusalCode.EMA_HVD_ENDPOINT_RULE_REQUIRED: RefusalReason(
+        code=RefusalCode.EMA_HVD_ENDPOINT_RULE_REQUIRED,
+        summary=(
+            "No EMA decision issued: 4.1.10 states the widening rule for Cmax "
+            "and keeps AUC at 80.00-125.00%, and states nothing for any other "
+            "endpoint. The engine does not apply AUC's rule to an endpoint "
+            "that is not AUC."
+        ),
+        lifted_by=(
+            "Submit the endpoint as Cmax or AUC if that is what it is, or "
+            "supply the product-specific rule that governs it."
+        ),
+        source="EMA CPMP/EWP/QWP/1401/98 Rev. 1, 4.1.10",
     ),
     RefusalCode.FDA_HVD_NOT_APPLICABLE_NTI: RefusalReason(
         code=RefusalCode.FDA_HVD_NOT_APPLICABLE_NTI,
@@ -414,6 +454,12 @@ DIAGNOSTIC_FOR: dict[RefusalCode, DiagnosticCode] = {
         DiagnosticCode.UNSUPPORTED_REPLICATE_DESIGN
     ),
     RefusalCode.MODEL_DID_NOT_FIT: DiagnosticCode.SINGULAR_MODEL,
+    RefusalCode.EMA_ABEL_WIDENING_BASIS_REQUIRED: (
+        DiagnosticCode.EMA_ABEL_WIDENING_BASIS_NOT_STATED
+    ),
+    RefusalCode.EMA_HVD_ENDPOINT_RULE_REQUIRED: (
+        DiagnosticCode.EMA_HVD_ENDPOINT_NOT_COVERED
+    ),
 }
 
 

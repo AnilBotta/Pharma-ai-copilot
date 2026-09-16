@@ -24,6 +24,8 @@ from be_stats.replicate import DataError, ReplicateObservation, parse_sequence
 from be_stats.spec import (
     EMA_ABEL_SCALABLE_ENDPOINTS,
     EMA_HVD_CONSTANTS,
+    EmaWideningJustification,
+    EmaWideningPrespecification,
     Endpoint,
     Method,
     ema_hvd_scaling_eligible,
@@ -31,6 +33,20 @@ from be_stats.spec import (
 from be_stats.study import Treatment
 
 THRESHOLD = EMA_HVD_CONSTANTS["cv_wr_scaling_threshold_percent"].value
+
+#: A product whose widening is clinically justified and was prospectively
+#: specified in the protocol.
+#:
+#: CORRECTION. The end-to-end tests below that expect widening used to call
+#: `assess_ema_endpoint` with only an endpoint, and got widened limits from
+#: CVwR alone. 4.1.10 requires both of these as well, and the engine now
+#: refuses to assume them - so the tests that are about the FLOW of a widened
+#: endpoint declare them, once, under a name that says what is declared.
+#: `test_ema_abel_applicability.py` owns the behaviour when they are absent.
+JUSTIFIED_AND_PRESPECIFIED = {
+    "clinical_justification": EmaWideningJustification.JUSTIFIED,
+    "protocol_prespecification": EmaWideningPrespecification.PRESPECIFIED,
+}
 
 
 def swr_for(cv_percent: float) -> float:
@@ -127,10 +143,9 @@ def test_a_zero_reference_variability_refuses_rather_than_returning_a_point():
     "cv_percent, expect_cap",
     [(30.5, False), (45.0, False), (49.0, False), (50.0, True), (80.0, True)],
 )
-def test_the_cap_engages_only_where_the_limits_exceed_the_stated_maximum(
-    cv_percent, expect_cap
-):
-    limits = ema_abel_limits(swr_for(cv_percent))
+def test_the_cap_engages_at_and_above_cvwr_50(cv_percent, expect_cap):
+    """CORRECTED: one rule keyed on CVwR, not per-limit crossings of the pair."""
+    limits = ema_abel_limits(swr_for(cv_percent), cv_wr_percent=cv_percent)
     assert limits.cap_applied is expect_cap
     if expect_cap:
         assert limits.final_lower_percent == EMA_HVD_CONSTANTS[
@@ -162,16 +177,16 @@ def test_widening_is_monotone_in_variability_up_to_the_cap():
     point.'
     """
     widths = [
-        ema_abel_limits(swr_for(cv)).final_upper_percent
-        - ema_abel_limits(swr_for(cv)).final_lower_percent
+        ema_abel_limits(swr_for(cv), cv_wr_percent=cv).final_upper_percent
+        - ema_abel_limits(swr_for(cv), cv_wr_percent=cv).final_lower_percent
         for cv in (31, 35, 40, 45, 49)
     ]
     assert widths == sorted(widths)
     assert all(a < b for a, b in zip(widths, widths[1:]))
 
     capped = [
-        ema_abel_limits(swr_for(cv)).final_upper_percent
-        - ema_abel_limits(swr_for(cv)).final_lower_percent
+        ema_abel_limits(swr_for(cv), cv_wr_percent=cv).final_upper_percent
+        - ema_abel_limits(swr_for(cv), cv_wr_percent=cv).final_lower_percent
         for cv in (50, 60, 90)
     ]
     assert len(set(capped)) == 1, "past the cap the width must stop growing"
@@ -265,7 +280,10 @@ def test_a_low_variability_study_routes_to_the_conventional_range():
         _study(cv_wr_percent=15.0, ratio=0.97), endpoint=Endpoint.CMAX
     )
     assert result.scaling_eligible is False
-    assert result.selected_method is Method.STANDARD_ABE
+    # CORRECTED from Method.STANDARD_ABE. The interval came from EMA Method A;
+    # only the acceptance range is conventional. STANDARD_ABE is the 2x2 and
+    # parallel procedure, which nothing here ran.
+    assert result.selected_method is Method.EMA_HVD_ABEL
     assert result.applied_limits == (80.00, 125.00)
     assert result.raw_scaled_limits is None
     assert result.cap_applied is None
@@ -275,7 +293,9 @@ def test_a_low_variability_study_routes_to_the_conventional_range():
 
 def test_a_highly_variable_study_routes_to_abel_and_shows_its_working():
     result = assess_ema_endpoint(
-        _study(cv_wr_percent=45.0, ratio=0.90), endpoint=Endpoint.CMAX
+        _study(cv_wr_percent=45.0, ratio=0.90),
+        endpoint=Endpoint.CMAX,
+        **JUSTIFIED_AND_PRESPECIFIED,
     )
     assert result.scaling_eligible is True
     assert result.selected_method is Method.EMA_HVD_ABEL
@@ -294,7 +314,9 @@ def test_both_criteria_are_reported_separately():
     missed on precision from one that missed on location.
     """
     result = assess_ema_endpoint(
-        _study(cv_wr_percent=45.0, ratio=0.78), endpoint=Endpoint.CMAX
+        _study(cv_wr_percent=45.0, ratio=0.78),
+        endpoint=Endpoint.CMAX,
+        **JUSTIFIED_AND_PRESPECIFIED,
     )
     assert result.interval_criterion_passes is not None
     assert result.point_estimate_criterion_passes is False, (
@@ -317,6 +339,7 @@ def test_the_point_estimate_constraint_can_fail_a_study_the_interval_passes():
     result = assess_ema_endpoint(
         _study(cv_wr_percent=55.0, ratio=0.79, n_per_sequence=60),
         endpoint=Endpoint.CMAX,
+        **JUSTIFIED_AND_PRESPECIFIED,
     )
     if result.interval_criterion_passes and not result.point_estimate_criterion_passes:
         assert result.passes is False
@@ -337,14 +360,18 @@ def test_auc_and_cmax_are_decided_independently_in_one_study():
     cmax = _study(cv_wr_percent=45.0, ratio=0.90, endpoint="Cmax")
     auc = _study(cv_wr_percent=45.0, ratio=0.90, endpoint="AUC", seed=11)
 
-    results = assess_ema_study({Endpoint.CMAX: cmax, Endpoint.AUC: auc})
+    results = assess_ema_study(
+        {Endpoint.CMAX: cmax, Endpoint.AUC: auc}, **JUSTIFIED_AND_PRESPECIFIED
+    )
 
     assert results[Endpoint.CMAX].scaling_eligible is True
     assert results[Endpoint.CMAX].selected_method is Method.EMA_HVD_ABEL
     assert results[Endpoint.CMAX].applied_limits[1] > 125.0
 
     assert results[Endpoint.AUC].scaling_eligible is False
-    assert results[Endpoint.AUC].selected_method is Method.STANDARD_ABE
+    # CORRECTED from Method.STANDARD_ABE: same procedure, same Method A model,
+    # conventional acceptance range.
+    assert results[Endpoint.AUC].selected_method is Method.EMA_HVD_ABEL
     assert results[Endpoint.AUC].applied_limits == (80.00, 125.00)
     assert results[Endpoint.AUC].cv_wr_percent > 30.0, (
         "the AUC reference really is highly variable — it is the RULE that "
@@ -355,7 +382,9 @@ def test_auc_and_cmax_are_decided_independently_in_one_study():
 def test_the_result_cites_ema_and_never_appendix_g():
     """Provenance is regulator-specific even where the arithmetic rhymes."""
     result = assess_ema_endpoint(
-        _study(cv_wr_percent=45.0, ratio=0.95), endpoint=Endpoint.CMAX
+        _study(cv_wr_percent=45.0, ratio=0.95),
+        endpoint=Endpoint.CMAX,
+        **JUSTIFIED_AND_PRESPECIFIED,
     )
     text = " ".join(result.provenance())
     assert "4.1.10" in text
@@ -391,7 +420,9 @@ def test_a_partial_replicate_study_is_supported():
                     )
                 )
 
-    result = assess_ema_endpoint(rows, endpoint=Endpoint.CMAX)
+    result = assess_ema_endpoint(
+        rows, endpoint=Endpoint.CMAX, **JUSTIFIED_AND_PRESPECIFIED
+    )
     assert str(result.design) == "partial_replicate"
     assert result.decided is True
 
@@ -421,16 +452,26 @@ def _effect(*, gmr_percent: float, lower_percent: float, upper_percent: float):
 
 
 @pytest.mark.parametrize(
-    "lower, upper, expected",
+    "lower, upper, widened, expected",
     [
-        (80.0, 125.0, True),      # both limits exactly on the boundary
-        (79.9999, 125.0, False),  # a hair below the lower limit
-        (80.0, 125.0001, False),  # a hair above the upper limit
-        (80.0001, 124.9999, True),
+        # CORRECTED. These asserted a raw comparison against 80.00-125.00%.
+        # 4.1.8 compares after rounding to two decimals, so 79.9999 and
+        # 125.0001 are INSIDE the conventional range.
+        (80.0, 125.0, False, True),      # both limits exactly on the boundary
+        (79.9999, 125.0, False, True),   # rounds to 80.00
+        (80.0, 125.0001, False, True),   # rounds to 125.00
+        (79.994, 125.0, False, False),   # rounds to 79.99
+        (80.0, 125.006, False, False),   # rounds to 125.01
+        (80.0001, 124.9999, False, True),
+        # Against widened limits the comparison is unrounded (VAL-EMA-ABEL-003).
+        (80.0, 125.0, True, True),
+        (79.9999, 125.0, True, False),
+        (80.0, 125.0001, True, False),
+        (80.0001, 124.9999, True, True),
     ],
 )
 def test_interval_containment_is_inclusive_at_the_exact_limits(
-    lower, upper, expected
+    lower, upper, widened, expected
 ):
     """A CI touching the limit is contained.
 
@@ -445,6 +486,7 @@ def test_interval_containment_is_inclusive_at_the_exact_limits(
         effect=_effect(gmr_percent=100.0, lower_percent=lower, upper_percent=upper),
         lower_percent=80.0,
         upper_percent=125.0,
+        widened=widened,
     )
     assert interval_ok is expected
 
@@ -468,6 +510,7 @@ def test_the_point_estimate_constraint_is_inclusive_at_80_and_125(gmr, expected)
         effect=_effect(gmr_percent=gmr, lower_percent=90.0, upper_percent=110.0),
         lower_percent=80.0,
         upper_percent=125.0,
+        widened=False,
     )
     assert pe_ok is expected
 
@@ -485,7 +528,7 @@ def test_the_pe_constraint_is_checked_against_80_125_even_when_limits_widen():
     # A study sitting at GMR 78%, inside widened limits of 69.84-143.19.
     effect = _effect(gmr_percent=78.0, lower_percent=72.0, upper_percent=84.0)
     interval_ok, pe_ok, passes = _both_criteria(
-        effect=effect, lower_percent=69.84, upper_percent=143.19
+        effect=effect, lower_percent=69.84, upper_percent=143.19, widened=True
     )
     assert interval_ok is True, "the interval really is inside the widened range"
     assert pe_ok is False, "and the GMR constraint is what stops it"

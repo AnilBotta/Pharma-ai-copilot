@@ -279,9 +279,18 @@ _METHOD_ROWS: tuple[CapabilityRecord, ...] = (
         method=Method.EMA_HVD_ABEL,
         source_key=Method.EMA_HVD_ABEL,
         design_requirement=REPLICATE_DESIGNS,
-        endpoints=(Endpoint.CMAX,),
+        # CORRECTED from (CMAX,). This method is the whole EMA highly variable
+        # replicate procedure: `resolve_be_spec` selects it for AUC as well as
+        # Cmax, and `assess_ema_endpoint` decides both with Method A. Only
+        # Cmax may WIDEN, and that is `widening_status`, not endpoint scope.
+        endpoints=(Endpoint.AUC, Endpoint.CMAX),
         regulatory_source=EMA_BIOEQUIVALENCE_HVD,
-        evidence_tier=EvidenceTier.TIER_1B,
+        # CORRECTED from TIER_1B. The method row holds no tier-1B record: its
+        # tier-1B evidence belongs to three components, and the method's own
+        # evidence is the tier-1A decision rule. A tier label is a claim about
+        # this row, and borrowing the components' label for the assembled
+        # method is the inheritance this row's first limitation warns against.
+        evidence_tier=EvidenceTier.TIER_1A,
         decision_supported=True,
         known_limitations=(
             "Three of its four component capabilities are VALIDATED on "
@@ -289,11 +298,40 @@ _METHOD_ROWS: tuple[CapabilityRecord, ...] = (
             "carries one end-to-end example from CVwR > 30% through widened "
             "limits and the Method A interval to a stated verdict, so the "
             "wiring between validated parts is itself unvalidated.",
-            "Cmax only. AUC stays at 80.00-125.00% regardless of variability.",
+            "Decides AUC and Cmax, both with the same EMA Method A model. Only "
+            "Cmax may WIDEN; AUC is always assessed against 80.00-125.00% "
+            "regardless of variability. The acceptance range is reported as "
+            "`widening_status` and `acceptance_strategy`, never as a different "
+            "method: a conventional-range result is still EMA_HVD_ABEL, and "
+            "never STANDARD_ABE, which is the 2x2 crossover and parallel "
+            "procedure.",
+            "CVwR > 30% is necessary and not sufficient. Widening also needs "
+            "a sound clinical justification that a wider Cmax difference is "
+            "clinically irrelevant, and a widened interval prospectively "
+            "specified in the protocol - both stated by the caller. Either "
+            "one unstated gives no decision; either one explicitly absent "
+            "gives the conventional 80.00-125.00% range.",
+            "The engine records the justification; it cannot judge whether "
+            "the justification is sound, or whether the CVwR estimate is "
+            "reliable rather than driven by outliers, which 4.1.10 asks the "
+            "applicant to justify.",
+            "No EMA publication carries one scenario end to end through "
+            "variability, eligibility, widened limits, the Method A interval "
+            "and the GMR constraint to a stated verdict. The search is "
+            "recorded as EMA_HVD_ABEL_END_TO_END_SEARCH, and components "
+            "validated separately are not stitched into one.",
+            "Against 80.00-125.00% the CI bounds are rounded to two decimal "
+            "places before comparison, as 4.1.8 states. Against widened limits "
+            "they are compared unrounded: 4.1.10 does not say, and the open "
+            "question is VAL-EMA-ABEL-003.",
+            "Endpoints other than Cmax and AUC receive no decision. 4.1.10's "
+            "AUC rule is not applied to them.",
         ),
         refusal_conditions=(
             RefusalCode.EMA_ABEL_CMAX_ONLY,
             RefusalCode.EMA_ABEL_REPLICATE_DESIGN_REQUIRED,
+            RefusalCode.EMA_ABEL_WIDENING_BASIS_REQUIRED,
+            RefusalCode.EMA_HVD_ENDPOINT_RULE_REQUIRED,
             RefusalCode.QUANTITY_NOT_ESTIMABLE,
         ),
     ),
@@ -683,7 +721,9 @@ _CAPABILITY_ROWS: tuple[CapabilityRecord, ...] = (
         method=Method.EMA_HVD_ABEL,
         source_key=Capability.EMA_HVD_DESIGN_GATE,
         design_requirement=REPLICATE_DESIGNS,
-        endpoints=(Endpoint.CMAX,),
+        # CORRECTED from (CMAX,): the gate runs before every endpoint the
+        # procedure decides, AUC included.
+        endpoints=(Endpoint.AUC, Endpoint.CMAX),
         regulatory_source=EMA_BIOEQUIVALENCE_HVD,
         evidence_tier=EvidenceTier.TIER_1A,
         decision_supported=False,
@@ -708,6 +748,33 @@ _CAPABILITY_ROWS: tuple[CapabilityRecord, ...] = (
             "between them.",
         ),
         refusal_conditions=(RefusalCode.EMA_ABEL_CMAX_ONLY,),
+    ),
+    _record(
+        capability_id="EMA_ABEL_WIDENING_BASIS_GATE",
+        title="Widen Cmax only on a stated clinical justification and a prespecified protocol",
+        jurisdiction=Jurisdiction.EMA,
+        method=Method.EMA_HVD_ABEL,
+        source_key=Capability.EMA_ABEL_WIDENING_BASIS_GATE,
+        design_requirement=REPLICATE_DESIGNS,
+        endpoints=(Endpoint.CMAX,),
+        regulatory_source=EMA_BIOEQUIVALENCE_HVD,
+        evidence_tier=EvidenceTier.TIER_1A,
+        decision_supported=False,
+        known_limitations=(
+            "Structural, and it consults no data. Whether a wider Cmax "
+            "difference is clinically irrelevant is a judgement about the "
+            "product, and whether widening was prespecified is a fact about "
+            "the protocol; neither can be read from CVwR, the endpoint, the "
+            "design or the result.",
+            "An unstated basis REFUSES rather than defaulting to either range. "
+            "An explicitly absent basis applies the conventional "
+            "80.00-125.00% range, because 4.1.8 sets that range for Cmax and "
+            "4.1.10 widens it only 'in certain cases'.",
+            "The gate cannot detect a MISSTATED basis. A product declared "
+            "justified and prespecified is widened, and nothing in the data "
+            "would contradict the declaration.",
+        ),
+        refusal_conditions=(RefusalCode.EMA_ABEL_WIDENING_BASIS_REQUIRED,),
     ),
     _record(
         capability_id="EMA_HVD_REFERENCE_VARIABILITY",
@@ -758,9 +825,15 @@ _CAPABILITY_ROWS: tuple[CapabilityRecord, ...] = (
         evidence_tier=EvidenceTier.TIER_1B,
         decision_supported=False,
         known_limitations=(
-            "The cap is applied as the regulator STATES it, 69.84-143.19%, "
-            "not as the formula recomputes it. PowerTOST keeps the unrounded "
-            "pair; be-stats follows EMA. See VAL-EMA-ABEL-002.",
+            "One cap rule, keyed on CVwR: below 50% the formula exp(+/- "
+            "0.760.sWR); at CVwR >= 50% exactly the published pair "
+            "69.84-143.19%, not recomputed. PowerTOST recomputes the pair at "
+            "and above 50%; see VAL-EMA-ABEL-002.",
+            "Between CVwR 49.9928% and 50% the formula gives limits up to "
+            "0.0032 percentage points beyond the published pair, and they are "
+            "applied, because the table switches to the pair at 50. An earlier "
+            "version clipped each limit independently and capped only the "
+            "lower one in that band; that was corrected.",
         ),
         refusal_conditions=(RefusalCode.EMA_ABEL_CMAX_ONLY,),
     ),
@@ -789,7 +862,8 @@ _CAPABILITY_ROWS: tuple[CapabilityRecord, ...] = (
         method=Method.EMA_HVD_ABEL,
         source_key=Capability.EMA_HVD_ENDPOINT_DECISION,
         design_requirement=REPLICATE_DESIGNS,
-        endpoints=(Endpoint.CMAX,),
+        # CORRECTED from (CMAX,): the decision is issued for AUC too.
+        endpoints=(Endpoint.AUC, Endpoint.CMAX),
         regulatory_source=EMA_BIOEQUIVALENCE_HVD,
         evidence_tier=EvidenceTier.TIER_1A,
         decision_supported=True,
@@ -798,10 +872,18 @@ _CAPABILITY_ROWS: tuple[CapabilityRecord, ...] = (
             "Validating the components does not validate the wiring between "
             "them, and this is exactly where correct pieces could be "
             "assembled into a wrong verdict.",
+            "The decision asks four separate questions - design, variability, "
+            "endpoint and basis for widening, then the two criteria - and "
+            "reports each. It issues no verdict where the applicable range is "
+            "unknown, and no result can be constructed that widens an "
+            "endpoint 4.1.10 does not widen.",
         ),
         refusal_conditions=(
             RefusalCode.EMA_ABEL_CMAX_ONLY,
             RefusalCode.EMA_ABEL_REPLICATE_DESIGN_REQUIRED,
+            RefusalCode.EMA_ABEL_WIDENING_BASIS_REQUIRED,
+            RefusalCode.EMA_HVD_ENDPOINT_RULE_REQUIRED,
+            RefusalCode.QUANTITY_NOT_ESTIMABLE,
         ),
     ),
 )

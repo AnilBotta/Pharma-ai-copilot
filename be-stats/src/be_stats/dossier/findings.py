@@ -248,7 +248,9 @@ FINDINGS_REGISTER: tuple[Finding, ...] = (
         description=(
             "EMA states the ABEL cap as the pair 69.84-143.19%; the formula "
             "at CVwR = 50% gives a fractionally wider one, which PowerTOST "
-            "keeps. be-stats applies the stated pair."
+            "keeps. be-stats applies the stated pair from CVwR 50% (amended "
+            "2026-09-14: one rule keyed on CVwR, no longer two independent "
+            "per-limit crossings)."
         ),
         evidence=(
             "The guideline's own table at CVwR 30, 35, 40, 45 and >=50 "
@@ -259,6 +261,35 @@ FINDINGS_REGISTER: tuple[Finding, ...] = (
             "a regulator is not an open question about the rule."
         ),
         evidence_file="validation/findings/VAL-EMA-ABEL-002.json",
+    ),
+    Finding(
+        finding_id="VAL-EMA-ABEL-003",
+        severity=FindingSeverity.QUALIFYING,
+        status=FindingStatus.OPEN,
+        affected_capabilities=("EMA_HVD_ABEL", "EMA_HVD_ENDPOINT_DECISION"),
+        description=(
+            "4.1.8 compares the 90% CI with 80.00-125.00% after rounding its "
+            "bounds to two decimal places. 4.1.10 does not say whether the "
+            "same rounding applies against WIDENED limits. be-stats rounds "
+            "for the conventional range and compares unrounded against "
+            "widened limits."
+        ),
+        evidence=(
+            "Read from the extracted text of CPMP/EWP/QWP/1401/98 Rev. 1 "
+            "4.1.8 and 4.1.10, EMA/618604/2008 Rev. 13 (replicate analysis, "
+            "questions 4 and 19), EMA/531548/2024, and ICH M13A (Step 5) "
+            "2.2.4. 4.1.8's rounding sentence names 80.00% and 125.00%. "
+            "4.1.10 gives the limits by formula, prints its table to two "
+            "decimals, and says nothing about rounding the interval. The Q&A "
+            "and M13A contain no rounding sentence at all."
+        ),
+        resolution_condition=(
+            "An EMA statement - in the guideline, a PKWP answer or ICH M13C - "
+            "on how a CI is compared with widened limits. Until then the "
+            "unrounded comparison stands: it grants no bound a rounding margin "
+            "EMA has not stated for widened limits."
+        ),
+        evidence_file="validation/findings/VAL-EMA-ABEL-003.json",
     ),
     Finding(
         finding_id="VAL-EMA-ABEL-001",
