@@ -92,6 +92,7 @@ regenerate with `python -m be_stats.dossier.render <this file>`.*
 | [`VAL-FDA-HVD-002`](VAL-FDA-HVD-002.md) | PowerTOST switches at sWR = 0.293560, derived from a 30% CV. FDA states 0.294. be-stats follows the regulator, so the tier-3 row is PASSED_WITH_FINDING rather than PASSED. | qualifying | resolved |
 | [`VAL-EMA-ABEL-002`](VAL-EMA-ABEL-002.md) | EMA states the ABEL cap as the pair 69.84-143.19%; the formula at CVwR = 50% gives a fractionally wider one, which PowerTOST keeps. be-stats applies the stated pair from CVwR 50% (amended 2026-09-14: one rule keyed on CVwR, no longer two independent per-limit crossings). | qualifying | resolved |
 | [`VAL-EMA-ABEL-003`](VAL-EMA-ABEL-003.md) | 4.1.8 compares the 90% CI with 80.00-125.00% after rounding its bounds to two decimal places. 4.1.10 does not say whether the same rounding applies against WIDENED limits. be-stats rounds for the conventional range and compares unrounded against widened limits. | qualifying | open |
+| [`VAL-EMA-NTI-001`](VAL-EMA-NTI-001.md) | 4.1.8's two-decimal comparison sentence names 80.00% and 125.00%. 4.1.9 replaces the interval with 90.00-111.11% and does not restate the sentence. be-stats applies the same two-decimal comparison to both intervals. | qualifying | open |
 | [`VAL-EMA-ABEL-001`](VAL-EMA-ABEL-001.md) | PowerTOST's p(BE-ABEL) is the MIXED decision rather than the scaled criterion alone, and power.scABEL documents four purely empirical adaptations - making it a tuned approximation rather than an oracle. | informational | preempted |
 | [`VAL-FDA-HVD-001`](VAL-FDA-HVD-001.md) | PowerTOST's p(BE-sABEc) is the mixed decision, not the scaled criterion alone. The harness had been comparing two quantities that are not the same quantity. | informational | resolved |
 | `DOSSIER-001` | The diagnostic emitted when a partial replicate study is refused is named APPENDIX_C_PARTIAL_REPLICATE_NOT_VALIDATED, while the canonical status of the capability is NOT_IMPLEMENTED. Two words for one situation, and the diagnostic's is the weaker claim. | informational | open |
@@ -100,7 +101,7 @@ regenerate with `python -m be_stats.dossier.render <this file>`.*
 | `DOSSIER-005` | M13A Q&A 2.1 states the twelve-evaluable-subject floor for PIVOTAL bioequivalence studies. `minimums.py` carried the figures and the word 'evaluable' but not the word 'pivotal', so a caller running a pilot relative bioavailability study was returned a floor the document does not place on it. | scope_limitation | resolved |
 | `DOSSIER-003` | No FDA capability holds tier-1B evidence. Every FDA method that produces a number therefore stands at IMPLEMENTED_UNVALIDATED regardless of how much tier-1A and tier-3 evidence supports it. This finding previously said FDA 'has published no worked numerical example of any of these procedures'; that was stated without a recorded search behind it and is too strong - see the evidence below. The finding stands; its premise is narrower. | scope_limitation | open |
 
-Open: `VAL-FDA-APPENDIX-C-002`, `VAL-EMA-ABEL-003`, `DOSSIER-001`, `DOSSIER-002`, `DOSSIER-003`.
+Open: `VAL-FDA-APPENDIX-C-002`, `VAL-EMA-ABEL-003`, `VAL-EMA-NTI-001`, `DOSSIER-001`, `DOSSIER-002`, `DOSSIER-003`.
 
 <!-- END GENERATED findings table -->
 

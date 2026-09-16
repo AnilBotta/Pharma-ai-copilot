@@ -74,6 +74,11 @@ from be_stats.ema_hvd import (
     estimate_reference_variability,
     estimate_treatment_effect,
 )
+from be_stats.ema_nti import (
+    EmaNtiResult,
+    EmaNtiResultInconsistent,
+    assess_ema_nti_endpoint,
+)
 from be_stats.howe import HoweUpperBound, howe_upper_bound
 from be_stats.linear_model import LeastSquaresFit, fit_least_squares
 from be_stats.nti import (
@@ -170,6 +175,9 @@ from be_stats.spec import (
     BeSpec,
     ContradictoryProductClass,
     DrugClass,
+    CmaxClinicalImportance,
+    EmaNtiIntervalStatus,
+    EmaNtiProductClass,
     EmaWideningJustification,
     EmaWideningPrespecification,
     EmaWideningStatus,
@@ -189,6 +197,9 @@ from be_stats.spec import (
     ema_abel_widening,
     ema_hvd_scaling_eligible,
     ema_hvd_variability_eligible,
+    ema_nti_interval,
+    ema_nti_limits,
+    ema_nti_product_class,
     fda_hvd_applicability,
     fda_hvd_classification,
     fda_hvd_method_for,
@@ -227,6 +238,7 @@ __all__ = [
     "CAPABILITY_VALIDATION",
     "Capability",
     "Citation",
+    "CmaxClinicalImportance",
     "ContradictoryProductClass",
     "CrossoverObservation",
     "CrossoverStudy",
@@ -238,6 +250,10 @@ __all__ = [
     "EMA_ABEL_SCALABLE_ENDPOINTS",
     "EMA_HVD_CONSTANTS",
     "EmaHighlyVariableResult",
+    "EmaNtiIntervalStatus",
+    "EmaNtiProductClass",
+    "EmaNtiResult",
+    "EmaNtiResultInconsistent",
     "EmaObservation",
     "EmaReplicateDataset",
     "EmaResultInconsistent",
@@ -317,6 +333,7 @@ __all__ = [
     "analyse_replicate_abe",
     "analyse_replicate_abe_full",
     "assess_ema_endpoint",
+    "assess_ema_nti_endpoint",
     "assess_ema_study",
     "assess_endpoint",
     "assess_nti_endpoint",
@@ -330,6 +347,9 @@ __all__ = [
     "ema_abel_widening",
     "ema_hvd_scaling_eligible",
     "ema_hvd_variability_eligible",
+    "ema_nti_interval",
+    "ema_nti_limits",
+    "ema_nti_product_class",
     "estimate_reference_variability",
     "estimate_reference_variance",
     "estimate_test_variance",
