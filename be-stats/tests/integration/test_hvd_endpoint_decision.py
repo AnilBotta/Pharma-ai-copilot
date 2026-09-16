@@ -15,6 +15,7 @@ import ast
 import inspect
 import math
 import random
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -29,6 +30,13 @@ from be_stats.replicate import (
 )
 from be_stats.spec import Method, NtiStatus
 from be_stats.study import Treatment
+from tests import subject_renaming
+from tests.subject_renaming import (
+    CollidingRename,
+    diagnostic_signature,
+    rename_subjects,
+    subject_rename_map,
+)
 
 PARTIAL = ("TRR", "RTR", "RRT")
 FULLY = ("TRTR", "RTRT")
@@ -600,17 +608,33 @@ def test_rsabe_is_implemented_but_not_validated():
 
 
 def _decision(observations) -> tuple:
+    """The whole regulatory output, not a sample of it.
+
+    Extended when the subject-renaming test was corrected: the collision that
+    test used to create changed the SUBJECT COUNTS and raised an EXCLUSION
+    diagnostic, and neither was compared. The counts, the design, `decided` and
+    the diagnostic signature are all invariant under every transformation these
+    tests apply, so each one belongs here rather than in one caller.
+    """
     result = assess(ReplicateDataset.build(observations))
     criterion = result.rsabe_result.scaled_criterion if result.rsabe_result else None
     return (
         result.selected_method,
         result.swr,
+        result.cv_wr,
         result.treatment_contrast.estimate,
         result.treatment_contrast.standard_error,
         result.treatment_contrast.degrees_of_freedom,
         result.reference_variance_df,
         None if criterion is None else criterion.upper_confidence_bound,
+        result.gmr,
+        result.point_estimate_passes,
+        result.design,
+        result.n_for_swr,
+        result.n_for_treatment_contrast,
+        result.decided,
         result.passes,
+        diagnostic_signature(result.diagnostics),
     )
 
 
@@ -654,16 +678,39 @@ def _rows(cv: float, seed: int) -> list[ReplicateObservation]:
     return observations
 
 
+SUBJECTS = 24
+
+
 def test_renaming_subjects_does_not_change_the_regulatory_result():
+    """CORRECTED: the rename used to destroy a subject about once in 300 runs.
+
+    It was `f"ANON-{abs(hash(o.subject_id)) % 99991}"`. Under PYTHONHASHSEED
+    280, 372 and 846 that maps `TRR-7` and `RTR-3` to one name, and one name
+    carrying two sequences is a subject the engine must exclude - so the
+    renamed study ran on 22 subjects, sWR moved, the reference degrees of
+    freedom fell from 21 to 19, and the comparison failed. The engine was
+    right. The test's premise was not: a mapping that merges two subjects is
+    not a renaming, and nothing checked that it was one.
+
+    So the premise is now asserted before the statistics are, and the mapping
+    it asserts about is built by `tests.subject_renaming`, which cannot fold a
+    hash. The seed no longer appears anywhere in this test's behaviour.
+    """
     observations = _rows(0.45, 22)
     baseline = _decision(observations)
-    renamed = [
-        ReplicateObservation(
-            f"ANON-{abs(hash(o.subject_id)) % 99991}",
-            o.sequence, o.period, o.treatment, o.endpoint, o.value,
-        )
-        for o in observations
-    ]
+
+    mapping = subject_rename_map(observations)
+    renamed = rename_subjects(observations)
+
+    originals = {o.subject_id for o in observations}
+    assert len(originals) == SUBJECTS
+    assert len(mapping) == SUBJECTS
+    assert len(set(mapping.values())) == SUBJECTS, "the rename merged subjects"
+    assert len({o.subject_id for o in renamed}) == SUBJECTS
+    assert set(mapping).isdisjoint(mapping.values()), "nothing was left unrenamed"
+    for old, new in zip(observations, renamed, strict=True):
+        assert new.subject_id == mapping[old.subject_id]
+
     assert _decision(renamed) == baseline
 
 
@@ -680,6 +727,183 @@ def test_reordering_sequence_groups_does_not_change_the_regulatory_result():
 def test_reversing_period_order_does_not_change_the_regulatory_result():
     observations = _rows(0.45, 22)
     assert _decision(list(reversed(observations))) == _decision(observations)
+
+
+# --------------------------------------------- the rename is checked too ---
+#
+# The invariance test above is only as good as its rename, and its rename was
+# not one. It arrived in 0.2.0 and was copied into two more test files at 0.4.0
+# and 0.5.0 without anybody asking whether it was injective, because nothing
+# asked. These check the transformation itself, so the next person to reach for
+# a "quick anonymiser" is told what is wrong with it by a failing test rather
+# than by a one-in-three-hundred CI run.
+#
+# They live in this file rather than in one of their own because the rename
+# helper is shared by three test files, this is where the defect surfaced, and
+# this file is already run on every pull request. A new file matching
+# `test_*hvd*.py` would have had to be added to the dossier workflow, and this
+# correction does not need CI to change.
+
+
+def test_the_rename_does_not_consult_pythons_hash():
+    """Structurally, over the syntax tree.
+
+    A text search is useless here: the module's own docstring quotes
+    `abs(hash(subject_id)) % 99991` while explaining why it is wrong, so
+    `"hash(" in source` is true of the correct file and would be true of the
+    broken one. The question is whether anything CALLS it.
+    """
+    tree = ast.parse(inspect.getsource(subject_renaming))
+    called = {
+        node.func.id
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+    }
+    assert "hash" not in called
+    assert "id" not in called, "object identity is a per-process accident too"
+
+
+@pytest.mark.parametrize(
+    "strategy,name",
+    [
+        # The defect itself, made certain rather than probable. `% 99991`
+        # collided about three runs in a thousand; `% 1` collides always. The
+        # difference is the odds, not the kind of mistake.
+        ("a folded hash", lambda s: f"ANON-{abs(hash(s)) % 1}"),
+        # A truncated identifier, which is the same mistake spelled shorter.
+        ("a truncated id", lambda s: s[:3]),
+        ("one name for everyone", lambda _: "ANON"),
+    ],
+)
+def test_a_rename_that_merges_two_subjects_is_refused(strategy, name):
+    observations = _rows(0.45, 22)
+    with pytest.raises(CollidingRename) as raised:
+        rename_subjects(observations, name=name)
+    assert "merges two subjects" in str(raised.value), strategy
+
+
+def test_the_refusal_names_both_subjects_it_would_have_merged():
+    """So the message says which rows to look at, not merely that something
+    went wrong."""
+    observations = _rows(0.45, 22)
+    with pytest.raises(CollidingRename) as raised:
+        rename_subjects(observations, name=lambda s: s[:3])
+    assert "'TRR-0'" in str(raised.value)
+    assert "'TRR-1'" in str(raised.value)
+
+
+def test_the_rename_map_is_the_same_on_every_machine():
+    """First appearance order, counted from one. No interpreter state in it."""
+    mapping = subject_rename_map(_rows(0.45, 22))
+
+    expected = {
+        f"{label}-{k}": f"S{n:04d}"
+        for n, (label, k) in enumerate(
+            [(label, k) for label in PARTIAL for k in range(8)], start=1
+        )
+    }
+    assert mapping == expected
+    assert mapping["TRR-0"] == "S0001"
+    assert mapping["RRT-7"] == "S0024"
+
+
+def test_the_rename_changes_the_identifier_and_nothing_else():
+    """Every field a statistic is computed from, row by row.
+
+    Sequence, period, treatment, endpoint and value: if a rename moved any of
+    them the invariance test above would be comparing two different studies and
+    reporting the difference as a property of the engine.
+    """
+    observations = _rows(0.45, 22)
+    renamed = rename_subjects(observations)
+
+    assert len(renamed) == len(observations)
+    for old, new in zip(observations, renamed, strict=True):
+        assert new.subject_id != old.subject_id
+        assert new.sequence == old.sequence
+        assert new.period == old.period
+        assert new.treatment == old.treatment
+        assert new.endpoint == old.endpoint
+        assert new.value == old.value
+
+
+def test_every_row_of_one_subject_receives_one_new_name():
+    """The other half of a rename: injective across subjects, constant within
+    one. A subject renamed one way in period 1 and another way in period 3 is
+    two subjects with one period each."""
+    observations = _rows(0.45, 22)
+    renamed = rename_subjects(observations)
+
+    names: dict[str, set[str]] = {}
+    for old, new in zip(observations, renamed, strict=True):
+        names.setdefault(old.subject_id, set()).add(new.subject_id)
+
+    assert len(names) == SUBJECTS
+    assert all(len(seen) == 1 for seen in names.values())
+
+
+def test_the_renamed_study_still_contains_every_subject():
+    """Read back through the engine, which is where a lost subject shows up.
+
+    This is the assertion that fails on the old transformation at seed 280: the
+    merged subject is excluded, 24 subject records become 22, and an EXCLUSION
+    diagnostic appears that the baseline does not have.
+    """
+    observations = _rows(0.45, 22)
+    before = ReplicateDataset.build(observations)
+    after = ReplicateDataset.build(rename_subjects(observations))
+
+    assert len(before.subjects_received) == SUBJECTS
+    assert len(after.subjects_received) == SUBJECTS
+    assert len(after.records) == len(before.records) == SUBJECTS
+    assert diagnostic_signature(after.diagnostics) == diagnostic_signature(
+        before.diagnostics
+    )
+
+
+def test_merging_two_subjects_really_does_change_the_regulatory_result():
+    """The defect's consequence, demonstrated deterministically.
+
+    `TRR-7` is renamed onto `RTR-3` by hand - no hash, no seed, no chance. That
+    is precisely what `abs(hash(id)) % 99991` did under PYTHONHASHSEED 280, and
+    it is why the old test failed: one identifier now carries two sequences, so
+    no expected treatment can be derived for any period, the subject is
+    excluded, and BOTH originals are lost with it.
+
+    Keeping this as a test rather than a comment is the point. It records that
+    the engine was never wrong here, and it would fail if some future change
+    made a merged subject silently analysable - which would be a far worse
+    defect than the flaky test that exposed it.
+    """
+    observations = _rows(0.45, 22)
+    baseline = assess(ReplicateDataset.build(observations))
+
+    merged = [
+        replace(o, subject_id="RTR-3") if o.subject_id == "TRR-7" else o
+        for o in observations
+    ]
+    assert len({o.subject_id for o in merged}) == SUBJECTS - 1
+
+    result = assess(ReplicateDataset.build(merged))
+
+    assert baseline.n_for_swr == SUBJECTS
+    assert result.n_for_swr == SUBJECTS - 2, "both originals are lost, not one"
+    assert baseline.reference_variance_df == SUBJECTS - len(PARTIAL)
+    assert result.reference_variance_df == SUBJECTS - 2 - len(PARTIAL)
+
+    excluded = [
+        d for d in result.diagnostics
+        if d.code is DiagnosticCode.SEQUENCE_TREATMENT_MISMATCH
+    ]
+    assert len(excluded) == 1
+    assert excluded[0].severity is Severity.EXCLUSION
+    assert excluded[0].subject == "RTR-3"
+
+    assert diagnostic_signature(result.diagnostics) != diagnostic_signature(
+        baseline.diagnostics
+    )
+    assert _decision(merged) != _decision(observations)
+    assert result.swr != baseline.swr
 
 
 # ------------------------------------------------------------- refusals ---

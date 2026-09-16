@@ -40,6 +40,7 @@ from be_stats.replicate import (
     parse_treatment,
 )
 from be_stats.study import DataError, Treatment
+from tests.subject_renaming import rename_subjects, subject_rename_map
 
 
 def rows_for(label: str, subject: str, values: list[float]):
@@ -490,20 +491,28 @@ def test_shuffling_rows_does_not_change_the_result():
 
 
 def test_renaming_subjects_does_not_change_the_result():
+    """CORRECTED: the rename was `abs(hash(o.subject_id)) % 100000`.
+
+    Twelve subjects rather than twenty-four and a wider modulus, so no
+    PYTHONHASHSEED below 1000 makes it collide - but it is the same
+    transformation that cost the FDA highly-variable and NTI files a subject
+    each, and a rename that happens not to have merged anybody yet is still not
+    a rename. Corrected here for the same reason, not because it had failed.
+    """
     observations = partial_study()
     baseline = _quantities(observations)
 
-    renamed = [
-        ReplicateObservation(
-            subject_id=f"ANON-{abs(hash(o.subject_id)) % 100000}",
-            sequence=o.sequence,
-            period=o.period,
-            treatment=o.treatment,
-            endpoint=o.endpoint,
-            value=o.value,
-        )
-        for o in observations
-    ]
+    mapping = subject_rename_map(observations)
+    renamed = rename_subjects(observations)
+
+    subjects = len({o.subject_id for o in observations})
+    assert subjects == 12
+    assert len(mapping) == subjects
+    assert len(set(mapping.values())) == subjects, "the rename merged subjects"
+    assert len({o.subject_id for o in renamed}) == subjects
+    for old, new in zip(observations, renamed, strict=True):
+        assert new.subject_id == mapping[old.subject_id]
+
     assert _quantities(renamed) == baseline
 
 

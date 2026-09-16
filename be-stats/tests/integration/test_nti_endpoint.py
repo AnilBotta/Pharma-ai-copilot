@@ -47,6 +47,11 @@ from be_stats.replicate import (
 )
 from be_stats.spec import NtiStatus, fda_nti_theta
 from be_stats.study import Treatment
+from tests.subject_renaming import (
+    diagnostic_signature,
+    rename_subjects,
+    subject_rename_map,
+)
 
 FULLY = ("TRTR", "RTRT")
 
@@ -575,6 +580,12 @@ def test_ema_abel_did_not_arrive_through_the_nti_module():
 
 
 def _quantities(observations) -> tuple:
+    """Extended alongside the subject-renaming correction.
+
+    The subject counts, the degrees of freedom and the diagnostic signature are
+    what a lost subject actually moves first, and none of them was compared.
+    All are invariant under shuffling, renaming and period reversal.
+    """
     result = assess(ReplicateDataset.build(observations))
     return (
         result.reference_variance.swr,
@@ -584,7 +595,16 @@ def _quantities(observations) -> tuple:
         result.variability_ratio_criterion.ci_upper,
         result.variability_ratio_criterion.passes,
         result.scaled_mean_criterion.passes,
+        result.design,
+        result.n_for_swr,
+        result.n_for_swt,
+        result.n_for_treatment_contrast,
+        result.reference_variance_df,
+        result.test_variance_df,
+        result.treatment_contrast_df,
+        result.decided,
         result.passes,
+        diagnostic_signature(result.diagnostics),
     )
 
 
@@ -600,15 +620,31 @@ def test_shuffling_rows_does_not_change_any_nti_quantity():
 
 
 def test_renaming_subjects_does_not_change_any_nti_quantity():
+    """CORRECTED: the same defect the FDA highly-variable file carried.
+
+    `f"ANON-{abs(hash(o.subject_id)) % 99991}"` is not injective. Here it is
+    PYTHONHASHSEED 160, 416, 633, 637 and 724 that merge `RTRT-3` and `RTRT-9`,
+    and because they share a sequence the merged subject has two rows for every
+    period rather than two sequences - a different exclusion, the same lost
+    pair, the same false failure.
+
+    The rename is now a rename, and the premise is asserted before the
+    quantities are. `tests.subject_renaming` explains the transformation.
+    """
     observations = _rows(0.12, 0.13, 5)
     baseline = _quantities(observations)
-    renamed = [
-        ReplicateObservation(
-            f"ANON-{abs(hash(o.subject_id)) % 99991}",
-            o.sequence, o.period, o.treatment, o.endpoint, o.value,
-        )
-        for o in observations
-    ]
+
+    mapping = subject_rename_map(observations)
+    renamed = rename_subjects(observations)
+
+    subjects = len({o.subject_id for o in observations})
+    assert subjects == 24
+    assert len(mapping) == subjects
+    assert len(set(mapping.values())) == subjects, "the rename merged subjects"
+    assert len({o.subject_id for o in renamed}) == subjects
+    for old, new in zip(observations, renamed, strict=True):
+        assert new.subject_id == mapping[old.subject_id]
+
     assert _quantities(renamed) == baseline
 
 
