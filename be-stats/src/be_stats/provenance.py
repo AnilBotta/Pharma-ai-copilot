@@ -304,8 +304,49 @@ FDA_NASAL_LOCAL_ACTION = Citation(
 EMA_BIOEQUIVALENCE = Citation(
     authority="EMA",
     document="Guideline on the Investigation of Bioequivalence",
-    section="Narrow therapeutic index drugs",
+    section="4.1.9 Narrow therapeutic index drugs",
     document_version="CPMP/EWP/QWP/1401/98 Rev. 1, effective 1 August 2010",
+)
+
+#: The two PKWP answers that show the Cmax question being decided per product,
+#: in opposite directions, in one document.
+#:
+#: They are the reason this package refuses to default Cmax either way. Both
+#: are in EMA/618604/2008 Rev. 13, and both must now be read in conjunction
+#: with ICH M13A - see `EMA_M13A_IMPLEMENTATION`, which says so and puts EMA's
+#: review of these Q&As at Q2 2025.
+#:
+#: Ciclosporin, verbatim: "As EWP has defined ciclosporin to be a NTID, for
+#: which both AUC and Cmax are important for safety and efficacy, a narrowed
+#: (90.00-111.11%) acceptance range should be applied for both AUC and Cmax".
+EMA_PKWP_QA_CICLOSPORIN = Citation(
+    authority="EMA",
+    document=(
+        "Questions & Answers: Positions on specific questions addressed to "
+        "the Pharmacokinetics Working Party"
+    ),
+    section=(
+        "5. Requirements for demonstration of bioequivalence for ciclosporine "
+        "generics, page 11"
+    ),
+    document_version="EMA/618604/2008 Rev. 13; answer published 22 July 2010 (Rev. 2)",
+)
+
+#: Tacrolimus, verbatim: "Conclusion: The EWP recommends that the
+#: bioequivalence acceptance criteria for tacrolimus should be [90-111%] for
+#: AUC and [80-125%] for Cmax." The same answer records WHY - "peak whole blood
+#: levels do not seem to be critical for either safety or efficacy" - which is
+#: 4.1.9's Cmax question answered in the negative for a confirmed NTID.
+EMA_PKWP_QA_TACROLIMUS = Citation(
+    authority="EMA",
+    document=(
+        "Questions & Answers: Positions on specific questions addressed to "
+        "the Pharmacokinetics Working Party"
+    ),
+    section=(
+        "4. Bioequivalence assessment of generics for tacrolimus, pages 9-10"
+    ),
+    document_version="EMA/618604/2008 Rev. 13; answer published 22 July 2010 (Rev. 2)",
 )
 
 #: Section 4.1.10, the highly-variable provision. Read at the cited version.

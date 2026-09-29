@@ -25,7 +25,7 @@ The user-facing view. Three states, one qualification each.
 | FDA reference-scaled average BE for highly variable drugs | FDA | fully replicate crossover, partial replicate crossover | all endpoints | IMPLEMENTED - VALIDATION PENDING | Implemented, and validation is pending: the regulator's stated algorithm is conformed to, and no regulator-published worked example of it exists to reproduce. |
 | FDA narrow therapeutic index procedure, all three criteria | FDA | fully replicate crossover | all endpoints | IMPLEMENTED - VALIDATION PENDING | Implemented, and validation is pending: the regulator's stated algorithm is conformed to, and no regulator-published worked example of it exists to reproduce. |
 | EMA average bioequivalence with expanding limits | EMA | fully replicate crossover, partial replicate crossover | AUC, Cmax | IMPLEMENTED - VALIDATION PENDING | Implemented, and validation is pending: the regulator's stated algorithm is conformed to, and no regulator-published worked example of it exists to reproduce. |
-| EMA narrowed 90.00-111.11% interval for NTI drugs | EMA | 2x2 crossover, fully replicate crossover | AUC, Cmax | IMPLEMENTED - VALIDATION PENDING | Implemented, and validation is pending: the regulator's stated algorithm is conformed to, and no regulator-published worked example of it exists to reproduce. |
+| EMA narrowed 90.00-111.11% interval for NTI drugs | EMA | 2x2 crossover, parallel group | AUC, Cmax | IMPLEMENTED - VALIDATION PENDING | Implemented, and validation is pending: the regulator's stated algorithm is conformed to, and no regulator-published worked example of it exists to reproduce. |
 | FDA Appendix C mixed model, fully replicate design | FDA | fully replicate crossover | all endpoints | IMPLEMENTED - VALIDATION PENDING | Implemented, and validation is pending: a regulator's published output has been reproduced for the model, and not by the regulator whose procedure this is. |
 | FDA Appendix C mixed model, partial replicate design | FDA | partial replicate crossover | all endpoints | NOT IMPLEMENTED | Not implemented - external SAS oracle evidence pending. |
 
@@ -65,6 +65,9 @@ the next column and only the next column.
 | `EMA_HVD_DESIGN_GATE` | EMA | implemented | implemented | tier_1a | no |
 | `EMA_HVD_VARIABILITY_ELIGIBILITY` | EMA | implemented | implemented | tier_1a | no |
 | `EMA_ABEL_WIDENING_BASIS_GATE` | EMA | implemented | implemented | tier_1a | no |
+| `EMA_NTI_PRODUCT_CLASS_GATE` | EMA | implemented | implemented | tier_1a | no |
+| `EMA_NTI_CMAX_IMPORTANCE_GATE` | EMA | implemented | implemented | tier_1a | no |
+| `EMA_NTI_ENDPOINT_DECISION` | EMA | implemented | implemented_unvalidated | tier_1a | yes |
 | `EMA_HVD_REFERENCE_VARIABILITY` | EMA | implemented | validated | tier_1b | no |
 | `EMA_REPLICATE_METHOD_A` | EMA | implemented | validated | tier_1b | no |
 | `EMA_ABEL_LIMIT_CALCULATION` | EMA | implemented | validated | tier_1b | no |
@@ -102,8 +105,12 @@ the next column and only the next column.
 
 **`EMA_NTI_NARROW_ABE`** - EMA narrowed 90.00-111.11% interval for NTI drugs
 
-- Applies to AUC by default. For Cmax the narrowed interval applies only where Cmax itself matters for safety, efficacy or therapeutic drug monitoring - a per-product decision the engine refuses to guess.
-- EMA narrows the interval; FDA does not. The two NTI procedures are different procedures and neither is a parameterisation of the other.
+- Applies only to a product a clinician has classified as a narrow therapeutic index drug. 4.1.9 states that no set of criteria can categorise a drug as an NTID, so the class is stated by the caller and derived from nothing: not from variability, not from therapeutic drug monitoring alone, not from the drug's name. An unstated class yields no verdict.
+- AUC is tightened on the class alone. For Cmax the narrowed interval applies only where Cmax itself is of particular importance for safety, efficacy or drug level monitoring - a second product fact, stated separately, which EWP answered oppositely for ciclosporin and tacrolimus in one document. Unstated, and with no product-specific limits supplied, Cmax gets no verdict rather than either default.
+- A confirmed NTI drug whose Cmax takes 80.00-125.00% is STILL decided under 4.1.9 and is reported as EMA_NTI_NARROW_ABE. The method is the procedure, not the width of the interval.
+- Both bounds are compared after rounding to two decimal places, as 4.1.8 states for the conventional interval. 4.1.8's sentence names 80.00 and 125.00 and 4.1.9 does not restate it for 90.00-111.11%; that residual is VAL-EMA-NTI-001.
+- A 2x2 crossover and a parallel-group study only. A replicate design is refused: 4.1.9 states an interval and no replicate model, and neither FDA's Appendix C model nor EMA's Method A was written for this procedure.
+- EMA narrows the interval; FDA does not. The two NTI procedures are different procedures and neither is a parameterisation of the other. Nothing on this path computes sigma_W0, Delta, theta or a variability ratio.
 
 **`FDA_HVD_CLASSIFICATION`** - Classify a drug as highly variable under III.C's definition
 
@@ -195,6 +202,26 @@ the next column and only the next column.
 - An unstated basis REFUSES rather than defaulting to either range. An explicitly absent basis applies the conventional 80.00-125.00% range, because 4.1.8 sets that range for Cmax and 4.1.10 widens it only 'in certain cases'.
 - The gate cannot detect a MISSTATED basis. A product declared justified and prespecified is widened, and nothing in the data would contradict the declaration.
 
+**`EMA_NTI_PRODUCT_CLASS_GATE`** - Decide under 4.1.9 only for a product classified as an NTI drug
+
+- Structural, and it consults no data. 4.1.9 states that 'it is not possible to define a set of criteria to categorise drugs as narrow therapeutic index drugs' and that the decision is made case by case on clinical considerations, so there is no rule this engine could implement to answer it from a dataset.
+- An unstated class REFUSES rather than assuming a standard drug. A product stated NOT to be an NTID also gets no verdict from this method - the conventional interval reaches it through 4.1.8 and the standard route instead.
+- Two sources that disagree - a routed spec and product metadata - raise ContradictoryProductClass rather than being resolved by precedence. That is `reconcile_nti_status`, shared with the FDA gates rather than reimplemented here.
+- The gate cannot detect a MISSTATED class. A product declared an NTID is decided as one, and nothing in the data would contradict the declaration.
+
+**`EMA_NTI_CMAX_IMPORTANCE_GATE`** - Tighten Cmax only where Cmax itself is of particular importance
+
+- A second product fact, separate from the class. 4.1.9 tightens Cmax 'where Cmax is of particular importance for safety, efficacy or drug level monitoring', which is a clinical judgement about the product and is never read from the observed Cmax values.
+- Unstated, and with no product-specific limits supplied, Cmax gets NO verdict. EWP published both answers for confirmed NTI drugs in one document, so neither default would be right for the other product.
+- Never consulted for AUC, whose interval 4.1.9 tightens on the class alone.
+- Product-specific limits supplied for Cmax settle the interval, including where the general rule leaves it open - that is what EMA's own tacrolimus answer is. They are rejected when they contradict a clinical importance the caller also stated.
+
+**`EMA_NTI_ENDPOINT_DECISION`** - One EMA NTI endpoint verdict: the 90% CI inside the applied interval
+
+- The interval moves; the test does not. Both determined branches run the same model - ICH M13A 2.2.3.2 for a crossover, 2.2.3.4 for a parallel study - and differ only in the limits.
+- Both bounds are compared after rounding to two decimal places. That is 4.1.8's rule, and 4.1.8 names 80.00 and 125.00 while 4.1.9 does not restate it: VAL-EMA-NTI-001.
+- Tier 1A. The interval is stated in the guideline and the model is M13A's, and no EMA publication carries one NTI study end to end with a stated verdict, so the wiring between correct pieces has not been shown against a published decision.
+
 **`EMA_HVD_REFERENCE_VARIABILITY`** - CVwR from the reference measurements alone
 
 - Validated against the two annexed EMA data sets. Both are four-period; no published three-period example exists.
@@ -281,26 +308,26 @@ unsupported row at the end.
 ### `EMA_NTI_AUC`
 
 - **input classification** - A drug declared narrow therapeutic index, endpoint AUC.
-- **design required** - crossover, replicate
-- **decision rule** - The 90% confidence interval must fall within the NARROWED 90.00-111.11%. EMA narrows the interval where FDA adds criteria; the two NTI procedures are not variants of one rule.
-- **refusal behaviour** - Not estimable yields decided=false, passes=null. The narrowed interval is never widened back to 80.00-125.00%.
-- **refusal codes** - `QUANTITY_NOT_ESTIMABLE`
+- **design required** - crossover, parallel
+- **decision rule** - The 90% confidence interval must fall within the NARROWED 90.00-111.11%, both bounds compared after rounding to two decimal places. EMA narrows the interval where FDA adds criteria; the two NTI procedures are not variants of one rule.
+- **refusal behaviour** - An unstated narrow therapeutic index class yields decided=false, passes=null: `assess_ema_nti_endpoint` takes the class as stated product metadata and 4.1.9 gives no criteria to derive it from. Not estimable yields decided=false too. The narrowed interval is never widened back to 80.00-125.00%.
+- **refusal codes** - `EMA_NTI_PRODUCT_CLASS_REQUIRED`, `EMA_NTI_NOT_APPLICABLE`, `QUANTITY_NOT_ESTIMABLE`
 
 ### `EMA_NTI_CMAX`
 
 - **input classification** - A drug declared narrow therapeutic index, endpoint Cmax, with no product-specific guidance supplied.
 - **design required** - not reached
-- **decision rule** - None is selected. EMA narrows Cmax only where Cmax itself matters for safety, efficacy or therapeutic drug monitoring, and that is a per-product decision: ciclosporin narrows both AUC and Cmax, colchicine narrows AUC and leaves Cmax at 80.00-125.00%.
-- **refusal behaviour** - Raises SpecificationRequired. Both available defaults are wrong for some products, so neither is chosen. Supplying the limits as a ProductOverride routes to EMA_NTI_NARROW_ABE with those limits.
-- **refusal codes** - `EMA_NTI_CMAX_PRODUCT_SPECIFIC`
+- **decision rule** - None is selected FROM THESE THREE FACTS. EMA narrows Cmax only where Cmax itself is of particular importance for safety, efficacy or drug level monitoring, and that is a fourth fact about the product: EWP narrowed both AUC and Cmax for ciclosporin, and recommended '[90-111%] for AUC and [80-125%] for Cmax' for tacrolimus, in one document.
+- **refusal behaviour** - Raises SpecificationRequired. Jurisdiction, class and endpoint do not determine the interval, and both available defaults are wrong for a real EMA product, so neither is chosen. Supplying the limits as a ProductOverride routes to EMA_NTI_NARROW_ABE with those limits. Alternatively `assess_ema_nti_endpoint` takes the fourth fact directly as a typed `CmaxClinicalImportance` and decides - or declines, with decided=false - without the caller transcribing any numbers.
+- **refusal codes** - `EMA_NTI_CMAX_PRODUCT_SPECIFIC`, `EMA_NTI_CMAX_IMPORTANCE_REQUIRED`
 
 ### `EMA_NTI_OTHER`
 
 - **input classification** - A drug declared narrow therapeutic index, on an endpoint the general guideline does not address.
 - **design required** - not reached
 - **decision rule** - None is selected.
-- **refusal behaviour** - Raises SpecificationRequired. The general guideline defines narrowed limits for AUC and conditionally for Cmax, and for nothing else.
-- **refusal codes** - `EMA_NTI_CMAX_PRODUCT_SPECIFIC`
+- **refusal behaviour** - Raises SpecificationRequired. The general guideline defines narrowed limits for AUC and conditionally for Cmax, and for nothing else. AUC's rule is not borrowed for an endpoint 4.1.9 does not mention.
+- **refusal codes** - `EMA_NTI_ENDPOINT_RULE_REQUIRED`
 
 ### `UNSUPPORTED`
 
@@ -334,7 +361,12 @@ that is a dead end rather than an answer.
 | `FDA_HVD_NTI_STATUS_REQUIRED` | FDA HVD applicability cannot be determined because the product's narrow-therapeutic-index status was not stated. III.C's definition has two conjuncts and the second is a property of the product that no dataset carries, so the engine cannot observe it. Variability estimates are reported descriptively; no bioequivalence decision is issued. | State the product's class - `nti_status`, or a spec whose `drug_class` carries it. Nothing about the data lifts this: a larger study, a lower CVwR and a cleaner dataset all leave the product's regulatory class exactly as unknown as before. |
 | `FDA_NTI_NOT_APPLICABLE_NOT_NTI` | FDA NTI procedure not applicable: the product is identified as not narrow therapeutic index. Appendix F - sigma_W0 = 0.10, the unscaled 80.00-125.00% limits and the within-subject variability comparison - is FDA's procedure for NTI drugs. Reference variability is reported descriptively; no bioequivalence decision is issued. | Nothing about the study. Assess the product under the procedure its declared class requires: Appendix G for a highly variable drug, ordinary average BE otherwise. If the class was declared wrongly, correct the declaration - the data cannot. |
 | `FDA_NTI_PRODUCT_CLASS_REQUIRED` | FDA NTI applicability cannot be determined because the product's narrow-therapeutic-index status was not stated. The class is a regulatory property of the product and is not inferred from a fully replicate design or a low within-subject variability. Variability estimates are reported descriptively; no bioequivalence decision is issued. | State the product's class - `nti_status`, or a spec whose `drug_class` carries it. Nothing about the data lifts this. |
-| `EMA_NTI_CMAX_PRODUCT_SPECIFIC` | EMA narrows Cmax for an NTI drug only where Cmax itself matters for safety, efficacy or therapeutic drug monitoring, and that is a per-product decision: ciclosporin narrows both AUC and Cmax, colchicine narrows AUC and leaves Cmax at 80.00-125.00%. | Supply the Cmax limits from the applicable product-specific guidance as a ProductOverride. |
+| `EMA_NTI_CMAX_PRODUCT_SPECIFIC` | EMA narrows Cmax for an NTI drug only where Cmax itself matters for safety, efficacy or drug level monitoring, and that is a per-product decision. EWP gave both answers in one document: ciclosporin, 'for which both AUC and Cmax are important for safety and efficacy', narrows both; tacrolimus takes '[90-111%] for AUC and [80-125%] for Cmax'. | State whether Cmax is of particular importance for this product - `cmax_importance` - or supply the Cmax limits from the applicable product-specific guidance as a ProductOverride. |
+| `EMA_NTI_PRODUCT_CLASS_REQUIRED` | EMA's narrowed interval applies to a product decided to be a narrow therapeutic index drug, and nobody has said whether this one is. 4.1.9 states that no set of criteria can categorise a drug as an NTID, so there is nothing in the data to fall back on. | State the product's class - `nti_status`, or a spec whose `drug_class` carries it. Nothing about the data lifts this. |
+| `EMA_NTI_NOT_APPLICABLE` | The product is stated NOT to be a narrow therapeutic index drug, so 4.1.9 does not apply to it and no EMA NTI verdict is issued - not a conventional one either. The conventional interval may well be right for this product; it applies through 4.1.8 and the standard route, which is a different method. | Use the standard route. This refusal is not lifted by supplying limits: the method, not the numbers, is what does not apply. |
+| `EMA_NTI_CMAX_IMPORTANCE_REQUIRED` | A confirmed NTI drug's Cmax, with no statement of whether Cmax is itself of particular importance for safety, efficacy or drug level monitoring. Both candidate intervals are real EMA answers for real EMA products, so neither is defaulted to. | State `cmax_importance`, or supply the product-specific Cmax limits as a ProductOverride. |
+| `EMA_NTI_ENDPOINT_RULE_REQUIRED` | 4.1.9 tightens AUC and conditionally Cmax, and states no rule for any other endpoint. AUC's rule is not borrowed for one the guideline does not mention. | Supply limits for that endpoint from applicable product-specific guidance as a ProductOverride. |
+| `EMA_NTI_PRODUCT_LIMITS_CONFLICT` | The product-specific limits supplied and the stated clinical importance of Cmax select different intervals - one the narrowed range and the other the conventional one. Two sources, two answers, and 4.1.9 gives no rule for choosing between them. | Correct whichever is wrong. The engine will not prefer one input over another about a product it cannot observe. |
 | `UNSUPPORTED_REGULATORY_ROUTE` | This jurisdiction and drug-class combination is not routed by this engine. Falling back to the ordinary 80.00-125.00% interval would answer a question the regulator answers differently. | Implementation of the route, with its own validation ladder. |
 | `QUANTITY_NOT_ESTIMABLE` | The quantity the criterion needs does not exist for these data - too few residual degrees of freedom, no replicated test measurement, or a ratio whose denominator is exactly zero. | More evaluable subjects, or the missing replicate measurements. The accompanying diagnostics name which subjects and why. |
 | `MODEL_DID_NOT_FIT` | The mixed model did not converge, or converged to a singular covariance structure. A fit that did not happen is not a failed bioequivalence test. | Inspect the dataset for duplicated or degenerate observations; the diagnostics name the condition. |
@@ -360,6 +392,8 @@ re-established. A record whose environment was unavailable reads
 | `EMA-HVD-ENDPOINT-DECISION` | tier_1a | EMA | EMA | passed | `EMA_HVD_ENDPOINT_DECISION` |
 | `EMA-ABEL-WIDENING-BASIS-001` | tier_1a | EMA | EMA | passed | `EMA_ABEL_WIDENING_BASIS_GATE`, `EMA_HVD_ENDPOINT_DECISION`, `EMA_HVD_ABEL` |
 | `EMA-NTI-NARROWED-INTERVAL` | tier_1a | EMA | EMA | passed | `EMA_NTI_NARROW_ABE` |
+| `EMA-NTI-APPLICABILITY-001` | tier_1a | EMA | EMA | passed | `EMA_NTI_PRODUCT_CLASS_GATE`, `EMA_NTI_CMAX_IMPORTANCE_GATE`, `EMA_NTI_ENDPOINT_DECISION`, `EMA_NTI_NARROW_ABE` |
+| `EMA-NTI-CMAX-IMPORTANCE-001` | tier_1a | EMA | EMA | passed | `EMA_NTI_CMAX_IMPORTANCE_GATE` |
 | `EMA-PKWP-METHOD-A-DATASET-I` | tier_1b | EMA | EMA | passed | `EMA_REPLICATE_METHOD_A` |
 | `EMA-PKWP-METHOD-A-DATASET-II` | tier_1b | EMA | EMA | passed | `EMA_REPLICATE_METHOD_A` |
 | `EMA-PKWP-CVWR` | tier_1b | EMA | EMA | passed | `EMA_HVD_REFERENCE_VARIABILITY` |
@@ -474,13 +508,35 @@ re-established. A record whose environment was unavailable reads
 ### `EMA-NTI-NARROWED-INTERVAL`
 
 - **scenario** - That an NTI drug under EMA routes to the NARROWED interval for AUC, that Cmax refuses pending product-specific guidance, and that a product override replaces the limits rather than widening them back.
-- **dataset** - The routing cases, including a ciclosporin- and a colchicine-shaped override.
+- **dataset** - The routing cases, including a ciclosporin- and a tacrolimus-shaped override.
 - **environment** - None - the limits are stated in the guideline.
 - **expected** - 90.00-111.11% for AUC. NOT 80.00-125.00%, and not FDA's additional-criteria construction, which is a different procedure.
 - **observed** - The narrowed interval is selected, and Cmax raises.
 - **tolerance** - Exact on both limits; the guideline states them to two decimals.
 - **established by** - `tests/integration/test_spec_routing.py`
 - **note** - Tier 1A and not 1B: EMA states the interval and publishes no worked example of a study decided under it.
+
+### `EMA-NTI-APPLICABILITY-001`
+
+- **scenario** - Section 4.1.9's three sentences applied as three separate questions: whether the product is an NTID, which interval each endpoint gets, and whether the 90% CI falls inside it. Every combination of product class, endpoint, Cmax clinical importance and product-specific override is enumerated, with the boundary values of both intervals.
+- **dataset** - The rule matrix, plus 2x2 crossover and parallel studies constructed to sit exactly on, just inside and just outside each of 90.00, 111.11, 80.00 and 125.00 percent, including values that round across a boundary.
+- **environment** - None - the rule and the limits are stated in the guideline.
+- **expected** - AUC of a confirmed NTID at 90.00-111.11%; Cmax at 90.00-111.11% where Cmax is stated to be of particular importance and at 80.00-125.00% where it is stated not to be; no verdict at all where the class is unstated, where the class is stated not to be NTI, where Cmax importance is unstated with no product-specific limits, or on an endpoint 4.1.9 does not address; product-specific limits replacing the general rule and refused where they contradict a stated importance; both bounds compared after rounding to two decimals; and no result constructible that narrows for a non-NTI product, decides an unstated class, or reports itself as any method other than EMA_NTI_NARROW_ABE.
+- **observed** - Conforms on every combination enumerated.
+- **tolerance** - Exact: these are decisions, not quantities.
+- **established by** - `tests/unit/test_ema_nti_applicability.py`
+- **note** - Tier 1A. EMA states the rule; no EMA publication carries a study decided under it end to end, which is why neither the gates nor the method rises above its current status.
+
+### `EMA-NTI-CMAX-IMPORTANCE-001`
+
+- **scenario** - That Cmax narrowing is genuinely per-product, taken from the two EWP answers that decide it in opposite directions - and therefore that no universal constant can be right.
+- **dataset** - EMA/618604/2008 Rev. 13 answers 4 and 5. Ciclosporin: 'As EWP has defined ciclosporin to be a NTID, for which both AUC and Cmax are important for safety and efficacy, a narrowed (90.00-111.11%) acceptance range should be applied for both AUC and Cmax.' Tacrolimus: 'The EWP recommends that the bioequivalence acceptance criteria for tacrolimus should be [90-111%] for AUC and [80-125%] for Cmax.'
+- **environment** - None - the positions are stated in the Q&A.
+- **expected** - A ciclosporin-shaped input narrows Cmax and a tacrolimus-shaped one does not, from the same engine and the same rule, with the difference carried entirely by the stated clinical importance.
+- **observed** - Both are expressible and neither is the default.
+- **tolerance** - Exact: these are positions, not quantities.
+- **established by** - `tests/unit/test_ema_nti_applicability.py`
+- **note** - Tier 1A and NOT 1B. The Q&A states which interval applies; it publishes no study, no GMR and no confidence interval, so there is no regulator-published number here to reproduce. Both answers are now to be read in conjunction with ICH M13A per EMA/531548/2024.
 
 ### `EMA-PKWP-METHOD-A-DATASET-I`
 
@@ -805,8 +861,8 @@ entry.
 | `FDA_NTI_UNSCALED_UPPER_PERCENT` | 125 | normative | verified | Statistical Approaches to Establishing Bioequivalence | Appendix F (narrow therapeutic index drugs) | final, May 2026 | - |
 | `CONVENTIONAL_LOWER_PERCENT` | 80 | normative | verified | M13A — Bioequivalence for Immediate-Release Solid Oral Dosage Forms | 2.2.4 Bioequivalence Criteria (within 2.2, non-replicate designs) | Final version, adopted 23 July 2024 | - |
 | `CONVENTIONAL_UPPER_PERCENT` | 125 | normative | verified | M13A — Bioequivalence for Immediate-Release Solid Oral Dosage Forms | 2.2.4 Bioequivalence Criteria (within 2.2, non-replicate designs) | Final version, adopted 23 July 2024 | - |
-| `EMA_NTI_NARROWED_LOWER_PERCENT` | 90 | normative | verified | Guideline on the Investigation of Bioequivalence | Narrow therapeutic index drugs | CPMP/EWP/QWP/1401/98 Rev. 1, effective 1 August 2010 | - |
-| `EMA_NTI_NARROWED_UPPER_PERCENT` | 111.11 | normative | verified | Guideline on the Investigation of Bioequivalence | Narrow therapeutic index drugs | CPMP/EWP/QWP/1401/98 Rev. 1, effective 1 August 2010 | - |
+| `EMA_NTI_NARROWED_LOWER_PERCENT` | 90 | normative | verified | Guideline on the Investigation of Bioequivalence | 4.1.9 Narrow therapeutic index drugs | CPMP/EWP/QWP/1401/98 Rev. 1, effective 1 August 2010 | - |
+| `EMA_NTI_NARROWED_UPPER_PERCENT` | 111.11 | normative | verified | Guideline on the Investigation of Bioequivalence | 4.1.9 Narrow therapeutic index drugs | CPMP/EWP/QWP/1401/98 Rev. 1, effective 1 August 2010 | - |
 | `DERIVED_SWR_AT_CV_30` | 0.29356 | derived | derived | derived from the 30% CV classification threshold | - | - | `FDA_HVD_CLASSIFICATION_CV`, `EMA_ABEL_CV_THRESHOLD_PERCENT` |
 | `DERIVED_FDA_HVD_THETA` | 0.796689 | derived | derived | Statistical Approaches to Establishing Bioequivalence | Appendix G (formula, not a stated number) | final, May 2026 | `FDA_HVD_SIGMA_W0`, `CONVENTIONAL_UPPER_PERCENT` |
 | `DERIVED_FDA_NTI_THETA` | 1.11008 | derived | derived | Statistical Approaches to Establishing Bioequivalence | Appendix F (formula, not a stated number) | final, May 2026 | `FDA_NTI_DELTA`, `FDA_NTI_SIGMA_W0` |
@@ -947,6 +1003,7 @@ the finding was.
 | `VAL-FDA-HVD-002` | qualifying | resolved | `FDA_HVD_RSABE`, `FDA_HVD_METHOD_SELECTION` |
 | `VAL-EMA-ABEL-002` | qualifying | resolved | `EMA_ABEL_LIMIT_CALCULATION` |
 | `VAL-EMA-ABEL-003` | qualifying | open | `EMA_HVD_ABEL`, `EMA_HVD_ENDPOINT_DECISION` |
+| `VAL-EMA-NTI-001` | qualifying | open | `EMA_NTI_NARROW_ABE`, `EMA_NTI_ENDPOINT_DECISION` |
 | `VAL-EMA-ABEL-001` | informational | preempted | `EMA_HVD_ENDPOINT_DECISION` |
 | `VAL-FDA-HVD-001` | informational | resolved | `FDA_HVD_RSABE` |
 | `DOSSIER-001` | informational | open | `FDA_REPLICATE_STANDARD_ABE_PARTIAL` |
@@ -1020,6 +1077,14 @@ EMA states the ABEL cap as the pair 69.84-143.19%; the formula at CVwR = 50% giv
 - **evidence** - Read from the extracted text of CPMP/EWP/QWP/1401/98 Rev. 1 4.1.8 and 4.1.10, EMA/618604/2008 Rev. 13 (replicate analysis, questions 4 and 19), EMA/531548/2024, and ICH M13A (Step 5) 2.2.4. 4.1.8's rounding sentence names 80.00% and 125.00%. 4.1.10 gives the limits by formula, prints its table to two decimals, and says nothing about rounding the interval. The Q&A and M13A contain no rounding sentence at all.
 - **resolution condition** - An EMA statement - in the guideline, a PKWP answer or ICH M13C - on how a CI is compared with widened limits. Until then the unrounded comparison stands: it grants no bound a rounding margin EMA has not stated for widened limits.
 - **file** - `validation/findings/VAL-EMA-ABEL-003.json`
+
+### `VAL-EMA-NTI-001`
+
+4.1.8's two-decimal comparison sentence names 80.00% and 125.00%. 4.1.9 replaces the interval with 90.00-111.11% and does not restate the sentence. be-stats applies the same two-decimal comparison to both intervals.
+
+- **evidence** - Read from the extracted text of CPMP/EWP/QWP/1401/98 Rev. 1 4.1.8 and 4.1.9, EMA/618604/2008 Rev. 13 questions 4 and 5, EMA/531548/2024, and ICH M13A (Step 5) 2.2.4. 4.1.8: 'To be inside the acceptance interval the lower bound should be >= 80.00% when rounded to two decimal places and the upper bound should be <= 125.00% when rounded to two decimal places.' 4.1.9 states the tightened interval to exactly two decimals and says nothing about how a bound is compared with it. The Q&A answers repeat '(90.00-111.11%)' and publish no comparison. M13A 2.2.4 has no rounding sentence at all and does not address NTI drugs.
+- **resolution condition** - An EMA statement - in the guideline, a PKWP answer or ICH M13C - on whether 4.1.8's rounding applies to the tightened interval. Until then the rounded comparison stands, on the ground that 4.1.9 changes WHICH interval applies and 4.1.8 defines what being inside one means, and that both of 4.1.9's limits are published to exactly two decimals. This is the OPPOSITE choice from VAL-EMA-ABEL-003 and the difference is a fact about the numbers: a widened ABEL limit is computed per study from exp(+/- k.sWR) and has no published two-decimal form to round against, while 90.00 and 111.11 are published constants.
+- **file** - `validation/findings/VAL-EMA-NTI-001.json`
 
 ### `VAL-EMA-ABEL-001`
 
@@ -1111,6 +1176,9 @@ release gate: PASS
   ok   EMA_HVD_DESIGN_GATE = implemented
   ok   EMA_HVD_VARIABILITY_ELIGIBILITY = implemented
   ok   EMA_ABEL_WIDENING_BASIS_GATE = implemented
+  ok   EMA_NTI_PRODUCT_CLASS_GATE = implemented
+  ok   EMA_NTI_CMAX_IMPORTANCE_GATE = implemented
+  ok   EMA_NTI_ENDPOINT_DECISION = implemented_unvalidated
   ok   EMA_HVD_REFERENCE_VARIABILITY = validated
   ok   EMA_REPLICATE_METHOD_A = validated
   ok   EMA_ABEL_LIMIT_CALCULATION = validated

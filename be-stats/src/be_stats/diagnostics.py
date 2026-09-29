@@ -175,6 +175,36 @@ class DiagnosticCode(StrEnum):
     #: variable procedure, which states rules for those two only. FATAL: no
     #: decision issued, and AUC's rule is not borrowed.
     EMA_HVD_ENDPOINT_NOT_COVERED = "EMA_HVD_ENDPOINT_NOT_COVERED"
+    #: EMA 4.1.9 was asked to decide for a product whose narrow therapeutic
+    #: index status nobody stated. FATAL: the guideline states that no set of
+    #: criteria exists from which the class could be derived, so there is
+    #: nothing to fall back on.
+    #:
+    #: A spec and product metadata that disagree are NOT this condition and get
+    #: no diagnostic: `reconcile_nti_status` raises `ContradictoryProductClass`
+    #: before any result exists, which is the convention PR #83 established for
+    #: two incompatible claims about one product.
+    EMA_NTI_PRODUCT_CLASS_NOT_STATED = "EMA_NTI_PRODUCT_CLASS_NOT_STATED"
+    #: A Cmax endpoint of a confirmed NTID, with no statement of whether Cmax
+    #: is itself of particular importance for safety, efficacy or drug level
+    #: monitoring. FATAL: 4.1.9 makes the interval depend on it and both
+    #: candidate intervals are real.
+    EMA_NTI_CMAX_IMPORTANCE_NOT_STATED = "EMA_NTI_CMAX_IMPORTANCE_NOT_STATED"
+    #: EMA's narrow therapeutic index procedure was asked for a product stated
+    #: NOT to be an NTID. FATAL: the conventional interval may well apply to
+    #: that product, but it applies through 4.1.8 and the standard route, not
+    #: through 4.1.9.
+    EMA_NTI_NOT_APPLICABLE = "EMA_NTI_NOT_APPLICABLE"
+    #: An endpoint that is neither AUC nor Cmax was submitted to EMA's narrow
+    #: therapeutic index procedure. FATAL: 4.1.9 names those two.
+    EMA_NTI_ENDPOINT_NOT_COVERED = "EMA_NTI_ENDPOINT_NOT_COVERED"
+    #: The product-specific limits supplied contradict the stated clinical
+    #: importance of Cmax - one says narrowed and the other says conventional.
+    #: FATAL: two sources, two answers, and no rule for choosing.
+    EMA_NTI_PRODUCT_LIMITS_CONFLICT = "EMA_NTI_PRODUCT_LIMITS_CONFLICT"
+    #: The treatment contrast EMA's narrow therapeutic index decision needs
+    #: could not be estimated. FATAL.
+    EMA_NTI_QUANTITY_NOT_ESTIMABLE = "EMA_NTI_QUANTITY_NOT_ESTIMABLE"
 
 
 class Severity(StrEnum):

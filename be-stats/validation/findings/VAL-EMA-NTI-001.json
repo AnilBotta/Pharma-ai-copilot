@@ -1,0 +1,44 @@
+{
+  "finding_id": "VAL-EMA-NTI-001",
+  "title": "EMA states two-decimal rounding of the CI for 80.00-125.00%, and does not restate it for the tightened 90.00-111.11%",
+  "raised_by": "PR #87, the EMA narrow therapeutic index audit",
+  "raised_on": "2026-09-16",
+  "status": "OPEN",
+  "method": "ema_nti_narrow_abe",
+  "severity": "regulatory_interpretation_open",
+
+  "what_the_sources_say": {
+    "conventional_range": {
+      "rule": "the lower bound should be >= 80.00% when rounded to two decimal places and the upper bound should be <= 125.00% when rounded to two decimal places",
+      "source": "EMA, Guideline on the Investigation of Bioequivalence, CPMP/EWP/QWP/1401/98 Rev. 1, section 4.1.8",
+      "kind": "stated, naming the 80.00-125.00% acceptance interval"
+    },
+    "tightened_range": {
+      "rule": "In specific cases of products with a narrow therapeutic index, the acceptance interval for AUC should be tightened to 90.00-111.11%. Where Cmax is of particular importance for safety, efficacy or drug level monitoring the 90.00-111.11% acceptance interval should also be applied for this parameter.",
+      "source": "same guideline, section 4.1.9",
+      "kind": "the interval is replaced and stated to two decimals; nothing is said about how a bound is compared with it"
+    },
+    "other_documents_read": [
+      "EMA/618604/2008 Rev. 13, PKWP Q&A question 5 (ciclosporin): 'a narrowed (90.00-111.11%) acceptance range should be applied for both AUC and Cmax' - the interval to two decimals, no comparison rule",
+      "EMA/618604/2008 Rev. 13, PKWP Q&A question 4 (tacrolimus): '[90-111%] for AUC and [80-125%] for Cmax' - not even to two decimals, and no comparison rule",
+      "EMA/531548/2024, ICH M13A implementation considerations - no rounding sentence; names narrow therapeutic index drugs as a topic read in conjunction with M13A and deferred to M13C",
+      "ICH M13A (EMA Step 5), 2.2.4: 'should lie within a range of 80.00 - 125.00%' - no rounding sentence, and no NTI provision at all"
+    ]
+  },
+
+  "what_be_stats_does": {
+    "tightened": "Rounds each CI bound to two decimal places in decimal arithmetic, ROUND_HALF_UP on the shortest decimal representation (be_stats.regulatory_rounding), then compares with 90.00 and 111.11.",
+    "conventional": "The same comparison against 80.00 and 125.00, for a confirmed NTI drug whose Cmax is explicitly not of particular importance. 4.1.8 states that case outright.",
+    "one_implementation": "Both go through `ema_nti._interval_contained`, which calls the same `regulatory_rounding` helper PR #85 introduced. There is one rounding implementation in this package."
+  },
+
+  "why_rounded_for_the_tightened_interval": "4.1.9 changes WHICH interval applies; 4.1.8 defines what being inside an acceptance interval means, and is the only sentence in the guideline that defines it. Both of 4.1.9's limits are published to exactly two decimal places, in the same document and the same style as 4.1.8's, so a two-decimal comparison against them is well defined. The residual doubt is that 4.1.8's sentence names 80.00 and 125.00 rather than 'the acceptance interval in force', and 4.1.9 does not repeat it.",
+
+  "why_this_differs_from_VAL-EMA-ABEL-003": "That finding records the OPPOSITE choice for 4.1.10's widened limits, and the difference is a fact about the numbers rather than a preference. A widened ABEL limit is computed per study from exp(+/- k.sWR) and has no published two-decimal form to round a bound against; rounding there would grant a margin against a number EMA never published. 90.00 and 111.11 are published constants.",
+
+  "tie_policy_note": "EMA states no convention for an exact half. be-stats uses ROUND_HALF_UP and names it (regulatory_rounding.TIE_POLICY). No decision test sits on an exact tie.",
+
+  "what_would_close_it": "An EMA statement - in the guideline, a PKWP answer or the future ICH M13C - on whether 4.1.8's two-decimal comparison applies to the tightened interval.",
+  "action_required": "None in be-stats until EMA states the rule. If EMA confirms the comparison is unrounded against the tightened interval, switch `ema_nti._interval_contained` to the unrounded comparison for the narrowed branch and close this finding.",
+  "related_findings": ["VAL-EMA-ABEL-003"]
+}

@@ -251,6 +251,19 @@ class Capability(StrEnum):
     #: product metadata, neither inferred from the data. Added because the
     #: engine widened every Cmax endpoint with CVwR > 30% and asked neither.
     EMA_ABEL_WIDENING_BASIS_GATE = "ema_abel_widening_basis_gate"
+    #: 4.1.9 applies to a product a clinician has classified as an NTID, case
+    #: by case. The gate refuses to decide when nobody classified it and when
+    #: two sources classify it differently, and never derives the class from
+    #: the data - EMA states that no set of criteria exists from which it
+    #: could be.
+    EMA_NTI_PRODUCT_CLASS_GATE = "ema_nti_product_class_gate"
+    #: Whether 4.1.9's second sentence applies to Cmax: a product fact, stated,
+    #: with no decision when it is not. Separate from the class gate because a
+    #: confirmed NTID can have either answer - EWP gave both, in one document.
+    EMA_NTI_CMAX_IMPORTANCE_GATE = "ema_nti_cmax_importance_gate"
+    #: The interval selected by those two gates, applied to one endpoint's 90%
+    #: confidence interval, as one verdict.
+    EMA_NTI_ENDPOINT_DECISION = "ema_nti_endpoint_decision"
 
 
 #: Capabilities carry their own statuses, on the same ladder.
@@ -465,6 +478,17 @@ CAPABILITY_VALIDATION: dict[Capability, ValidationStatus] = {
     #: the engine previously granted, which is the opposite of a promotion, and
     #: no EMA publication gives a number a regulator could disagree with here.
     Capability.EMA_ABEL_WIDENING_BASIS_GATE: ValidationStatus.IMPLEMENTED,
+    #: IMPLEMENTED, and structural on both counts: neither gate reads a
+    #: measurement. They decide whether a rule applies, which the tests settle;
+    #: there is no number for a regulator to disagree with.
+    Capability.EMA_NTI_PRODUCT_CLASS_GATE: ValidationStatus.IMPLEMENTED,
+    Capability.EMA_NTI_CMAX_IMPORTANCE_GATE: ValidationStatus.IMPLEMENTED,
+    #: IMPLEMENTED_UNVALIDATED, for the reason EMA_HVD_ENDPOINT_DECISION is.
+    #: The interval is stated in the guideline and the model is M13A's, and no
+    #: EMA publication carries one NTI study end to end - product classified,
+    #: interval selected, 90% CI computed, PASS or FAIL stated - so the wiring
+    #: between correct pieces has not been shown against a published verdict.
+    Capability.EMA_NTI_ENDPOINT_DECISION: ValidationStatus.IMPLEMENTED_UNVALIDATED,
 }
 
 
@@ -587,6 +611,14 @@ def _conventional_citation(jurisdiction: Jurisdiction) -> Citation:
             "so a new jurisdiction needs its adopting document read and added "
             "rather than defaulted to ICH's."
         ) from None
+
+
+#: The conventional interval itself, as both regulators state it at ICH M13A
+#: 2.2.4 and as EMA states it at 4.1.8. Named rather than written out at each
+#: use, so that "the conventional range" is one object: `resolve_be_spec` and
+#: EMA 4.1.9's conventional-Cmax branch must not be able to disagree about
+#: what conventional means.
+CONVENTIONAL_PERCENT: tuple[float, float] = (80.00, 125.00)
 
 
 #: The harmonised text, under a public name, for readers that have no
@@ -1135,6 +1167,251 @@ class NtiStatus(StrEnum):
     NARROW_THERAPEUTIC_INDEX = "narrow_therapeutic_index"
     NOT_NARROW_THERAPEUTIC_INDEX = "not_narrow_therapeutic_index"
     NOT_STATED = "not_stated"
+
+
+#
+# ------------------------------------ EMA 4.1.9: narrow therapeutic index ---
+#
+# WHAT 4.1.9 SAYS, IN FULL, BECAUSE IT IS THREE SENTENCES
+#
+#     "In specific cases of products with a narrow therapeutic index, the
+#     acceptance interval for AUC should be tightened to 90.00-111.11%. Where
+#     Cmax is of particular importance for safety, efficacy or drug level
+#     monitoring the 90.00-111.11% acceptance interval should also be applied
+#     for this parameter. It is not possible to define a set of criteria to
+#     categorise drugs as narrow therapeutic index drugs (NTIDs) and it must be
+#     decided case by case if an active substance is an NTID based on clinical
+#     considerations."
+#
+# Three separate facts, and the engine must not collapse them:
+#
+#     1  whether the product is an NTID           a clinical decision, case by
+#                                                 case, with NO numerical rule
+#     2  AUC                                      tightened, once 1 holds
+#     3  Cmax                                     tightened only where Cmax is
+#                                                 itself of particular
+#                                                 importance - a second
+#                                                 product fact, not a
+#                                                 consequence of the first
+#
+# EMA says in terms that there is no set of criteria for 1. So nothing here
+# reads variability, the observed concentration range, therapeutic drug
+# monitoring on its own, the design, the drug name or the CI. Both facts are
+# stated by the caller from the product's regulatory file or they are
+# NOT_STATED, and NOT_STATED decides nothing.
+#
+# WHY THIS IS NOT FDA'S NTI PROCEDURE
+#
+# FDA assesses an NTI drug under Appendix F: a fully replicate design, a
+# reference-scaled criterion, an unscaled 80.00-125.00 criterion and a
+# comparison of test and reference within-subject variability, all three of
+# which must hold. EMA narrows the interval and changes nothing else. They are
+# two procedures, not two parameterisations of one, and `fda_nti_theta`,
+# sigma_W0 and Delta have no meaning on this path.
+
+
+class CmaxClinicalImportance(StrEnum):
+    """Is Cmax ITSELF of particular importance for this NTI product?
+
+    4.1.9's second sentence, as a stated product fact. EWP answered it
+    oppositely for two NTIDs in the same Q&A document: ciclosporin, "for which
+    both AUC and Cmax are important for safety and efficacy", takes the
+    narrowed range on both; tacrolimus takes "[90-111%] for AUC and [80-125%]
+    for Cmax", because peak levels "do not seem to be critical for either
+    safety or efficacy". A default either way would be right for one of them
+    and wrong for the other.
+
+    Never inferred. Nothing in a dataset says whether a peak concentration
+    matters clinically.
+    """
+
+    #: Particularly important for safety, efficacy or drug level monitoring.
+    IMPORTANT = "important"
+    #: Explicitly considered NOT to be, as EWP concluded for tacrolimus.
+    NOT_IMPORTANT = "not_important"
+    NOT_STATED = "not_stated"
+
+
+class EmaNtiProductClass(StrEnum):
+    """Whether 4.1.9 applies to the product at all."""
+
+    CONFIRMED_NARROW_THERAPEUTIC_INDEX = "confirmed_narrow_therapeutic_index"
+    NOT_NARROW_THERAPEUTIC_INDEX = "not_narrow_therapeutic_index"
+    #: Nobody said. Not "probably standard": no verdict.
+    UNDETERMINED_NOT_STATED = "undetermined_not_stated"
+
+    @property
+    def confirmed(self) -> bool:
+        return self is EmaNtiProductClass.CONFIRMED_NARROW_THERAPEUTIC_INDEX
+
+    @property
+    def determined(self) -> bool:
+        return self is not EmaNtiProductClass.UNDETERMINED_NOT_STATED
+
+
+def ema_nti_product_class(nti_status: NtiStatus) -> tuple[EmaNtiProductClass, str]:
+    """Does 4.1.9 apply to this product? Pure; reads no data.
+
+    Takes ONE narrow-therapeutic-index answer, which is why it takes no spec:
+    when a spec and product metadata both carry a claim, `reconcile_nti_status`
+    is the single place they are turned into one answer, and it raises
+    `ContradictoryProductClass` rather than preferring either. That helper
+    predates this section and is reused rather than reimplemented - two places
+    resolving one disagreement is how the two start resolving it differently.
+
+    NOT_STATED is not "probably standard". 4.1.9 states that no set of criteria
+    can categorise a drug as an NTID, so there is nothing here to fall back on,
+    and the caller is told that rather than given the more convenient answer.
+    """
+    if not isinstance(nti_status, NtiStatus):
+        raise TypeError(
+            f"nti_status must be an NtiStatus, got {nti_status!r}. Whether a "
+            "product is an NTID is a clinical decision with an explicit "
+            "NOT_STATED, not a flag."
+        )
+    if nti_status is NtiStatus.NARROW_THERAPEUTIC_INDEX:
+        return (
+            EmaNtiProductClass.CONFIRMED_NARROW_THERAPEUTIC_INDEX,
+            "the product is a narrow therapeutic index drug",
+        )
+    if nti_status is NtiStatus.NOT_NARROW_THERAPEUTIC_INDEX:
+        return (
+            EmaNtiProductClass.NOT_NARROW_THERAPEUTIC_INDEX,
+            "the product is stated NOT to be a narrow therapeutic index drug",
+        )
+    return (
+        EmaNtiProductClass.UNDETERMINED_NOT_STATED,
+        "no narrow therapeutic index status was stated, and 4.1.9 states that "
+        "no set of criteria exists from which one could be derived",
+    )
+
+
+class EmaNtiIntervalStatus(StrEnum):
+    """Which acceptance interval 4.1.9 gives this endpoint, and why."""
+
+    #: 90.00-111.11%.
+    NARROWED = "narrowed"
+    #: 80.00-125.00%: a confirmed NTID whose Cmax is explicitly not of
+    #: particular importance. 4.1.9 narrows nothing here and 4.1.8 stands.
+    CONVENTIONAL = "conventional"
+    #: Not an NTID. No EMA NTI verdict of any kind - not a conventional one
+    #: either, because this method was not the applicable one.
+    NOT_APPLICABLE_NOT_NTI = "not_applicable_not_nti"
+    #: The product class was not stated, or two sources disagreed.
+    UNDETERMINED_CLASS_NOT_DETERMINED = "undetermined_class_not_determined"
+    #: Cmax, confirmed NTID, and nobody said whether Cmax itself matters. The
+    #: applicable interval is genuinely unknown: both candidates are real.
+    UNDETERMINED_CMAX_IMPORTANCE_NOT_STATED = "undetermined_cmax_importance_not_stated"
+    #: Neither AUC nor Cmax. 4.1.9 names those two and nothing else; AUC's rule
+    #: is not borrowed for an endpoint the guideline does not mention.
+    UNDETERMINED_ENDPOINT_NOT_COVERED = "undetermined_endpoint_not_covered"
+
+    @property
+    def determined(self) -> bool:
+        """Is an acceptance interval selected?"""
+        return self in {
+            EmaNtiIntervalStatus.NARROWED,
+            EmaNtiIntervalStatus.CONVENTIONAL,
+        }
+
+    @property
+    def narrowed(self) -> bool:
+        return self is EmaNtiIntervalStatus.NARROWED
+
+
+def ema_nti_interval(
+    *,
+    endpoint: Endpoint,
+    product_class: EmaNtiProductClass,
+    cmax_importance: CmaxClinicalImportance,
+) -> tuple[EmaNtiIntervalStatus, str]:
+    """Which interval 4.1.9 applies to one endpoint. Pure; reads no data.
+
+    The questions are asked in the order that makes each answer meaningful:
+
+        product class   4.1.9 exists only for a confirmed NTID
+        endpoint        AUC is tightened; Cmax is conditional; nothing else is
+                        addressed at all
+        importance      asked for Cmax ONLY, and only once the class holds
+
+    `cmax_importance` is never consulted for AUC. 4.1.9 tightens AUC on the
+    class alone, and a Cmax fact that could move the AUC interval would be the
+    engine answering one question with another product's answer.
+    """
+    if not isinstance(product_class, EmaNtiProductClass):
+        raise TypeError(
+            f"product_class must be an EmaNtiProductClass, got {product_class!r}."
+        )
+    if not isinstance(cmax_importance, CmaxClinicalImportance):
+        raise TypeError(
+            f"cmax_importance must be a CmaxClinicalImportance, got "
+            f"{cmax_importance!r}. Whether Cmax is of particular importance is "
+            "product metadata with an explicit NOT_STATED, not a flag."
+        )
+    endpoint = Endpoint(endpoint)
+
+    if not product_class.determined:
+        return (
+            EmaNtiIntervalStatus.UNDETERMINED_CLASS_NOT_DETERMINED,
+            f"the product class is {product_class}, so whether 4.1.9 applies "
+            "is unknown",
+        )
+    if not product_class.confirmed:
+        return (
+            EmaNtiIntervalStatus.NOT_APPLICABLE_NOT_NTI,
+            "4.1.9 applies to products with a narrow therapeutic index, and "
+            "this product is stated not to be one",
+        )
+
+    if endpoint is Endpoint.AUC:
+        return (
+            EmaNtiIntervalStatus.NARROWED,
+            "4.1.9 tightens the acceptance interval for AUC to "
+            "90.00-111.11% for a narrow therapeutic index drug",
+        )
+    if endpoint is Endpoint.CMAX:
+        if cmax_importance is CmaxClinicalImportance.IMPORTANT:
+            return (
+                EmaNtiIntervalStatus.NARROWED,
+                "Cmax is stated to be of particular importance for safety, "
+                "efficacy or drug level monitoring, so 4.1.9 applies the "
+                "90.00-111.11% interval to it as well",
+            )
+        if cmax_importance is CmaxClinicalImportance.NOT_IMPORTANT:
+            return (
+                EmaNtiIntervalStatus.CONVENTIONAL,
+                "Cmax is stated NOT to be of particular importance, so 4.1.9 "
+                "narrows nothing for it and 4.1.8's 80.00-125.00% stands",
+            )
+        return (
+            EmaNtiIntervalStatus.UNDETERMINED_CMAX_IMPORTANCE_NOT_STATED,
+            "whether Cmax is of particular importance for safety, efficacy or "
+            "drug level monitoring was not stated, and 4.1.9 makes the "
+            "interval depend on it",
+        )
+    return (
+        EmaNtiIntervalStatus.UNDETERMINED_ENDPOINT_NOT_COVERED,
+        f"4.1.9 addresses AUC and Cmax; it states no rule for {endpoint}",
+    )
+
+
+#: 4.1.9's tightened interval, as the guideline prints it. NOT 1/0.9.
+#:
+#: 111.11 is the published limit and 1/0.90 = 111.111... is not: the guideline
+#: states two decimals and the PKWP Q&A repeats "(90.00-111.11%)" for
+#: ciclosporin. The reciprocal is recorded in `dossier.constants` among the
+#: derived values precisely so that nobody reintroduces it here as a
+#: "more exact" version of a number EMA published exactly.
+EMA_NTI_NARROWED_PERCENT: tuple[float, float] = (90.00, 111.11)
+
+
+def ema_nti_limits(status: EmaNtiIntervalStatus) -> tuple[float, float] | None:
+    """The interval a determined status selects, or None when none is."""
+    if status is EmaNtiIntervalStatus.NARROWED:
+        return EMA_NTI_NARROWED_PERCENT
+    if status is EmaNtiIntervalStatus.CONVENTIONAL:
+        return CONVENTIONAL_PERCENT
+    return None
 
 
 class HvdClass(StrEnum):
@@ -1821,8 +2098,7 @@ def resolve_be_spec(
             method=Method.STANDARD_ABE,
             acceptance=override
             or _interval(
-                80.00,
-                125.00,
+                *CONVENTIONAL_PERCENT,
                 _conventional_citation(jur),
                 f"{jur} standard interval",
                 VerificationStatus.VERIFIED,

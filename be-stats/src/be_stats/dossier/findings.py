@@ -292,6 +292,46 @@ FINDINGS_REGISTER: tuple[Finding, ...] = (
         evidence_file="validation/findings/VAL-EMA-ABEL-003.json",
     ),
     Finding(
+        finding_id="VAL-EMA-NTI-001",
+        severity=FindingSeverity.QUALIFYING,
+        status=FindingStatus.OPEN,
+        affected_capabilities=(
+            "EMA_NTI_NARROW_ABE",
+            "EMA_NTI_ENDPOINT_DECISION",
+        ),
+        description=(
+            "4.1.8's two-decimal comparison sentence names 80.00% and "
+            "125.00%. 4.1.9 replaces the interval with 90.00-111.11% and does "
+            "not restate the sentence. be-stats applies the same two-decimal "
+            "comparison to both intervals."
+        ),
+        evidence=(
+            "Read from the extracted text of CPMP/EWP/QWP/1401/98 Rev. 1 "
+            "4.1.8 and 4.1.9, EMA/618604/2008 Rev. 13 questions 4 and 5, "
+            "EMA/531548/2024, and ICH M13A (Step 5) 2.2.4. 4.1.8: 'To be "
+            "inside the acceptance interval the lower bound should be >= "
+            "80.00% when rounded to two decimal places and the upper bound "
+            "should be <= 125.00% when rounded to two decimal places.' 4.1.9 "
+            "states the tightened interval to exactly two decimals and says "
+            "nothing about how a bound is compared with it. The Q&A answers "
+            "repeat '(90.00-111.11%)' and publish no comparison. M13A 2.2.4 "
+            "has no rounding sentence at all and does not address NTI drugs."
+        ),
+        resolution_condition=(
+            "An EMA statement - in the guideline, a PKWP answer or ICH M13C - "
+            "on whether 4.1.8's rounding applies to the tightened interval. "
+            "Until then the rounded comparison stands, on the ground that "
+            "4.1.9 changes WHICH interval applies and 4.1.8 defines what being "
+            "inside one means, and that both of 4.1.9's limits are published "
+            "to exactly two decimals. This is the OPPOSITE choice from "
+            "VAL-EMA-ABEL-003 and the difference is a fact about the numbers: "
+            "a widened ABEL limit is computed per study from exp(+/- k.sWR) "
+            "and has no published two-decimal form to round against, while "
+            "90.00 and 111.11 are published constants."
+        ),
+        evidence_file="validation/findings/VAL-EMA-NTI-001.json",
+    ),
+    Finding(
         finding_id="VAL-EMA-ABEL-001",
         severity=FindingSeverity.INFORMATIONAL,
         status=FindingStatus.PREEMPTED,

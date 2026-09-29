@@ -231,18 +231,26 @@ ROUTING_MATRIX: tuple[RoutingRoute, ...] = (
         input_classification=(
             "A drug declared narrow therapeutic index, endpoint AUC."
         ),
-        design_requirement=(DesignFamily.CROSSOVER, DesignFamily.REPLICATE),
+        design_requirement=(DesignFamily.CROSSOVER, DesignFamily.PARALLEL),
         method=Method.EMA_NTI_NARROW_ABE,
         decision_rule=(
             "The 90% confidence interval must fall within the NARROWED "
-            "90.00-111.11%. EMA narrows the interval where FDA adds criteria; "
-            "the two NTI procedures are not variants of one rule."
+            "90.00-111.11%, both bounds compared after rounding to two decimal "
+            "places. EMA narrows the interval where FDA adds criteria; the two "
+            "NTI procedures are not variants of one rule."
         ),
         refusal_behaviour=(
-            "Not estimable yields decided=false, passes=null. The narrowed "
-            "interval is never widened back to 80.00-125.00%."
+            "An unstated narrow therapeutic index class yields decided=false, "
+            "passes=null: `assess_ema_nti_endpoint` takes the class as stated "
+            "product metadata and 4.1.9 gives no criteria to derive it from. "
+            "Not estimable yields decided=false too. The narrowed interval is "
+            "never widened back to 80.00-125.00%."
         ),
-        refusal_conditions=(RefusalCode.QUANTITY_NOT_ESTIMABLE,),
+        refusal_conditions=(
+            RefusalCode.EMA_NTI_PRODUCT_CLASS_REQUIRED,
+            RefusalCode.EMA_NTI_NOT_APPLICABLE,
+            RefusalCode.QUANTITY_NOT_ESTIMABLE,
+        ),
     ),
     RoutingRoute(
         route_id="EMA_NTI_CMAX",
@@ -256,18 +264,28 @@ ROUTING_MATRIX: tuple[RoutingRoute, ...] = (
         design_requirement=(),
         method=None,
         decision_rule=(
-            "None is selected. EMA narrows Cmax only where Cmax itself "
-            "matters for safety, efficacy or therapeutic drug monitoring, and "
-            "that is a per-product decision: ciclosporin narrows both AUC and "
-            "Cmax, colchicine narrows AUC and leaves Cmax at 80.00-125.00%."
+            "None is selected FROM THESE THREE FACTS. EMA narrows Cmax only "
+            "where Cmax itself is of particular importance for safety, "
+            "efficacy or drug level monitoring, and that is a fourth fact "
+            "about the product: EWP narrowed both AUC and Cmax for "
+            "ciclosporin, and recommended '[90-111%] for AUC and [80-125%] for "
+            "Cmax' for tacrolimus, in one document."
         ),
         refusal_behaviour=(
-            "Raises SpecificationRequired. Both available defaults are wrong "
-            "for some products, so neither is chosen. Supplying the limits as "
-            "a ProductOverride routes to EMA_NTI_NARROW_ABE with those limits."
+            "Raises SpecificationRequired. Jurisdiction, class and endpoint do "
+            "not determine the interval, and both available defaults are wrong "
+            "for a real EMA product, so neither is chosen. Supplying the limits "
+            "as a ProductOverride routes to EMA_NTI_NARROW_ABE with those "
+            "limits. Alternatively `assess_ema_nti_endpoint` takes the fourth "
+            "fact directly as a typed `CmaxClinicalImportance` and decides - or "
+            "declines, with decided=false - without the caller transcribing any "
+            "numbers."
         ),
         raises="SpecificationRequired",
-        refusal_conditions=(RefusalCode.EMA_NTI_CMAX_PRODUCT_SPECIFIC,),
+        refusal_conditions=(
+            RefusalCode.EMA_NTI_CMAX_PRODUCT_SPECIFIC,
+            RefusalCode.EMA_NTI_CMAX_IMPORTANCE_REQUIRED,
+        ),
     ),
     RoutingRoute(
         route_id="EMA_NTI_OTHER",
@@ -284,10 +302,11 @@ ROUTING_MATRIX: tuple[RoutingRoute, ...] = (
         refusal_behaviour=(
             "Raises SpecificationRequired. The general guideline defines "
             "narrowed limits for AUC and conditionally for Cmax, and for "
-            "nothing else."
+            "nothing else. AUC's rule is not borrowed for an endpoint 4.1.9 "
+            "does not mention."
         ),
         raises="SpecificationRequired",
-        refusal_conditions=(RefusalCode.EMA_NTI_CMAX_PRODUCT_SPECIFIC,),
+        refusal_conditions=(RefusalCode.EMA_NTI_ENDPOINT_RULE_REQUIRED,),
     ),
 )
 

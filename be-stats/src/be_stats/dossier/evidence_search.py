@@ -589,6 +589,168 @@ EMA_HVD_ABEL_END_TO_END_SEARCH: tuple[SearchedSource, ...] = (
 )
 
 
+#: The tier-1B search for EMA's NARROW THERAPEUTIC INDEX procedure.
+#:
+#: The question: has EMA published a worked numerical example of a study
+#: decided under 4.1.9 - a product classified as an NTID, an endpoint, a 90%
+#: confidence interval and a stated bioequivalence verdict against
+#: 90.00-111.11% - such that `EMA_NTI_NARROW_ABE` could hold method-level
+#: tier-1B evidence?
+#:
+#: The answer is no, and the shape of the "no" matters. EMA publishes the RULE
+#: in the guideline and publishes PER-PRODUCT APPLICATIONS of the rule in the
+#: PKWP Q&A - which interval applies to ciclosporin, and to tacrolimus - and
+#: publishes no study, no geometric mean ratio and no interval anywhere. An
+#: interval that a regulator says SHOULD be used is tier-1A rule evidence. It
+#: becomes tier-1B only when there is a number the engine can be run against
+#: and a verdict the regulator itself stated, and there is none.
+#:
+#: NOT SEARCHED, and recorded as such rather than as absent: the individual
+#: EMA product-specific bioequivalence guidance documents, and EPAR assessment
+#: reports for NTI generics. Those are the places a published GMR and interval
+#: would most plausibly appear. They were not retrieved in this pull request,
+#: so nothing here claims they hold nothing - only that they were not read.
+EMA_NTI_TIER_1B_SEARCH: tuple[SearchedSource, ...] = (
+    SearchedSource(
+        sought=(
+            "EMA NTI end to end: one product classified, one endpoint, a 90% "
+            "CI and a stated verdict against 90.00-111.11%"
+        ),
+        authority="EMA",
+        document=(
+            "Guideline on the Investigation of Bioequivalence "
+            "(CPMP/EWP/QWP/1401/98 Rev. 1)"
+        ),
+        document_version="Rev. 1, effective 1 August 2010",
+        sections_read=(
+            "4.1.8 (parameters to be analysed and acceptance limits) and 4.1.9 "
+            "(narrow therapeutic index drugs) in full, read from the extracted "
+            "text of pages 15-16; Appendix III's two cross-references to 4.1.9."
+        ),
+        verdict=SearchVerdict.NO_NUMERICAL_OUTPUT,
+        found=(
+            "The whole rule, in three sentences: 'the acceptance interval for "
+            "AUC should be tightened to 90.00-111.11%'; 'Where Cmax is of "
+            "particular importance for safety, efficacy or drug level "
+            "monitoring the 90.00-111.11% acceptance interval should also be "
+            "applied for this parameter'; and 'it is not possible to define a "
+            "set of criteria to categorise drugs as narrow therapeutic index "
+            "drugs (NTIDs) and it must be decided case by case ... based on "
+            "clinical considerations'. No dataset, no interval, no verdict."
+        ),
+        url=(
+            "https://www.ema.europa.eu/en/documents/scientific-guideline/"
+            "guideline-investigation-bioequivalence-rev1_en.pdf"
+        ),
+    ),
+    SearchedSource(
+        sought=(
+            "EMA NTI end to end: one product classified, one endpoint, a 90% "
+            "CI and a stated verdict against 90.00-111.11%"
+        ),
+        authority="EMA",
+        document=(
+            "Questions & Answers: Positions on specific questions addressed to "
+            "the Pharmacokinetics Working Party (EMA/618604/2008)"
+        ),
+        document_version="Rev. 13",
+        sections_read=(
+            "Question 3 (acceptance criteria for losartan), question 4 "
+            "(bioequivalence assessment of generics for tacrolimus, pages "
+            "9-10) and question 5 (requirements for demonstration of "
+            "bioequivalence for ciclosporine generics, page 11), read in full."
+        ),
+        verdict=SearchVerdict.NUMBERS_OUT_OF_SCOPE,
+        found=(
+            "The two per-product applications of 4.1.9, decided in opposite "
+            "directions for Cmax. Ciclosporin: 'As EWP has defined ciclosporin "
+            "to be a NTID, for which both AUC and Cmax are important for "
+            "safety and efficacy, a narrowed (90.00-111.11%) acceptance range "
+            "should be applied for both AUC and Cmax.' Tacrolimus, with its "
+            "reasoning - 'peak whole blood levels do not seem to be critical "
+            "for either safety or efficacy' - concluding '[90-111%] for AUC "
+            "and [80-125%] for Cmax'."
+        ),
+        rejected_because=(
+            "Limits, not results. Both answers state which interval a future "
+            "study must meet; neither reports a study, a geometric mean ratio, "
+            "a confidence interval or a bioequivalence decision. There is "
+            "nothing here to run the engine against, which is the whole of "
+            "what tier 1B requires. They are adopted as tier-1A applicability "
+            "evidence instead (EMA-NTI-CMAX-IMPORTANCE-001)."
+        ),
+        url=(
+            "https://www.ema.europa.eu/en/documents/scientific-guideline/"
+            "questions-answers-positions-specific-questions-addressed-"
+            "pharmacokinetics-working-party_en.pdf"
+        ),
+    ),
+    SearchedSource(
+        sought=(
+            "whether ICH M13A supplies the NTI acceptance criteria, worked or "
+            "otherwise, after 25 January 2025"
+        ),
+        authority="ICH",
+        document=(
+            "M13A Guideline on bioequivalence for immediate-release solid oral "
+            "dosage forms (EMA/CHMP/ICH/953493/2022)"
+        ),
+        document_version="Step 5",
+        sections_read=(
+            "Section 1 (introduction and the M13 series scope), 2.2.3 "
+            "(statistical analysis) and 2.2.4 (bioequivalence criteria)."
+        ),
+        verdict=SearchVerdict.NUMBERS_FOR_ANOTHER_METHOD,
+        found=(
+            "2.2.4 states 80.00-125.00% and nothing about narrow therapeutic "
+            "index drugs. Section 1 defers them explicitly: 'The third "
+            "guideline in the series, M13C, will include data analysis and BE "
+            "assessment for 1) highly variable drugs, 2) drugs with narrow "
+            "therapeutic index'. 2.2.3.2 gives the analysis model this engine "
+            "uses for the non-replicate crossover."
+        ),
+        rejected_because=(
+            "M13A supplies the MODEL and the conventional criteria, not the "
+            "NTI ones. Reading its 80.00-125.00% as the EMA NTI interval would "
+            "invert the rule 4.1.9 states."
+        ),
+    ),
+    SearchedSource(
+        sought=(
+            "which document governs EMA NTI acceptance criteria after ICH "
+            "M13A came into effect"
+        ),
+        authority="EMA",
+        document=(
+            "Considerations regarding the implementation of ICH M13A on "
+            "bioequivalence for immediate-release solid oral dosage forms"
+        ),
+        document_version="EMA/531548/2024, adopted by CHMP 17 February 2025",
+        sections_read="Background and Implementation, in full - the document is three pages.",
+        verdict=SearchVerdict.NO_NUMERICAL_OUTPUT,
+        found=(
+            "That M13A came into effect on 25 January 2025 'formally "
+            "superseding applicable parts of' the EMA guideline; that the EMA "
+            "guideline 'pertaining to specific topics not addressed in ICH "
+            "M13A will continue to apply'; and that 'the requirements of both "
+            "ICH M13A and the existing EMA Guideline read in conjunction may "
+            "be applicable to e.g., ... drugs with narrow therapeutic index'. "
+            "It also puts the existing Q&As under the same read-in-conjunction "
+            "rule pending EMA's review."
+        ),
+        rejected_because=(
+            "Precedence, not numbers. It settles WHICH documents govern - both "
+            "of them, each for what it covers - and publishes no result."
+        ),
+        url=(
+            "https://www.ema.europa.eu/en/documents/scientific-guideline/"
+            "considerations-regarding-implementation-ich-m13a-bioequivalence-"
+            "immediate-release-solid-oral-dosage-forms_en.pdf"
+        ),
+    ),
+)
+
+
 def sources_with_verdict(
     verdict: SearchVerdict,
     search: tuple[SearchedSource, ...] = ORDINARY_ABE_TIER_1B_SEARCH,

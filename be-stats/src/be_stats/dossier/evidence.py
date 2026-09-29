@@ -445,7 +445,10 @@ EVIDENCE_MANIFEST: tuple[EvidenceRecord, ...] = (
             "that a product override replaces the limits rather than widening "
             "them back."
         ),
-        dataset="The routing cases, including a ciclosporin- and a colchicine-shaped override.",
+        dataset=(
+            "The routing cases, including a ciclosporin- and a "
+            "tacrolimus-shaped override."
+        ),
         software_environment="None - the limits are stated in the guideline.",
         expected=(
             "90.00-111.11% for AUC. NOT 80.00-125.00%, and not FDA's "
@@ -458,6 +461,95 @@ EVIDENCE_MANIFEST: tuple[EvidenceRecord, ...] = (
         note=(
             "Tier 1A and not 1B: EMA states the interval and publishes no "
             "worked example of a study decided under it."
+        ),
+    ),
+    EvidenceRecord(
+        evidence_id="EMA-NTI-APPLICABILITY-001",
+        capabilities=(
+            "EMA_NTI_PRODUCT_CLASS_GATE",
+            "EMA_NTI_CMAX_IMPORTANCE_GATE",
+            "EMA_NTI_ENDPOINT_DECISION",
+            "EMA_NTI_NARROW_ABE",
+        ),
+        tier=EvidenceTier.TIER_1A,
+        source_type=SourceType.REGULATORY_ALGORITHM,
+        source_authority="EMA",
+        evidence_authority=Authority.EMA,
+        scenario=(
+            "Section 4.1.9's three sentences applied as three separate "
+            "questions: whether the product is an NTID, which interval each "
+            "endpoint gets, and whether the 90% CI falls inside it. Every "
+            "combination of product class, endpoint, Cmax clinical importance "
+            "and product-specific override is enumerated, with the boundary "
+            "values of both intervals."
+        ),
+        dataset=(
+            "The rule matrix, plus 2x2 crossover and parallel studies "
+            "constructed to sit exactly on, just inside and just outside each "
+            "of 90.00, 111.11, 80.00 and 125.00 percent, including values that "
+            "round across a boundary."
+        ),
+        software_environment="None - the rule and the limits are stated in the guideline.",
+        expected=(
+            "AUC of a confirmed NTID at 90.00-111.11%; Cmax at 90.00-111.11% "
+            "where Cmax is stated to be of particular importance and at "
+            "80.00-125.00% where it is stated not to be; no verdict at all "
+            "where the class is unstated, where the class is stated not to be "
+            "NTI, where Cmax importance is unstated with no product-specific "
+            "limits, or on an endpoint 4.1.9 does not address; product-specific "
+            "limits replacing the general rule and refused where they "
+            "contradict a stated importance; both bounds compared after "
+            "rounding to two decimals; and no result constructible that "
+            "narrows for a non-NTI product, decides an unstated class, or "
+            "reports itself as any method other than EMA_NTI_NARROW_ABE."
+        ),
+        observed="Conforms on every combination enumerated.",
+        tolerance="Exact: these are decisions, not quantities.",
+        status=EvidenceStatus.PASSED,
+        established_by="tests/unit/test_ema_nti_applicability.py",
+        note=(
+            "Tier 1A. EMA states the rule; no EMA publication carries a study "
+            "decided under it end to end, which is why neither the gates nor "
+            "the method rises above its current status."
+        ),
+    ),
+    EvidenceRecord(
+        evidence_id="EMA-NTI-CMAX-IMPORTANCE-001",
+        capabilities=("EMA_NTI_CMAX_IMPORTANCE_GATE",),
+        tier=EvidenceTier.TIER_1A,
+        source_type=SourceType.REGULATORY_ALGORITHM,
+        source_authority="EMA",
+        evidence_authority=Authority.EMA,
+        scenario=(
+            "That Cmax narrowing is genuinely per-product, taken from the two "
+            "EWP answers that decide it in opposite directions - and therefore "
+            "that no universal constant can be right."
+        ),
+        dataset=(
+            "EMA/618604/2008 Rev. 13 answers 4 and 5. Ciclosporin: 'As EWP has "
+            "defined ciclosporin to be a NTID, for which both AUC and Cmax are "
+            "important for safety and efficacy, a narrowed (90.00-111.11%) "
+            "acceptance range should be applied for both AUC and Cmax.' "
+            "Tacrolimus: 'The EWP recommends that the bioequivalence "
+            "acceptance criteria for tacrolimus should be [90-111%] for AUC "
+            "and [80-125%] for Cmax.'"
+        ),
+        software_environment="None - the positions are stated in the Q&A.",
+        expected=(
+            "A ciclosporin-shaped input narrows Cmax and a tacrolimus-shaped "
+            "one does not, from the same engine and the same rule, with the "
+            "difference carried entirely by the stated clinical importance."
+        ),
+        observed="Both are expressible and neither is the default.",
+        tolerance="Exact: these are positions, not quantities.",
+        status=EvidenceStatus.PASSED,
+        established_by="tests/unit/test_ema_nti_applicability.py",
+        note=(
+            "Tier 1A and NOT 1B. The Q&A states which interval applies; it "
+            "publishes no study, no GMR and no confidence interval, so there "
+            "is no regulator-published number here to reproduce. Both answers "
+            "are now to be read in conjunction with ICH M13A per "
+            "EMA/531548/2024."
         ),
     ),
     # ------------------------------------------------------------ tier 1B ---

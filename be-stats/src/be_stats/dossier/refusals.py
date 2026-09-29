@@ -106,6 +106,21 @@ class RefusalCode(StrEnum):
     #: for safety, efficacy or therapeutic drug monitoring - decided per
     #: product. Both defaults are wrong for some products.
     EMA_NTI_CMAX_PRODUCT_SPECIFIC = "EMA_NTI_CMAX_PRODUCT_SPECIFIC"
+    #: 4.1.9 applies to a product a clinician classified as an NTID, and
+    #: nobody classified this one.
+    EMA_NTI_PRODUCT_CLASS_REQUIRED = "EMA_NTI_PRODUCT_CLASS_REQUIRED"
+    #: EMA's NTI procedure was asked for a product stated NOT to be an NTID.
+    EMA_NTI_NOT_APPLICABLE = "EMA_NTI_NOT_APPLICABLE"
+    #: A confirmed NTID's Cmax, with no statement of whether Cmax itself is of
+    #: particular importance and no product-specific document supplying the
+    #: limits instead.
+    EMA_NTI_CMAX_IMPORTANCE_REQUIRED = "EMA_NTI_CMAX_IMPORTANCE_REQUIRED"
+    #: An endpoint 4.1.9 does not address, with no product-specific document
+    #: supplying limits for it.
+    EMA_NTI_ENDPOINT_RULE_REQUIRED = "EMA_NTI_ENDPOINT_RULE_REQUIRED"
+    #: The supplied product-specific limits and the stated clinical importance
+    #: of Cmax select different intervals.
+    EMA_NTI_PRODUCT_LIMITS_CONFLICT = "EMA_NTI_PRODUCT_LIMITS_CONFLICT"
     #: A jurisdiction and drug-class combination this engine does not route.
     UNSUPPORTED_REGULATORY_ROUTE = "UNSUPPORTED_REGULATORY_ROUTE"
     #: The product is a narrow therapeutic index drug, so FDA's highly variable
@@ -373,15 +388,88 @@ REFUSALS: dict[RefusalCode, RefusalReason] = {
         code=RefusalCode.EMA_NTI_CMAX_PRODUCT_SPECIFIC,
         summary=(
             "EMA narrows Cmax for an NTI drug only where Cmax itself matters "
-            "for safety, efficacy or therapeutic drug monitoring, and that is "
-            "a per-product decision: ciclosporin narrows both AUC and Cmax, "
-            "colchicine narrows AUC and leaves Cmax at 80.00-125.00%."
+            "for safety, efficacy or drug level monitoring, and that is a "
+            "per-product decision. EWP gave both answers in one document: "
+            "ciclosporin, 'for which both AUC and Cmax are important for "
+            "safety and efficacy', narrows both; tacrolimus takes '[90-111%] "
+            "for AUC and [80-125%] for Cmax'."
         ),
         lifted_by=(
-            "Supply the Cmax limits from the applicable product-specific "
+            "State whether Cmax is of particular importance for this product - "
+            "`cmax_importance` - or supply the Cmax limits from the applicable "
+            "product-specific guidance as a ProductOverride."
+        ),
+        source="EMA CPMP/EWP/QWP/1401/98 Rev. 1, section 4.1.9",
+    ),
+    RefusalCode.EMA_NTI_PRODUCT_CLASS_REQUIRED: RefusalReason(
+        code=RefusalCode.EMA_NTI_PRODUCT_CLASS_REQUIRED,
+        summary=(
+            "EMA's narrowed interval applies to a product decided to be a "
+            "narrow therapeutic index drug, and nobody has said whether this "
+            "one is. 4.1.9 states that no set of criteria can categorise a "
+            "drug as an NTID, so there is nothing in the data to fall back on."
+        ),
+        lifted_by=(
+            "State the product's class - `nti_status`, or a spec whose "
+            "`drug_class` carries it. Nothing about the data lifts this."
+        ),
+        source="EMA CPMP/EWP/QWP/1401/98 Rev. 1, section 4.1.9",
+    ),
+    RefusalCode.EMA_NTI_NOT_APPLICABLE: RefusalReason(
+        code=RefusalCode.EMA_NTI_NOT_APPLICABLE,
+        summary=(
+            "The product is stated NOT to be a narrow therapeutic index drug, "
+            "so 4.1.9 does not apply to it and no EMA NTI verdict is issued - "
+            "not a conventional one either. The conventional interval may well "
+            "be right for this product; it applies through 4.1.8 and the "
+            "standard route, which is a different method."
+        ),
+        lifted_by=(
+            "Use the standard route. This refusal is not lifted by supplying "
+            "limits: the method, not the numbers, is what does not apply."
+        ),
+        source="EMA CPMP/EWP/QWP/1401/98 Rev. 1, section 4.1.9",
+    ),
+    RefusalCode.EMA_NTI_CMAX_IMPORTANCE_REQUIRED: RefusalReason(
+        code=RefusalCode.EMA_NTI_CMAX_IMPORTANCE_REQUIRED,
+        summary=(
+            "A confirmed NTI drug's Cmax, with no statement of whether Cmax is "
+            "itself of particular importance for safety, efficacy or drug "
+            "level monitoring. Both candidate intervals are real EMA answers "
+            "for real EMA products, so neither is defaulted to."
+        ),
+        lifted_by=(
+            "State `cmax_importance`, or supply the product-specific Cmax "
+            "limits as a ProductOverride."
+        ),
+        source="EMA CPMP/EWP/QWP/1401/98 Rev. 1, section 4.1.9",
+    ),
+    RefusalCode.EMA_NTI_ENDPOINT_RULE_REQUIRED: RefusalReason(
+        code=RefusalCode.EMA_NTI_ENDPOINT_RULE_REQUIRED,
+        summary=(
+            "4.1.9 tightens AUC and conditionally Cmax, and states no rule for "
+            "any other endpoint. AUC's rule is not borrowed for one the "
+            "guideline does not mention."
+        ),
+        lifted_by=(
+            "Supply limits for that endpoint from applicable product-specific "
             "guidance as a ProductOverride."
         ),
-        source="EMA CPMP/EWP/QWP/1401/98 Rev. 1, narrow therapeutic index drugs",
+        source="EMA CPMP/EWP/QWP/1401/98 Rev. 1, section 4.1.9",
+    ),
+    RefusalCode.EMA_NTI_PRODUCT_LIMITS_CONFLICT: RefusalReason(
+        code=RefusalCode.EMA_NTI_PRODUCT_LIMITS_CONFLICT,
+        summary=(
+            "The product-specific limits supplied and the stated clinical "
+            "importance of Cmax select different intervals - one the narrowed "
+            "range and the other the conventional one. Two sources, two "
+            "answers, and 4.1.9 gives no rule for choosing between them."
+        ),
+        lifted_by=(
+            "Correct whichever is wrong. The engine will not prefer one input "
+            "over another about a product it cannot observe."
+        ),
+        source="EMA CPMP/EWP/QWP/1401/98 Rev. 1, section 4.1.9",
     ),
     RefusalCode.UNSUPPORTED_REGULATORY_ROUTE: RefusalReason(
         code=RefusalCode.UNSUPPORTED_REGULATORY_ROUTE,

@@ -341,21 +341,54 @@ _METHOD_ROWS: tuple[CapabilityRecord, ...] = (
         jurisdiction=Jurisdiction.EMA,
         method=Method.EMA_NTI_NARROW_ABE,
         source_key=Method.EMA_NTI_NARROW_ABE,
-        design_requirement=(DesignFamily.CROSSOVER, DesignFamily.REPLICATE),
+        # CORRECTED. This row claimed REPLICATE and did not claim PARALLEL,
+        # and both were wrong: no replicate model exists for this method, and
+        # `analyse_parallel` has always accepted its spec. What is implemented
+        # is what M13A 2.2.3 gives a model for.
+        design_requirement=(DesignFamily.CROSSOVER, DesignFamily.PARALLEL),
         endpoints=(Endpoint.AUC, Endpoint.CMAX),
         regulatory_source=EMA_BIOEQUIVALENCE,
         evidence_tier=EvidenceTier.TIER_1A,
         decision_supported=True,
         known_limitations=(
-            "Applies to AUC by default. For Cmax the narrowed interval "
-            "applies only where Cmax itself matters for safety, efficacy or "
-            "therapeutic drug monitoring - a per-product decision the engine "
-            "refuses to guess.",
+            "Applies only to a product a clinician has classified as a narrow "
+            "therapeutic index drug. 4.1.9 states that no set of criteria can "
+            "categorise a drug as an NTID, so the class is stated by the "
+            "caller and derived from nothing: not from variability, not from "
+            "therapeutic drug monitoring alone, not from the drug's name. An "
+            "unstated class yields no verdict.",
+            "AUC is tightened on the class alone. For Cmax the narrowed "
+            "interval applies only where Cmax itself is of particular "
+            "importance for safety, efficacy or drug level monitoring - a "
+            "second product fact, stated separately, which EWP answered "
+            "oppositely for ciclosporin and tacrolimus in one document. "
+            "Unstated, and with no product-specific limits supplied, Cmax gets "
+            "no verdict rather than either default.",
+            "A confirmed NTI drug whose Cmax takes 80.00-125.00% is STILL "
+            "decided under 4.1.9 and is reported as EMA_NTI_NARROW_ABE. The "
+            "method is the procedure, not the width of the interval.",
+            "Both bounds are compared after rounding to two decimal places, as "
+            "4.1.8 states for the conventional interval. 4.1.8's sentence names "
+            "80.00 and 125.00 and 4.1.9 does not restate it for 90.00-111.11%; "
+            "that residual is VAL-EMA-NTI-001.",
+            "A 2x2 crossover and a parallel-group study only. A replicate "
+            "design is refused: 4.1.9 states an interval and no replicate "
+            "model, and neither FDA's Appendix C model nor EMA's Method A was "
+            "written for this procedure.",
             "EMA narrows the interval; FDA does not. The two NTI procedures "
             "are different procedures and neither is a parameterisation of "
-            "the other.",
+            "the other. Nothing on this path computes sigma_W0, Delta, theta "
+            "or a variability ratio.",
         ),
-        refusal_conditions=(RefusalCode.EMA_NTI_CMAX_PRODUCT_SPECIFIC,),
+        refusal_conditions=(
+            RefusalCode.EMA_NTI_PRODUCT_CLASS_REQUIRED,
+            RefusalCode.EMA_NTI_NOT_APPLICABLE,
+            RefusalCode.EMA_NTI_CMAX_IMPORTANCE_REQUIRED,
+            RefusalCode.EMA_NTI_CMAX_PRODUCT_SPECIFIC,
+            RefusalCode.EMA_NTI_ENDPOINT_RULE_REQUIRED,
+            RefusalCode.EMA_NTI_PRODUCT_LIMITS_CONFLICT,
+            RefusalCode.QUANTITY_NOT_ESTIMABLE,
+        ),
     ),
 )
 
@@ -775,6 +808,102 @@ _CAPABILITY_ROWS: tuple[CapabilityRecord, ...] = (
             "would contradict the declaration.",
         ),
         refusal_conditions=(RefusalCode.EMA_ABEL_WIDENING_BASIS_REQUIRED,),
+    ),
+    # ------------------------------------------- EMA narrow therapeutic index ---
+    _record(
+        capability_id="EMA_NTI_PRODUCT_CLASS_GATE",
+        title="Decide under 4.1.9 only for a product classified as an NTI drug",
+        jurisdiction=Jurisdiction.EMA,
+        method=Method.EMA_NTI_NARROW_ABE,
+        source_key=Capability.EMA_NTI_PRODUCT_CLASS_GATE,
+        design_requirement=(DesignFamily.CROSSOVER, DesignFamily.PARALLEL),
+        endpoints=(Endpoint.AUC, Endpoint.CMAX),
+        regulatory_source=EMA_BIOEQUIVALENCE,
+        evidence_tier=EvidenceTier.TIER_1A,
+        decision_supported=False,
+        known_limitations=(
+            "Structural, and it consults no data. 4.1.9 states that 'it is not "
+            "possible to define a set of criteria to categorise drugs as "
+            "narrow therapeutic index drugs' and that the decision is made "
+            "case by case on clinical considerations, so there is no rule this "
+            "engine could implement to answer it from a dataset.",
+            "An unstated class REFUSES rather than assuming a standard drug. A "
+            "product stated NOT to be an NTID also gets no verdict from this "
+            "method - the conventional interval reaches it through 4.1.8 and "
+            "the standard route instead.",
+            "Two sources that disagree - a routed spec and product metadata - "
+            "raise ContradictoryProductClass rather than being resolved by "
+            "precedence. That is `reconcile_nti_status`, shared with the FDA "
+            "gates rather than reimplemented here.",
+            "The gate cannot detect a MISSTATED class. A product declared an "
+            "NTID is decided as one, and nothing in the data would contradict "
+            "the declaration.",
+        ),
+        refusal_conditions=(
+            RefusalCode.EMA_NTI_PRODUCT_CLASS_REQUIRED,
+            RefusalCode.EMA_NTI_NOT_APPLICABLE,
+        ),
+    ),
+    _record(
+        capability_id="EMA_NTI_CMAX_IMPORTANCE_GATE",
+        title="Tighten Cmax only where Cmax itself is of particular importance",
+        jurisdiction=Jurisdiction.EMA,
+        method=Method.EMA_NTI_NARROW_ABE,
+        source_key=Capability.EMA_NTI_CMAX_IMPORTANCE_GATE,
+        design_requirement=(DesignFamily.CROSSOVER, DesignFamily.PARALLEL),
+        endpoints=(Endpoint.CMAX,),
+        regulatory_source=EMA_BIOEQUIVALENCE,
+        evidence_tier=EvidenceTier.TIER_1A,
+        decision_supported=False,
+        known_limitations=(
+            "A second product fact, separate from the class. 4.1.9 tightens "
+            "Cmax 'where Cmax is of particular importance for safety, efficacy "
+            "or drug level monitoring', which is a clinical judgement about "
+            "the product and is never read from the observed Cmax values.",
+            "Unstated, and with no product-specific limits supplied, Cmax gets "
+            "NO verdict. EWP published both answers for confirmed NTI drugs in "
+            "one document, so neither default would be right for the other "
+            "product.",
+            "Never consulted for AUC, whose interval 4.1.9 tightens on the "
+            "class alone.",
+            "Product-specific limits supplied for Cmax settle the interval, "
+            "including where the general rule leaves it open - that is what "
+            "EMA's own tacrolimus answer is. They are rejected when they "
+            "contradict a clinical importance the caller also stated.",
+        ),
+        refusal_conditions=(
+            RefusalCode.EMA_NTI_CMAX_IMPORTANCE_REQUIRED,
+            RefusalCode.EMA_NTI_CMAX_PRODUCT_SPECIFIC,
+            RefusalCode.EMA_NTI_PRODUCT_LIMITS_CONFLICT,
+        ),
+    ),
+    _record(
+        capability_id="EMA_NTI_ENDPOINT_DECISION",
+        title="One EMA NTI endpoint verdict: the 90% CI inside the applied interval",
+        jurisdiction=Jurisdiction.EMA,
+        method=Method.EMA_NTI_NARROW_ABE,
+        source_key=Capability.EMA_NTI_ENDPOINT_DECISION,
+        design_requirement=(DesignFamily.CROSSOVER, DesignFamily.PARALLEL),
+        endpoints=(Endpoint.AUC, Endpoint.CMAX),
+        regulatory_source=EMA_BIOEQUIVALENCE,
+        evidence_tier=EvidenceTier.TIER_1A,
+        decision_supported=True,
+        known_limitations=(
+            "The interval moves; the test does not. Both determined branches "
+            "run the same model - ICH M13A 2.2.3.2 for a crossover, 2.2.3.4 "
+            "for a parallel study - and differ only in the limits.",
+            "Both bounds are compared after rounding to two decimal places. "
+            "That is 4.1.8's rule, and 4.1.8 names 80.00 and 125.00 while "
+            "4.1.9 does not restate it: VAL-EMA-NTI-001.",
+            "Tier 1A. The interval is stated in the guideline and the model is "
+            "M13A's, and no EMA publication carries one NTI study end to end "
+            "with a stated verdict, so the wiring between correct pieces has "
+            "not been shown against a published decision.",
+        ),
+        refusal_conditions=(
+            RefusalCode.EMA_NTI_ENDPOINT_RULE_REQUIRED,
+            RefusalCode.QUANTITY_NOT_ESTIMABLE,
+        ),
     ),
     _record(
         capability_id="EMA_HVD_REFERENCE_VARIABILITY",

@@ -168,6 +168,7 @@ jobs:
                            be-stats/tests/validation/test_ema_tier1b.py \
                            be-stats/tests/unit/test_ema_abel.py \
                            be-stats/tests/unit/test_ema_abel_applicability.py \
+                           be-stats/tests/unit/test_ema_nti_applicability.py \
                            be-stats/tests/validation/test_fda_cvm_vich_gl52_candidate.py \
                            be-stats/tests/validation/test_golden_cases.py \
                            be-stats/tests/validation/test_governance_wording.py \
