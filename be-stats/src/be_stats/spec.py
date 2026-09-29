@@ -530,6 +530,36 @@ class NotValidated(Exception):
     """The method runs, but has not been shown to agree with the regulator."""
 
 
+def ci_within_limits(
+    *, ci_lower: float, ci_upper: float, lower: float, upper: float
+) -> bool:
+    """Does a 90% CI lie within an acceptance range? ONE definition.
+
+    ICH M13A 2.2.4: the confidence interval "should lie within a range of
+    80.00 - 125.00%". Inclusive at both ends, and compared as computed.
+
+    WHY IT IS NOT ROUNDED, AND WHERE IT IS
+
+    The 2010 EMA guideline's 4.1.8 compares each bound "when rounded to two
+    decimal places". For a non-replicate study that sentence sits in the part
+    M13A superseded on 25 January 2025 - EMA/531548/2024 lists "BE criteria"
+    among M13A's topics - and neither M13A 2.2.4 nor its Q&A has a rounding
+    sentence. So this comparison, which every non-replicate route uses, does
+    not round. VAL-EMA-ABE-001 records that reading and its limit: a study
+    completed and submitted before that date stays under 4.1.8.
+
+    EMA's replicate highly-variable path DOES round against 80.00-125.00%, in
+    `ema_hvd._interval_contained`, and that is not an inconsistency: M13A does
+    not cover replicate designs, and EMA/531548/2024 keeps the 2010 guideline
+    for them.
+
+    Named and shared because the defect it replaces was two comparisons for
+    one situation. `AcceptanceInterval.contains` and EMA 4.1.9's module both
+    call this; neither may carry its own.
+    """
+    return ci_lower >= lower and ci_upper <= upper
+
+
 @dataclass(frozen=True, slots=True)
 class AcceptanceInterval:
     lower: RegulatoryValue
@@ -537,7 +567,12 @@ class AcceptanceInterval:
     basis: str
 
     def contains(self, ci_lower: float, ci_upper: float) -> bool:
-        return ci_lower >= self.lower.value and ci_upper <= self.upper.value
+        return ci_within_limits(
+            ci_lower=ci_lower,
+            ci_upper=ci_upper,
+            lower=self.lower.value,
+            upper=self.upper.value,
+        )
 
     @property
     def lower_value(self) -> float:
@@ -1292,7 +1327,9 @@ class EmaNtiIntervalStatus(StrEnum):
     #: 90.00-111.11%.
     NARROWED = "narrowed"
     #: 80.00-125.00%: a confirmed NTID whose Cmax is explicitly not of
-    #: particular importance. 4.1.9 narrows nothing here and 4.1.8 stands.
+    #: particular importance. 4.1.9 narrows nothing here, and the conventional
+    #: interval stands - ICH M13A 2.2.4's for a non-replicate study, 4.1.8's
+    #: before it. The two state the same numbers.
     CONVENTIONAL = "conventional"
     #: Not an NTID. No EMA NTI verdict of any kind - not a conventional one
     #: either, because this method was not the applicable one.
@@ -1381,7 +1418,8 @@ def ema_nti_interval(
             return (
                 EmaNtiIntervalStatus.CONVENTIONAL,
                 "Cmax is stated NOT to be of particular importance, so 4.1.9 "
-                "narrows nothing for it and 4.1.8's 80.00-125.00% stands",
+                "narrows nothing for it and the conventional 80.00-125.00% "
+                "stands",
             )
         return (
             EmaNtiIntervalStatus.UNDETERMINED_CMAX_IMPORTANCE_NOT_STATED,

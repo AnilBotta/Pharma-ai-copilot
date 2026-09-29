@@ -40,5 +40,13 @@
 
   "what_would_close_it": "An EMA statement - in the guideline, a PKWP answer or the future ICH M13C - on whether 4.1.8's two-decimal comparison applies to the tightened interval.",
   "action_required": "None in be-stats until EMA states the rule. If EMA confirms the comparison is unrounded against the tightened interval, switch `ema_nti._interval_contained` to the unrounded comparison for the narrowed branch and close this finding.",
-  "related_findings": ["VAL-EMA-ABEL-003"]
+  "related_findings": ["VAL-EMA-ABEL-003", "VAL-EMA-ABE-001"],
+
+  "amendment_2026_09_29": {
+    "raised_by": "PR #88",
+    "what_was_missed": "This finding asked whether 4.1.8's rounding reaches 4.1.9's tightened interval. It never asked whether 4.1.8's comparison still governs a non-replicate study at all. EMA/531548/2024 puts ICH M13A in effect from 25 January 2025 for non-replicate designs, listing 'BE criteria' among its topics, and M13A 2.2.4 says the CI 'should lie within' the range with no rounding. Every design EMA 4.1.9 supports here is non-replicate.",
+    "consequence": "PR #87 rounded on EMA 4.1.9 while the standard route compared unrounded and cited M13A 2.2.4, so a crossover against 80.00-125.00% got two comparisons from one regulator depending on the route.",
+    "what_be_stats_does_now": "EMA 4.1.9 calls `spec.ci_within_limits`, the standard route's comparison: inclusive, unrounded, against both 90.00-111.11% and 80.00-125.00%. The 'what_be_stats_does' and 'why_rounded_for_the_tightened_interval' entries above describe the superseded behaviour and are kept as the record of it.",
+    "status": "Remains OPEN, rescoped. The question is now confined to a study governed by the 2010 guideline - completed and submitted before 25 January 2025 - for which 4.1.8 rounds and 4.1.9 does not say whether that reaches the tightened interval. The engine cannot identify such a study (VAL-EMA-ABE-001). For it the unrounded comparison is the stricter reading."
+  }
 }

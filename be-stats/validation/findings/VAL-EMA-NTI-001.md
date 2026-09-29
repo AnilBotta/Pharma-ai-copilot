@@ -6,9 +6,36 @@
 | | |
 |---|---|
 | Raised | PR #87, the EMA narrow therapeutic index audit |
-| Status | **`OPEN`** |
+| Status | **`OPEN`** - amended 2026-09-29, see below |
 | Method | `ema_nti_narrow_abe` |
 | Severity | qualifying: a regulatory interpretation, recorded rather than chosen silently |
+
+## Amendment, 2026-09-29 (PR #88)
+
+**This finding missed a prior question, and the behaviour it describes below
+has been replaced.**
+
+It asked whether 4.1.8's rounding reaches 4.1.9's tightened interval. It never
+asked whether 4.1.8's comparison still governs a non-replicate study at all.
+EMA/531548/2024 puts ICH M13A in effect from 25 January 2025 for non-replicate
+designs, with "BE criteria" among its topics, and M13A 2.2.4 says the CI
+"should lie within" the range with no rounding. Every design EMA 4.1.9 supports
+in be-stats is non-replicate.
+
+The result was two comparisons for one situation. The standard route compared
+unrounded and cited M13A 2.2.4; EMA 4.1.9 rounded. EMA 4.1.9 now calls the
+standard route's comparison, `spec.ci_within_limits`: inclusive and unrounded,
+against both intervals.
+
+**Still OPEN, rescoped.** The question below now concerns only a study governed
+by the 2010 guideline - completed and submitted before 25 January 2025 - where
+4.1.8 rounds and 4.1.9 does not say whether that reaches the tightened
+interval. The engine cannot identify such a study
+([VAL-EMA-ABE-001](VAL-EMA-ABE-001.md)); for it, the unrounded comparison is the
+stricter reading.
+
+The sections below are the original analysis, kept as the record of the
+superseded behaviour.
 
 ## What the sources say
 

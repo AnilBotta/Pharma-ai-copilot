@@ -234,10 +234,11 @@ ROUTING_MATRIX: tuple[RoutingRoute, ...] = (
         design_requirement=(DesignFamily.CROSSOVER, DesignFamily.PARALLEL),
         method=Method.EMA_NTI_NARROW_ABE,
         decision_rule=(
-            "The 90% confidence interval must fall within the NARROWED "
-            "90.00-111.11%, both bounds compared after rounding to two decimal "
-            "places. EMA narrows the interval where FDA adds criteria; the two "
-            "NTI procedures are not variants of one rule."
+            "The 90% confidence interval must lie within the NARROWED "
+            "90.00-111.11%, compared as ICH M13A 2.2.4 compares it - inclusive "
+            "and unrounded, the same comparison as the standard route. EMA "
+            "narrows the interval where FDA adds criteria; the two NTI "
+            "procedures are not variants of one rule."
         ),
         refusal_behaviour=(
             "An unstated narrow therapeutic index class yields decided=false, "

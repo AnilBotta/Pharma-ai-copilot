@@ -35,6 +35,7 @@ import textwrap
 import pytest
 
 from be_stats import ema_nti
+from be_stats.abe import analyse_crossover
 from be_stats.diagnostics import DiagnosticCode, Severity
 from be_stats.ema_nti import (
     CROSSOVER_MODEL,
@@ -43,10 +44,10 @@ from be_stats.ema_nti import (
     EmaNtiResultInconsistent,
     assess_ema_nti_endpoint,
 )
-from be_stats.regulatory_rounding import round_half_up
 from be_stats.spec import (
     CAPABILITY_VALIDATION,
     VALIDATION,
+    AcceptanceInterval,
     Capability,
     CmaxClinicalImportance,
     ContradictoryProductClass,
@@ -460,6 +461,11 @@ def test_the_reciprocal_is_not_the_regulatory_upper_limit():
     assert not ema_nti._interval_contained(
         ci_lower_percent=95.0, ci_upper_percent=111.12, lower=90.00, upper=upper
     )
+    # And, now that the comparison is unrounded, the reciprocal itself is
+    # outside the interval EMA published.
+    assert not ema_nti._interval_contained(
+        ci_lower_percent=95.0, ci_upper_percent=100.0 / 0.9, lower=90.00, upper=upper
+    )
 
 
 BOUNDARY_CASES = [
@@ -468,16 +474,22 @@ BOUNDARY_CASES = [
     ("narrowed, just inside", 90.01, 111.10, NARROWED, True),
     ("narrowed, lower just outside", 89.99, 111.00, NARROWED, False),
     ("narrowed, upper just outside", 90.10, 111.12, NARROWED, False),
-    # 4.1.8's rounding, applied to the tightened interval: VAL-EMA-NTI-001.
-    ("narrowed, lower rounds up onto 90.00", 89.995, 111.00, NARROWED, True),
-    ("narrowed, lower rounds below 90.00", 89.9949, 111.00, NARROWED, False),
-    ("narrowed, upper rounds down onto 111.11", 95.00, 111.1149, NARROWED, True),
-    ("narrowed, upper rounds above 111.11", 95.00, 111.115, NARROWED, False),
+    # CORRECTED. PR #87 expected True for the first and third of these four:
+    # it rounded each bound to two decimals on 4.1.8's authority. For a
+    # non-replicate study ICH M13A 2.2.4 governs and does not round
+    # (VAL-EMA-ABE-001), so a bound that would ROUND onto a limit is still
+    # outside it. The second and fourth were False either way.
+    ("narrowed, lower 89.995 is outside 90.00", 89.995, 111.00, NARROWED, False),
+    ("narrowed, lower 89.9949 is outside 90.00", 89.9949, 111.00, NARROWED, False),
+    ("narrowed, upper 111.1149 is outside 111.11", 95.00, 111.1149, NARROWED, False),
+    ("narrowed, upper 111.115 is outside 111.11", 95.00, 111.115, NARROWED, False),
+    ("narrowed, lower a hair inside", 90.000001, 111.00, NARROWED, True),
+    ("narrowed, upper a hair inside", 95.00, 111.109999, NARROWED, True),
     ("conventional, exactly on both", 80.00, 125.00, CONVENTIONAL, True),
     ("conventional, lower just outside", 79.99, 120.00, CONVENTIONAL, False),
     ("conventional, upper just outside", 85.00, 125.01, CONVENTIONAL, False),
-    ("conventional, lower rounds up onto 80.00", 79.995, 120.00, CONVENTIONAL, True),
-    ("conventional, upper rounds down onto 125.00", 85.00, 125.0049, CONVENTIONAL, True),
+    ("conventional, lower 79.995 is outside 80.00", 79.995, 120.00, CONVENTIONAL, False),
+    ("conventional, upper 125.0049 is outside 125.00", 85.00, 125.0049, CONVENTIONAL, False),
 ]
 
 
@@ -495,20 +507,85 @@ def test_the_boundary_behaviour(label, lower, upper, limits, expected):
     ), label
 
 
-def test_the_comparison_uses_the_one_rounding_helper():
-    """Not a second implementation, and not a formatted string. The package has
-    exactly one rounding helper and this module is a caller of it."""
-    source = inspect.getsource(ema_nti)
-    assert "from be_stats.regulatory_rounding import" in source
-    tree = ast.parse(source)
+def test_the_comparison_does_not_round():
+    """Structurally, over the syntax tree. CORRECTED from PR #87, which
+    asserted the opposite: for a non-replicate study ICH M13A 2.2.4 governs the
+    BE criteria and states no rounding (VAL-EMA-ABE-001)."""
+    tree = ast.parse(inspect.getsource(ema_nti))
+    imported = {
+        node.module
+        for node in ast.walk(tree)
+        if isinstance(node, ast.ImportFrom) and node.module
+    }
     called = {
         node.func.id
         for node in ast.walk(tree)
         if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
     }
-    assert "round_half_up" in called
-    assert "round" not in called, "binary round() is not the regulatory rule"
-    assert round_half_up(89.995) == round_half_up(89.995)
+    assert "be_stats.regulatory_rounding" not in imported
+    assert not called & {"round", "round_half_up", "exact_decimal"}
+
+
+def test_the_nti_route_and_the_standard_route_share_one_comparison():
+    """The defect this corrects was two comparisons for one situation.
+
+    Structurally: both call `spec.ci_within_limits`. Behaviourally: at every
+    boundary case against 80.00-125.00%, EMA 4.1.9's answer and the standard
+    EMA route's answer are the same answer.
+    """
+    for function in (ema_nti._interval_contained, AcceptanceInterval.contains):
+        tree = ast.parse(textwrap.dedent(inspect.getsource(function)))
+        called = {
+            node.func.id
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+        }
+        assert "ci_within_limits" in called, function.__qualname__
+
+    standard = resolve_be_spec(
+        jurisdiction=Jurisdiction.EMA, drug_class=DrugClass.STANDARD, endpoint=Endpoint.CMAX
+    ).acceptance
+    assert (standard.lower_value, standard.upper_value) == CONVENTIONAL
+    for label, lower, upper, limits, _ in BOUNDARY_CASES:
+        if limits != CONVENTIONAL:
+            continue
+        assert ema_nti._interval_contained(
+            ci_lower_percent=lower, ci_upper_percent=upper, lower=80.00, upper=125.00
+        ) is standard.contains(lower, upper), label
+
+
+def test_the_same_study_gets_the_same_verdict_through_either_route():
+    """End to end: a confirmed NTI drug whose Cmax is not of particular
+    importance, and a standard drug, on the same crossover, against the same
+    80.00-125.00% - one model, one interval, one comparison, one answer."""
+    for ratio, cv, seed in ((1.02, 0.05, 7), (1.12, 0.10, 3), (1.15, 0.12, 3)):
+        data = study("Cmax", ratio=ratio, cv=cv, seed=seed)
+        nti = assess_ema_nti_endpoint(
+            data, endpoint=Endpoint.CMAX, nti_status=NTI, cmax_importance=NOT_IMPORTANT
+        )
+        standard = analyse_crossover(
+            data,
+            resolve_be_spec(
+                jurisdiction=Jurisdiction.EMA,
+                drug_class=DrugClass.STANDARD,
+                endpoint=Endpoint.CMAX,
+            ),
+        )
+        assert nti.treatment.ci_lower == standard.ci_lower
+        assert nti.treatment.ci_upper == standard.ci_upper
+        assert nti.passes is standard.within_acceptance_interval, (ratio, cv, seed)
+
+
+def test_the_standard_route_does_not_round_either():
+    """Pinned, because the tempting fix for the inconsistency was the other
+    direction - rounding the standard route - and that would move every
+    ordinary EMA and FDA verdict at a boundary on a reading M13A does not
+    state."""
+    for jurisdiction in (Jurisdiction.EMA, Jurisdiction.FDA):
+        acceptance = resolve_be_spec(jurisdiction=jurisdiction).acceptance
+        assert not acceptance.contains(79.995, 120.00), jurisdiction
+        assert not acceptance.contains(85.00, 125.0049), jurisdiction
+        assert acceptance.contains(80.00, 125.00), jurisdiction
 
 
 def test_the_verdict_a_result_carries_is_the_one_its_own_interval_gives():
@@ -865,10 +942,15 @@ def test_the_provenance_names_both_live_documents():
     result = assess_ema_nti_endpoint(study(), endpoint=Endpoint.AUC, nti_status=NTI)
     text = "\n".join(result.provenance_lines)
     assert "4.1.9" in text
-    assert "4.1.8" in text
     assert "M13A" in text
     assert "EMA/531548/2024" in text
     assert "case by case" in text
+    # The comparison is attributed to the document that governs it, and the
+    # one it replaced is named with the case it still governs.
+    assert "2.2.4" in text
+    assert "without rounding" in text
+    assert "4.1.8" in text
+    assert "VAL-EMA-ABE-001" in text
 
 
 # --------------------------------------------------------- governance ---
@@ -935,6 +1017,20 @@ def test_the_open_finding_is_recorded_and_still_open():
     finding = FINDINGS["VAL-EMA-NTI-001"]
     assert finding.status is FindingStatus.OPEN
     assert "EMA_NTI_NARROW_ABE" in finding.affected_capabilities
+    # Amended, not silently resolved: its question survives for a pre-2025
+    # study, and the amendment says so.
+    assert "AMENDED 2026-09-29" in finding.description
+    assert "VAL-EMA-ABE-001" in finding.description
+
+
+def test_the_m13a_comparison_finding_is_open_and_covers_both_routes():
+    from be_stats.dossier.findings import FINDINGS, FindingStatus
+
+    finding = FINDINGS["VAL-EMA-ABE-001"]
+    assert finding.status is FindingStatus.OPEN
+    assert {"AVERAGE_BE_2X2", "EMA_NTI_NARROW_ABE"} <= set(finding.affected_capabilities)
+    assert "25 January 2025" in finding.description
+    assert "stricter" in finding.resolution_condition
 
 
 def test_the_tier_1b_search_adopted_nothing():

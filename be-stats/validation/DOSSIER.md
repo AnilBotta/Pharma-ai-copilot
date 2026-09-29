@@ -108,7 +108,7 @@ the next column and only the next column.
 - Applies only to a product a clinician has classified as a narrow therapeutic index drug. 4.1.9 states that no set of criteria can categorise a drug as an NTID, so the class is stated by the caller and derived from nothing: not from variability, not from therapeutic drug monitoring alone, not from the drug's name. An unstated class yields no verdict.
 - AUC is tightened on the class alone. For Cmax the narrowed interval applies only where Cmax itself is of particular importance for safety, efficacy or drug level monitoring - a second product fact, stated separately, which EWP answered oppositely for ciclosporin and tacrolimus in one document. Unstated, and with no product-specific limits supplied, Cmax gets no verdict rather than either default.
 - A confirmed NTI drug whose Cmax takes 80.00-125.00% is STILL decided under 4.1.9 and is reported as EMA_NTI_NARROW_ABE. The method is the procedure, not the width of the interval.
-- Both bounds are compared after rounding to two decimal places, as 4.1.8 states for the conventional interval. 4.1.8's sentence names 80.00 and 125.00 and 4.1.9 does not restate it for 90.00-111.11%; that residual is VAL-EMA-NTI-001.
+- The CI is compared as ICH M13A 2.2.4 compares it - 'should lie within' the range, inclusive, unrounded - through the same function as the standard route, so a confirmed NTI drug's Cmax and a standard drug's Cmax against 80.00-125.00% cannot get different answers. The 2010 guideline's 4.1.8 rounds each bound to two decimals and governs a study submitted before 25 January 2025; the engine knows no submission date (VAL-EMA-ABE-001).
 - A 2x2 crossover and a parallel-group study only. A replicate design is refused: 4.1.9 states an interval and no replicate model, and neither FDA's Appendix C model nor EMA's Method A was written for this procedure.
 - EMA narrows the interval; FDA does not. The two NTI procedures are different procedures and neither is a parameterisation of the other. Nothing on this path computes sigma_W0, Delta, theta or a variability ratio.
 
@@ -219,7 +219,7 @@ the next column and only the next column.
 **`EMA_NTI_ENDPOINT_DECISION`** - One EMA NTI endpoint verdict: the 90% CI inside the applied interval
 
 - The interval moves; the test does not. Both determined branches run the same model - ICH M13A 2.2.3.2 for a crossover, 2.2.3.4 for a parallel study - and differ only in the limits.
-- Both bounds are compared after rounding to two decimal places. That is 4.1.8's rule, and 4.1.8 names 80.00 and 125.00 while 4.1.9 does not restate it: VAL-EMA-NTI-001.
+- The comparison is M13A 2.2.4's, unrounded, and shared with the standard route (`spec.ci_within_limits`). PR #87 rounded both bounds on 4.1.8's authority; for a non-replicate study submitted after 25 January 2025 M13A governs the BE criteria and does not round: VAL-EMA-ABE-001.
 - Tier 1A. The interval is stated in the guideline and the model is M13A's, and no EMA publication carries one NTI study end to end with a stated verdict, so the wiring between correct pieces has not been shown against a published decision.
 
 **`EMA_HVD_REFERENCE_VARIABILITY`** - CVwR from the reference measurements alone
@@ -309,7 +309,7 @@ unsupported row at the end.
 
 - **input classification** - A drug declared narrow therapeutic index, endpoint AUC.
 - **design required** - crossover, parallel
-- **decision rule** - The 90% confidence interval must fall within the NARROWED 90.00-111.11%, both bounds compared after rounding to two decimal places. EMA narrows the interval where FDA adds criteria; the two NTI procedures are not variants of one rule.
+- **decision rule** - The 90% confidence interval must lie within the NARROWED 90.00-111.11%, compared as ICH M13A 2.2.4 compares it - inclusive and unrounded, the same comparison as the standard route. EMA narrows the interval where FDA adds criteria; the two NTI procedures are not variants of one rule.
 - **refusal behaviour** - An unstated narrow therapeutic index class yields decided=false, passes=null: `assess_ema_nti_endpoint` takes the class as stated product metadata and 4.1.9 gives no criteria to derive it from. Not estimable yields decided=false too. The narrowed interval is never widened back to 80.00-125.00%.
 - **refusal codes** - `EMA_NTI_PRODUCT_CLASS_REQUIRED`, `EMA_NTI_NOT_APPLICABLE`, `QUANTITY_NOT_ESTIMABLE`
 
@@ -519,9 +519,9 @@ re-established. A record whose environment was unavailable reads
 ### `EMA-NTI-APPLICABILITY-001`
 
 - **scenario** - Section 4.1.9's three sentences applied as three separate questions: whether the product is an NTID, which interval each endpoint gets, and whether the 90% CI falls inside it. Every combination of product class, endpoint, Cmax clinical importance and product-specific override is enumerated, with the boundary values of both intervals.
-- **dataset** - The rule matrix, plus 2x2 crossover and parallel studies constructed to sit exactly on, just inside and just outside each of 90.00, 111.11, 80.00 and 125.00 percent, including values that round across a boundary.
+- **dataset** - The rule matrix, plus 2x2 crossover and parallel studies constructed to sit exactly on, just inside and just outside each of 90.00, 111.11, 80.00 and 125.00 percent, including values a two-decimal rounding would carry across a boundary and M13A 2.2.4's unrounded comparison does not.
 - **environment** - None - the rule and the limits are stated in the guideline.
-- **expected** - AUC of a confirmed NTID at 90.00-111.11%; Cmax at 90.00-111.11% where Cmax is stated to be of particular importance and at 80.00-125.00% where it is stated not to be; no verdict at all where the class is unstated, where the class is stated not to be NTI, where Cmax importance is unstated with no product-specific limits, or on an endpoint 4.1.9 does not address; product-specific limits replacing the general rule and refused where they contradict a stated importance; both bounds compared after rounding to two decimals; and no result constructible that narrows for a non-NTI product, decides an unstated class, or reports itself as any method other than EMA_NTI_NARROW_ABE.
+- **expected** - AUC of a confirmed NTID at 90.00-111.11%; Cmax at 90.00-111.11% where Cmax is stated to be of particular importance and at 80.00-125.00% where it is stated not to be; no verdict at all where the class is unstated, where the class is stated not to be NTI, where Cmax importance is unstated with no product-specific limits, or on an endpoint 4.1.9 does not address; product-specific limits replacing the general rule and refused where they contradict a stated importance; the CI compared as ICH M13A 2.2.4 compares it, unrounded, through the same function as the standard route, so the two agree at every boundary; and no result constructible that narrows for a non-NTI product, decides an unstated class, or reports itself as any method other than EMA_NTI_NARROW_ABE.
 - **observed** - Conforms on every combination enumerated.
 - **tolerance** - Exact: these are decisions, not quantities.
 - **established by** - `tests/unit/test_ema_nti_applicability.py`
@@ -1004,6 +1004,7 @@ the finding was.
 | `VAL-EMA-ABEL-002` | qualifying | resolved | `EMA_ABEL_LIMIT_CALCULATION` |
 | `VAL-EMA-ABEL-003` | qualifying | open | `EMA_HVD_ABEL`, `EMA_HVD_ENDPOINT_DECISION` |
 | `VAL-EMA-NTI-001` | qualifying | open | `EMA_NTI_NARROW_ABE`, `EMA_NTI_ENDPOINT_DECISION` |
+| `VAL-EMA-ABE-001` | qualifying | open | `AVERAGE_BE_2X2`, `EMA_NTI_NARROW_ABE`, `EMA_NTI_ENDPOINT_DECISION` |
 | `VAL-EMA-ABEL-001` | informational | preempted | `EMA_HVD_ENDPOINT_DECISION` |
 | `VAL-FDA-HVD-001` | informational | resolved | `FDA_HVD_RSABE` |
 | `DOSSIER-001` | informational | open | `FDA_REPLICATE_STANDARD_ABE_PARTIAL` |
@@ -1080,11 +1081,19 @@ EMA states the ABEL cap as the pair 69.84-143.19%; the formula at CVwR = 50% giv
 
 ### `VAL-EMA-NTI-001`
 
-4.1.8's two-decimal comparison sentence names 80.00% and 125.00%. 4.1.9 replaces the interval with 90.00-111.11% and does not restate the sentence. be-stats applies the same two-decimal comparison to both intervals.
+4.1.8's two-decimal comparison sentence names 80.00% and 125.00%. 4.1.9 replaces the interval with 90.00-111.11% and does not restate the sentence. AMENDED 2026-09-29: the question is now confined to a study governed by the 2010 guideline - completed and submitted before 25 January 2025. For a later non-replicate study the comparison is ICH M13A 2.2.4's and unrounded (VAL-EMA-ABE-001), which is what be-stats now applies to both intervals.
 
-- **evidence** - Read from the extracted text of CPMP/EWP/QWP/1401/98 Rev. 1 4.1.8 and 4.1.9, EMA/618604/2008 Rev. 13 questions 4 and 5, EMA/531548/2024, and ICH M13A (Step 5) 2.2.4. 4.1.8: 'To be inside the acceptance interval the lower bound should be >= 80.00% when rounded to two decimal places and the upper bound should be <= 125.00% when rounded to two decimal places.' 4.1.9 states the tightened interval to exactly two decimals and says nothing about how a bound is compared with it. The Q&A answers repeat '(90.00-111.11%)' and publish no comparison. M13A 2.2.4 has no rounding sentence at all and does not address NTI drugs.
-- **resolution condition** - An EMA statement - in the guideline, a PKWP answer or ICH M13C - on whether 4.1.8's rounding applies to the tightened interval. Until then the rounded comparison stands, on the ground that 4.1.9 changes WHICH interval applies and 4.1.8 defines what being inside one means, and that both of 4.1.9's limits are published to exactly two decimals. This is the OPPOSITE choice from VAL-EMA-ABEL-003 and the difference is a fact about the numbers: a widened ABEL limit is computed per study from exp(+/- k.sWR) and has no published two-decimal form to round against, while 90.00 and 111.11 are published constants.
+- **evidence** - Read from the extracted text of CPMP/EWP/QWP/1401/98 Rev. 1 4.1.8 and 4.1.9, EMA/618604/2008 Rev. 13 questions 4 and 5, EMA/531548/2024, and ICH M13A (Step 5) 2.2.4. 4.1.8: 'To be inside the acceptance interval the lower bound should be >= 80.00% when rounded to two decimal places and the upper bound should be <= 125.00% when rounded to two decimal places.' 4.1.9 states the tightened interval to exactly two decimals and says nothing about how a bound is compared with it. The Q&A answers repeat '(90.00-111.11%)' and publish no comparison. M13A 2.2.4 has no rounding sentence at all and does not address NTI drugs. The original analysis (PR #87) asked only whether 4.1.8 reaches 4.1.9's interval and never asked whether 4.1.8's comparison still governed a non-replicate study at all; after 25 January 2025 it does not, which is VAL-EMA-ABE-001.
+- **resolution condition** - An EMA statement - in the guideline, a PKWP answer or ICH M13C - on how a CI is compared with the tightened interval under the 2010 guideline. Not blocking current behaviour: be-stats applies M13A 2.2.4's unrounded comparison to both intervals, which is the governing rule for a non-replicate study submitted after 25 January 2025 and the stricter of the two readings for one submitted before it. Stays OPEN because the pre-2025 case is still unanswered and the engine cannot tell the two apart.
 - **file** - `validation/findings/VAL-EMA-NTI-001.json`
+
+### `VAL-EMA-ABE-001`
+
+For a non-replicate EMA study, two documents state the BE comparison differently. The 2010 guideline's 4.1.8 rounds each CI bound to two decimal places before comparing it with 80.00-125.00%; ICH M13A 2.2.4, in effect from 25 January 2025, says the CI 'should lie within' the range and does not round. be-stats applies M13A's comparison, unrounded, to every non-replicate route - the standard route and EMA 4.1.9 alike - and does not know a study's submission date.
+
+- **evidence** - EMA/531548/2024 (CHMP, 17 February 2025): M13A came into effect 'formally superseding applicable parts of' the 2010 guideline; it relates to 'data analysis for a non-replicate study design' and lists 'BE criteria' among those considerations; studies completed and included in a submission before 25 January 2025 keep the EMA guideline's requirements, and later submissions follow M13A. ICH M13A (EMA Step 5) 2.2.4: 'The 90% confidence interval ... should lie within a range of 80.00 - 125.00%.' No rounding sentence. The M13A Q&A, EMA/CHMP/ICH/325575/2024, 17 pages, extracted and searched: no occurrence of 'rounded', 'rounding', 'decimal', '80.00' or '125.00', and no question under 2.2.4. The 2010 guideline's 4.1.8 rounding sentence is quoted in VAL-EMA-ABEL-003.
+- **resolution condition** - Either an EMA statement on whether 4.1.8's two-decimal practice continues under M13A, or a typed submission regime on the engine's input, so a pre-2025 study can be compared under 4.1.8. Until then the unrounded comparison stands: it is M13A's literal text for a current study, and for a pre-2025 study it is the stricter reading - it never grants a bound the 0.005 margin rounding would.
+- **file** - `validation/findings/VAL-EMA-ABE-001.json`
 
 ### `VAL-EMA-ABEL-001`
 
