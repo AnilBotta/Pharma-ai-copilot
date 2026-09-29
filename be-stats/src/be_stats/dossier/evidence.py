@@ -486,8 +486,9 @@ EVIDENCE_MANIFEST: tuple[EvidenceRecord, ...] = (
         dataset=(
             "The rule matrix, plus 2x2 crossover and parallel studies "
             "constructed to sit exactly on, just inside and just outside each "
-            "of 90.00, 111.11, 80.00 and 125.00 percent, including values that "
-            "round across a boundary."
+            "of 90.00, 111.11, 80.00 and 125.00 percent, including values a "
+            "two-decimal rounding would carry across a boundary and M13A 2.2.4's "
+            "unrounded comparison does not."
         ),
         software_environment="None - the rule and the limits are stated in the guideline.",
         expected=(
@@ -498,8 +499,10 @@ EVIDENCE_MANIFEST: tuple[EvidenceRecord, ...] = (
             "NTI, where Cmax importance is unstated with no product-specific "
             "limits, or on an endpoint 4.1.9 does not address; product-specific "
             "limits replacing the general rule and refused where they "
-            "contradict a stated importance; both bounds compared after "
-            "rounding to two decimals; and no result constructible that "
+            "contradict a stated importance; the CI compared as ICH M13A 2.2.4 "
+            "compares it, unrounded, through the same function as the standard "
+            "route, so the two agree at every boundary; and no result "
+            "constructible that "
             "narrows for a non-NTI product, decides an unstated class, or "
             "reports itself as any method other than EMA_NTI_NARROW_ABE."
         ),

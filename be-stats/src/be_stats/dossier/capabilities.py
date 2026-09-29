@@ -367,10 +367,13 @@ _METHOD_ROWS: tuple[CapabilityRecord, ...] = (
             "A confirmed NTI drug whose Cmax takes 80.00-125.00% is STILL "
             "decided under 4.1.9 and is reported as EMA_NTI_NARROW_ABE. The "
             "method is the procedure, not the width of the interval.",
-            "Both bounds are compared after rounding to two decimal places, as "
-            "4.1.8 states for the conventional interval. 4.1.8's sentence names "
-            "80.00 and 125.00 and 4.1.9 does not restate it for 90.00-111.11%; "
-            "that residual is VAL-EMA-NTI-001.",
+            "The CI is compared as ICH M13A 2.2.4 compares it - 'should lie "
+            "within' the range, inclusive, unrounded - through the same "
+            "function as the standard route, so a confirmed NTI drug's Cmax and "
+            "a standard drug's Cmax against 80.00-125.00% cannot get different "
+            "answers. The 2010 guideline's 4.1.8 rounds each bound to two "
+            "decimals and governs a study submitted before 25 January 2025; the "
+            "engine knows no submission date (VAL-EMA-ABE-001).",
             "A 2x2 crossover and a parallel-group study only. A replicate "
             "design is refused: 4.1.9 states an interval and no replicate "
             "model, and neither FDA's Appendix C model nor EMA's Method A was "
@@ -892,9 +895,11 @@ _CAPABILITY_ROWS: tuple[CapabilityRecord, ...] = (
             "The interval moves; the test does not. Both determined branches "
             "run the same model - ICH M13A 2.2.3.2 for a crossover, 2.2.3.4 "
             "for a parallel study - and differ only in the limits.",
-            "Both bounds are compared after rounding to two decimal places. "
-            "That is 4.1.8's rule, and 4.1.8 names 80.00 and 125.00 while "
-            "4.1.9 does not restate it: VAL-EMA-NTI-001.",
+            "The comparison is M13A 2.2.4's, unrounded, and shared with the "
+            "standard route (`spec.ci_within_limits`). PR #87 rounded both "
+            "bounds on 4.1.8's authority; for a non-replicate study submitted "
+            "after 25 January 2025 M13A governs the BE criteria and does not "
+            "round: VAL-EMA-ABE-001.",
             "Tier 1A. The interval is stated in the guideline and the model is "
             "M13A's, and no EMA publication carries one NTI study end to end "
             "with a stated verdict, so the wiring between correct pieces has "

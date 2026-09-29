@@ -1,0 +1,48 @@
+{
+  "finding_id": "VAL-EMA-ABE-001",
+  "title": "For a non-replicate EMA study, 4.1.8 rounds the CI bounds and ICH M13A 2.2.4 does not",
+  "raised_by": "PR #88, the audit that was opened to add 4.1.8 rounding to EMA standard ABE and found it would be wrong",
+  "raised_on": "2026-09-29",
+  "status": "OPEN",
+  "method": "standard_abe (EMA), ema_nti_narrow_abe",
+  "severity": "regulatory_interpretation_open",
+
+  "what_the_sources_say": {
+    "ema_2010_guideline_4_1_8": {
+      "rule": "To be inside the acceptance interval the lower bound should be >= 80.00% when rounded to two decimal places and the upper bound should be <= 125.00% when rounded to two decimal places.",
+      "source": "EMA, Guideline on the Investigation of Bioequivalence, CPMP/EWP/QWP/1401/98 Rev. 1, section 4.1.8",
+      "scope": "the BE criteria paragraph for single-dose studies"
+    },
+    "ich_m13a_2_2_4": {
+      "rule": "The 90% confidence interval for the geometric mean ratio of these PK parameters used to establish BE should lie within a range of 80.00 - 125.00%.",
+      "source": "ICH M13A, EMA Step 5 (EMA/CHMP/ICH/953493/2022), section 2.2.4, within 2.2 'Data Analysis for Non-Replicate Study Design'",
+      "rounding": "none stated"
+    },
+    "ema_m13a_qa": {
+      "source": "ICH M13A Questions and Answers, EMA/CHMP/ICH/325575/2024, 17 pages",
+      "searched_for": ["rounded", "rounding", "decimal", "80.00", "125.00", "2.2.4"],
+      "result": "no occurrence of any term; the only match for 'round' is the word 'around' in the preface"
+    },
+    "ema_531548_2024": {
+      "source": "EMA/531548/2024, Considerations regarding the implementation of ICH M13A, adopted by CHMP 17 February 2025",
+      "supersession": "ICH M13A came into effect on 25 January 2025, 'formally superseding applicable parts of' the 2010 guideline",
+      "scope_of_m13a": "'ICH M13A, however, only relates to BE study considerations and data analysis for a non-replicate study design'; its data-analysis considerations include 'BE criteria'",
+      "transition": "BE studies completed and included in a regulatory submission before 25 January 2025 keep the requirements of the EMA guideline; submissions after that date should follow ICH M13A",
+      "replicate_designs": "BE studies with highly variable drugs (replicate design) and drugs with narrow therapeutic index are named as topics where both documents are read in conjunction"
+    }
+  },
+
+  "what_be_stats_does": {
+    "non_replicate_routes": "One comparison, `spec.ci_within_limits`: the CI lies within the limits, inclusive at both ends, compared as computed. Called by `AcceptanceInterval.contains` (the standard route, EMA and FDA alike) and by `ema_nti._interval_contained` (EMA 4.1.9).",
+    "replicate_ema_hvd": "Unchanged. `ema_hvd._interval_contained` rounds against 80.00-125.00% under 4.1.8, because M13A does not cover replicate designs and EMA/531548/2024 keeps the 2010 guideline for them.",
+    "submission_date": "Not an input. The engine cannot tell a pre-2025 study from a later one."
+  },
+
+  "what_changed_in_this_pr": "EMA 4.1.9 (PR #87) rounded both bounds on 4.1.8's authority, while the standard route compared unrounded and cited M13A 2.2.4. A crossover against 80.00-125.00% therefore got two different comparisons from one regulator depending on the route. EMA 4.1.9 now uses the standard route's comparison. No standard-route or FDA result moves.",
+
+  "why_unrounded": "For a non-replicate study submitted after 25 January 2025, M13A governs the BE criteria and its text does not round. For a study submitted before, 4.1.8 applies and rounds; the unrounded comparison is then the stricter reading - any interval that passes unrounded also passes rounded, and never the reverse - so it can refuse a study 4.1.8 would pass by up to 0.005 on a bound, and cannot pass one 4.1.8 would refuse.",
+
+  "what_would_close_it": "An EMA statement on whether the two-decimal practice of 4.1.8 continues under M13A, or a typed submission-regime input so a pre-2025 study is compared under 4.1.8.",
+  "action_required": "None in be-stats until one of those exists.",
+  "related_findings": ["VAL-EMA-NTI-001", "VAL-EMA-ABEL-003"]
+}

@@ -17,7 +17,8 @@ THE THREE QUESTIONS, KEPT APART
     B  which interval does this endpoint    `ema_nti_interval`: AUC always;
        get?                                 Cmax on `CmaxClinicalImportance`;
                                             nothing else addressed
-    C  does the interval contain the CI?    one comparison, two decimal places
+    C  does the interval contain the CI?    one comparison, ICH M13A 2.2.4's,
+                                            the same one the standard route uses
 
 A is not derived from B and neither is derived from the data. EMA states in
 terms that "it is not possible to define a set of criteria to categorise drugs
@@ -63,8 +64,8 @@ M13A and the existing EMA Guideline read in conjunction may be applicable" to
 them. So both documents are live here, each for what it covers:
 
     ICH M13A 2.2.3.2    the analysis model for a non-replicate crossover
-    ICH M13A 2.2.4      the conventional 80.00-125.00% range
-    EMA 4.1.8           the two-decimal comparison
+    ICH M13A 2.2.4      the conventional 80.00-125.00% range, and how a CI is
+                        compared with a range: it "should lie within" it
     EMA 4.1.9           the tightened 90.00-111.11% range, and when it applies
     EMA PKWP Q&A        the per-product answers, themselves now to be read in
                         conjunction with M13A pending EMA's review
@@ -72,6 +73,26 @@ them. So both documents are live here, each for what it covers:
 Neither "the 2010 guideline governs everything" nor "M13A superseded EMA NTI"
 is true, and the provenance lines on every result say which document each part
 of the decision came from.
+
+CORRECTED: THE COMPARISON WAS 4.1.8's, AND FOR THESE DESIGNS IT IS M13A's
+
+PR #87 compared both bounds after rounding to two decimals, on the ground that
+4.1.8 defines what "inside the acceptance interval" means. That reading left
+out the document that now governs it. 4.1.8's rounding sentence sits in the
+paragraph that sets the BE criteria for a single-dose study; EMA/531548/2024
+lists "BE criteria" among M13A's topics for non-replicate designs and puts M13A
+in effect from 25 January 2025, "formally superseding applicable parts" of the
+2010 guideline. M13A 2.2.4 says the interval "should lie within a range of
+80.00 - 125.00%" and has no rounding sentence, and neither has the M13A Q&A
+(EMA/CHMP/ICH/325575/2024).
+
+The standard route already compared that way and cited M13A 2.2.4 for it, so
+the engine held two rules for one situation: the same crossover, the same
+80.00-125.00%, the same regulator, rounded through this module and unrounded
+through `abe`. It now uses the one comparison. VAL-EMA-ABE-001 records the
+reading and what it does not cover - a study completed and submitted before 25
+January 2025 stays under the 2010 guideline, and nothing here knows a
+submission date.
 """
 
 from __future__ import annotations
@@ -86,7 +107,6 @@ from be_stats.provenance import (
     RegulatoryValue,
     VerificationStatus,
 )
-from be_stats.regulatory_rounding import exact_decimal, round_half_up
 from be_stats.spec import (
     AcceptanceInterval,
     BeSpec,
@@ -102,6 +122,7 @@ from be_stats.spec import (
     NtiStatus,
     ProductOverride,
     ValidationStatus,
+    ci_within_limits,
     ema_nti_interval,
     ema_nti_limits,
     ema_nti_product_class,
@@ -148,33 +169,28 @@ class EmaNtiResultInconsistent(ValueError):
 def _interval_contained(
     *, ci_lower_percent: float, ci_upper_percent: float, lower: float, upper: float
 ) -> bool:
-    """THE comparison of a 90% CI with 4.1.9's limits. One definition.
+    """THE comparison of a 90% CI with 4.1.9's limits: the shared one.
 
-    TWO DECIMAL PLACES, FOR BOTH INTERVALS
+    Delegates to `spec.ci_within_limits`, which `AcceptanceInterval.contains`
+    also calls, so a confirmed NTI drug's Cmax against 80.00-125.00% and a
+    standard drug's Cmax against 80.00-125.00% are one comparison rather than
+    two that happen to agree. Every design this module accepts is non-replicate,
+    and for those the comparison is ICH M13A 2.2.4's - "should lie within" the
+    range - with no rounding: see `ci_within_limits` and VAL-EMA-ABE-001.
 
-    4.1.8: "To be inside the acceptance interval the lower bound should be >=
-    80.00% when rounded to two decimal places and the upper bound should be <=
-    125.00% when rounded to two decimal places." 4.1.9 replaces WHICH interval
-    applies - "the acceptance interval for AUC should be tightened to
-    90.00-111.11%" - and says nothing about what containment means, because
-    4.1.8 has already said it. Both of 4.1.9's limits are published to exactly
-    two decimals, in the same document and the same style as 4.1.8's, and the
-    PKWP Q&A repeats "(90.00-111.11%)" for ciclosporin. So the same comparison
-    applies to both, through the same helper PR #85 introduced - there is one
-    rounding implementation in this package and this is a caller of it.
+    CORRECTED. This rounded both bounds to two decimals, reading 4.1.8's
+    sentence as the definition of containment and carrying it to 4.1.9's
+    interval. The question VAL-EMA-NTI-001 asked - does 4.1.8's rounding reach
+    90.00-111.11%? - assumed 4.1.8's rounding still governed a non-replicate
+    study at all. After 25 January 2025 M13A 2.2.4 does, and it does not round.
 
-    This differs from the WIDENED limits of 4.1.10, which are compared
-    unrounded (VAL-EMA-ABEL-003), and the difference is a fact about the
-    numbers rather than a preference: a widened limit is computed per study
-    from exp(+/- k.sWR) and has no published two-decimal form to round against.
-    4.1.9's limits are published constants.
-
-    4.1.8's sentence names 80.00 and 125.00 and does not restate itself under
-    4.1.9. That residual is VAL-EMA-NTI-001, recorded rather than resolved.
+    111.11 is still the published limit, compared as published; 100/0.9 is not.
     """
-    return (
-        round_half_up(ci_lower_percent) >= exact_decimal(lower)
-        and round_half_up(ci_upper_percent) <= exact_decimal(upper)
+    return ci_within_limits(
+        ci_lower=ci_lower_percent,
+        ci_upper=ci_upper_percent,
+        lower=lower,
+        upper=upper,
     )
 
 
@@ -556,8 +572,13 @@ _PROVENANCE: tuple[str, ...] = (
     "and the classification is made case by case on clinical considerations. "
     "This engine therefore takes it as stated product metadata and derives it "
     "from nothing.",
-    "EMA guideline section 4.1.8: a bound is inside the acceptance interval "
-    "when it is within the limits after rounding to two decimal places.",
+    "ICH M13A section 2.2.4: the 90% confidence interval 'should lie within' "
+    "the range. Compared as computed, inclusive, without rounding - the same "
+    "comparison the standard route uses. For a non-replicate study M13A "
+    "governs the BE criteria from 25 January 2025; the 2010 guideline's "
+    "4.1.8, which rounds each bound to two decimals, governs a study completed "
+    "and submitted before that date, and this engine does not know a "
+    "submission date (VAL-EMA-ABE-001).",
     "ICH M13A section 2.2.3.2 (crossover) and 2.2.3.4 (parallel): the "
     "analysis model for a non-replicate study.",
     "EMA/531548/2024, adopted by CHMP 17 February 2025: after 25 January 2025 "
@@ -583,8 +604,8 @@ def assess_ema_nti_endpoint(
         A  product class    stated, and cross-checked against the routed spec
         B  interval         AUC tightened; Cmax on its own stated importance;
                             product-specific guidance replaces either
-        C  decision         the 90% CI inside the applied limits, both bounds
-                            compared after rounding to two decimal places
+        C  decision         the 90% CI within the applied limits, compared as
+                            ICH M13A 2.2.4 compares it - inclusive, unrounded
 
     Both determined branches run the same model and the same comparison. They
     differ only in the limits, which is what 4.1.9 is.
